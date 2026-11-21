@@ -30,6 +30,7 @@
       "src/loop/loop.test.ts": 1,
       "src/memory/remember.test.ts": 1,
       "src/pr-state-wait.test.ts": 5,
+      "src/review-format/render.ts": 1,
       "src/setup/run.test.ts": 1
     },
     "bun:test/no-export": {
@@ -39,6 +40,7 @@
     },
     "max-depth": {
       "src/pr-template/adopt.ts": 5,
+      "src/review-format/paths.ts": 1,
       "src/upgrade/command.ts": 2,
       "src/wizard/launcher.ts": 1,
       "src/workspace/run.ts": 1
@@ -107,6 +109,10 @@
       "src/engine.ts": 3,
       "src/fidelity/block.test.ts": 2,
       "src/fidelity/grade.test.ts": 13,
+      "src/review-format/fit.test.ts": 1,
+      "src/review-format/fixtures/scenarios.ts": 2,
+      "src/review-format/render.test.ts": 2,
+      "src/review-format/view.test.ts": 7,
       "src/setup/run.test.ts": 1,
       "src/sinks/sinks.test.ts": 1,
       "src/wizard/ui.ts": 4,
@@ -126,13 +132,15 @@
       "src/engine.fake.test.ts": 1,
       "src/engine.test.ts": 3,
       "src/engine.ts": 5,
-      "src/pr-state-wait.test.ts": 27
+      "src/pr-state-wait.test.ts": 27,
+      "src/review-format/view.test.ts": 2
     },
     "TS2352": {
       "src/formats.test.ts": 1
     },
     "TS2353": {
-      "src/engine.fake.test.ts": 3
+      "src/engine.fake.test.ts": 3,
+      "src/engine.test.ts": 1
     },
     "TS2365": {
       "src/pr-template/format.ts": 1
@@ -140,12 +148,16 @@
     "TS2493": {
       "src/engine.test.ts": 1
     },
+    "TS2532": {
+      "src/engine.fake.test.ts": 1
+    },
     "TS2739": {
       "src/sinks/sinks.test.ts": 1
     },
     "TS2741": {
       "src/ledger-read/pull.ts": 1,
       "src/memory/threads.proposal.fake.test.ts": 1,
+      "src/review-format/status.test.ts": 2,
       "src/skills/install.test.ts": 20
     },
     "TS2769": {

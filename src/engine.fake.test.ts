@@ -216,10 +216,10 @@ describe("the batch loop against a fake provider", () => {
     expect(posted.review?.comments[0].body).toContain(
       "| **Priority** | **Should** · a change is expected; answer if you disagree |\n| **Severity** | 🟠 Fix |",
     );
-    expect(body.split("\n")[0]).not.toContain("Partial review");
-    expect(body.split("\n")[0]).toContain(`all 3 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
+    expect(body.split("\n")[0]).not.toContain("Partial");
+    expect(body).toContain(`| **Coverage** | 3 of 3 files reviewed, whole pull request; 1 not reviewable: \`${LOGO}\` (binary) |`);
     expect(body).toContain("wachiman sha=");
-    expect(body).toContain("1 finding(s): 1 to fix; 1 on their lines");
+    expect(body.split("\n")[0]).toContain("🟠 **1 to fix in this PR**");
     expect(body).toContain("| Batch 1 of 2 | 2 | 9 | 5 | reviewed after a retry | 6 | $0.40 |");
     expect(body).toContain("| Batch 2 of 2 | 1 | 4 | 1 | reviewed | 3 | $0.20 |");
     expect(body).toContain("**Batch 1 of 2.** Manager looks mostly fine.");
@@ -731,7 +731,7 @@ describe("one review carries its inline comments (issue #17)", () => {
 
     const reviews = posts.filter((p) => p.url.endsWith("/pulls/7/reviews"));
     expect(reviews).toHaveLength(1);
-    expect(reviews[0].payload.body).toContain("3 on their lines");
+    expect(reviews[0].payload.body.split("\n")[0]).toContain("2 to fix in this PR");
     expect(reviews[0].payload.comments).toHaveLength(3);
     const replies = posts.filter((p) => p.url.includes("/comments/"));
     expect(replies.map((p) => p.url)).toEqual(["repos/o/r/pulls/7/comments/101/replies", "repos/o/r/pulls/7/comments/102/replies"]);
@@ -895,10 +895,10 @@ describe("the ADR notice", () => {
     const posted = await run([], [{ path: ADR, line: 0, severity: "info", topic: "adr", title: "ADR edited", body: "Model says so." }]);
     const body = posted?.body ?? "";
     expect(posted?.comments).toEqual([]);
-    expect(body).toContain("### For your information");
-    expect(body).toContain(`FYI · ⚪🏛️ **Info · adr: Edits an accepted decision record** (\`${ADR}\`)`);
+    expect(body).toContain("<details><summary>For your information (1)</summary>");
+    expect(body).toMatch(/\| ⚪ Info · FYI · 🏛️ adr \| [^|]*\| Edits an accepted decision record \|/);
     expect(body).not.toContain("ADR edited");
-    expect(body).toContain("1 finding(s); 0 on their lines");
+    expect(body).toContain("⚪ 1 for your information (1)");
   });
 
   test("is not added for a decision record outside the requested paths or excluded", async () => {
@@ -1277,7 +1277,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     expect(prompt).not.toContain(`- ${MANAGER} +6 −0`);
     expect(prompt).toContain("the branch was rebased since");
     const first = r.posted?.body.split("\n")[0] ?? "";
-    expect(first).toBe(`👮 **Wachiman** · review of the changes since \`old1111\` (after a rebase), at \`head123\`: all 1 files reviewed.`);
+    expect(first).toContain("changes since `old1111` (after a rebase) at `head123`");
     expect(r.posted?.body).toContain(`<!-- wachiman sha=${HEAD} -->`);
   });
 
@@ -1314,7 +1314,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     expect(r.provider.requests).toHaveLength(1);
     expect(r.logs.join("\n")).toContain("cannot be compared");
     expect(r.prompts[0]).toContain("the whole pull request");
-    expect(r.posted?.body.split("\n")[0]).toContain("review of the whole pull request");
+    expect(r.posted?.body.split("\n")[0]).toContain("whole PR at `head123`");
   });
 
   test("a list that may be cut short is not trusted: full review", async () => {
@@ -1334,7 +1334,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     const r = await run({ status: "ahead", old: "throws", current: rebasedFiles });
     expect(r.provider.requests).toHaveLength(1);
     const first = r.posted?.body.split("\n")[0] ?? "";
-    expect(first).toContain("review of the changes since `old1111`, at `head123`");
+    expect(first).toContain("changes since `old1111` at `head123`");
     expect(first).not.toContain("after a rebase");
     // The old change is known and one file's change differs: only that file is reviewed.
     const edited = rebasedFiles.map((f) =>
@@ -1845,7 +1845,7 @@ describe("a pull request with a PNG, over three pushes", () => {
     // Push 1: the PNG is not expected, so the review is complete and carries the marker.
     await review(deps("opened"), "o/r", 7, []);
     expect(w.reviews).toHaveLength(1);
-    expect(w.reviews[0].split("\n")[0]).toContain(`all 2 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
+    expect(w.reviews[0]).toContain(`| **Coverage** | 2 of 2 files reviewed, whole pull request; 1 not reviewable: \`${LOGO}\` (binary) |`);
     expect(w.reviews[0]).toContain(`wachiman sha=${SHA[0]}`);
     expect(readAutoCost(w.reviews[0])).toBeCloseTo(0.1, 10);
 
@@ -1856,7 +1856,7 @@ describe("a pull request with a PNG, over three pushes", () => {
     expect(prompts[1]).toContain("only the changes since commit");
     expect(prompts[1]).toContain("threads.json");
     const second = w.reviews[1];
-    expect(second.split("\n")[0]).toContain("(2 commits: `c0ffee1`, `c0ffee2`)");
+    expect(second).toMatch(/\| \*\*Coverage\*\* \|[^\n]*changes since `head111` \(2 commits: `c0ffee1`, `c0ffee2`\)/);
     expect(second).toContain("PR so far $0.30 over 2 automatic runs");
     expect(second).toContain(`wachiman sha=${SHA[1]}`);
     expect(w.replies.map((r) => r.id)).toEqual([THREAD_ID]);
@@ -1920,7 +1920,7 @@ describe("path rules come from the base commit", () => {
     expect(r.prompt).not.toContain(`${SCRIPT} +2 −0 — path rule`);
     const body = r.posted.review!.body;
     expect(body).toContain(`path rule high ("docs/billing.md"): prices customers see — a person should approve this change`);
-    expect(body).toMatch(/\*\*High\.\*\*/);
+    expect(body).toContain("| **Risk** | High: ");
     expect(body).not.toContain("blocks");
   });
 
@@ -1940,7 +1940,7 @@ describe("path rules come from the base commit", () => {
     expect(r.posted.review!.body).toContain(
       `path rule high ("docs/billing.md"): prices customers see — a person should approve this change`,
     );
-    expect(r.posted.review!.body).toMatch(/\*\*High\.\*\*/);
+    expect(r.posted.review!.body).toContain("| **Risk** | High: ");
   });
 
   test("without paths the order is the heuristic's and no rule line is written", async () => {
@@ -2026,7 +2026,7 @@ describe("a pull request that edits paths: cannot weaken its own review", () => 
     expect(r.prompt).toContain(`${CHARGE} +2 −0 — path rule high (src/billing/**): charges customers`);
     expect(r.body).toContain(`path rule high ("src/billing/**"): charges customers — a person should approve this change`);
     expect(r.body).toContain(`path rule critical (".wachiman.yml"): edits the review's path rules — a person should approve this change`);
-    expect(r.body).toMatch(/\*\*High\.\*\*/);
+    expect(r.body).toContain("| **Risk** | High: ");
     expect(r.body).toContain(
       `${POLICY}: this pull request edits the path rules in \`.wachiman.yml\`. The review ran under the rules at the base commit \`bbbbbbb\`; the change takes effect after merge.`,
     );

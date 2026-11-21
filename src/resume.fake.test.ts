@@ -221,8 +221,8 @@ describe("a push after a partial review resumes with the files it did not reach"
     // Batches 7 and 8 both start and both stop on the money that is left: seven or eight calls, never fewer.
     expect(first.requests.length).toBeGreaterThanOrEqual(7);
     expect(r.posted).toHaveLength(1);
-    expect(r.posted[0]).toContain("⚠️ **Partial review**");
-    expect(r.posted[0]).toContain("reviewed 12 of 16 files");
+    expect(r.posted[0].split("\n")[0]).toContain("⚠️ **Partial: 4 of 16 files not reviewed**");
+    expect(r.posted[0]).toContain("12 of 16 files reviewed");
     expect(r.posted[0]).not.toContain(COMPLETE_MARKER("aaaa0001"));
   });
 
@@ -247,7 +247,7 @@ describe("a push after a partial review resumes with the files it did not reach"
     expect(world.inlineReplies[0]).toContain("Still applies.");
     // Everything is reviewed: the headline says so and the complete marker moves to the head.
     expect(r2.posted[0]).toContain("the 4 files the previous review did not reach");
-    expect(r2.posted[0]).toContain("all 5 files reviewed");
+    expect(r2.posted[0]).toContain("5 of 5 files reviewed");
     expect(r2.posted[0]).toContain(COMPLETE_MARKER("aaaa0002"));
     expect(r2.posted[0]).not.toContain("wachi:partial");
 
@@ -269,8 +269,8 @@ describe("a push after a partial review resumes with the files it did not reach"
     const r2 = await run(world, second, { WACHIMAN_BUDGET_USD: "0.9" });
     // The second part and the third share what the first leaves: both stop on it.
     expect(second.requests.length).toBeGreaterThanOrEqual(2);
-    expect(r2.posted[0]).toContain("⚠️ **Partial review**");
-    expect(r2.posted[0]).toContain("reviewed 2 of 5 files");
+    expect(r2.posted[0].split("\n")[0]).toContain("⚠️ **Partial: 3 of 5 files not reviewed**");
+    expect(r2.posted[0]).toContain("2 of 5 files reviewed");
     expect(r2.posted[0]).not.toContain(COMPLETE_MARKER("aaaa0002"));
 
     // The next push reads the shorter list: the files the second run did read are not carried again.
@@ -334,7 +334,7 @@ describe("a push after a partial review resumes with the files it did not reach"
     const second = reviewsEverything();
     const r = await run(world, second, { WACHIMAN_EXCLUDE: F15 });
     expect(sentFiles(second).sort()).toEqual([F01, F13, F16].sort());
-    expect(r.posted[0]).toContain("all 3 files reviewed");
+    expect(r.posted[0]).toContain("3 of 3 files reviewed");
     expect(r.posted[0]).not.toContain(F14);
     expect(r.posted[0]).not.toContain(F15);
     expect(r.posted[0]).toContain(COMPLETE_MARKER("aaaa0002"));
@@ -369,8 +369,8 @@ describe("a push after a partial review resumes with the files it did not reach"
     const leavesOutF03 = (cost: number) => new Provider((files) => ({ cost, reviewed: files.filter((f) => f !== F03) }));
     const first = leavesOutF03(0.05);
     const r1 = await run(world, first);
-    expect(r1.posted[0]).toContain("⚠️ **Partial review**");
-    expect(r1.posted[0]).toContain("reviewed 15 of 16 files");
+    expect(r1.posted[0].split("\n")[0]).toContain("⚠️ **Partial: 1 of 16 files not reviewed**");
+    expect(r1.posted[0]).toContain("15 of 16 files reviewed");
 
     // A push: F03 is carried and sent again; the model still does not review it.
     world.push("aaaa0002", allFiles({ [F10]: 1 }));

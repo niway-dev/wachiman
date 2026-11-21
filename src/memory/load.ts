@@ -291,6 +291,9 @@ export function loadMemory(
   };
 }
 
+/** How the summary paragraph about memory that did not fit starts; the review format finds the notices by it. */
+export const MEMORY_OVER_BUDGET = "⚠️ **Memory over budget";
+
 /** The sentence a review's summary carries when its memory did not fit, or undefined. */
 export function memoryNotice(record: MemoryRecord): string | undefined {
   if (!record.overBudget) return undefined;
@@ -298,7 +301,7 @@ export function memoryNotice(record: MemoryRecord): string | undefined {
   const cut = record.files.filter((f) => f.truncated === true);
   const doesNotFit = record.leftOut.length > 0 || cut.length > 0;
   if (!doesNotFit) {
-    return `⚠️ **Memory over budget**: \`index.md\` is over its ${record.budget.maxIndexLines}-line budget. Trim it, or raise \`memory.max_index_lines\` in \`.wachiman.yml\`.`;
+    return `${MEMORY_OVER_BUDGET}**: \`index.md\` is over its ${record.budget.maxIndexLines}-line budget. Trim it, or raise \`memory.max_index_lines\` in \`.wachiman.yml\`.`;
   }
   if (record.leftOut.length > 0) parts.push(`left out for lack of room: ${record.leftOut.map((p) => `\`${p}\``).join(", ")}`);
   for (const f of cut) parts.push(`\`${f.path}\` was cut to its first ${f.lines} lines`);
@@ -312,5 +315,5 @@ export function memoryNotice(record: MemoryRecord): string | undefined {
       : personal > 0
         ? "your personal memory"
         : "the repository's memory";
-  return `⚠️ **Memory over budget**: ${whose} does not fit in ${record.budget.maxLoadedLines} lines for this review (${parts.join("; ")}). Trim it, or raise \`memory.max_loaded_lines\` in \`.wachiman.yml\`.`;
+  return `${MEMORY_OVER_BUDGET}**: ${whose} does not fit in ${record.budget.maxLoadedLines} lines for this review (${parts.join("; ")}). Trim it, or raise \`memory.max_loaded_lines\` in \`.wachiman.yml\`.`;
 }

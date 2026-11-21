@@ -266,6 +266,10 @@ export function applyMatches<F extends Finding>(
 /** The start of the "Muted by memory" paragraph; the engine finds the list by it when it trims a long body. */
 export const MUTED_HEADING = "**Muted by memory**";
 
+/** How the paragraphs about an out-of-date entry and about exceptions that did not run start; the review format finds the notices by them. */
+export const MEMORY_ENTRY_NOTICE = "ℹ️ **Memory entry";
+export const MEMORY_EXCEPTIONS_NOT_APPLIED = "⚠️ **Memory exceptions were not applied";
+
 /**
  * The summary's text about memory exceptions, or undefined when there is nothing to say: the
  * entries that may be out of date, the matching step that did not run, and the "Muted by memory"
@@ -280,11 +284,11 @@ export function renderMuting(p: { muted: MutedFinding[]; stale: ExceptionPlan["s
       .join(", ");
     const effect = entry.kind === "exception" ? " An exception in that state mutes nothing in this review." : "";
     parts.push(
-      `ℹ️ **Memory entry \`${entry.id}\` may be out of date** ("${oneLine(entry.title, 80)}"): its \`holds while\` paths are touched by this diff (${shown}${touched.length > 3 ? ", …" : ""}).${effect}`,
+      `${MEMORY_ENTRY_NOTICE} \`${entry.id}\` may be out of date** ("${oneLine(entry.title, 80)}"): its \`holds while\` paths are touched by this diff (${shown}${touched.length > 3 ? ", …" : ""}).${effect}`,
     );
   }
   if (p.failure)
-    parts.push(`⚠️ **Memory exceptions were not applied**: matching did not run (${oneLine(p.failure)}), so every finding is posted.`);
+    parts.push(`${MEMORY_EXCEPTIONS_NOT_APPLIED}**: matching did not run (${oneLine(p.failure)}), so every finding is posted.`);
   if (p.muted.length > 0) {
     const items = p.muted.map(
       (m) =>

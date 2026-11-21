@@ -371,7 +371,7 @@ describe("review() with the spend ledger", () => {
     expect(readReceipt(body)?.receipt).toMatchObject({ account: "acme", usd: 0.1, day: DAY });
     const lines = body.split("\n\n");
     const receiptAt = lines.findIndex((l) => l.startsWith("<!-- wachi:receipt "));
-    const costAt = lines.findIndex((l) => l.startsWith("<sub>"));
+    const costAt = lines.findIndex((l) => l.startsWith("<sub>") && !l.startsWith("<sub>Answer a finding"));
     expect(receiptAt).toBeGreaterThan(-1);
     expect(receiptAt + 1).toBe(costAt);
     expect(lines.slice(costAt + 1, costAt + 3)).toEqual([SIGNATURE.auto, SIGNATURE.review]);

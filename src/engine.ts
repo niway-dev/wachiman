@@ -82,7 +82,6 @@ import {
   matchRequest,
   parseMatches,
   planExceptions,
-  MUTED_HEADING,
   renderConventions,
   renderMuting,
   type ExceptionPlan,
@@ -127,6 +126,9 @@ import {
   type LineCounter,
 } from "./contracts";
 import { describeCall } from "./call-message";
+import { defuseDetails, neutralise } from "./review-format/escape";
+import { renderReviewBody } from "./review-format/render";
+import { buildView, refusedView, type ReviewView } from "./review-format/view";
 import { batchDistributed, distributedResultFields, plainText, verifierDistributed, type DistributedContext } from "./distributed";
 import { settleModelText } from "./sibling-references";
 import { armFor, priorityOf, PRIORITY_GLOSS, PRIORITY_WORD, type Arm, type Priority } from "./priority";
@@ -161,13 +163,12 @@ import {
 import { checkClaims } from "./fidelity/claims";
 import { claimsDigest, claimsInput, stripBlock } from "./fidelity/digest";
 import { buildFidelity } from "./fidelity/grade";
-import { fidelitySummary } from "./fidelity/summary";
 import { publishConfidence } from "./fidelity/sink";
 import type { Fidelity } from "./fidelity/types";
 import type { ProviderErrorClass } from "./providers/errors";
 import type { Effort, ProviderAdapter, ProviderAuth } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
-import { buildRiskMap, renderRiskMap, wellFormed, type JudgementItem, type RiskFact, type RiskMap } from "./risk";
+import { buildRiskMap, wellFormed, type JudgementItem, type RiskFact, type RiskMap } from "./risk";
 import { ASK_SCHEMA, buildAskPrompt, checkRefs, isAskAnswer, renderAnswer } from "./ask";
 
 export type { Profile, ResultFinding, ReviewChange, ReviewInput, ReviewResult, Stop } from "./formats";
@@ -311,6 +312,12 @@ export interface Review {
    * trusted only in a signed footer, so a body without the signature gets none.
    */
   state?: ReviewStateDraft;
+  /**
+   * The data the body was rendered from. The 422 fallback renders the body again from it (as the
+   * body of a review with no inline comments), so it needs no text split point. Absent on a
+   * review that was not built by `buildReview`: that one has no fallback.
+   */
+  view?: ReviewView;
 }
 
 /** `force` is `--force` after `review`: spend past a spent limit. Only the operator's comment may honour it. */
@@ -366,7 +373,6 @@ export const detail = (f: Finding, status?: string) => {
   const parts = [f.confidence ? `confidence ${f.confidence}` : "", status ?? ""].filter(Boolean);
   return parts.length > 0 ? ` (${parts.join(", ")})` : "";
 };
-const at = (f: { path: string; line: number }) => neutralise(f.line > 0 ? `${f.path}:${f.line}` : f.path);
 
 /**
  * The first thing on every comment the engine posts, so a reader knows at a glance it is Wachi's.
@@ -481,10 +487,6 @@ function findingLine(body: string, lead: (t: NonNullable<ReturnType<typeof parse
  * rows never reach the model. A comment without a table is returned as is.
  */
 export const legacyFindingComment = (body: string) => findingLine(body, (t) => t.severity.tier);
-
-/** A finding comment as a person reads it in a list: the same line, led by the word its table showed. */
-const shownFindingComment = (body: string) =>
-  findingLine(body, (t) => (t.priority ? `${t.priority.word}${t.priority.preExisting ? " · Pre-existing" : ""}` : t.severity.tier));
 
 /** The default command keyword. A slash command, so writing it notifies no GitHub account. */
 export const DEFAULT_MENTION = "/wachiman";
@@ -991,11 +993,8 @@ export const SIGNATURE = {
 } as const;
 const ANY_SIGNATURE = /<!-- wachi:(?:review|finding|reply|auto|answer|ask|ask-limit) -->/;
 
-/**
- * Defuses HTML comments in text a model wrote, so it cannot forge the incremental marker or a
- * signature: `<!--` becomes `&lt;!--` and `-->` becomes `--&gt;`. Markdown shows both as before.
- */
-export const neutralise = (text: string) => text.replaceAll("<!--", "&lt;!--").replaceAll("-->", "--&gt;");
+// Defined in `review-format/escape.ts`, which imports nothing from this module; re-exported for its many readers here.
+export { neutralise };
 
 /**
  * The engine's review footer is the only place a marker is accepted. A signed review ends with
@@ -1170,51 +1169,6 @@ export function coverageGaps(expected: string[], reviewed: string[], skipped: st
 export const MAX_BODY_CHARS = 60_000;
 
 /**
- * Joins `items` with ", " in at most `room` characters. When they do not all fit, the list is cut
- * to what fits and ends with "… and N more (see the Coverage by batch table)".
- */
-export function fitList(items: string[], room: number): string {
-  const all = items.join(", ");
-  if (all.length <= room) return all;
-  const tail = (left: number) => `… and ${left} more (see the Coverage by batch table)`;
-  const kept: string[] = [];
-  let length = 0;
-  for (const [i, item] of items.entries()) {
-    const next = length + (kept.length > 0 ? 2 : 0) + item.length;
-    // What the list would be if it stopped after this item.
-    const left = items.length - (i + 1);
-    const total = next + (left > 0 ? 2 + tail(left).length : 0);
-    if (total > room) break;
-    kept.push(item);
-    length = next;
-  }
-  const more = tail(items.length - kept.length);
-  return kept.length > 0 ? `${kept.join(", ")}, ${more}` : more;
-}
-
-/** The note that ends a finding section cut to fit the body. */
-const sectionNote = (left: number) => `… and ${left} more (see the JSON result / logs)`;
-
-/**
- * A body section (`heading`, then one paragraph per item) that costs at most `room` characters,
- * each paragraph counting the "\n\n" before it. When the items do not all fit, as many as fit
- * are kept, then one `sectionNote`; the heading and the note stay even when no item fits.
- */
-function boundSection(heading: string, items: string[], room: number): string {
-  const cost = (part: string) => part.length + 2;
-  const kept: string[] = [];
-  let used = cost(heading);
-  for (const [i, item] of items.entries()) {
-    const left = items.length - (i + 1);
-    if (used + cost(item) + (left > 0 ? cost(`- ${sectionNote(left)}`) : 0) > room) break;
-    kept.push(item);
-    used += cost(item);
-  }
-  const left = items.length - kept.length;
-  return [heading, ...kept, ...(left > 0 ? [`- ${sectionNote(left)}`] : [])].join("\n\n");
-}
-
-/**
  * "3 finding(s): 1 blocker(s), 2 to fix", with only the groups that have findings: a reader
  * scanning the body sees at once whether anything blocks. "info" is in the total, not a group.
  */
@@ -1230,33 +1184,12 @@ export function countLine(findings: Finding[]): string {
   return `${findings.length} finding(s)${shown.length > 0 ? `: ${shown.join(", ")}` : ""}`;
 }
 
-/**
- * `**9 findings:** 1 Must, 4 Should, 3 Could, 1 FYI · 6 at high confidence`: what the review found,
- * weighed, on one line that opens its findings (ADR 0059). Groups with none are left out,
- * a finding with no confidence is not counted as high, and no findings means no line. The priority
- * arm (the default) counts by priority word and counts a finding's stored priority before the
- * table's. The trial's word arm counts by tier word instead, `**9 findings:** 5 Important, 3 Nit,
- * 1 Pre-existing · 6 at high confidence`, so no priority word appears in a word-arm review.
- */
-export function summaryLine(findings: (Finding & { priority?: Priority; origin?: Origin })[], arm?: Arm): string | null {
-  if (findings.length === 0) return null;
-  const groups =
-    arm === "word"
-      ? (["Important", "Nit", "Pre-existing"] as const).map((t) => [findings.filter((f) => tierWord(f) === t).length, t] as const)
-      : (["must", "should", "could", "fyi"] as const).map(
-          (p) => [findings.filter((f) => (f.priority ?? priorityOf(f).priority) === p).length, PRIORITY_WORD[p]] as const,
-        );
-  const shown = groups.filter(([n]) => n > 0).map(([n, word]) => `${n} ${word}`);
-  const high = findings.filter((f) => f.confidence === "high").length;
-  return `**${countOf(findings.length, "finding")}:** ${shown.join(", ")} · ${high} at high confidence`;
-}
-
-/** The `<summary>` of the contracts block; `trimMiddle` finds the block by it. */
+/** The `<summary>` of the contracts block. */
 export const CONTRACTS_SUMMARY = "What the change connects to";
 
 /** One line of model text: whitespace collapsed, comments defused, cut at `max` characters. */
 export function oneLine(text: string, max = 280) {
-  const flat = neutralise(text).replace(/\s+/g, " ").trim();
+  const flat = defuseDetails(neutralise(text)).replace(/\s+/g, " ").trim();
   return flat.length > max ? `${flat.slice(0, max - 1).trimEnd()}…` : flat;
 }
 
@@ -1315,7 +1248,7 @@ export function renderContracts(contracts: Contract[], room = Number.POSITIVE_IN
       .map((sec) => {
         const take = sec.lines.slice(0, Math.max(left, 0));
         left -= take.length;
-        return take.length > 0 ? `\n\n${sec.heading}\n${take.join("\n")}` : "";
+        return take.length > 0 ? `\n\n${sec.heading}\n\n${take.join("\n")}` : "";
       })
       .join("");
     const hidden = contracts.length - kept;
@@ -1329,17 +1262,6 @@ export function renderContracts(contracts: Contract[], room = Number.POSITIVE_IN
 }
 
 const countOf = (n: number, noun: string) => `${n} ${noun}${n === 1 ? "" : "s"}`;
-
-/** How many commits a re-review headline lists by name before it says "and N more". */
-const MAX_LISTED_COMMITS = 10;
-
-/** ` (2 commits: \`012efef\`, \`1e34f38\`)`, or "" when the connector gave no list. */
-function commitsText(commits: string[] | undefined) {
-  if (!commits || commits.length === 0) return "";
-  const shown = commits.slice(0, MAX_LISTED_COMMITS).map((c) => `\`${short(c)}\``);
-  const more = commits.length - shown.length;
-  return ` (${countOf(commits.length, "commit")}: ${shown.join(", ")}${more > 0 ? ` and ${more} more` : ""})`;
-}
 
 /**
  * What the pull request's automatic runs have spent, this run included: `PR so far $0.77 over 3
@@ -1384,6 +1306,13 @@ export function buildReview(input: {
   receiptLine?: string;
   /** The configured mention keyword, for the hint on how to ask for the rest. */
   mention?: string;
+  /** `owner/name`: with the head commit it turns a finding's location into a link to its file and line. */
+  repo?: string;
+  /**
+   * How many of the engine's own finding threads are still open on the pull request, or `unknown`
+   * when a page of threads could not be read (the status then says so instead of "nothing to fix").
+   */
+  earlierThreads?: number | "unknown";
   /** Files the engine kept out of `files` because no model can review them (binaries). */
   unreviewable?: Unreviewable[];
   /** The commits since `since` (full shas, oldest first), named in a re-review's headline. */
@@ -1403,9 +1332,9 @@ export function buildReview(input: {
   estimate?: boolean;
   /** The trial arm (ADR 0059): `word` renders today's Important/Nit word in each inline table. Default: the priority. */
   arm?: Arm;
-  /** The risk map (ADR 0031), rendered right after the count line. */
+  /** The risk map (ADR 0031), shown in the glance table. */
   riskMap?: RiskMap;
-  /** PR Confidence (ADR 0033): the grade as one line after the count line; the description block holds the rest. */
+  /** PR Confidence (ADR 0033): the grade as one line in the glance table; the description block holds the rest. */
   fidelity?: Fidelity;
   /** A review of one push to the pull request: the map says it covers that push (ADR 0011). */
   pushOnly?: boolean;
@@ -1423,27 +1352,16 @@ export function buildReview(input: {
   warn?: (line: string) => void;
 }): Review {
   const { output, files, headSha, since, scoped, costUsd, batches = [], modelLabel, effort } = input;
-  const mention = input.mention ?? DEFAULT_MENTION;
   const commentable = new Map(files.map((f) => [f.filename, commentableLines(f.patch ?? "")]));
   const comments: InlineComment[] = [];
   const onLines: Finding[] = [];
   const outsideDiff: Finding[] = [];
-  const preExisting: Finding[] = [];
-  const inconclusive: Finding[] = [];
-  // Information asks for no reply, so it never opens a thread, even on a diff line.
-  const forInfo = output.findings.filter((f) => f.severity === "info");
   for (const f of output.findings) {
+    // Information, a finding that is not this change's doing and a fix the verifier could not settle
+    // are listed in the body and open no thread.
     if (f.severity === "info") continue;
-    // Not this change's doing, or a fix the verifier could not settle: listed in the body, no thread.
     const section = sectionOf(f);
-    if (section === "pre-existing") {
-      preExisting.push(f);
-      continue;
-    }
-    if (section === "inconclusive") {
-      inconclusive.push(f);
-      continue;
-    }
+    if (section === "pre-existing" || section === "inconclusive") continue;
     const onLine = f.anchor ? f.anchor === "diff" : commentable.get(f.path)?.has(f.line);
     if (onLine) {
       onLines.push(f);
@@ -1460,116 +1378,19 @@ export function buildReview(input: {
   const reviewed = new Set(output.files_reviewed);
   const notReviewed = expected.filter((f) => !reviewed.has(f));
   const reasons = new Map(output.files_skipped.map((s) => [s.path, s.reason]));
-  const carried = new Set((input.carried ?? []).filter((f) => expected.includes(f)));
-  const sinceScope = since
-    ? `the changes since \`${short(since)}\`${input.rebased ? " (after a rebase)" : commitsText(input.commits)}`
-    : "the whole pull request";
-  const unread = `the ${countOf(carried.size, "file")} the previous review did not reach`;
-  // A resumed review: what changed since, if anything did, and the files the last one left unread.
-  const scope = since && carried.size > 0 ? (carried.size < expected.length ? `${sinceScope} and ${unread}` : unread) : sinceScope;
-  const unreviewable = input.unreviewable ?? [];
-  const notReviewable =
-    unreviewable.length > 0 ? `, not reviewable: ${unreviewable.map((u) => `\`${neutralise(u.path)}\` (${u.reason})`).join(", ")}` : "";
-  const parts: string[] = [];
-  const list = notReviewed.map((f) => `\`${neutralise(f)}\`${reasons.has(f) ? ` (${neutralise(reasons.get(f) ?? "")})` : ""}`);
-  const fullList = list.join(", ");
   // What the next push carries (ADR 0036). A file that was sent to a model before and came back
   // not reviewed again, with a reason other than "not reached" (the run never got to it), has had
-  // its two tries: it is named here and no longer carried. A scoped review leaves the list alone.
+  // its two tries and is no longer carried. A scoped review leaves the list alone.
   const notReached = (f: string) => (reasons.get(f) ?? "").startsWith("not reached");
   const priorTried = new Set(input.tried ?? []);
   const twice = scoped ? [] : notReviewed.filter((f) => priorTried.has(f) && !notReached(f));
   const rest = scoped ? [] : notReviewed.filter((f) => !twice.includes(f));
-  const twiceNote =
-    twice.length > 0
-      ? ` Not reviewed after two tries, so the next push will not carry ${twice.length === 1 ? "it" : "them"}: ${fitList(
-          twice.map((f) => `\`${neutralise(f)}\``),
-          2_000,
-        )}.`
-      : "";
-  if (notReviewed.length > 0) {
-    parts.push(
-      branded(
-        `⚠️ **Partial review**: reviewed ${expected.length - notReviewed.length} of ${expected.length} files of ${scope}, at \`${short(headSha)}\`. Not reviewed: ${fullList}${notReviewable}.${twiceNote} Ask \`${mention} review <paths>\` for the rest.`,
-      ),
-    );
-  } else {
-    parts.push(branded(`review of ${scope}, at \`${short(headSha)}\`: all ${expected.length} files reviewed${notReviewable}.`));
-  }
-  if (input.instructionChanges && input.instructionChanges.files.length > 0) {
-    const names = input.instructionChanges.files.map((f) => `\`${f}\``).join(", ");
-    parts.push(
-      `ℹ️ **Review instructions changed**: this pull request edits ${names}. The review ran under the versions at the base commit \`${short(input.instructionChanges.baseSha)}\`; the change takes effect after merge.`,
-    );
-  }
-  if (input.pathPolicyChange) {
-    parts.push(
-      `ℹ️ **Review policy changed**: this pull request edits the path rules in \`${SETTINGS_PATH}\`. The review ran under the rules at the base commit \`${short(input.pathPolicyChange.baseSha)}\`; the change takes effect after merge.`,
-    );
-  }
-  parts.push(`${countLine(output.findings)}; ${comments.length} on their lines. Reply in a comment's thread to answer it.`);
-  const summary = summaryLine(output.findings, input.arm);
-  if (summary) parts.push(summary);
-  if (input.fidelity) parts.push(fidelitySummary(input.fidelity));
-  if (input.verification?.status === "failed") {
-    parts.push(
-      "⚠️ **Not verified**: the second reader that checks each finding did not finish, so these findings are posted as the review wrote them.",
-    );
-  } else if (input.verification?.status === "partial") {
-    parts.push(
-      "⚠️ **Partly verified**: the second reader that checks each finding stopped early, so some findings are posted as the review wrote them.",
-    );
-  }
-  // Before the findings and outside any <details> block. The size fitting below cuts the contracts,
-  // the Inconclusive and Pre-existing lists and the unreviewed-files list, never this part.
-  if (input.riskMap) parts.push(renderRiskMap(input.riskMap, "### Risk map", { pushOnly: input.pushOnly }));
-  // The word arm of the trial keeps today's tier word in these lists too: only the word differs between arms.
-  const listLabel = input.arm === "word" ? legacyLabel : label;
-  const listed = (f: Finding & { origin?: Origin; priority?: Priority }) => `- ${listLabel(f)} (\`${at(f)}\`): ${neutralise(f.body)}`;
-  if (outsideDiff.length > 0) parts.push("### Outside the diff", ...outsideDiff.map(listed));
-  // Each of these two is one part, so a long body can cut it by its index.
-  const cuttable: { at: number; heading: string; items: string[] }[] = [];
-  const addCuttable = (heading: string, found: Finding[]) => {
-    if (found.length === 0) return;
-    const items = found.map(listed);
-    cuttable.push({ at: parts.length, heading, items });
-    parts.push([heading, ...items].join("\n\n"));
-  };
-  addCuttable("### Inconclusive", inconclusive);
-  addCuttable("### Pre-existing", preExisting);
-  if (forInfo.length > 0) parts.push("### For your information", ...forInfo.map(listed));
-  parts.push("### Summary", neutralise(output.summary));
-  // After the findings and the summary, before the coverage table: it is cut first when the body is long.
-  const contractsAt = parts.length;
-  const contractsBlock = renderContracts(output.contracts ?? []);
-  if (contractsBlock) parts.push(contractsBlock);
-  if (batches.length > 0) {
-    const rows = batches.map(
-      (b) => `| ${neutralise(b.label)} | ${b.files} | ${b.lines} | ${b.maxRisk} | ${b.status} | ${b.turns} | $${b.costUsd.toFixed(2)} |`,
-    );
-    parts.push(
-      `<details><summary>Coverage by batch</summary>\n\n| Batch | Files | Lines | Highest risk | Status | Turns | Cost${input.estimate ? " (estimate)" : ""} |\n| --- | --- | --- | --- | --- | --- | --- |\n${rows.join("\n")}\n\n</details>`,
-    );
-  }
-  if (input.receiptLine) parts.push(input.receiptLine);
-  parts.push(
-    costLine({
-      modelLabel,
-      effort,
-      operation: input.operation,
-      extra: [
-        ...(batches.length > 1 ? [`${batches.length} batches`] : []),
-        ...(input.commits?.length && since && !input.rebased ? [countOf(input.commits.length, "commit")] : []),
-        ...(input.verification && verificationSegment(input.verification) ? [verificationSegment(input.verification) as string] : []),
-        ...(input.automatic && input.priorSpend ? [prSoFar(input.priorSpend, costUsd)] : []),
-      ],
-      usage: input.usage,
-      estimate: input.estimate,
-      costUsd,
-    }),
-  );
-  if (input.automatic) parts.push(SIGNATURE.auto);
-  parts.push(SIGNATURE.review);
+
+  // The body is a view of the review rendered in fixed slots (ADR 0055); the footer strings below
+  // are written exactly as before, so every reader of a posted body keeps working.
+  const markers: string[] = [];
+  if (input.automatic) markers.push(SIGNATURE.auto);
+  markers.push(SIGNATURE.review);
   // The next `review` request starts from this commit. A review that covered everything moves it
   // (the complete marker). A partial one moves it too, and lists what it did not reach, so the next
   // push reviews those files (ADR 0036). A scoped review writes neither: it read only the paths
@@ -1577,166 +1398,82 @@ export function buildReview(input: {
   if (!scoped) {
     const tried = rest.filter((f) => priorTried.has(f) || !notReached(f));
     const state = rest.length > 0 ? partialMarker({ sha: headSha, rest, tried }) : null;
-    if (rest.length === 0) parts.push(marker(headSha));
-    else if (state !== null) parts.push(state);
+    if (rest.length === 0) markers.push(marker(headSha));
+    else if (state !== null) markers.push(state);
     else
       input.warn?.(
         `${rest.length} file(s) not reviewed do not fit in a partial marker (more than ${MAX_PARTIAL_MARKER_CHARS} characters): none is written, so the next push reviews the whole pull request again.`,
       );
   }
+  const view = buildView({
+    output,
+    files,
+    ...(input.repo ? { repo: input.repo } : {}),
+    mention: input.mention ?? DEFAULT_MENTION,
+    ...(input.arm ? { arm: input.arm } : {}),
+    headSha,
+    since,
+    rebased: input.rebased,
+    commits: input.commits,
+    scoped,
+    commentable,
+    carried: input.carried,
+    tried: input.tried,
+    unreviewable: input.unreviewable,
+    instructionChanges: input.instructionChanges,
+    pathPolicyChange: input.pathPolicyChange,
+    verification: input.verification,
+    riskMap: input.riskMap,
+    fidelity: input.fidelity,
+    batches,
+    estimate: input.estimate,
+    pushOnly: input.pushOnly,
+    earlierThreads: input.earlierThreads,
+    footer: {
+      ...(input.receiptLine ? { receipt: input.receiptLine } : {}),
+      costLine: costLine({
+        modelLabel,
+        effort,
+        operation: input.operation,
+        extra: [
+          ...(batches.length > 1 ? [`${batches.length} batches`] : []),
+          ...(input.commits?.length && since && !input.rebased ? [countOf(input.commits.length, "commit")] : []),
+          ...(input.verification && verificationSegment(input.verification) ? [verificationSegment(input.verification) as string] : []),
+          ...(input.automatic && input.priorSpend ? [prSoFar(input.priorSpend, costUsd)] : []),
+        ],
+        usage: input.usage,
+        estimate: input.estimate,
+        costUsd,
+      }),
+      markers,
+    },
+  });
   // What the review says about itself, for the state block `postReview` writes (ADR 0060). Counted
-  // from the lists above, which are the review's own layout; the size fitting below cuts text, not findings.
+  // from the findings above, which are the review's own layout; the size fitting cuts text, not findings.
   const state: ReviewStateDraft = {
     status: scoped ? "scoped" : notReviewed.length > 0 ? "partial" : "complete",
     ...(scoped && input.scopePaths ? { scope: input.scopePaths } : {}),
     ...countFindings(output.findings, onLines, outsideDiff),
   };
-  // A part another text replaces (or `null`, none) while the body is being fitted.
-  const replaced = new Map<number, string | null>();
-  const render = () =>
-    parts.flatMap((part, i) => (replaced.has(i) ? (replaced.get(i) === null ? [] : [replaced.get(i) as string]) : [part])).join("\n\n");
-  let body = render();
-  if (body.length > MAX_BODY_CHARS && contractsBlock) {
-    // The contracts go before anything else is cut: shrink them to what fits, or drop them.
-    replaced.set(contractsAt, null);
-    const without = render();
-    replaced.set(contractsAt, renderContracts(output.contracts ?? [], MAX_BODY_CHARS - without.length - 2) || null);
-    body = render();
-  }
-  if (body.length > MAX_BODY_CHARS && cuttable.length > 0) {
-    // Then the Pre-existing and Inconclusive lists: each keeps the entries that fit in its share of
-    // what the rest of the body leaves, then says how many it left out. The list of unreviewed
-    // files is counted at its shortest form here: it is cut below, before any finding is.
-    const full = (c: (typeof cuttable)[number]) => parts[c.at].length + 2;
-    const listSlack = notReviewed.length > 0 ? fullList.length - fitList(list, 0).length : 0;
-    let remaining = MAX_BODY_CHARS - (body.length - listSlack - cuttable.reduce((sum, c) => sum + full(c), 0));
-    const bySize = [...cuttable].sort((a, b) => full(a) - full(b));
-    for (const [i, c] of bySize.entries()) {
-      const share = Math.floor(remaining / (bySize.length - i));
-      const text = full(c) <= share ? parts[c.at] : boundSection(c.heading, c.items, share);
-      replaced.set(c.at, text);
-      remaining -= text.length + 2;
-    }
-    body = render();
-  }
-  if (body.length <= MAX_BODY_CHARS || notReviewed.length === 0) return { body, comments, state };
-  // Last, the list of unreviewed files is cut to whatever room the rest of the body left.
-  const room = MAX_BODY_CHARS - (body.length - fullList.length);
-  return { body: body.replace(fullList, () => fitList(list, Math.max(room, 0))), comments, state };
+  return { body: renderReviewBody(view, MAX_BODY_CHARS), comments, state, view };
 }
 
 /**
- * For a review GitHub refused with a validation 422: every inline finding moves to the body. The
- * result stays within `MAX_BODY_CHARS`: the room for the heading and the omission note is reserved
- * first, the moved list is cut to what is left and ends with "N more not shown", and when the rest
- * of the body is itself near the limit, its Summary and coverage table are trimmed before anything
- * else, so the coverage line, the marker and the signature are never dropped. The count line stops
- * claiming inline comments, since none are left inline.
+ * For a review GitHub refused with a validation 422: no inline comment is created, so every
+ * finding is listed in the body, once, in its table, and the model's text for each one follows
+ * in "Details of each finding" (spec "The review body"). The body is rendered from the same view
+ * as the review's own, fitted to `MAX_BODY_CHARS` by the same slot rules, so the status line, the
+ * cost line and the markers are never dropped and no text is split at a heading. The state draft
+ * is kept: `postReview` counts the comments it actually sends, which are none.
  */
 export function moveCommentsToBody(review: Review): Review {
   if (review.comments.length === 0) return review;
-  const moved = review.comments.map(
-    (c) =>
-      `- \`${neutralise(c.path)}:${c.line}\`: ${shownFindingComment(c.body).replace(SIGNATURE.finding, "").trim().replace(/\n\n/, " ")}`,
-  );
-  const base = review.body.replace(
-    /; \d+ on their lines\. Reply in a comment's thread to answer it\./,
-    `; ${moved.length} listed below, because GitHub would not anchor them on their lines.`,
-  );
-  const heading = "### On their lines (GitHub refused them inline)";
-  const note = (left: number) => `- … and ${left} more not shown (GitHub refused them inline).`;
-  const summary = base.indexOf("\n\n### Summary");
-  let head = summary === -1 ? base : base.slice(0, summary);
-  let tail = summary === -1 ? "" : base.slice(summary);
-  // The section is "\n\n<heading>\n\n<items joined by \n>" between head and tail; at the least it
-  // holds the heading and the note.
-  const overhead = 4 + heading.length;
-  const overflow = head.length + tail.length + overhead + note(moved.length).length - MAX_BODY_CHARS;
-  if (overflow > 0) tail = trimMiddle(tail, overflow);
-  // Findings listed before the Summary can fill the body on their own; then the start is cut too.
-  const still = head.length + tail.length + overhead + note(moved.length).length - MAX_BODY_CHARS;
-  if (still > 0) head = trimHead(head, still);
-  const room = MAX_BODY_CHARS - head.length - tail.length - overhead;
-  const kept: string[] = [];
-  let used = 0;
-  for (const [i, item] of moved.entries()) {
-    const next = used + (kept.length > 0 ? 1 : 0) + item.length;
-    const left = moved.length - (i + 1);
-    if (next + (left > 0 ? 1 + note(left).length : 0) > room) break;
-    kept.push(item);
-    used = next;
-  }
-  if (kept.length < moved.length) kept.push(note(moved.length - kept.length));
-  const section = `${heading}\n\n${kept.join("\n")}`;
-  return { body: `${head}\n\n${section}${tail}`, comments: [], ...(review.state ? { state: review.state } : {}) };
-}
-
-/**
- * Makes the start of a review body (coverage line, count line, the lists before `### Summary`) at
- * least `cut` characters shorter, at a line break, so the coverage line survives whenever it can.
- */
-function trimHead(head: string, cut: number) {
-  const trimmed = "\n\n(Trimmed: this review is at GitHub's size limit.)";
-  const target = Math.max(head.length - cut - trimmed.length, 0);
-  const at = head.lastIndexOf("\n", target);
-  return `${head.slice(0, at > 0 ? at : target)}${trimmed}`;
-}
-
-/**
- * The "Muted by memory" paragraph (with its leading blank line) within `room` characters: the
- * count line, then as many entries as fit. The count stays even when no entry fits.
- */
-function fitMuted(block: string, room: number): string {
-  const items = block.trim().split("\n").slice(1);
-  const count = `**${items.length} finding${items.length === 1 ? "" : "s"} muted by memory** (not posted as comments; the list is cut to fit GitHub's size limit):`;
-  const kept: string[] = [];
-  let used = 2 + count.length;
-  for (const item of items) {
-    if (used + 1 + item.length > room) break;
-    kept.push(item);
-    used += 1 + item.length;
-  }
-  return `\n\n${[count, ...kept].join("\n")}`;
-}
-
-/**
- * Makes the part of a review body between the first findings and the footer (`### Summary`, the
- * contracts block, the coverage table) at least `cut` characters shorter. The footer (`<sub>`
- * line, signature, marker) is kept whole. The contracts block goes first, then the coverage
- * table, then the Summary is cut at a line break: findings are never traded for contracts.
- */
-function trimMiddle(tail: string, cut: number) {
-  const sub = tail.lastIndexOf("\n\n<sub>");
-  const footerAt = sub !== -1 ? sub : Math.max(tail.lastIndexOf(`\n\n${SIGNATURE.review}`), 0);
-  const middle = tail.slice(0, footerAt);
-  const footer = tail.slice(footerAt);
-  const trimmed = "\n\n(Trimmed: this review is at GitHub's size limit.)";
-  const target = middle.length - cut - trimmed.length;
-  // The text before the first collapsed block is the Summary; each block after it starts at `<details>`.
-  const [whole, ...blocks] = middle.split(/(?=\n\n<details>)/);
-  // The "Muted by memory" list ends the Summary and is protected (ADR 0057: every muted finding is shown): the text before it is cut first, then the list shrinks to a count and the entries that fit.
-  const mutedAt = whole.lastIndexOf(`\n\n${MUTED_HEADING}`);
-  const summary = mutedAt === -1 ? whole : whole.slice(0, mutedAt);
-  let muted = mutedAt === -1 ? "" : whole.slice(mutedAt);
-  const dropOrder = [
-    ...blocks.filter((b) => b.includes(`<summary>${CONTRACTS_SUMMARY}`)),
-    ...blocks.filter((b) => !b.includes(`<summary>${CONTRACTS_SUMMARY}`)),
-  ];
-  let kept = blocks;
-  const size = () => summary.length + muted.length + kept.reduce((n, b) => n + b.length, 0);
-  for (const block of dropOrder) {
-    if (size() <= target) break;
-    kept = kept.filter((b) => b !== block);
-  }
-  let text = summary;
-  if (size() > target) {
-    const room = target - muted.length - kept.reduce((n, b) => n + b.length, 0);
-    const cutAt = summary.lastIndexOf("\n", Math.max(room, 0));
-    text = summary.slice(0, Math.max(cutAt, 0));
-  }
-  const keptLength = kept.reduce((n, b) => n + b.length, 0);
-  if (muted && text.length + muted.length + keptLength > target) muted = fitMuted(muted, target - text.length - keptLength);
-  return `${text}${muted}${kept.join("")}${trimmed}${footer}`;
+  if (!review.view) throw new Error("A review without its view cannot be rendered as a body with no inline comments.");
+  return {
+    body: renderReviewBody(refusedView(review.view), MAX_BODY_CHARS),
+    comments: [],
+    ...(review.state ? { state: review.state } : {}),
+  };
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -2700,15 +2437,88 @@ export function openBotThreads(threads: RawThread[]) {
  */
 export type Thread = ReturnType<typeof openBotThreads>[number] & { wachi_replies?: number };
 
-/** The pull request's first 100 review threads (30 comments each), as GitHub's GraphQL sends them. */
-export function fetchThreads(gh: GhFn, repo: string, pr: number): RawThread[] {
+/** A bound on the loop below: 200 pages of 100 threads. A pull request with more is read as incomplete. */
+const MAX_THREAD_PAGES = 200;
+
+/** What `fetchThreadPages` read, and whether that is every thread of the pull request. */
+export interface ThreadPages {
+  threads: RawThread[];
+  /** False when a page could not be read (or the pages did not end): `threads` is then only what came before. */
+  complete: boolean;
+  /** Why the read stopped, when it did. */
+  error?: unknown;
+  /** How many pages were read. */
+  pages: number;
+}
+
+/**
+ * The pull request's review threads (30 comments each), a page of 100 at a time, as GitHub's GraphQL
+ * sends them. Never throws: a page that fails, an answer that is not a list of threads, or a cursor
+ * that does not advance ends the read with `complete: false` and what was read so far. A caller that
+ * must not mistake a partial list for the whole one (the status of a re-review) reads `complete`.
+ */
+export function fetchThreadPages(gh: GhFn, repo: string, pr: number): ThreadPages {
   const [owner, name] = repo.split("/");
-  const query = `query($owner: String!, $name: String!, $pr: Int!) {
+  const query = `query($owner: String!, $name: String!, $pr: Int!, $after: String) {
     repository(owner: $owner, name: $name) { pullRequest(number: $pr) {
-      reviewThreads(first: 100) { nodes { isResolved path line
+      reviewThreads(first: 100, after: $after) { pageInfo { hasNextPage endCursor } nodes { isResolved path line
         comments(first: 30) { nodes { databaseId author { login } authorAssociation body createdAt } } } } } } }`;
-  const raw = gh(["api", "graphql", "-f", `query=${query}`, "-F", `owner=${owner}`, "-F", `name=${name}`, "-F", `pr=${pr}`]);
-  return JSON.parse(raw).data.repository.pullRequest.reviewThreads.nodes;
+  const threads: RawThread[] = [];
+  let after: string | null = null;
+  for (let pages = 0; pages < MAX_THREAD_PAGES;) {
+    try {
+      const raw: string = gh([
+        "api",
+        "graphql",
+        "-f",
+        `query=${query}`,
+        "-F",
+        `owner=${owner}`,
+        "-F",
+        `name=${name}`,
+        "-F",
+        `pr=${pr}`,
+        // `-f`, not `-F`: a cursor is a string, and `-F` would read a value that looks like a number or `true` as one.
+        ...(after === null ? [] : ["-f", `after=${after}`]),
+      ]);
+      const page = JSON.parse(raw)?.data?.repository?.pullRequest?.reviewThreads;
+      if (!page || !Array.isArray(page.nodes)) throw new GhError(`GitHub answered no review threads for ${repo}#${pr}.`, null, "");
+      threads.push(...page.nodes);
+      pages++;
+      if (!page.pageInfo?.hasNextPage) return { threads, complete: true, pages };
+      // `hasNextPage` with no usable cursor is a page we cannot continue from, not the last one.
+      const next: unknown = page.pageInfo.endCursor;
+      if (typeof next !== "string" || next === after) {
+        return { threads, complete: false, pages, error: new GhError("GitHub's review-thread pagination did not advance.", null, "") };
+      }
+      after = next;
+    } catch (error) {
+      return { threads, complete: false, pages, error };
+    }
+  }
+  return {
+    threads,
+    complete: false,
+    pages: MAX_THREAD_PAGES,
+    error: new GhError(`More than ${MAX_THREAD_PAGES * 100} review threads on ${repo}#${pr}.`, null, ""),
+  };
+}
+
+/** Every review thread of the pull request. A page that fails throws, so a partial list is never mistaken for the whole one. */
+export function fetchThreads(gh: GhFn, repo: string, pr: number): RawThread[] {
+  const read = fetchThreadPages(gh, repo, pr);
+  if (!read.complete) throw read.error;
+  return read.threads;
+}
+
+/**
+ * How many of the engine's own finding threads are still open, for the status of a re-review
+ * (spec failure 6). `unknown` when any page could not be read: a count of the pages that did load
+ * would read as "nothing is open".
+ */
+export function earlierThreadCount(gh: GhFn, repo: string, pr: number): number | "unknown" {
+  const read = fetchThreadPages(gh, repo, pr);
+  return read.complete ? openBotThreads(read.threads).length : "unknown";
 }
 
 export function openThreads(gh: GhFn, repo: string, pr: number) {
@@ -4557,6 +4367,10 @@ export function githubReview(
     /** The number of paths a scoped request named. */
     scopePaths?: number;
     mention: string;
+    /** `owner/name`, for the links of the body's locations. */
+    repo?: string;
+    /** The engine's own threads still open before this review; `unknown` when a page could not be read. */
+    earlierThreads?: number | "unknown";
     automatic: boolean;
     /** The ledger's footer lines, when the run has any. */
     receiptLine?: string;
@@ -4598,6 +4412,8 @@ export function githubReview(
     automatic: github.automatic,
     receiptLine: github.receiptLine,
     mention: github.mention,
+    ...(github.repo ? { repo: github.repo } : {}),
+    ...(github.earlierThreads !== undefined ? { earlierThreads: github.earlierThreads } : {}),
     instructionChanges: github.instructionChanges,
     ...(result.pathPolicyChanged ? { pathPolicyChange: { baseSha: github.instructionChanges.baseSha } } : {}),
     riskMap: result.riskMap,
@@ -4979,6 +4795,8 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     scoped: paths.length > 0,
     scopePaths: paths.length,
     mention: config.mention,
+    repo,
+    earlierThreads: earlierThreadCount(gh, repo, pr),
     automatic,
     receiptLine,
     instructionChanges: {

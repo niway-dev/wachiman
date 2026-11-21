@@ -7,7 +7,7 @@
 import { inertText } from "./inert";
 import type { Fidelity } from "./types";
 
-const A_MEANS = "Every claim has cited evidence and no change is unexplained";
+export const A_MEANS = "Every claim has cited evidence and no change is unexplained";
 
 export function fidelitySummary(f: Fidelity): string {
   const label = f.trial ? `${f.grade} (trial)` : f.grade;

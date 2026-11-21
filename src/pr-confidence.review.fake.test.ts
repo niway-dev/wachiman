@@ -116,7 +116,7 @@ describe("the description block after a review", () => {
   test("the review comment carries a short PR Confidence line", async () => {
     const r = await run({ WACHIMAN_CONFIDENCE: "1" });
     const posted = r.world.reviews[0] as { body: string };
-    expect(posted.body).toContain("PR Confidence: A");
+    expect(posted.body).toContain("| **PR Confidence** | A (trial):");
   });
 
   test("a second review replaces the block and leaves the text outside it byte for byte", async () => {
