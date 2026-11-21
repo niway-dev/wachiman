@@ -1,11 +1,11 @@
-// Policy and rationale: docs/code-comments.md
+// See docs/code-comments.md
 import { existsSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 
 const TOOL_WITH_REASON = /^(?:@ts-(?:expect-error|ignore|nocheck)|(?:eslint|oxlint)-disable(?:-next-line|-line)?)\s+.*\S/;
 const TOOL_BARE = /^(?:@ts-check|(?:eslint|oxlint)-enable)\b/;
 const DISABLE = /^(?:eslint|oxlint)-disable(?:-next-line|-line)?\b/;
-const POINTER = /^See\s+([^\s#]+)(#\S*)?\.?$/;
+const POINTER = /^See\s+([^\s#]+?)(#\S*)?\.?$/;
 
 const rootCache = new Map();
 

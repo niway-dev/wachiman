@@ -43,8 +43,6 @@
       "bin/wachiman.js": 3,
       "scripts/generate-wachiman-platform.ts": 4,
       "scripts/install-local.test.ts": 2,
-      "scripts/lint/plugin.js": 1,
-      "scripts/lint/plugin.test.ts": 21,
       "scripts/prompt-golden.ts": 3,
       "scripts/questions-firing.ts": 3,
       "scripts/ratchet.test.ts": 4,

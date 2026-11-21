@@ -14,28 +14,29 @@ let messages: { ruleId: string; message: string; line: number }[];
 const source = [
   "#!/usr/bin/env bun",
   '/// <reference types="bun" />',
-  "// explains the obvious", // 3 prose
-  "// See docs/real.md", // 4 pointer ok
-  "// See docs/real.md#some-anchor", // 5 pointer with anchor ok
-  "// See docs/missing.md", // 6 missing target
-  "// See docs/missing.md#anchor", // 7 missing target
-  "// See docs/real.md for why", // 8 prose after the pointer
-  "// See below", // 9 not a path: prose
-  "/* See docs/real.md */", // 10 block pointer ok
-  "/** Exported thing. */", // 11 JSDoc prose
-  "/** See docs/real.md */", // 12 JSDoc pointer ok
+  "// explains the obvious",
+  "// See docs/real.md",
+  "// See docs/real.md#some-anchor",
+  "// See docs/missing.md",
+  "// See docs/missing.md#anchor",
+  "// See docs/real.md for why",
+  "// See below",
+  "/* See docs/real.md */",
+  "/** Exported thing. */",
+  "/** See docs/real.md */",
   "export const a: number = 1;",
-  "// @ts-expect-error the argument is deliberately wrong", // 14 ok
-  "// @ts-expect-error", // 15 no reason
-  "// @ts-ignore", // 16 no reason
-  "// @ts-ignore legacy typing", // 17 ok
-  "// eslint-disable-next-line no-empty -- the probe may throw", // 18 ok
-  "// eslint-disable-next-line no-empty", // 19 no reason
-  "// oxlint-disable no-empty -- generated block", // 20 ok
-  "// eslint-enable no-empty", // 21 ok
-  "// TODO: fix this", // 22 prose
-  "// const old = 1;", // 23 prose (commented-out code)
-  "export const b = 1; // trailing explanation", // 24 prose
+  "// @ts-expect-error the argument is deliberately wrong",
+  "// @ts-expect-error",
+  "// @ts-ignore",
+  "// @ts-ignore legacy typing",
+  "// eslint-disable-next-line no-empty -- the probe may throw",
+  "// eslint-disable-next-line no-empty",
+  "// oxlint-disable no-empty -- generated block",
+  "// eslint-enable no-empty",
+  "// TODO: fix this",
+  "// const old = 1;",
+  "export const b = 1; // trailing explanation",
+  "// See docs/real.md.",
   "",
 ].join("\n");
 
@@ -48,6 +49,8 @@ beforeAll(() => {
   writeFileSync(join(dir, "bunfig.toml"), `[lint]\nplugins = [${JSON.stringify(plugin)}]\n\n[lint.rules]\n"${RULE}" = "error"\n`);
   writeFileSync(join(dir, "sample.ts"), source);
   const run = spawnSync("bunx", [`bun@${LINT_BUN}`, "lint", "--format", "json", "--no-script"], { cwd: dir, encoding: "utf8" });
+  if (run.status !== 0 && run.status !== 1)
+    throw new Error(`bunx bun@${LINT_BUN} lint failed (needs network on first use): ${run.stderr.slice(0, 500)}`);
   const files = JSON.parse(run.stdout) as { filePath: string; messages: typeof messages }[];
   messages = files.flatMap((f) => f.messages).filter((m) => m.ruleId === RULE);
 }, 120_000);
@@ -67,6 +70,10 @@ describe("local/comments-point-to-docs, run through bun lint", () => {
 
   test("accepts a pointer to a file that exists, with or without an anchor, as a line or a block comment", () => {
     for (const line of [4, 5, 10, 12]) expect(reported(line)).toHaveLength(0);
+  });
+
+  test("a pointer may end with a period", () => {
+    expect(reported(25)).toHaveLength(0);
   });
 
   test("reports a pointer to a missing file with its own message naming the target", () => {
