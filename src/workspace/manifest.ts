@@ -148,12 +148,14 @@ function assertGlobContained(glob: string, where: string) {
   }
   for (const expansion of expansions) {
     if (looksAbsolute(expansion)) throw escape(`${where} "${glob}" is an absolute path; it must be relative.`);
-    if (expansion.split(/[\\/]/).includes("..")) throw escape(`${where} "${glob}" contains a ".." segment; it must stay inside its folder.`);
+    if (expansion.split(/[\\/]/).includes(".."))
+      throw escape(`${where} "${glob}" contains a ".." segment; it must stay inside its folder.`);
   }
 }
 
 function parsePaths(raw: unknown, where: string): string[] {
-  if (!Array.isArray(raw) || raw.length === 0 || !raw.every(isNonEmptyString)) throw invalid(`${where} must be a non-empty list of path globs.`);
+  if (!Array.isArray(raw) || raw.length === 0 || !raw.every(isNonEmptyString))
+    throw invalid(`${where} must be a non-empty list of path globs.`);
   for (const glob of raw as string[]) assertGlobContained(glob, `${where} glob`);
   return [...(raw as string[])];
 }
@@ -169,12 +171,14 @@ export function parseVersionSpec(raw: unknown, where: string, fail: (message: st
     throw fail(`${where}.rule must be one of ${VERSION_RULES.join(", ")}, got ${JSON.stringify(rule)}.`);
   const spec: VersionSpec = { rule: rule as VersionRuleName };
   if (raw.ref !== undefined) {
-    if (!isNonEmptyString(raw.ref) || raw.ref.startsWith("-")) throw fail(`${where}.ref must be a ref name, got ${JSON.stringify(raw.ref)}.`);
+    if (!isNonEmptyString(raw.ref) || raw.ref.startsWith("-"))
+      throw fail(`${where}.ref must be a ref name, got ${JSON.stringify(raw.ref)}.`);
     spec.ref = raw.ref;
   }
   if (raw.pin !== undefined) {
     const pin = raw.pin;
-    if (!isRecord(pin) || !isNonEmptyString(pin.file) || !isNonEmptyString(pin.tag)) throw fail(`${where}.pin must hold a "file" and a "tag".`);
+    if (!isRecord(pin) || !isNonEmptyString(pin.file) || !isNonEmptyString(pin.tag))
+      throw fail(`${where}.pin must hold a "file" and a "tag".`);
     if (!Array.isArray(pin.key) || pin.key.length === 0 || !pin.key.every((k) => typeof k === "string"))
       throw fail(`${where}.pin.key must be a non-empty array of literal keys (a dotted string would break names such as "chart.js").`);
     if (looksAbsolute(pin.file) || climbs(pin.file)) throw fail(`${where}.pin.file "${pin.file}" must be a relative path without "..".`);
@@ -199,7 +203,11 @@ function realOrSelf(path: string): string {
 }
 
 /** `./app/` and `app` name one folder: strip leading `./` and trailing `/`, collapse `.` and doubled separators. */
-export const normaliseDir = (dir: string) => posix.normalize(dir.replaceAll("\\", "/")).replace(/^(\.\/)+/, "").replace(/\/+$/, "") || ".";
+export const normaliseDir = (dir: string) =>
+  posix
+    .normalize(dir.replaceAll("\\", "/"))
+    .replace(/^(\.\/)+/, "")
+    .replace(/\/+$/, "") || ".";
 
 function parseMember(raw: unknown, index: number, coordinatorDir: string): Member {
   const where = `members[${index}]`;
@@ -224,14 +232,16 @@ function parseContract(raw: unknown, index: number, dirs: Set<string>): Contract
   const name = raw.name;
   const known = (member: unknown, at: string) => {
     const dir = isNonEmptyString(member) ? normaliseDir(member) : undefined;
-    if (dir === undefined || !dirs.has(dir)) throw invalid(`${at} names member ${JSON.stringify(member)}, which is not in "members" (contract "${name}").`);
+    if (dir === undefined || !dirs.has(dir))
+      throw invalid(`${at} names member ${JSON.stringify(member)}, which is not in "members" (contract "${name}").`);
     return dir;
   };
   if (!Array.isArray(raw.sides)) throw invalid(`${where}.sides must be a list (contract "${name}").`);
   const sides: ContractSide[] = raw.sides.map((side, i) => {
     const at = `${where}.sides[${i}]`;
     if (!isRecord(side)) throw invalid(`${at} must be an object.`);
-    if (side.role !== "provider" && side.role !== "consumer") throw invalid(`${at}.role must be provider or consumer, got ${JSON.stringify(side.role)} (contract "${name}").`);
+    if (side.role !== "provider" && side.role !== "consumer")
+      throw invalid(`${at}.role must be provider or consumer, got ${JSON.stringify(side.role)} (contract "${name}").`);
     return { member: known(side.member, `${at}.member`), role: side.role, paths: parsePaths(side.paths, `${at}.paths`) };
   });
   if (!sides.some((s) => s.role === "provider")) throw invalid(`Contract "${name}" has no provider side.`);
@@ -241,7 +251,10 @@ function parseContract(raw: unknown, index: number, dirs: Set<string>): Contract
   const contract: Contract = {
     name,
     sides,
-    sourceOfTruth: { member: known(source.member, `${where}.sourceOfTruth.member`), paths: parsePaths(source.paths, `${where}.sourceOfTruth.paths`) },
+    sourceOfTruth: {
+      member: known(source.member, `${where}.sourceOfTruth.member`),
+      paths: parsePaths(source.paths, `${where}.sourceOfTruth.paths`),
+    },
   };
   if (raw.version !== undefined) contract.version = parseVersionSpec(raw.version, `${where}.version`);
   return contract;
@@ -262,7 +275,7 @@ export function parseManifest(text: string, coordinatorDir: string): Manifest {
   if (!isRecord(raw)) throw invalid(`${MANIFEST_FILE} must hold a JSON object.`);
   if (raw.format !== MANIFEST_FORMAT)
     throw new ManifestError(
-      `${MANIFEST_FILE} has format ${raw.format === undefined ? "(no \"format\" key)" : JSON.stringify(raw.format)}; this version of Wachiman reads only "${MANIFEST_FORMAT}" and does not guess.`,
+      `${MANIFEST_FILE} has format ${raw.format === undefined ? '(no "format" key)' : JSON.stringify(raw.format)}; this version of Wachiman reads only "${MANIFEST_FORMAT}" and does not guess.`,
       "format",
     );
   if (!Array.isArray(raw.members)) throw invalid(`${MANIFEST_FILE}: "members" must be a list.`);

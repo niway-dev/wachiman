@@ -44,12 +44,14 @@ describe("release-please.yml", () => {
     const steps = stepText(publish);
     expect(steps).toContain("download-artifact");
     // The leading ./ keeps npm from reading dist/x.tgz as a GitHub user/repo (broke the v1.11.0 publish).
-    expect(steps).toContain("npm publish \\\"./$tarball\\\" --provenance");
+    expect(steps).toContain('npm publish \\"./$tarball\\" --provenance');
     expect(steps).toContain("11.5.1");
     expect(steps).not.toContain("npm pack");
   });
 
   test("the release job exports what the later jobs need", () => {
-    expect(Object.keys(workflow.jobs["release-please"].outputs)).toEqual(expect.arrayContaining(["release_created", "version", "sha", "tag_name"]));
+    expect(Object.keys(workflow.jobs["release-please"].outputs)).toEqual(
+      expect.arrayContaining(["release_created", "version", "sha", "tag_name"]),
+    );
   });
 });

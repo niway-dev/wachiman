@@ -1,6 +1,17 @@
 import { spawnSync } from "node:child_process";
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, lstatSync, mkdtempSync, readFileSync, readdirSync, renameSync, rmSync, statSync, symlinkSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  renameSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit, emptyRepo, git, removeTempRepos, write } from "../../test/support/temp-repo";
@@ -46,7 +57,9 @@ function sibling() {
 }
 
 const files = (root: string, base = ""): string[] =>
-  readdirSync(join(root, base), { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? files(root, join(base, e.name)) : [join(base, e.name)]));
+  readdirSync(join(root, base), { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? files(root, join(base, e.name)) : [join(base, e.name)],
+  );
 
 describe("snapshotSibling", () => {
   test("holds the committed bytes of the selected tracked files and nothing else", () => {
@@ -141,7 +154,13 @@ describe("snapshotSibling", () => {
     const dir = emptyRepo("wachiman-sibling-attrs-");
     commit(
       dir,
-      { ".gitattributes": "secret.txt export-ignore\nstamp.txt export-subst\n", "secret.txt": "s\n", "keep.txt": "k\n", "stamp.txt": "version $Format:%H$\n", "local.txt": "l\n" },
+      {
+        ".gitattributes": "secret.txt export-ignore\nstamp.txt export-subst\n",
+        "secret.txt": "s\n",
+        "keep.txt": "k\n",
+        "stamp.txt": "version $Format:%H$\n",
+        "local.txt": "l\n",
+      },
       "attrs",
     );
     write(dir, { ".git/info/attributes": "local.txt export-ignore\n" });
@@ -169,7 +188,11 @@ describe("snapshotSibling", () => {
     const first = commit(dir, { "a.txt": "a\n" }, "first");
     const blob = git(dir, "rev-parse", `${first}:a.txt`).trim();
     // A tree whose entry is named "..": git writes it with `hash-object` and no fsck.
-    const bad = spawnSync("git", ["hash-object", "-w", "-t", "tree", "--literally", "--stdin"], { cwd: dir, input: Buffer.concat([Buffer.from("100644 ..\0"), Buffer.from(blob, "hex")]), encoding: "utf8" }).stdout.trim();
+    const bad = spawnSync("git", ["hash-object", "-w", "-t", "tree", "--literally", "--stdin"], {
+      cwd: dir,
+      input: Buffer.concat([Buffer.from("100644 ..\0"), Buffer.from(blob, "hex")]),
+      encoding: "utf8",
+    }).stdout.trim();
     const commitId = git(dir, "commit-tree", bad, "-m", "dotdot").trim();
     expect(() => snapshotSibling(dir, commitId, ["**"])).toThrow(/Refusing the tree entry "\.\."/);
   });

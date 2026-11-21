@@ -18,10 +18,38 @@ import { validate } from "../json-schema";
 
 function entry(kind: MemoryEntry["kind"], rule: string, scope: string, over: Partial<MemoryEntry> = {}): MemoryEntry {
   const why = "because";
-  return { id: entryId({ kind, scope, rule, why, ...(over.holdsWhile ? { holdsWhile: over.holdsWhile } : {}) }), title: rule, kind, scope, rule, why, evidence: ["2026-11-18 instruction"], added: "2026-11-18", file: "index.md", line: 1, ...over };
+  return {
+    id: entryId({ kind, scope, rule, why, ...(over.holdsWhile ? { holdsWhile: over.holdsWhile } : {}) }),
+    title: rule,
+    kind,
+    scope,
+    rule,
+    why,
+    evidence: ["2026-11-18 instruction"],
+    added: "2026-11-18",
+    file: "index.md",
+    line: 1,
+    ...over,
+  };
 }
-const load = (entries: MemoryEntry[]): MemoryLoad => ({ revision: "b".repeat(40), files: [], leftOut: [], overBudget: false, indexOverBudget: false, budget: { maxIndexLines: 150, maxLoadedLines: 400, loadedLines: 0 }, entries });
-const finding = (over: Partial<Finding> = {}): Finding => ({ path: "docs/adr/0031.md", line: 3, severity: "consider", topic: "docs", title: "stale date", body: "The date is old.", ...over });
+const load = (entries: MemoryEntry[]): MemoryLoad => ({
+  revision: "b".repeat(40),
+  files: [],
+  leftOut: [],
+  overBudget: false,
+  indexOverBudget: false,
+  budget: { maxIndexLines: 150, maxLoadedLines: 400, loadedLines: 0 },
+  entries,
+});
+const finding = (over: Partial<Finding> = {}): Finding => ({
+  path: "docs/adr/0031.md",
+  line: 3,
+  severity: "consider",
+  topic: "docs",
+  title: "stale date",
+  body: "The date is old.",
+  ...over,
+});
 
 describe("renderConventions with personal memory", () => {
   test("marks a personal convention and says the committed memory wins; without personal entries the text is unchanged", () => {
@@ -46,7 +74,9 @@ describe("renderConventions", () => {
   });
 
   test("labels the conventions as learned, says the hand-written files win, and never carries an exception", () => {
-    const text = renderConventions(load([entry("convention", "Readable before terse", "src/**"), entry("exception", "SECRET exception rule", "docs/**")]));
+    const text = renderConventions(
+      load([entry("convention", "Readable before terse", "src/**"), entry("exception", "SECRET exception rule", "docs/**")]),
+    );
     expect(text).toContain("## Learned conventions");
     expect(text).toContain("Readable before terse");
     expect(text).toContain("hand-written file wins");
@@ -117,7 +147,10 @@ describe("matchRequest", () => {
       finding({ title: "info", severity: "info" }),
     ];
     const request = matchRequest([e], findings)!;
-    expect(request.findings.map((f) => [f.id, f.finding.title])).toEqual([["f5", "consider"], ["f6", "info"]]);
+    expect(request.findings.map((f) => [f.id, f.finding.title])).toEqual([
+      ["f5", "consider"],
+      ["f6", "info"],
+    ]);
     expect(request.entries).toEqual([e]);
   });
 
@@ -141,13 +174,28 @@ describe("applyMatches", () => {
 
   test("mutes a Consider and an Info finding and lists the entry", () => {
     const findings = [finding({ title: "a" }), finding({ title: "b", severity: "info" }), finding({ title: "c" })];
-    const out = applyMatches(findings, [e], [{ finding: "f1", entry: e.id, reason: "r1" }, { finding: "f2", entry: e.id, reason: "r2" }]);
+    const out = applyMatches(
+      findings,
+      [e],
+      [
+        { finding: "f1", entry: e.id, reason: "r1" },
+        { finding: "f2", entry: e.id, reason: "r2" },
+      ],
+    );
     expect(out.posted.map((f) => f.title)).toEqual(["c"]);
-    expect(out.muted.map((m) => [m.title, m.entry, m.reason])).toEqual([["a", e.id, "r1"], ["b", e.id, "r2"]]);
+    expect(out.muted.map((m) => [m.title, m.entry, m.reason])).toEqual([
+      ["a", e.id, "r1"],
+      ["b", e.id, "r2"],
+    ]);
   });
 
   test("a match on a Blocker, a Fix or a security finding is ignored for muting and the finding is posted with a note naming the entry", () => {
-    for (const f of [finding({ severity: "blocker" }), finding({ severity: "fix" }), finding({ severity: "consider", topic: "security" }), finding({ severity: "info", topic: "security" })]) {
+    for (const f of [
+      finding({ severity: "blocker" }),
+      finding({ severity: "fix" }),
+      finding({ severity: "consider", topic: "security" }),
+      finding({ severity: "info", topic: "security" }),
+    ]) {
       const out = applyMatches([f], [e], [{ finding: "f1", entry: e.id, reason: "r" }]);
       expect(out.muted).toEqual([]);
       expect(out.posted).toHaveLength(1);
@@ -176,7 +224,15 @@ describe("applyMatches", () => {
 
   test("the first valid match of a finding is the one used", () => {
     const second = entry("exception", "second", "docs/**");
-    const out = applyMatches([finding()], [e, second], [{ finding: "f1", entry: "0000000", reason: "x" }, { finding: "f1", entry: second.id, reason: "y" }, { finding: "f1", entry: e.id, reason: "z" }]);
+    const out = applyMatches(
+      [finding()],
+      [e, second],
+      [
+        { finding: "f1", entry: "0000000", reason: "x" },
+        { finding: "f1", entry: second.id, reason: "y" },
+        { finding: "f1", entry: e.id, reason: "z" },
+      ],
+    );
     expect(out.muted.map((m) => m.entry)).toEqual([second.id]);
   });
 
@@ -209,7 +265,12 @@ describe("renderMuting", () => {
   });
 
   test("lists each muted finding with its title, location and entry id", () => {
-    const text = renderMuting({ muted: [{ path: "docs/adr/0031.md", line: 3, severity: "consider", topic: "docs", title: "stale date", entry: "4c1e9a2", reason: "r" }], stale: [] })!;
+    const text = renderMuting({
+      muted: [
+        { path: "docs/adr/0031.md", line: 3, severity: "consider", topic: "docs", title: "stale date", entry: "4c1e9a2", reason: "r" },
+      ],
+      stale: [],
+    })!;
     expect(text).toContain("**Muted by memory**");
     expect(text).toContain("stale date");
     expect(text).toContain("`docs/adr/0031.md:3`");

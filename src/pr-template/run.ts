@@ -8,7 +8,16 @@
 import { resolve } from "node:path";
 import { UsageError } from "../config";
 import { commandHelp } from "../help";
-import { parseCheckArgs, parseRiskArgs, parseStripArgs, runCheck, runRisk, runStrip, type PrTemplateDeps, type PrTemplateIo } from "./check-run";
+import {
+  parseCheckArgs,
+  parseRiskArgs,
+  parseStripArgs,
+  runCheck,
+  runRisk,
+  runStrip,
+  type PrTemplateDeps,
+  type PrTemplateIo,
+} from "./check-run";
 import { defaultRunner } from "./gh";
 import { parseFormatArgs, runFormat } from "./format";
 import { parseInstallArgs, parseShowArgs, parseStatusArgs, runInstall, runShow, runStatus, type Deps as InstallDeps } from "./install";
@@ -51,7 +60,11 @@ export function runPrTemplate(argv: string[], repoDir: string, io: PrTemplateIo,
   // `check` reads a relative file argument from `fileBase`, by default the directory the command was given
   // (`--repo-dir`). Unless a caller passes its own runner, `gh` and `git` run at the repository root, which is
   // also where `.github/` is read. `strip` and `format` take their file against the directory or root they are given.
-  const check: PrTemplateDeps = { ...deps.check, fileBase: deps.check?.fileBase ?? repoDir, run: deps.check?.run ?? ((cmd, cwd) => defaultRunner(cmd, cwd ?? root)) };
+  const check: PrTemplateDeps = {
+    ...deps.check,
+    fileBase: deps.check?.fileBase ?? repoDir,
+    run: deps.check?.run ?? ((cmd, cwd) => defaultRunner(cmd, cwd ?? root)),
+  };
   const help = () => (io.stdout(commandHelp(["pr-template", first])!), 0);
   switch (first) {
     case "show": {

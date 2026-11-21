@@ -1,7 +1,17 @@
 import { describe, expect, test } from "bun:test";
 import { loadConfig, UsageError } from "./config";
 import { GhError, readBaseSettings, withBaseSettings, type GhFn } from "./engine";
-import { applyRepoSettings, effectiveSettings, fileSettingsNote, matchPathRule, parsePathRules, parseRepoSettings, resolveMemorySettings, wantsRepoSettings, type PathRule } from "./repo-settings";
+import {
+  applyRepoSettings,
+  effectiveSettings,
+  fileSettingsNote,
+  matchPathRule,
+  parsePathRules,
+  parseRepoSettings,
+  resolveMemorySettings,
+  wantsRepoSettings,
+  type PathRule,
+} from "./repo-settings";
 import { settingsContent } from "./init/settings";
 
 const BASE = "b".repeat(40);
@@ -9,7 +19,11 @@ const HEAD = "a".repeat(40);
 
 describe("parseRepoSettings", () => {
   test("reads kind, model and effort; unknown keys are ignored", () => {
-    expect(parseRepoSettings("kind: monorepo\nmodel: claude-opus-5-5\neffort: xhigh\nfuture: 1\n")).toEqual({ kind: "monorepo", model: "claude-opus-5-5", effort: "xhigh" });
+    expect(parseRepoSettings("kind: monorepo\nmodel: claude-opus-5-5\neffort: xhigh\nfuture: 1\n")).toEqual({
+      kind: "monorepo",
+      model: "claude-opus-5-5",
+      effort: "xhigh",
+    });
   });
 
   test("an empty file, comments only and keys with no value hold nothing", () => {
@@ -95,11 +109,17 @@ describe("paths", () => {
     ["paths:\n  - [a]\n", "paths[0] must be a mapping"],
     ["paths:\n  - severity: high\n    reason: r\n", "paths[0].match must be a glob"],
     ['paths:\n  - match: ""\n    severity: high\n    reason: r\n', "paths[0].match must be a glob"],
-    ['paths:\n  - match: "a/**"\n    severity: urgent\n    reason: r\n', 'paths[0].severity must be one of critical, high, medium, got "urgent"'],
+    [
+      'paths:\n  - match: "a/**"\n    severity: urgent\n    reason: r\n',
+      'paths[0].severity must be one of critical, high, medium, got "urgent"',
+    ],
     ['paths:\n  - match: "a/**"\n    severity: High\n    reason: r\n', 'got "High"'],
     ['paths:\n  - match: "a/**"\n    severity: high\n', "paths[0].reason must be a non-empty text"],
     ['paths:\n  - match: "a/**"\n    severity: high\n    reason: "  "\n', "paths[0].reason must be a non-empty text"],
-    ['paths:\n  - match: "a/**"\n    severity: high\n    reason: r\n  - match: "b/**"\n    severity: x\n    reason: r\n', 'paths[1].severity must be one of critical, high, medium, got "x".'],
+    [
+      'paths:\n  - match: "a/**"\n    severity: high\n    reason: r\n  - match: "b/**"\n    severity: x\n    reason: r\n',
+      'paths[1].severity must be one of critical, high, medium, got "x".',
+    ],
   ])("%p is a usage error naming the entry", (content, message) => {
     let error: unknown;
     try {
@@ -113,7 +133,9 @@ describe("paths", () => {
   });
 
   test("parsePathRules names the place it was given, for an input file", () => {
-    expect(() => parsePathRules([{ match: "a", severity: "x", reason: "r" }], "--input in.json")).toThrow(/^--input in\.json: paths\[0\]\.severity/);
+    expect(() => parsePathRules([{ match: "a", severity: "x", reason: "r" }], "--input in.json")).toThrow(
+      /^--input in\.json: paths\[0\]\.severity/,
+    );
   });
 
   describe("matchPathRule", () => {
@@ -160,7 +182,9 @@ describe("paths", () => {
     });
 
     test("dotted directories match a literal dotted glob", () => {
-      expect(matchPathRule(".github/workflows/ci.yml", [{ match: ".github/workflows/**", severity: "critical", reason: "r" }])?.severity).toBe("critical");
+      expect(
+        matchPathRule(".github/workflows/ci.yml", [{ match: ".github/workflows/**", severity: "critical", reason: "r" }])?.severity,
+      ).toBe("critical");
     });
   });
 });
@@ -212,7 +236,9 @@ describe("precedence: an explicit value beats the file, the file beats the defau
   test("nothing explicit: the file's values apply and are marked as from the file", () => {
     const config = applyRepoSettings(loadConfig({}), file, opts());
     expect(config).toMatchObject({ model: "claude-opus-5-5", modelSource: "file", effort: "low", effortSource: "file" });
-    expect(fileSettingsNote(config, "the base commit bbbbbbb")).toBe("model claude-opus-5-5, effort low from .wachiman.yml at the base commit bbbbbbb");
+    expect(fileSettingsNote(config, "the base commit bbbbbbb")).toBe(
+      "model claude-opus-5-5, effort low from .wachiman.yml at the base commit bbbbbbb",
+    );
   });
 
   test("an explicit WACHIMAN_MODEL and WACHIMAN_EFFORT win over the file", () => {
@@ -234,13 +260,27 @@ describe("precedence: an explicit value beats the file, the file beats the defau
   });
 
   test("a file with no model or effort leaves the defaults, marked as defaults", () => {
-    expect(applyRepoSettings(loadConfig({}), { kind: "single" }, opts())).toMatchObject({ model: "claude-sonnet-5-5", modelSource: "default", effort: "high", effortSource: "default" });
+    expect(applyRepoSettings(loadConfig({}), { kind: "single" }, opts())).toMatchObject({
+      model: "claude-sonnet-5-5",
+      modelSource: "default",
+      effort: "high",
+      effortSource: "default",
+    });
   });
 
   test("doctor's view of the same rule", () => {
-    expect(effectiveSettings({}, file)).toEqual({ model: { value: "claude-opus-5-5", source: "file" }, effort: { value: "low", source: "file" } });
-    expect(effectiveSettings({ WACHIMAN_MODEL: "m", WACHIMAN_EFFORT: "max" }, file)).toEqual({ model: { value: "m", source: "env" }, effort: { value: "max", source: "env" } });
-    expect(effectiveSettings({ WACHIMAN_MODEL: "" }, undefined)).toEqual({ model: { value: "claude-sonnet-5-5", source: "default" }, effort: { value: "high", source: "default" } });
+    expect(effectiveSettings({}, file)).toEqual({
+      model: { value: "claude-opus-5-5", source: "file" },
+      effort: { value: "low", source: "file" },
+    });
+    expect(effectiveSettings({ WACHIMAN_MODEL: "m", WACHIMAN_EFFORT: "max" }, file)).toEqual({
+      model: { value: "m", source: "env" },
+      effort: { value: "max", source: "env" },
+    });
+    expect(effectiveSettings({ WACHIMAN_MODEL: "" }, undefined)).toEqual({
+      model: { value: "claude-sonnet-5-5", source: "default" },
+      effort: { value: "high", source: "default" },
+    });
     expect(effectiveSettings({ WACHIMAN_PROVIDER: "codex" }, undefined).model).toEqual({ value: "gpt-6.1-sol", source: "default" });
   });
 });
@@ -291,22 +331,42 @@ describe("the Actions read: the base commit, never the head", () => {
 
   test("an explicit effort with no model: the file still supplies the model", () => {
     const { gh } = fakeGh({ base: "effort: low\nmodel: claude-opus-5-5\n" });
-    expect(withBaseSettings(loadConfig({ WACHIMAN_EFFORT: "max" }), gh, "o/r", 5, () => {})).toMatchObject({ model: "claude-opus-5-5", effort: "max", effortSource: "env" });
+    expect(withBaseSettings(loadConfig({ WACHIMAN_EFFORT: "max" }), gh, "o/r", 5, () => {})).toMatchObject({
+      model: "claude-opus-5-5",
+      effort: "max",
+      effortSource: "env",
+    });
   });
 
   test("an invalid effort at the base is ignored with a warning naming the file and the value; the run continues on the defaults", () => {
     const { gh } = fakeGh({ base: "effort: turbo\n" });
     const warnings: string[] = [];
-    const config = withBaseSettings(loadConfig({}), gh, "o/r", 5, () => {}, (line) => warnings.push(line));
+    const config = withBaseSettings(
+      loadConfig({}),
+      gh,
+      "o/r",
+      5,
+      () => {},
+      (line) => warnings.push(line),
+    );
     expect(config).toMatchObject({ effort: "high", effortSource: "default", modelSource: "default" });
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toMatch(/^ignored \.wachiman\.yml at the base commit [0-9a-f]{7}: .*effort must be one of .*got "turbo"; using defaults$/);
+    expect(warnings[0]).toMatch(
+      /^ignored \.wachiman\.yml at the base commit [0-9a-f]{7}: .*effort must be one of .*got "turbo"; using defaults$/,
+    );
   });
 
   test("unparseable YAML at the base is ignored with a warning, and an explicit value still applies", () => {
     const { gh } = fakeGh({ base: "model: [unclosed\n" });
     const warnings: string[] = [];
-    const config = withBaseSettings(loadConfig({ WACHIMAN_EFFORT: "max" }), gh, "o/r", 5, () => {}, (line) => warnings.push(line));
+    const config = withBaseSettings(
+      loadConfig({ WACHIMAN_EFFORT: "max" }),
+      gh,
+      "o/r",
+      5,
+      () => {},
+      (line) => warnings.push(line),
+    );
     expect(config).toMatchObject({ effort: "max", effortSource: "env", modelSource: "default" });
     expect(warnings[0]).toContain("ignored .wachiman.yml at the base commit");
     expect(warnings[0]).toContain("is not valid YAML");
@@ -328,23 +388,34 @@ describe("the Actions read: the base commit, never the head", () => {
 
 describe("the memory key", () => {
   test("defaults are 2, 150, 400 and 90 when nothing is set", () => {
-    expect(resolveMemorySettings(undefined)).toEqual({ settings: { minEvidence: 2, maxIndexLines: 150, maxLoadedLines: 400, archiveAfterDays: 90 }, notices: [] });
+    expect(resolveMemorySettings(undefined)).toEqual({
+      settings: { minEvidence: 2, maxIndexLines: 150, maxLoadedLines: 400, archiveAfterDays: 90 },
+      notices: [],
+    });
     expect(parseRepoSettings("model: x\n")).toEqual({ model: "x" });
   });
 
   test("valid values override the defaults one by one", () => {
     const parsed = parseRepoSettings("memory:\n  min_evidence: 3\n  max_loaded_lines: 600\n");
     expect(parsed.memory).toEqual({ minEvidence: 3, maxLoadedLines: 600 });
-    expect(resolveMemorySettings(parsed).settings).toEqual({ minEvidence: 3, maxIndexLines: 150, maxLoadedLines: 600, archiveAfterDays: 90 });
+    expect(resolveMemorySettings(parsed).settings).toEqual({
+      minEvidence: 3,
+      maxIndexLines: 150,
+      maxLoadedLines: 600,
+      archiveAfterDays: 90,
+    });
   });
 
-  test.each([["0"], ["-5"], ["2.5"], ['"many"'], ["true"], ["[1]"]])("a value of %s is ignored with a notice and the default applies", (value) => {
-    const parsed = parseRepoSettings(`memory:\n  max_index_lines: ${value}\n  archive_after_days: 30\n`);
-    expect(parsed.memory).toEqual({ archiveAfterDays: 30 });
-    expect(parsed.memoryNotices).toHaveLength(1);
-    expect(parsed.memoryNotices![0]).toContain("memory.max_index_lines must be a positive whole number");
-    expect(resolveMemorySettings(parsed).settings.maxIndexLines).toBe(150);
-  });
+  test.each([["0"], ["-5"], ["2.5"], ['"many"'], ["true"], ["[1]"]])(
+    "a value of %s is ignored with a notice and the default applies",
+    (value) => {
+      const parsed = parseRepoSettings(`memory:\n  max_index_lines: ${value}\n  archive_after_days: 30\n`);
+      expect(parsed.memory).toEqual({ archiveAfterDays: 30 });
+      expect(parsed.memoryNotices).toHaveLength(1);
+      expect(parsed.memoryNotices![0]).toContain("memory.max_index_lines must be a positive whole number");
+      expect(resolveMemorySettings(parsed).settings.maxIndexLines).toBe(150);
+    },
+  );
 
   test("a memory key that is not a mapping is ignored with a notice", () => {
     const parsed = parseRepoSettings("memory: 5\n");

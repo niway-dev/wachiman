@@ -163,7 +163,11 @@ export type Section = "main" | "inconclusive" | "pre-existing";
  * not settle is a question for the author, not a thread. A finding the verifier never reached
  * (`not verified: ...`) is not doubt about it, so it stays in the main list, and so do nits and info.
  */
-export function sectionOf(f: { severity: Severity; origin?: Origin; verification?: Pick<FindingVerification, "status" | "unreached"> }): Section {
+export function sectionOf(f: {
+  severity: Severity;
+  origin?: Origin;
+  verification?: Pick<FindingVerification, "status" | "unreached">;
+}): Section {
   if (f.severity === "info") return "main";
   if (f.origin === "pre-existing") return "pre-existing";
   const demanding = f.severity === "blocker" || f.severity === "fix";
@@ -175,7 +179,13 @@ const UNVERIFIED: FindingVerification = { status: "unverified", reason: "", chec
 
 /** Findings nobody verified (verification off, or an info notice): origin unknown, status unverified. */
 export function annotateUnverified(findings: Finding[]): VerifiedFinding[] {
-  return findings.map((f) => ({ ...f, origin: "unknown", verification: { ...UNVERIFIED, checked: [] }, tier: tierWord(f), ...priorityFields(f) }));
+  return findings.map((f) => ({
+    ...f,
+    origin: "unknown",
+    verification: { ...UNVERIFIED, checked: [] },
+    tier: tierWord(f),
+    ...priorityFields(f),
+  }));
 }
 
 /** Every finding above `info`, in order, with an id. Info notices (the engine's ADR notices included) are never verified. */
@@ -199,7 +209,10 @@ function headLines(headDir: string, path: string): string[] | null {
 export function snippet(headDir: string, f: Pick<Finding, "path" | "line">): string {
   const lines = headLines(headDir, f.path);
   if (!lines) return "(the file is not in the head)";
-  const [lo, hi] = f.line <= 0 ? [1, Math.min(lines.length, 2 * SNIPPET_LINES)] : [Math.max(1, f.line - SNIPPET_LINES), Math.min(lines.length, f.line + SNIPPET_LINES)];
+  const [lo, hi] =
+    f.line <= 0
+      ? [1, Math.min(lines.length, 2 * SNIPPET_LINES)]
+      : [Math.max(1, f.line - SNIPPET_LINES), Math.min(lines.length, f.line + SNIPPET_LINES)];
   const width = String(hi).length;
   const out: string[] = [];
   for (let n = lo; n <= hi; n++) out.push(`${String(n).padStart(width)}  ${lines[n - 1]}`);
@@ -211,7 +224,14 @@ export function snippet(headDir: string, f: Pick<Finding, "path" | "line">): str
 const esc = (t: string) => t.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;");
 
 /** The prompt of the verifier call: the candidates with their code, then the hunks of the files they cite. */
-export function buildVerifyPrompt(p: { describe: string; headSha: string; headDir: string; baseDir?: string; candidates: Candidate[]; files: ReviewFile[] }): string {
+export function buildVerifyPrompt(p: {
+  describe: string;
+  headSha: string;
+  headDir: string;
+  baseDir?: string;
+  candidates: Candidate[];
+  files: ReviewFile[];
+}): string {
   const cited = [...new Set(p.candidates.map((c) => c.finding.path))];
   let budget = VERIFY_DIFF_CHARS;
   const hunks: string[] = [];
@@ -317,7 +337,9 @@ function citationOf(raw: unknown, snapshots: Snapshots): Citation | null {
   // A sibling file too big to count cannot be checked, so it is not evidence.
   const count = found ? countable(lines(path)) : lines(path);
   if (count === null || c.line > count) return null;
-  return found ? { snapshot: "head", member: found.member, sha: found.sha, path, line: c.line } : { snapshot: c.snapshot, path, line: c.line };
+  return found
+    ? { snapshot: "head", member: found.member, sha: found.sha, path, line: c.line }
+    : { snapshot: c.snapshot, path, line: c.line };
 }
 
 /** The citations of `raw` that name an existing line in the snapshot they say; the rest are not evidence. */
@@ -366,7 +388,13 @@ export function applyVerdicts(
       status: VerificationEntryV2["status"],
       reason: string,
       outcome: VerificationEntryV2["outcome"],
-      extra: { checked?: Citation[]; claimed?: Claimed; unreached?: true; origin?: Pick<VerifiedFields, "origin" | "originReason" | "originEvidence">; severityAfter?: Severity } = {},
+      extra: {
+        checked?: Citation[];
+        claimed?: Claimed;
+        unreached?: true;
+        origin?: Pick<VerifiedFields, "origin" | "originReason" | "originEvidence">;
+        severityAfter?: Severity;
+      } = {},
     ) => {
       const origin = extra.origin ?? { origin: "unknown" as const };
       const severity = extra.severityAfter ?? f.severity;
@@ -382,7 +410,14 @@ export function applyVerdicts(
         outcome,
         ...(extra.severityAfter ? { severityAfter: extra.severityAfter } : {}),
       });
-      const verification: FindingVerification = { candidateId: id, status, reason, checked, ...(extra.claimed ? { claimed: extra.claimed } : {}), ...(extra.unreached ? { unreached: true as const } : {}) };
+      const verification: FindingVerification = {
+        candidateId: id,
+        status,
+        reason,
+        checked,
+        ...(extra.claimed ? { claimed: extra.claimed } : {}),
+        ...(extra.unreached ? { unreached: true as const } : {}),
+      };
       const confidence: Confidence | undefined = outcome === "degraded" ? "low" : f.confidence;
       changed.set(f, {
         ...f,
@@ -394,7 +429,8 @@ export function applyVerdicts(
         ...priorityFields({ severity, topic: f.topic, confidence }),
       });
     };
-    const unanswered = (why: string) => settle("inconclusive", `not verified: ${why}`, stop ? "kept" : "degraded", { claimed: "none", unreached: true });
+    const unanswered = (why: string) =>
+      settle("inconclusive", `not verified: ${why}`, stop ? "kept" : "degraded", { claimed: "none", unreached: true });
 
     if (given.length > 1) {
       unanswered("the verifier gave this finding two verdicts, so neither counts");
@@ -422,7 +458,10 @@ export function applyVerdicts(
         changed.set(f, null);
         entries.push({ ...base, status: "refuted", origin: "unknown", reason, checked, disproof, outcome: "dropped" });
       } else {
-        downgrade("refuted", !reason ? "no reason" : checked.length === 0 ? "no checked line exists" : "the disproof is not a line that exists in the head");
+        downgrade(
+          "refuted",
+          !reason ? "no reason" : checked.length === 0 ? "no checked line exists" : "the disproof is not a line that exists in the head",
+        );
       }
       continue;
     }

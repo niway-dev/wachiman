@@ -20,7 +20,14 @@ describe("checkClaims", () => {
 
   test("drops evidence whose line or path does not exist, and a confirmed claim left with none becomes unverified", () => {
     const [c] = checkClaims(
-      [claim({ evidence: [{ path: "src/Toolbar.tsx", line: 500 }, { path: "src/ghost.ts", line: 1 }] })],
+      [
+        claim({
+          evidence: [
+            { path: "src/Toolbar.tsx", line: 500 },
+            { path: "src/ghost.ts", line: 1 },
+          ],
+        }),
+      ],
       lineExists,
     );
     expect(c?.status).toBe("unverified");
@@ -76,9 +83,7 @@ describe("unexplainedFiles", () => {
   });
 
   test("a contradicted claim explains nothing", () => {
-    expect(unexplainedFiles(files("src/a.ts"), [to("src/a.ts", 0)], [claim({ status: "contradicted" })])).toEqual([
-      "src/a.ts",
-    ]);
+    expect(unexplainedFiles(files("src/a.ts"), [to("src/a.ts", 0)], [claim({ status: "contradicted" })])).toEqual(["src/a.ts"]);
   });
 
   test("a file with no assignment, or one to a claim that does not exist, is unexplained", () => {
@@ -89,9 +94,7 @@ describe("unexplainedFiles", () => {
   });
 
   test("a file kept by one good claim stays explained even when another assignment of it points at a vague one", () => {
-    expect(
-      unexplainedFiles(files("src/a.ts"), [to("src/a.ts", 0), to("src/a.ts", 1)], [claim({ status: "vague" }), claim()]),
-    ).toEqual([]);
+    expect(unexplainedFiles(files("src/a.ts"), [to("src/a.ts", 0), to("src/a.ts", 1)], [claim({ status: "vague" }), claim()])).toEqual([]);
   });
 
   test("an assignment for a file that did not change is ignored", () => {

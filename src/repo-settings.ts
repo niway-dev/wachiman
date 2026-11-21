@@ -49,7 +49,12 @@ export const MEMORY_DEFAULTS: MemorySettings = { minEvidence: 2, maxIndexLines: 
 /** The engine's ceiling for `max_loaded_lines`: it sets prompt size, so a merged change cannot raise the bill without limit. */
 export const MAX_LOADED_LINES_CEILING = 1000;
 
-const MEMORY_KEYS = { min_evidence: "minEvidence", max_index_lines: "maxIndexLines", max_loaded_lines: "maxLoadedLines", archive_after_days: "archiveAfterDays" } as const;
+const MEMORY_KEYS = {
+  min_evidence: "minEvidence",
+  max_index_lines: "maxIndexLines",
+  max_loaded_lines: "maxLoadedLines",
+  archive_after_days: "archiveAfterDays",
+} as const;
 
 export interface RepoSettings {
   /** `monorepo` or `single` when `init` wrote it; any text a person typed otherwise. Metadata only. */
@@ -171,7 +176,9 @@ export function parseRepoSettings(content: string): RepoSettings {
   try {
     doc = Bun.YAML.parse(content);
   } catch (error) {
-    throw new UsageError(`${SETTINGS_PATH} is not valid YAML (${oneLine(error instanceof Error ? error.message : String(error))}). Fix it, or remove the file to use the defaults.`);
+    throw new UsageError(
+      `${SETTINGS_PATH} is not valid YAML (${oneLine(error instanceof Error ? error.message : String(error))}). Fix it, or remove the file to use the defaults.`,
+    );
   }
   if (doc === null || doc === undefined) return {};
   if (typeof doc !== "object" || Array.isArray(doc)) {
@@ -207,14 +214,18 @@ export function parseRepoSettings(content: string): RepoSettings {
 /** The `memory` map: a value that is not a positive whole number is ignored with a notice, never an error. */
 function parseMemorySettings(raw: unknown): { values?: Partial<MemorySettings>; notices: string[] } {
   if (raw === undefined || raw === null) return { notices: [] };
-  if (typeof raw !== "object" || Array.isArray(raw)) return { notices: [`${SETTINGS_PATH}: memory must be a mapping of settings; ignored`] };
+  if (typeof raw !== "object" || Array.isArray(raw))
+    return { notices: [`${SETTINGS_PATH}: memory must be a mapping of settings; ignored`] };
   const values: Partial<MemorySettings> = {};
   const notices: string[] = [];
   for (const [key, name] of Object.entries(MEMORY_KEYS)) {
     const value = (raw as Record<string, unknown>)[key];
     if (value === undefined || value === null) continue;
     if (typeof value === "number" && Number.isInteger(value) && value > 0) values[name] = value;
-    else notices.push(`${SETTINGS_PATH}: memory.${key} must be a positive whole number, got ${JSON.stringify(value)}; using ${MEMORY_DEFAULTS[name]}`);
+    else
+      notices.push(
+        `${SETTINGS_PATH}: memory.${key} must be a positive whole number, got ${JSON.stringify(value)}; using ${MEMORY_DEFAULTS[name]}`,
+      );
   }
   return { ...(Object.keys(values).length > 0 ? { values } : {}), notices };
 }
@@ -224,14 +235,17 @@ export function resolveMemorySettings(settings: RepoSettings | undefined): { set
   const notices = [...(settings?.memoryNotices ?? [])];
   const merged = { ...MEMORY_DEFAULTS, ...settings?.memory };
   if (merged.maxLoadedLines > MAX_LOADED_LINES_CEILING) {
-    notices.push(`${SETTINGS_PATH}: memory.max_loaded_lines ${merged.maxLoadedLines} is above the limit; using ${MAX_LOADED_LINES_CEILING}`);
+    notices.push(
+      `${SETTINGS_PATH}: memory.max_loaded_lines ${merged.maxLoadedLines} is above the limit; using ${MAX_LOADED_LINES_CEILING}`,
+    );
     merged.maxLoadedLines = MAX_LOADED_LINES_CEILING;
   }
   return { settings: merged, notices };
 }
 
 /** The warning for a broken file that a run ignores (it never blocks a review): what was wrong, and that defaults apply. */
-export const ignoredSettingsNote = (reason: string, where: string) => `ignored ${SETTINGS_PATH} at ${where}: ${reason.trim().replace(/\.$/, "")}; using defaults`;
+export const ignoredSettingsNote = (reason: string, where: string) =>
+  `ignored ${SETTINGS_PATH} at ${where}: ${reason.trim().replace(/\.$/, "")}; using defaults`;
 
 const oneLine = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 200);
 
@@ -258,7 +272,11 @@ export function skippedFileModel(provider: string, model: string): string | unde
  * preflight never checks the model, so it would fail every batch, including the pull request that
  * fixes the file); Codex checks its own price table in preflight.
  */
-export function applyRepoSettings(config: EngineConfig, settings: RepoSettings, opts: { where: string; warn: (line: string) => void }): EngineConfig {
+export function applyRepoSettings(
+  config: EngineConfig,
+  settings: RepoSettings,
+  opts: { where: string; warn: (line: string) => void },
+): EngineConfig {
   const next = { ...config };
   if (config.modelSource === "default" && settings.model !== undefined) {
     const skipped = skippedFileModel(config.provider, settings.model);
@@ -281,7 +299,10 @@ export const wantsRepoSettings = (config: Pick<EngineConfig, "modelSource" | "ef
   config.modelSource === "default" || config.effortSource === "default";
 
 /** `model` and `effort` that came from the file, for a log line; undefined when neither did. */
-export function fileSettingsNote(config: Pick<EngineConfig, "model" | "modelSource" | "effort" | "effortSource">, where: string): string | undefined {
+export function fileSettingsNote(
+  config: Pick<EngineConfig, "model" | "modelSource" | "effort" | "effortSource">,
+  where: string,
+): string | undefined {
   const parts = [
     ...(config.modelSource === "file" ? [`model ${config.model}`] : []),
     ...(config.effortSource === "file" ? [`effort ${config.effort}`] : []),
@@ -317,6 +338,11 @@ export function effectiveSettings(
         : settings?.model !== undefined && skipped === undefined
           ? { value: settings.model, source: "file" }
           : { value: defaultModel, source: "default", ...(skipped !== undefined ? { skipped } : {}) },
-    effort: effort !== undefined ? { value: effort, source: "env" } : settings?.effort !== undefined ? { value: settings.effort, source: "file" } : { value: DEFAULT_EFFORT, source: "default" },
+    effort:
+      effort !== undefined
+        ? { value: effort, source: "env" }
+        : settings?.effort !== undefined
+          ? { value: settings.effort, source: "file" }
+          : { value: DEFAULT_EFFORT, source: "default" },
   };
 }

@@ -25,11 +25,7 @@ import { openPrompter, type Choice, type Outcome, type Prompter, type PromptIO }
 
 export { shouldLaunch, type LauncherStreams } from "./interactive";
 
-export type Scope =
-  | { kind: "branch"; base: string }
-  | { kind: "commit"; commit: string }
-  | { kind: "staged" }
-  | { kind: "tree" };
+export type Scope = { kind: "branch"; base: string } | { kind: "commit"; commit: string } | { kind: "staged" } | { kind: "tree" };
 
 /** The flags of `local`, `ask` and `loop` that select what is looked at. */
 export function scopeArgs(scope: Scope): string[] {
@@ -108,9 +104,15 @@ export function detectBase(cwd: string, git: GitRunner = spawnGit): string | und
 
 /** The branches a change can be compared against: local and remote, the detected base first, `HEAD` and the symbolic `origin/HEAD` left out. */
 export function listRefs(cwd: string, base: string | undefined, git: GitRunner = spawnGit): string[] {
-  const out = git(["for-each-ref", "--format=%(refname:short)", "--sort=-committerdate", "refs/heads", "refs/remotes"], { cwd, timeoutMs: 10_000 });
+  const out = git(["for-each-ref", "--format=%(refname:short)", "--sort=-committerdate", "refs/heads", "refs/remotes"], {
+    cwd,
+    timeoutMs: 10_000,
+  });
   if (out.status !== 0) return base ? [base] : [];
-  const refs = out.stdout.split("\n").map((r) => r.trim()).filter((r) => r !== "" && r !== "origin" && !r.endsWith("/HEAD"));
+  const refs = out.stdout
+    .split("\n")
+    .map((r) => r.trim())
+    .filter((r) => r !== "" && r !== "origin" && !r.endsWith("/HEAD"));
   return [...new Set([...(base ? [base] : []), ...refs])];
 }
 
@@ -170,7 +172,8 @@ const CONFIGURE: Choice<Action | Back>[] = [
 ];
 
 /** A ref or a commit: not empty, and not something `git` or the CLI would read as a flag. */
-const refProblem = (what: string) => (v: string) => (v === "" ? `${what} is required.` : v.startsWith("-") ? `${what} cannot start with a dash.` : undefined);
+const refProblem = (what: string) => (v: string) =>
+  v === "" ? `${what} is required.` : v.startsWith("-") ? `${what} cannot start with a dash.` : undefined;
 
 interface Plan {
   action: Action;
@@ -209,10 +212,21 @@ export async function runLauncher(deps: LauncherDeps): Promise<number> {
       const line = commandLine(plan.argv);
       if (SPENDING.has(plan.action) || plan.action === "skills") {
         const rows: [string, string][] = SPENDING.has(plan.action)
-          ? [["repository", context.name ?? "-"], ["scope", plan.scope ? scopeLabel(plan.scope) : "the open loop"], ["profile", context.profile], ["command", line]]
+          ? [
+              ["repository", context.name ?? "-"],
+              ["scope", plan.scope ? scopeLabel(plan.scope) : "the open loop"],
+              ["profile", context.profile],
+              ["command", line],
+            ]
           : [["command", line]];
-        const cost = SPENDING.has(plan.action) ? "It runs your signed-in Claude and counts against your subscription." : "It copies the skills into ~/.agents/skills and each Claude Code config directory.";
-        if (prompter.fancy) prompter.note([...rows.map(([k, v]) => `${k.padEnd(10)} ${v}`), "", cost].join("\n"), SPENDING.has(plan.action) ? "Ready to run" : "Ready to install");
+        const cost = SPENDING.has(plan.action)
+          ? "It runs your signed-in Claude and counts against your subscription."
+          : "It copies the skills into ~/.agents/skills and each Claude Code config directory.";
+        if (prompter.fancy)
+          prompter.note(
+            [...rows.map(([k, v]) => `${k.padEnd(10)} ${v}`), "", cost].join("\n"),
+            SPENDING.has(plan.action) ? "Ready to run" : "Ready to install",
+          );
         else {
           prompter.say("");
           for (const [k, v] of rows) prompter.say(`  ${k.padEnd(10)} ${v}`);
@@ -247,7 +261,11 @@ function cancelled(prompter: Prompter): number {
 }
 
 /** The repository name and the profile a run here would use, for the first line and the confirmation. Never throws. */
-function repoContext(cwd: string, env: Record<string, string | undefined>, git?: GitRunner): { name?: string; profile: string; line: string } {
+function repoContext(
+  cwd: string,
+  env: Record<string, string | undefined>,
+  git?: GitRunner,
+): { name?: string; profile: string; line: string } {
   let name: string | undefined;
   try {
     name = repositoryKey(cwd, git).name;
@@ -274,9 +292,17 @@ function repoContext(cwd: string, env: Record<string, string | undefined>, git?:
 }
 
 /** Asks what the chosen entry needs. `"back"` returns to the main menu; `null` is a cancellation. */
-async function planFor(top: Exclude<Top, "exit">, prompter: Prompter, ctx: { cwd: string; git?: GitRunner; context: { name?: string } }): Promise<Plan | Back | null> {
+async function planFor(
+  top: Exclude<Top, "exit">,
+  prompter: Prompter,
+  ctx: { cwd: string; git?: GitRunner; context: { name?: string } },
+): Promise<Plan | Back | null> {
   if (top === "findings" || top === "configure") {
-    const picked = await prompter.select<Action | Back>(top === "findings" ? "Findings & usage" : "Configure", top === "findings" ? FINDINGS : CONFIGURE, 0);
+    const picked = await prompter.select<Action | Back>(
+      top === "findings" ? "Findings & usage" : "Configure",
+      top === "findings" ? FINDINGS : CONFIGURE,
+      0,
+    );
     if (picked === null) return null;
     return picked === "back" ? "back" : { action: picked, argv: commandArgs(picked) };
   }
@@ -298,7 +324,11 @@ async function planFor(top: Exclude<Top, "exit">, prompter: Prompter, ctx: { cwd
     return { action: "loop-start", argv: commandArgs("loop-start", { base }), scope: { kind: "branch", base } };
   }
 
-  const kind = await prompter.select<Scope["kind"]>(top === "review" ? "What should be reviewed?" : "What is the question about?", SCOPES, 0);
+  const kind = await prompter.select<Scope["kind"]>(
+    top === "review" ? "What should be reviewed?" : "What is the question about?",
+    SCOPES,
+    0,
+  );
   if (kind === null) return null;
   let scope: Scope;
   if (kind === "branch") {
@@ -312,7 +342,9 @@ async function planFor(top: Exclude<Top, "exit">, prompter: Prompter, ctx: { cwd
   } else scope = { kind };
 
   if (top === "review") return { action: "review", argv: commandArgs("review", { scope }), scope };
-  const question = await prompter.text("Question (leave empty for a walkthrough of the change)", "", (v) => (v.startsWith("-") ? "Start the question with a word, not a dash." : undefined));
+  const question = await prompter.text("Question (leave empty for a walkthrough of the change)", "", (v) =>
+    v.startsWith("-") ? "Start the question with a word, not a dash." : undefined,
+  );
   if (question === null) return null;
   return { action: "ask", argv: commandArgs("ask", { scope, question }), scope };
 }

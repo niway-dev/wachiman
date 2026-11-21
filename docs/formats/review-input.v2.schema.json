@@ -136,14 +136,7 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "kind",
-            "describe",
-            "repository",
-            "base",
-            "head",
-            "workingTree"
-          ],
+          "required": ["kind", "describe", "repository", "base", "head", "workingTree"],
           "properties": {
             "kind": {
               "const": "working-tree"

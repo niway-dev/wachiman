@@ -12,17 +12,7 @@ import type { DistributedResultFields, SiblingReference } from "./distributed";
 import type { Fidelity } from "./fidelity/types";
 import type { MemoryRecord } from "./memory/load";
 import type { MutedFinding } from "./memory/mute";
-import type {
-  BaseInstructions,
-  BatchReport,
-  Finding,
-  ReviewFile,
-  ReviewOutput,
-  Severity,
-  Thread,
-  Topic,
-  Unreviewable,
-} from "./engine";
+import type { BaseInstructions, BatchReport, Finding, ReviewFile, ReviewOutput, Severity, Thread, Topic, Unreviewable } from "./engine";
 import type { ProviderErrorClass } from "./providers/errors";
 import type { Arm, Priority } from "./priority";
 import type { PathRule } from "./repo-settings";
@@ -382,7 +372,21 @@ export function toResultV1(result: ReviewResultV2): ReviewResultV1 {
   // /1 has no place for the siblings or the private-context label, and dropping the label would hide it.
   if (result.siblings?.length || result.workspaceContractsApplied?.length) throw new UsageError(NO_V1_DISTRIBUTED);
   const { account: _account, ...provider } = result.provider;
-  const { siblings: _siblings, workspaceContractsApplied: _applied, noWorkspaceContractApplied: _none, privateContext: _private, removedSiblingReferences: _removed, verification, riskMap: _riskMap, fidelity: _fidelity, pathPolicyChanged: _pathPolicyChanged, arm: _arm, memory: _memory, muted: _muted, ...rest } = result;
+  const {
+    siblings: _siblings,
+    workspaceContractsApplied: _applied,
+    noWorkspaceContractApplied: _none,
+    privateContext: _private,
+    removedSiblingReferences: _removed,
+    verification,
+    riskMap: _riskMap,
+    fidelity: _fidelity,
+    pathPolicyChanged: _pathPolicyChanged,
+    arm: _arm,
+    memory: _memory,
+    muted: _muted,
+    ...rest
+  } = result;
   return {
     ...rest,
     format: REVIEW_RESULT_V1,

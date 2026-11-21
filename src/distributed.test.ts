@@ -1,5 +1,13 @@
 import { describe, expect, test } from "bun:test";
-import { askDistributed, batchDistributed, plainText, verifierDistributed, type ContractReading, type DistributedContext, type ResolvedSibling } from "./distributed";
+import {
+  askDistributed,
+  batchDistributed,
+  plainText,
+  verifierDistributed,
+  type ContractReading,
+  type DistributedContext,
+  type ResolvedSibling,
+} from "./distributed";
 import { distributedLines } from "./local";
 
 // Names, directories and paths in the manifest are the repository's text, not Wachiman's: a backtick,
@@ -35,7 +43,10 @@ const contract = (): ContractReading => ({
   reviewedMember: "api`\nserver",
   reviewedRoles: ["consumer"],
   holdsSource: false,
-  sides: [{ member: HOSTILE_MEMBER, role: "provider", paths: [HOSTILE_PATH] }, { member: "api`\nserver", role: "consumer", paths: ["src/**"] }],
+  sides: [
+    { member: HOSTILE_MEMBER, role: "provider", paths: [HOSTILE_PATH] },
+    { member: "api`\nserver", role: "consumer", paths: ["src/**"] },
+  ],
   sourceOfTruth: { member: HOSTILE_MEMBER, paths: [HOSTILE_PATH] },
 });
 
@@ -65,7 +76,10 @@ describe("the prompt section of a distributed-repo batch", () => {
     expect(section).not.toBe("");
     expect(CONTROL.test(section)).toBe(false);
     // Only the headings the engine writes: a name cannot open a section of its own.
-    expect(headings(section).map((h) => h.replace(/`[^`]*`/, "`NAME`"))).toEqual(["## Workspace contracts and sibling repositories (read-only)", "### Contract `NAME`"]);
+    expect(headings(section).map((h) => h.replace(/`[^`]*`/, "`NAME`"))).toEqual([
+      "## Workspace contracts and sibling repositories (read-only)",
+      "### Contract `NAME`",
+    ]);
     const contractLine = section.split("\n").find((l) => l.startsWith("### Contract"))!;
     expect(contractLine.match(/`/g)).toHaveLength(2);
     expect(dirs).toEqual(["/tmp/wachiman-sibling-AbC123"]);
@@ -80,10 +94,24 @@ describe("the prompt section of a distributed-repo batch", () => {
 
   test("a name without anything to neutralise is printed as it always was", () => {
     const clean = sibling({ member: "billing-service", contracts: ["billing-api"], paths: ["src/routes/x.ts"] });
-    const c: ContractReading = { ...contract(), name: "billing-api", triggerPaths: ["src/a.ts"], reviewedMember: "web-site", sides: [{ member: "billing-service", role: "provider", paths: ["src/routes/**"] }, { member: "web-site", role: "consumer", paths: ["src/**"] }], sourceOfTruth: { member: "billing-service", paths: ["src/routes/**"] } };
+    const c: ContractReading = {
+      ...contract(),
+      name: "billing-api",
+      triggerPaths: ["src/a.ts"],
+      reviewedMember: "web-site",
+      sides: [
+        { member: "billing-service", role: "provider", paths: ["src/routes/**"] },
+        { member: "web-site", role: "consumer", paths: ["src/**"] },
+      ],
+      sourceOfTruth: { member: "billing-service", paths: ["src/routes/**"] },
+    };
     const { section } = batchDistributed(context([clean], [c]), [{ filename: "src/a.ts", additions: 1, deletions: 0, patch: "" }]);
     expect(section).toContain("### Contract `billing-api`");
-    expect(section).toContain("- billing-service: provider (src/routes/**); source of truth (src/routes/**). Read at commit " + SHA + " (1 file), in /tmp/wachiman-sibling-AbC123.");
+    expect(section).toContain(
+      "- billing-service: provider (src/routes/**); source of truth (src/routes/**). Read at commit " +
+        SHA +
+        " (1 file), in /tmp/wachiman-sibling-AbC123.",
+    );
   });
 });
 
@@ -98,7 +126,13 @@ describe("the verifier's sibling section", () => {
 
 describe("ask's sibling section", () => {
   test("lists every readable snapshot, names a sibling that could not be read, and has no control character or heading of its own", () => {
-    const gone = sibling({ member: "billing`\nservice", status: "unreadable", sha: "b".repeat(40), dir: undefined, unreadable: "the commit is gone\n## Injected" });
+    const gone = sibling({
+      member: "billing`\nservice",
+      status: "unreadable",
+      sha: "b".repeat(40),
+      dir: undefined,
+      unreadable: "the commit is gone\n## Injected",
+    });
     const { section, dirs } = askDistributed([sibling(), gone]);
     expect(CONTROL.test(section)).toBe(false);
     expect(headings(section)).toEqual(["## Sibling repositories of the review (read-only)"]);
@@ -119,7 +153,12 @@ describe("ask's sibling section", () => {
 
 describe("the stderr lines of a distributed-repo run", () => {
   test("a hostile name stays on its own line, with no escape byte", () => {
-    const lines = distributedLines(context([sibling({ fallback: "no pin\n\u001b[2Jhere", fetchedAt: "x\u001b]0;t\u0007" }), sibling({ status: "unreadable", sha: undefined, dir: undefined, unreadable: "bad\nfile\u001b[0m" })]));
+    const lines = distributedLines(
+      context([
+        sibling({ fallback: "no pin\n\u001b[2Jhere", fetchedAt: "x\u001b]0;t\u0007" }),
+        sibling({ status: "unreadable", sha: undefined, dir: undefined, unreadable: "bad\nfile\u001b[0m" }),
+      ]),
+    );
     expect(lines).toHaveLength(2 + 2);
     for (const line of lines) {
       expect(CONTROL.test(line)).toBe(false);

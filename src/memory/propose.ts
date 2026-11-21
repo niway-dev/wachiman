@@ -83,7 +83,13 @@ interface Run {
 function git(cwd: string, args: string[]): Run {
   const env: Record<string, string | undefined> = { ...process.env, GIT_TERMINAL_PROMPT: "0", LC_ALL: "C" };
   for (const name of ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_PREFIX"]) delete env[name];
-  const r = spawnSync("git", ["-c", "core.quotepath=off", ...args], { cwd, encoding: "utf8", env, maxBuffer: 64 * 1024 * 1024, timeout: 120_000 });
+  const r = spawnSync("git", ["-c", "core.quotepath=off", ...args], {
+    cwd,
+    encoding: "utf8",
+    env,
+    maxBuffer: 64 * 1024 * 1024,
+    timeout: 120_000,
+  });
   return { status: r.status, stdout: r.stdout ?? "", stderr: (r.stderr ?? "") + (r.error ? ` ${r.error.message}` : "") };
 }
 
@@ -96,13 +102,21 @@ const must = (r: Run, what: string): string => {
 
 const realPulls: PullRequests = {
   list(head, cwd) {
-    const r = spawnSync("gh", ["pr", "list", "--head", head, "--state", "all", "--limit", "50", "--json", "number,state,url"], { cwd, encoding: "utf8", timeout: 60_000 });
+    const r = spawnSync("gh", ["pr", "list", "--head", head, "--state", "all", "--limit", "50", "--json", "number,state,url"], {
+      cwd,
+      encoding: "utf8",
+      timeout: 60_000,
+    });
     if (r.error || r.status !== 0) throw new Error(r.error?.message ?? (r.stderr.trim() || `gh exited ${r.status}`));
     const rows = JSON.parse(r.stdout) as PullRequest[];
     return rows.filter((x) => x && Number.isInteger(x.number) && ["OPEN", "CLOSED", "MERGED"].includes(x.state));
   },
   createDraft(input, cwd) {
-    const r = spawnSync("gh", ["pr", "create", "--draft", "--head", input.head, "--base", input.base, "--title", input.title, "--body", input.body], { cwd, encoding: "utf8", timeout: 60_000 });
+    const r = spawnSync(
+      "gh",
+      ["pr", "create", "--draft", "--head", input.head, "--base", input.base, "--title", input.title, "--body", input.body],
+      { cwd, encoding: "utf8", timeout: 60_000 },
+    );
     if (r.error || r.status !== 0) throw new Error(r.error?.message ?? (r.stderr.trim() || `gh exited ${r.status}`));
     return r.stdout.trim().split("\n").pop() ?? "";
   },
@@ -111,7 +125,8 @@ const realPulls: PullRequests = {
 /** Throws unless every path is a file directly under `.wachiman/memory/`. */
 export function assertMemoryPaths(paths: string[]): void {
   for (const p of paths) {
-    if (!/^\.wachiman\/memory\/[^/\\]+$/.test(p) || p.includes("..")) throw new Refused(`refusing to write ${p}: only files under ${MEMORY_DIR}/ may be written.`);
+    if (!/^\.wachiman\/memory\/[^/\\]+$/.test(p) || p.includes(".."))
+      throw new Refused(`refusing to write ${p}: only files under ${MEMORY_DIR}/ may be written.`);
   }
 }
 
@@ -169,7 +184,8 @@ export function readMemoryFiles(worktree: string): Record<string, string> {
       if ((error as NodeJS.ErrnoException).code === "ENOENT") return {}; // does not exist yet
       throw new Refused(`cannot read ${part.slice(worktree.length + 1)} (${(error as Error).message}); nothing was written.`);
     }
-    if (st.isSymbolicLink() || !st.isDirectory()) throw new Refused(`${part.slice(worktree.length + 1)} is not a plain directory; nothing was written.`);
+    if (st.isSymbolicLink() || !st.isDirectory())
+      throw new Refused(`${part.slice(worktree.length + 1)} is not a plain directory; nothing was written.`);
   }
   const out: Record<string, string> = {};
   for (const e of readdirSync(dir, { withFileTypes: true })) {
@@ -208,10 +224,18 @@ function fetchRemote(root: string): Remote {
   const defaultBranch = /^ref: refs\/heads\/(\S+)\tHEAD$/m.exec(ls)?.[1];
   if (!defaultBranch) throw new Refused("cannot tell which branch is origin's default; nothing was written.");
   const hasMemory = new RegExp(`\\trefs/heads/${MEMORY_BRANCH}$`, "m").test(ls);
-  const specs = [`+refs/heads/${defaultBranch}:refs/remotes/origin/${defaultBranch}`, ...(hasMemory ? [`+refs/heads/${MEMORY_BRANCH}:refs/remotes/origin/${MEMORY_BRANCH}`] : [])];
+  const specs = [
+    `+refs/heads/${defaultBranch}:refs/remotes/origin/${defaultBranch}`,
+    ...(hasMemory ? [`+refs/heads/${MEMORY_BRANCH}:refs/remotes/origin/${MEMORY_BRANCH}`] : []),
+  ];
   must(git(root, ["fetch", "--no-tags", "origin", ...specs]), "git fetch origin");
-  const defaultHead = must(git(root, ["rev-parse", "--verify", `refs/remotes/origin/${defaultBranch}^{commit}`]), "reading origin's default branch");
-  const memoryHead = hasMemory ? must(git(root, ["rev-parse", "--verify", `refs/remotes/origin/${MEMORY_BRANCH}^{commit}`]), "reading origin/wachiman/memory") : undefined;
+  const defaultHead = must(
+    git(root, ["rev-parse", "--verify", `refs/remotes/origin/${defaultBranch}^{commit}`]),
+    "reading origin's default branch",
+  );
+  const memoryHead = hasMemory
+    ? must(git(root, ["rev-parse", "--verify", `refs/remotes/origin/${MEMORY_BRANCH}^{commit}`]), "reading origin/wachiman/memory")
+    : undefined;
   return { defaultBranch, defaultHead, ...(memoryHead ? { memoryHead } : {}) };
 }
 
@@ -254,7 +278,8 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
   /** `git` with none of the developer's hooks (see the header). */
   const quiet = (cwd: string, args: string[]) => git(cwd, ["-c", `core.hooksPath=${hooks}`, ...args]);
   try {
-    if (git(root, ["remote", "get-url", "origin"]).status !== 0) throw new Refused("this repository has no remote named origin; nothing was written.");
+    if (git(root, ["remote", "get-url", "origin"]).status !== 0)
+      throw new Refused("this repository has no remote named origin; nothing was written.");
 
     let remote = fetchRemote(root);
     // A closed pull request is the team saying no; a merged one whose branch was not deleted cannot be continued without a force-push.
@@ -263,15 +288,21 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
       try {
         found = pulls.list(MEMORY_BRANCH, root);
       } catch (error) {
-        throw new Refused(`cannot read the pull requests of ${MEMORY_BRANCH} (${error instanceof Error ? error.message : error}), so nothing was written.`);
+        throw new Refused(
+          `cannot read the pull requests of ${MEMORY_BRANCH} (${error instanceof Error ? error.message : error}), so nothing was written.`,
+        );
       }
       const latest = [...found].sort((a, b) => b.number - a.number)[0];
       const open = found.some((p) => p.state === "OPEN");
       if (!open && latest?.state === "CLOSED") {
-        throw new Refused(`the pull request #${latest.number} for ${MEMORY_BRANCH} was closed without merging, so nothing was written. Reopen it or delete the branch to propose again.`);
+        throw new Refused(
+          `the pull request #${latest.number} for ${MEMORY_BRANCH} was closed without merging, so nothing was written. Reopen it or delete the branch to propose again.`,
+        );
       }
       if (!open && latest?.state === "MERGED" && !isAncestor(root, remote.memoryHead, remote.defaultHead)) {
-        throw new Refused(`the pull request #${latest.number} for ${MEMORY_BRANCH} was merged but the branch still holds commits the default branch lacks, so nothing was written. Delete the branch ${MEMORY_BRANCH} on origin to start a new one.`);
+        throw new Refused(
+          `the pull request #${latest.number} for ${MEMORY_BRANCH} was merged but the branch still holds commits the default branch lacks, so nothing was written. Delete the branch ${MEMORY_BRANCH} on origin to start a new one.`,
+        );
       }
     }
 
@@ -284,7 +315,10 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
       const base = baseOf(root, remote);
       builtOnMemoryBranch = base === remote.memoryHead;
       must(quiet(root, ["worktree", "add", "--detach", "--no-checkout", worktree, base]), "git worktree add");
-      must(quiet(worktree, ["sparse-checkout", "set", "--no-cone", `/${MEMORY_DIR.split("/")[0]}/`, `/${SETTINGS_PATH}`]), "git sparse-checkout");
+      must(
+        quiet(worktree, ["sparse-checkout", "set", "--no-cone", `/${MEMORY_DIR.split("/")[0]}/`, `/${SETTINGS_PATH}`]),
+        "git sparse-checkout",
+      );
       must(quiet(worktree, ["checkout", "-q", "HEAD"]), "git checkout");
       const current = readMemoryFiles(worktree);
       const applied = applyCandidate(current, candidate);
@@ -296,14 +330,20 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
       }
       const introduced = introducedProblems(worktree, current, applied.files);
       if (introduced.length > 0) {
-        throw new Refused(`the entry would make \`wachiman memory check\` fail on ${MEMORY_BRANCH}, so nothing was written:\n${introduced.map((l) => `  ${l}`).join("\n")}`);
+        throw new Refused(
+          `the entry would make \`wachiman memory check\` fail on ${MEMORY_BRANCH}, so nothing was written:\n${introduced.map((l) => `  ${l}`).join("\n")}`,
+        );
       }
       const paths = Object.keys(applied.files).map((n) => `${MEMORY_DIR}/${n}`);
       assertMemoryPaths(paths);
       mkdirSync(join(worktree, MEMORY_DIR), { recursive: true });
       for (const [name, text] of Object.entries(applied.files)) writeFileSync(join(worktree, MEMORY_DIR, name), text);
       must(git(worktree, ["add", "--", ...paths]), "git add");
-      assertMemoryPaths(must(git(worktree, ["diff", "--cached", "--name-only"]), "git diff").split("\n").filter(Boolean));
+      assertMemoryPaths(
+        must(git(worktree, ["diff", "--cached", "--name-only"]), "git diff")
+          .split("\n")
+          .filter(Boolean),
+      );
       must(quiet(worktree, ["commit", "-q", "-m", commitMessage(candidate, applied.outcome)]), "git commit");
       const push = quiet(worktree, ["push", "origin", `HEAD:refs/heads/${MEMORY_BRANCH}`]);
       if (push.status === 0) {
@@ -315,7 +355,10 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
       const latest = fetchRemote(root);
       const raced = latest.memoryHead !== remote.memoryHead || latest.defaultHead !== remote.defaultHead;
       if (!raced) throw new Refused(`the push to ${MEMORY_BRANCH} was refused: ${push.stderr.trim()}`);
-      if (attempt === MAX_ATTEMPTS) throw new Refused(`the push to ${MEMORY_BRANCH} failed ${MAX_ATTEMPTS} times because colleagues kept pushing first: ${push.stderr.trim()}`);
+      if (attempt === MAX_ATTEMPTS)
+        throw new Refused(
+          `the push to ${MEMORY_BRANCH} failed ${MAX_ATTEMPTS} times because colleagues kept pushing first: ${push.stderr.trim()}`,
+        );
       // A colleague pushed first: start again from the new head with the same entry.
       removeWorktree(root, worktree);
       worktree = undefined;
@@ -325,7 +368,9 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
 
     if (outcome === "unchanged" && !builtOnMemoryBranch) {
       // The entry is already part of the default branch and the memory branch is gone or merged: there is nothing to propose and no pull request to open.
-      io.stdout(`already recorded: ${candidate.id} is on ${remote.defaultBranch} with the same evidence; nothing was written and no pull request is needed.\n`);
+      io.stdout(
+        `already recorded: ${candidate.id} is on ${remote.defaultBranch} with the same evidence; nothing was written and no pull request is needed.\n`,
+      );
       return { recorded: true, change: "on-default" };
     }
 
@@ -340,7 +385,9 @@ export function proposeCandidate(candidate: Candidate, repoDir: string, io: Prop
       url = open ? open.url : openDraft(pulls, remote.defaultBranch, root);
     } catch (error) {
       io.stdout(recordedLine(""));
-      io.stderr(`memory propose: the draft pull request could not be opened (${error instanceof Error ? error.message : error}). Open it from ${MEMORY_BRANCH} with the title "${PULL_REQUEST_TITLE}".`);
+      io.stderr(
+        `memory propose: the draft pull request could not be opened (${error instanceof Error ? error.message : error}). Open it from ${MEMORY_BRANCH} with the title "${PULL_REQUEST_TITLE}".`,
+      );
       return { recorded: true, change: outcome, pullRequestFailed: true };
     }
     io.stdout(recordedLine(` Draft pull request: ${url}`));

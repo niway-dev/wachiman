@@ -147,7 +147,15 @@ const PERSONAL_PREFIX = "personal:";
  * the most specific glob, while the lines already `used` plus these fit `budget`. Committed memory
  * goes first with nothing used; personal memory gets what is left.
  */
-function loadSide(source: MemorySource, names: string[], indexText: string, budget: MemorySettings, used: number, changedPaths: string[], personal: boolean): Side {
+function loadSide(
+  source: MemorySource,
+  names: string[],
+  indexText: string,
+  budget: MemorySettings,
+  used: number,
+  changedPaths: string[],
+  personal: boolean,
+): Side {
   const label = (name: string) => (personal ? `${PERSONAL_PREFIX}${name}` : `${MEMORY_DIR}/${name}`);
   const mark = personal ? ({ personal: true } as const) : {};
   const files: LoadedMemoryFile[] = [];
@@ -205,7 +213,13 @@ function loadSide(source: MemorySource, names: string[], indexText: string, budg
  * after the committed memory, inside the same budget, with its entries marked; an entry already
  * committed under the same id is not loaded twice. Without a committed folder it is loaded alone.
  */
-export function loadMemory(source: MemorySource, revision: string, changedPaths: string[], warn: (line: string) => void, personal?: MemorySource): MemoryLoad | undefined {
+export function loadMemory(
+  source: MemorySource,
+  revision: string,
+  changedPaths: string[],
+  warn: (line: string) => void,
+  personal?: MemorySource,
+): MemoryLoad | undefined {
   const names = source.list();
   const personalNames = personal?.list() ?? [];
   if (names.length === 0 && personalNames.length === 0) return undefined;
@@ -220,14 +234,26 @@ export function loadMemory(source: MemorySource, revision: string, changedPaths:
   const resolved = resolveMemorySettings(fileSettings);
   for (const notice of resolved.notices) warn(notice);
   const budget: MemorySettings = resolved.settings;
-  const empty = (): MemoryLoad => ({ revision, files: [], leftOut: [], overBudget: false, indexOverBudget: false, budget: { maxIndexLines: budget.maxIndexLines, maxLoadedLines: budget.maxLoadedLines, loadedLines: 0 }, entries: [] });
+  const empty = (): MemoryLoad => ({
+    revision,
+    files: [],
+    leftOut: [],
+    overBudget: false,
+    indexOverBudget: false,
+    budget: { maxIndexLines: budget.maxIndexLines, maxLoadedLines: budget.maxLoadedLines, loadedLines: 0 },
+    entries: [],
+  });
 
   let committed: Side | undefined;
   if (names.length > 0) {
     const indexText = names.includes(INDEX_FILE) ? source.read(INDEX_FILE) : null;
     if (indexText === null) {
       // The source may have said why a listed index could not be read; this note says what it means.
-      warn(names.includes(INDEX_FILE) ? `${MEMORY_DIR}/${INDEX_FILE} could not be read, so no memory is loaded.` : `${MEMORY_DIR} has no ${INDEX_FILE}, so no memory is loaded.`);
+      warn(
+        names.includes(INDEX_FILE)
+          ? `${MEMORY_DIR}/${INDEX_FILE} could not be read, so no memory is loaded.`
+          : `${MEMORY_DIR} has no ${INDEX_FILE}, so no memory is loaded.`,
+      );
     } else {
       committed = loadSide(source, names, indexText, budget, 0, changedPaths, false);
     }
@@ -250,7 +276,9 @@ export function loadMemory(source: MemorySource, revision: string, changedPaths:
   const entriesOf = (side: Side | undefined) => (side ? side.texts.flatMap(({ name, text }) => parseMemoryFile(name, text).entries) : []);
   const committedEntries = entriesOf(committed);
   const known = new Set(committedEntries.map((e) => e.id));
-  const personalEntries = entriesOf(own).filter((e) => !known.has(e.id)).map((e): MemoryEntry => ({ ...e, personal: true }));
+  const personalEntries = entriesOf(own)
+    .filter((e) => !known.has(e.id))
+    .map((e): MemoryEntry => ({ ...e, personal: true }));
   return {
     revision,
     files,
@@ -278,6 +306,11 @@ export function memoryNotice(record: MemoryRecord): string | undefined {
   // Name whose memory it is: personal files carry the `personal:` prefix in the record.
   const personal = [...record.leftOut, ...cut.map((f) => f.path)].filter((p) => p.startsWith(PERSONAL_PREFIX)).length;
   const team = record.leftOut.length + cut.length - personal;
-  const whose = personal > 0 && team > 0 ? "the repository's memory and your personal memory" : personal > 0 ? "your personal memory" : "the repository's memory";
+  const whose =
+    personal > 0 && team > 0
+      ? "the repository's memory and your personal memory"
+      : personal > 0
+        ? "your personal memory"
+        : "the repository's memory";
   return `⚠️ **Memory over budget**: ${whose} does not fit in ${record.budget.maxLoadedLines} lines for this review (${parts.join("; ")}). Trim it, or raise \`memory.max_loaded_lines\` in \`.wachiman.yml\`.`;
 }

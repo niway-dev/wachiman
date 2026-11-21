@@ -37,9 +37,7 @@ class FakeProvider implements ProviderAdapter {
           findings: [],
           thread_replies: [],
           summary: "Fine.",
-          claim_assignments: [
-            { path: "src/a.ts", claim: 0, verdict: "supports", evidence: [{ path: "src/a.ts", line: 2 }] },
-          ],
+          claim_assignments: [{ path: "src/a.ts", claim: 0, verdict: "supports", evidence: [{ path: "src/a.ts", line: 2 }] }],
         } satisfies ReviewOutput);
     return { costUsd: 0.02, turns: 1, durationMs: 1, terminalReason: "success", isError: false, raw: {}, structuredOutput: output };
   }

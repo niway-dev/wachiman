@@ -40,8 +40,20 @@ const thread = (id: number, path: string) => ({
   line: 2,
   comments: {
     nodes: [
-      { databaseId: id, author: { login: "github-actions" }, authorAssociation: "NONE", body: `Important · 🟠🐛 **Fix · bug: old**\n\nOld finding.\n\n<!-- wachi:finding -->`, createdAt: "2026-10-30T00:00:00Z" },
-      { databaseId: id + 1000, author: { login: "owner" }, authorAssociation: "OWNER", body: "Done, please check.", createdAt: "2026-10-30T00:01:00Z" },
+      {
+        databaseId: id,
+        author: { login: "github-actions" },
+        authorAssociation: "NONE",
+        body: `Important · 🟠🐛 **Fix · bug: old**\n\nOld finding.\n\n<!-- wachi:finding -->`,
+        createdAt: "2026-10-30T00:00:00Z",
+      },
+      {
+        databaseId: id + 1000,
+        author: { login: "owner" },
+        authorAssociation: "OWNER",
+        body: "Done, please check.",
+        createdAt: "2026-10-30T00:01:00Z",
+      },
     ],
   },
 });
@@ -77,10 +89,12 @@ class World {
       } else if (line.includes("/replies")) this.inlineReplies.push(args[args.length - 1]);
       return "{}";
     }
-    if (line.startsWith("pr view"))
-      return JSON.stringify({ headRefOid: this.head, title: "t", body: "b", author: { login: "u" } });
+    if (line.startsWith("pr view")) return JSON.stringify({ headRefOid: this.head, title: "t", body: "b", author: { login: "u" } });
     if (line.startsWith("api repos/o/r/pulls/7 ")) return BASE;
-    if (line.includes("/pulls/7/files")) return this.files(this.head).map((f) => JSON.stringify(f)).join("\n");
+    if (line.includes("/pulls/7/files"))
+      return this.files(this.head)
+        .map((f) => JSON.stringify(f))
+        .join("\n");
     if (line.includes("/pulls/7/reviews")) return this.reviews.map((r) => JSON.stringify(r)).join("\n");
     if (line.includes("/pulls/7/comments")) return this.inlineReplies.map((body) => JSON.stringify({ body })).join("\n");
     if (line.startsWith("api graphql"))
@@ -144,7 +158,12 @@ class Provider implements ProviderAdapter {
 }
 
 const partFiles = (prompt: string) =>
-  [...prompt.split("This part holds exactly these files")[1].split("\n\n")[0].matchAll(/^- (\S+) \+/gm)].map((m) => m[1]);
+  [
+    ...prompt
+      .split("This part holds exactly these files")[1]
+      .split("\n\n")[0]
+      .matchAll(/^- (\S+) \+/gm),
+  ].map((m) => m[1]);
 
 /** Every file a run sent to a model, with the diff text it saw. */
 const sentFiles = (provider: Provider) => provider.requests.flatMap((r) => partFiles(r.prompt));
@@ -294,7 +313,11 @@ describe("a push after a partial review resumes with the files it did not reach"
   test("with nothing unread left the early exits are the ones they were, and the marker is complete", async () => {
     const { world } = await afterPartialReview();
     // The four unread files left the pull request; the rest of the change is the one reviewed.
-    world.push("aaaa0002", allFiles().filter((f) => ![F13, F14, F15, F16].includes(f.filename)), "diverged");
+    world.push(
+      "aaaa0002",
+      allFiles().filter((f) => ![F13, F14, F15, F16].includes(f.filename)),
+      "diverged",
+    );
     const second = reviewsEverything();
     const r = await run(world, second);
     expect(second.requests).toHaveLength(0);
@@ -304,7 +327,10 @@ describe("a push after a partial review resumes with the files it did not reach"
 
   test("an unread file that left the pull request, or is excluded now, is dropped without a word", async () => {
     const { world } = await afterPartialReview();
-    world.push("aaaa0002", allFiles({ [F01]: 1 }).filter((f) => f.filename !== F14));
+    world.push(
+      "aaaa0002",
+      allFiles({ [F01]: 1 }).filter((f) => f.filename !== F14),
+    );
     const second = reviewsEverything();
     const r = await run(world, second, { WACHIMAN_EXCLUDE: F15 });
     expect(sentFiles(second).sort()).toEqual([F01, F13, F16].sort());
@@ -340,8 +366,7 @@ describe("a push after a partial review resumes with the files it did not reach"
     const world = new World();
     world.push("aaaa0001", allFiles());
     // Every call reviews every file but F03, which the model keeps leaving out (the retry included).
-    const leavesOutF03 = (cost: number) =>
-      new Provider((files) => ({ cost, reviewed: files.filter((f) => f !== F03) }));
+    const leavesOutF03 = (cost: number) => new Provider((files) => ({ cost, reviewed: files.filter((f) => f !== F03) }));
     const first = leavesOutF03(0.05);
     const r1 = await run(world, first);
     expect(r1.posted[0]).toContain("⚠️ **Partial review**");

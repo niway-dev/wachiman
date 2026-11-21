@@ -65,7 +65,12 @@ describe("the four entry states", () => {
       row({ day: "2026-11-10", costUsd: 0.6, calls: [{ model: "m", auth: "oauth-token", costUsd: 0.6, costKnown: true }] }),
       row({ day: "2026-11-10", state: "reserved", costUsd: 0, reservedUsd: 1, calls: [] }),
       row({ day: "2026-11-10", state: "unsettled", costUsd: 0, reservedUsd: 2, calls: [] }),
-      row({ day: "2026-11-10", state: "unreserved", costUsd: 0.25, calls: [{ model: "m", auth: "api-key", costUsd: 0.25, costKnown: true }] }),
+      row({
+        day: "2026-11-10",
+        state: "unreserved",
+        costUsd: 0.25,
+        calls: [{ model: "m", auth: "api-key", costUsd: 0.25, costKnown: true }],
+      }),
     ];
     const report = buildReport({ rows, coverage: { actions: [{ from: "2026-11-01", to: "2026-11-12" }], laptop: [] }, now: NOW });
     expect(report.totals.total).toEqual({ runs: 1, calls: 1, usd: 0.6 });
@@ -82,7 +87,15 @@ describe("splits", () => {
   test("billed and estimated stay apart, and so do the sources", () => {
     const rows = [
       row({ day: "2026-11-10", costUsd: 0.5, calls: [{ model: "a", auth: "api-key", costUsd: 0.5, costKnown: true }] }),
-      row({ day: "2026-11-10", source: "laptop", repository: "alpha", repositoryKey: "alpha-1", pr: null, costUsd: 0.25, calls: [{ model: "a", auth: "subscription", costUsd: 0.25, costKnown: true }] }),
+      row({
+        day: "2026-11-10",
+        source: "laptop",
+        repository: "alpha",
+        repositoryKey: "alpha-1",
+        pr: null,
+        costUsd: 0.25,
+        calls: [{ model: "a", auth: "subscription", costUsd: 0.25, costKnown: true }],
+      }),
     ];
     const report = buildReport({ rows, coverage: deriveCoverage(rows, [{ from: "2026-11-01", to: "2026-11-12" }], NOW), now: NOW });
     expect(report.totals.byCredential.billed.usd).toBe(0.5);
@@ -99,8 +112,16 @@ describe("splits", () => {
     expect(report.groups.model.map((g) => g.key).sort()).toEqual(["(not itemised)", "a"]);
   });
   test("pull requests and local branches are grouped apart", () => {
-    const rows = [row({ day: "2026-11-10", pr: 7 }), row({ day: "2026-11-10", pr: null }), row({ day: "2026-11-10", source: "laptop", pr: null, repository: "alpha", repositoryKey: "alpha-1" })];
-    expect(group(rows, "pr").map((g) => g.label).sort()).toEqual(["alpha (local branch)", "o/alpha #7", "o/alpha (no pull request)"]);
+    const rows = [
+      row({ day: "2026-11-10", pr: 7 }),
+      row({ day: "2026-11-10", pr: null }),
+      row({ day: "2026-11-10", source: "laptop", pr: null, repository: "alpha", repositoryKey: "alpha-1" }),
+    ];
+    expect(
+      group(rows, "pr")
+        .map((g) => g.label)
+        .sort(),
+    ).toEqual(["alpha (local branch)", "o/alpha #7", "o/alpha (no pull request)"]);
   });
 });
 
@@ -113,7 +134,14 @@ describe("how many periods are kept", () => {
     expect(report.days[0].key).toBe("2026-07-16");
   });
   test("ranges that touch or overlap merge; others stay apart", () => {
-    expect(mergeRanges([{ from: "2026-11-01", to: "2026-11-05" }, { from: "2026-11-06", to: "2026-11-08" }, { from: "2026-11-03", to: "2026-11-04" }, { from: "2026-11-20", to: "2026-11-22" }])).toEqual([
+    expect(
+      mergeRanges([
+        { from: "2026-11-01", to: "2026-11-05" },
+        { from: "2026-11-06", to: "2026-11-08" },
+        { from: "2026-11-03", to: "2026-11-04" },
+        { from: "2026-11-20", to: "2026-11-22" },
+      ]),
+    ).toEqual([
       { from: "2026-11-01", to: "2026-11-08" },
       { from: "2026-11-20", to: "2026-11-22" },
     ]);

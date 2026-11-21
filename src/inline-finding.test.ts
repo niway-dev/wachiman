@@ -61,13 +61,17 @@ describe("inlineFindingBody, priority arm (AC2)", () => {
   test("the four glosses", () => {
     const row = (f: Partial<Finding>) => inlineFindingBody(finding(f)).split("\n")[2];
     expect(row({ severity: "blocker", topic: "security", confidence: "high" })).toBe("| **Priority** | **Must** · blocks the merge |");
-    expect(row({ severity: "fix", topic: "bug", confidence: "high" })).toBe("| **Priority** | **Should** · a change is expected; answer if you disagree |");
+    expect(row({ severity: "fix", topic: "bug", confidence: "high" })).toBe(
+      "| **Priority** | **Should** · a change is expected; answer if you disagree |",
+    );
     expect(row({ confidence: "medium" })).toBe("| **Priority** | **Could** · worth a look; change on the merits |");
     expect(row({ severity: "info", topic: "adr", confidence: undefined })).toBe("| **Priority** | **FYI** · context, no code decision |");
   });
 
   test("a pre-existing origin appends its badge to the Priority cell and keeps the word", () => {
-    const row = inlineFindingBody({ ...finding({ severity: "blocker", topic: "bug", confidence: "high" }), origin: "pre-existing" }).split("\n")[2];
+    const row = inlineFindingBody({ ...finding({ severity: "blocker", topic: "bug", confidence: "high" }), origin: "pre-existing" }).split(
+      "\n",
+    )[2];
     expect(row).toBe("| **Priority** | **Must** · blocks the merge · Pre-existing |");
   });
 
@@ -109,12 +113,19 @@ describe("inlineFindingBody, word arm (AC13)", () => {
         "The field is read but nothing sets it.",
       ].join("\n"),
     );
-    expect(inlineFindingBody(finding({ severity: "blocker", topic: "security", confidence: "high" }), "word")).toContain("| **Severity** | 🔴 Blocker · Important |");
+    expect(inlineFindingBody(finding({ severity: "blocker", topic: "security", confidence: "high" }), "word")).toContain(
+      "| **Severity** | 🔴 Blocker · Important |",
+    );
   });
 
   test("both arms differ only in the Priority row and the tier word", () => {
     const f = finding({ severity: "fix", topic: "bug", confidence: "high" });
-    const strip = (body: string) => body.split("\n").filter((l) => !l.startsWith("| **Priority**")).join("\n").replace(/ · (Important|Nit) \|/, " |");
+    const strip = (body: string) =>
+      body
+        .split("\n")
+        .filter((l) => !l.startsWith("| **Priority**"))
+        .join("\n")
+        .replace(/ · (Important|Nit) \|/, " |");
     expect(strip(inlineFindingBody(f, "word"))).toBe(strip(inlineFindingBody(f, "priority")));
   });
 });
@@ -236,7 +247,17 @@ describe("a review GitHub would not anchor", () => {
       isResolved: false,
       path: "a.ts",
       line: 1,
-      comments: { nodes: [{ databaseId: 3, author: { login: "github-actions" }, authorAssociation: "NONE", body: newComment(f), createdAt: "2026-11-15T00:00:00Z" }] },
+      comments: {
+        nodes: [
+          {
+            databaseId: 3,
+            author: { login: "github-actions" },
+            authorAssociation: "NONE",
+            body: newComment(f),
+            createdAt: "2026-11-15T00:00:00Z",
+          },
+        ],
+      },
     };
     expect(askFindingThread(raw as never).finding).toBe(oldComment(f));
   });

@@ -116,7 +116,8 @@ function parseEntry(raw: unknown): LedgerEntry {
 
 export function parseEntriesResponse(body: unknown): EntriesResponse {
   if (!isObject(body)) throw new Error("the ledger answered with something that is not a JSON object");
-  if (typeof body.account !== "string" || !ACCOUNT_PATTERN.test(body.account)) throw new Error("the ledger answer has no usable account name");
+  if (typeof body.account !== "string" || !ACCOUNT_PATTERN.test(body.account))
+    throw new Error("the ledger answer has no usable account name");
   if (!Array.isArray(body.entries)) throw new Error("the ledger answer has no entries list");
   const limits = isObject(body.limits) ? body.limits : {};
   return {

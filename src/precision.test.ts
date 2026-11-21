@@ -34,9 +34,7 @@ describe("parseVerdict", () => {
     expect(parseVerdict("**Verdict: correct.** Fixed in 4b37e3fe")).toBe("correct");
     expect(parseVerdict("**Verdict: correct, and the gap is wider than reported.**")).toBe("correct");
     expect(parseVerdict("**Verdict: correct for the timer, wrong for the early patch.**")).toBe("partial");
-    expect(
-      parseVerdict("**Verdict: correct.** Fixed in 4b37e3fe: `useSettingsFocus` keeps only the focus-contract half"),
-    ).toBe("correct");
+    expect(parseVerdict("**Verdict: correct.** Fixed in 4b37e3fe: `useSettingsFocus` keeps only the focus-contract half")).toBe("correct");
   });
   test("reads the spellings the convention allows", () => {
     expect(parseVerdict("Verdict: partially wrong")).toBe("partial");

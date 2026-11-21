@@ -191,7 +191,10 @@ export function renderCostSummary(calls: CallCost[]) {
     ...rows,
     `| **Total** | | ${turns} | ${total.input} | ${total.output} | ${total.cacheRead} | ${total.cacheWrite} | **$${usd.toFixed(4)}** |`,
     ...(calls.some((c) => isEstimate(c.auth))
-      ? ["", "These runs used a Claude subscription: the dollars above are API-price estimates (what the calls would cost at API prices), not a bill."]
+      ? [
+          "",
+          "These runs used a Claude subscription: the dollars above are API-price estimates (what the calls would cost at API prices), not a bill.",
+        ]
       : []),
     ...(unknown.length
       ? [

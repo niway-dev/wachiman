@@ -1,5 +1,16 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { BATCH_CONCURRENCY } from "./engine";
@@ -12,7 +23,19 @@ import { parseAskArgs } from "./local-ask";
 import { entryId } from "./memory/entries";
 import { repositoryKey } from "./history/store";
 import { SUBSCRIPTION_ENV, SUBSCRIPTION_KEY_REFUSAL } from "./providers/claude-code";
-import { A_BASE, A_HEAD, PNG_BASE, PNG_HEAD, branchRepo, commit, emptyCommits, emptyRepo, git, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
+import {
+  A_BASE,
+  A_HEAD,
+  PNG_BASE,
+  PNG_HEAD,
+  branchRepo,
+  commit,
+  emptyCommits,
+  emptyRepo,
+  git,
+  removeTempRepos,
+  type BranchRepo,
+} from "../test/support/temp-repo";
 import { personalMemoryDir } from "./memory/personal";
 import { readMemoryUse } from "./memory/hygiene";
 
@@ -143,7 +166,13 @@ function runCli(args: string[], env: Record<string, string>) {
 }
 
 /** `wachiman local` on a fresh branch repository, with the stubs first on PATH and a temporary HOME. */
-function local(variant: Variant, args: string[] = [], extraEnv: Record<string, string> = {}, repo: BranchRepo = branchRepo(), auth: AuthVariant = "claude.ai") {
+function local(
+  variant: Variant,
+  args: string[] = [],
+  extraEnv: Record<string, string> = {},
+  repo: BranchRepo = branchRepo(),
+  auth: AuthVariant = "claude.ai",
+) {
   const s = stubs(variant, repo.dir, auth);
   const home = extraEnv.HOME ?? temp("wachiman-home-");
   // `"<unset>"` removes a variable the helper sets, to test the real default.
@@ -162,7 +191,19 @@ function local(variant: Variant, args: string[] = [], extraEnv: Record<string, s
 describe("parseLocalArgs", () => {
   test("every option, and the defaults", () => {
     expect(
-      parseLocalArgs(["--base", "main", "src", "docs", "--format", "markdown", "--output", "r.md", "--profile", "isolated:work", "--agent-prompt"]),
+      parseLocalArgs([
+        "--base",
+        "main",
+        "src",
+        "docs",
+        "--format",
+        "markdown",
+        "--output",
+        "r.md",
+        "--profile",
+        "isolated:work",
+        "--agent-prompt",
+      ]),
     ).toEqual({
       base: "main",
       paths: ["src", "docs"],
@@ -174,7 +215,15 @@ describe("parseLocalArgs", () => {
       verify: undefined,
       input: undefined,
     });
-    expect(parseLocalArgs([])).toEqual({ paths: [], format: "terminal", profile: undefined, agentPrompt: false, history: false, verify: undefined, input: undefined });
+    expect(parseLocalArgs([])).toEqual({
+      paths: [],
+      format: "terminal",
+      profile: undefined,
+      agentPrompt: false,
+      history: false,
+      verify: undefined,
+      input: undefined,
+    });
     expect(parseLocalArgs(["--verify"]).verify).toBe(true);
     expect(parseLocalArgs(["--no-verify"]).verify).toBe(false);
     expect(parseLocalArgs(["--format=json", "--base=origin/main"])).toMatchObject({ format: "json", base: "origin/main" });
@@ -271,7 +320,9 @@ describe("readInputFile", () => {
     expect(readInputFile(file(fixture())).pathRules).toBeUndefined();
     const rules = [{ match: "src/billing/**", severity: "high", reason: "charges customers" }];
     expect(readInputFile(file({ ...fixture(), pathRules: rules })).pathRules).toEqual(rules);
-    expect(() => readInputFile(file({ ...fixture(), pathRules: [{ ...rules[0], severity: "urgent" }] }))).toThrow(/paths\[0\]\.severity must be one of critical, high, medium, got "urgent"/);
+    expect(() => readInputFile(file({ ...fixture(), pathRules: [{ ...rules[0], severity: "urgent" }] }))).toThrow(
+      /paths\[0\]\.severity must be one of critical, high, medium, got "urgent"/,
+    );
     expect(() => readInputFile(file({ ...fixture(), pathRules: "src/**" }))).toThrow(UsageError);
   });
 });
@@ -416,12 +467,18 @@ describe("wachiman local", () => {
     const sizedInput = (repo: BranchRepo, count: number) => {
       const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
       fixture.change.head.sha = repo.head;
-      fixture.files = Array.from({ length: count }, (_, i) => ({ filename: `pkg${i}/mod.ts`, additions: 1000, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+x" }));
+      fixture.files = Array.from({ length: count }, (_, i) => ({
+        filename: `pkg${i}/mod.ts`,
+        additions: 1000,
+        deletions: 0,
+        patch: "@@ -0,0 +1,1 @@\n+x",
+      }));
       const file = join(temp("wachiman-input-"), "input.json");
       writeFileSync(file, JSON.stringify(fixture));
       return file;
     };
-    const WARNING = /^warning: reviewing all of this would cost about \$\d+\.\d\d at API prices \(\d+ batches × \$0\.\d\d for [^)]+\), above the \$6\.00 size gate\./m;
+    const WARNING =
+      /^warning: reviewing all of this would cost about \$\d+\.\d\d at API prices \(\d+ batches × \$0\.\d\d for [^)]+\), above the \$6\.00 size gate\./m;
 
     test("a large input prints one warning and still calls the model", () => {
       const repo = branchRepo();
@@ -499,12 +556,21 @@ describe("wachiman local", () => {
     const home = temp("wachiman-home-");
     const bin = temp("wachiman-bin-");
     const log = join(bin, "setup");
-    writeFileSync(join(bin, "claude"), `#!/bin/sh\npwd -P > "${log}.cwd"\nls -A > "${log}.ls"\nenv | sort > "${log}.env"\necho "$#" > "${log}.argc"\n`);
+    writeFileSync(
+      join(bin, "claude"),
+      `#!/bin/sh\npwd -P > "${log}.cwd"\nls -A > "${log}.ls"\nenv | sort > "${log}.env"\necho "$#" > "${log}.argc"\n`,
+    );
     chmodSync(join(bin, "claude"), 0o755);
     const repo = branchRepo();
     const out = Bun.spawnSync([process.execPath, cli, "--setup-profile", "work"], {
       cwd: repo.dir,
-      env: { PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: home, USER: "dev", CLAUDE_CONFIG_DIR: "/elsewhere", ANTHROPIC_API_KEY: "sk-ant-test" },
+      env: {
+        PATH: `${bin}:${process.env.PATH ?? ""}`,
+        HOME: home,
+        USER: "dev",
+        CLAUDE_CONFIG_DIR: "/elsewhere",
+        ANTHROPIC_API_KEY: "sk-ant-test",
+      },
       stdin: "ignore",
     });
     expect(out.exitCode).toBe(0);
@@ -575,7 +641,12 @@ describe("wachiman local memory selection", () => {
   }, 30_000);
 
   test("a text file that matches the same glob does pull its area in", () => {
-    const r = local("ok", ["--format", "json", "--result-version", "2"], {}, memoryRepo({ "img.png": PNG_HEAD, "src/a.ts": A_HEAD, "src/pic.png": "not really an image\n" }));
+    const r = local(
+      "ok",
+      ["--format", "json", "--result-version", "2"],
+      {},
+      memoryRepo({ "img.png": PNG_HEAD, "src/a.ts": A_HEAD, "src/pic.png": "not really an image\n" }),
+    );
     expect(r.code).toBe(0);
     expect(loadedMemory(r.stdout)).toEqual(["images.md", "index.md", "src.md"]);
   }, 30_000);
@@ -589,7 +660,15 @@ describe("wachiman local holds while", () => {
     const holdsWhile = "legacy/**";
     const id = entryId({ kind: "exception", scope: "src/**", rule, why, holdsWhile });
     const entry = `# Memory\n\n### ${id} ${rule}\n\n- kind: exception\n- scope: src/**\n- rule: ${rule}\n- why: ${why}\n- holds while: ${holdsWhile}\n- evidence:\n  - 2026-11-18 operator instruction\n- added: 2026-11-18\n`;
-    const mergeBase = commit(dir, { ".wachiman/memory/index.md": entry, "legacy/gateway.ts": "export const a = 1;\nexport const b = 2;\nexport const c = 3;\n", "src/a.ts": A_BASE }, "base");
+    const mergeBase = commit(
+      dir,
+      {
+        ".wachiman/memory/index.md": entry,
+        "legacy/gateway.ts": "export const a = 1;\nexport const b = 2;\nexport const c = 3;\n",
+        "src/a.ts": A_BASE,
+      },
+      "base",
+    );
     git(dir, "switch", "-q", "-c", "feat/x");
     mkdirSync(join(dir, "src"), { recursive: true });
     git(dir, "mv", "legacy/gateway.ts", "src/gateway.ts");
@@ -788,8 +867,16 @@ describe("--history", () => {
     // Each run's scratch directory has a random name; nothing else may differ.
     const scrub = (text: string) => text.replace(/(wachiman-review|wachiman-snapshot)-[A-Za-z0-9]+/g, "$1-X");
     expect(scrub(withHistory.read("prompt") as string)).toBe(scrub(without.read("prompt") as string));
-    expect(withHistory.read("args")?.split("\n").filter((a) => !a.startsWith("/"))).toEqual(
-      without.read("args")?.split("\n").filter((a) => !a.startsWith("/")),
+    expect(
+      withHistory
+        .read("args")
+        ?.split("\n")
+        .filter((a) => !a.startsWith("/")),
+    ).toEqual(
+      without
+        .read("args")
+        ?.split("\n")
+        .filter((a) => !a.startsWith("/")),
     );
   }, 30_000);
 
@@ -838,10 +925,13 @@ describe("--history", () => {
     // The same id the stderr block prints, and the one the verdict command accepts.
     expect(two.stderr).toContain(`(id ${findings[0].id})`);
     const whome = join(home, ".wachiman");
-    const verdict = Bun.spawnSync([process.execPath, cli, "history", "--repo-dir", repo.dir, "--verdict", findings[0].id!, "wrong", "--reason", "test"], {
-      env: { PATH: process.env.PATH ?? "", HOME: home, WACHIMAN_HOME: whome, USER: "dev" },
-      stdin: "ignore",
-    });
+    const verdict = Bun.spawnSync(
+      [process.execPath, cli, "history", "--repo-dir", repo.dir, "--verdict", findings[0].id!, "wrong", "--reason", "test"],
+      {
+        env: { PATH: process.env.PATH ?? "", HOME: home, WACHIMAN_HOME: whome, USER: "dev" },
+        stdin: "ignore",
+      },
+    );
     expect(verdict.exitCode).toBe(0);
     expect(verdict.stdout.toString()).toContain(`Recorded: ${findings[0].id} is wrong.`);
     // A second run keeps the first id.
@@ -940,7 +1030,8 @@ describe("--history", () => {
 });
 
 describe("--no-memory", () => {
-  const INDEX = "# Memory\n\n### 4c1e9a2 Prefer named exports\n\n- kind: convention\n- scope: src/**\n- rule: Prefer named exports in src.\n- why: Renames show up in every importer.\n- evidence:\n  - 2026-11-18 operator instruction, pull request 1\n- added: 2026-11-18\n";
+  const INDEX =
+    "# Memory\n\n### 4c1e9a2 Prefer named exports\n\n- kind: convention\n- scope: src/**\n- rule: Prefer named exports in src.\n- why: Renames show up in every importer.\n- evidence:\n  - 2026-11-18 operator instruction, pull request 1\n- added: 2026-11-18\n";
   /** The same two commits twice: the base commit holds a memory folder, or it does not. */
   function repoWith(memory: boolean): BranchRepo {
     const dir = emptyRepo();
@@ -949,7 +1040,11 @@ describe("--no-memory", () => {
     const head = commit(dir, { "src/a.ts": A_HEAD }, "edit a");
     return { dir, mergeBase: "", mainTip: "", head, subjects: ["edit a"] };
   }
-  const scrub = (text: string) => text.replace(/(wachiman-review|wachiman-snapshot)-[A-Za-z0-9]+/g, "$1-X").replace(/wachiman-repo-[A-Za-z0-9]+/g, "REPO").replace(/\b[0-9a-f]{7,40}\b/g, "SHA");
+  const scrub = (text: string) =>
+    text
+      .replace(/(wachiman-review|wachiman-snapshot)-[A-Za-z0-9]+/g, "$1-X")
+      .replace(/wachiman-repo-[A-Za-z0-9]+/g, "REPO")
+      .replace(/\b[0-9a-f]{7,40}\b/g, "SHA");
 
   test("parses, and is off by default", () => {
     expect(parseLocalArgs(["--no-memory"]).noMemory).toBe(true);
@@ -966,7 +1061,11 @@ describe("--no-memory", () => {
     expect(prompt(withMemory)).not.toBe(prompt(without));
     expect(prompt(skipped)).toBe(prompt(without));
     // The provider is called the same way too: same arguments apart from the scratch directories.
-    const args = (r: { read: (s: string) => string | undefined }) => r.read("args")?.split("\n").filter((a) => !a.startsWith("/"));
+    const args = (r: { read: (s: string) => string | undefined }) =>
+      r
+        .read("args")
+        ?.split("\n")
+        .filter((a) => !a.startsWith("/"));
     expect(args(skipped)).toEqual(args(without));
   }, 60_000);
 
@@ -1233,7 +1332,12 @@ describe("accounts in local", () => {
     const repo = branchRepo();
     const s = stubs("ok", repo.dir);
     const { whome, workDir } = accounts(repo, { binding: "work-a", binary: join(s.bin, "claude") });
-    const out = runCli(["local", "--repo-dir", repo.dir], { PATH: "/usr/bin:/bin", HOME: temp("wachiman-home-"), USER: "dev", WACHIMAN_HOME: whome });
+    const out = runCli(["local", "--repo-dir", repo.dir], {
+      PATH: "/usr/bin:/bin",
+      HOME: temp("wachiman-home-"),
+      USER: "dev",
+      WACHIMAN_HOME: whome,
+    });
     expect(out.code).toBe(0);
     expect(out.stderr).toContain(`binary ${join(s.bin, "claude")}`);
     expect(s.env().CLAUDE_CONFIG_DIR).toBe(workDir);
@@ -1303,7 +1407,11 @@ describe("accounts in local", () => {
         { WACHIMAN_HOME: whome, PATH: process.env.PATH },
         { stdout: () => {}, stderr: (l) => stderr.push(l), engineVersion: "0" },
         {
-          spawn: (_bin, args) => ({ status: args[0] === "--version" ? 0 : 1, stdout: args[0] === "--version" ? "9.9.9" : "{}", stderr: "" }),
+          spawn: (_bin, args) => ({
+            status: args[0] === "--version" ? 0 : 1,
+            stdout: args[0] === "--version" ? "9.9.9" : "{}",
+            stderr: "",
+          }),
           getProvider: () => provider,
         },
       );
@@ -1317,12 +1425,15 @@ describe("accounts in local", () => {
     const repo = branchRepo();
     const { whome } = accounts(repo, { binding: "work-b" });
     const evil = temp("wachiman-evil-");
-    writeFileSync(join(evil, "claude"), "#!/bin/sh\ntouch \"$0.ran\"\nexit 0\n");
+    writeFileSync(join(evil, "claude"), '#!/bin/sh\ntouch "$0.ran"\nexit 0\n');
     chmodSync(join(evil, "claude"), 0o755);
     writeFileSync(join(repo.dir, ".wachiman.json"), JSON.stringify({ profile: "work-a", binary: join(evil, "claude") }));
     mkdirSync(join(repo.dir, ".wachiman"), { recursive: true });
     writeFileSync(join(repo.dir, ".wachiman", "config.json"), JSON.stringify({ profile: "work-a", binary: join(evil, "claude") }));
-    writeFileSync(join(repo.dir, "package.json"), JSON.stringify({ name: "x", wachiman: { profile: "work-a", binary: join(evil, "claude") } }));
+    writeFileSync(
+      join(repo.dir, "package.json"),
+      JSON.stringify({ name: "x", wachiman: { profile: "work-a", binary: join(evil, "claude") } }),
+    );
     const r = local("ok", [], { WACHIMAN_HOME: whome, WACHIMAN_CLAUDE_BIN: join(evil, "claude") }, repo);
     expect(r.code).toBe(0);
     expect(r.stderr).toMatch(/profile: work-b \(external, .*; chosen by project binding\)/);
@@ -1340,10 +1451,18 @@ describe("accounts in local", () => {
     writeFileSync(input, JSON.stringify(fixture));
 
     const s = stubs("ok", repo.dir);
-    const env = { PATH: `${s.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-home-"), USER: "dev", WACHIMAN_HOME: whome, WACHIMAN_PROFILE: "work-b" };
+    const env = {
+      PATH: `${s.bin}:${process.env.PATH ?? ""}`,
+      HOME: temp("wachiman-home-"),
+      USER: "dev",
+      WACHIMAN_HOME: whome,
+      WACHIMAN_PROFILE: "work-b",
+    };
     const out = Bun.spawnSync([wrapper, "local", "--input", input, "--repo-dir", repo.dir], { env, stdin: "ignore" });
     expect(out.exitCode).toBe(0);
-    expect(out.stderr.toString()).toContain(`profile: work-a (external, ${workDir}; chosen by project binding; WACHIMAN_PROFILE=work-b ignored)`);
+    expect(out.stderr.toString()).toContain(
+      `profile: work-a (external, ${workDir}; chosen by project binding; WACHIMAN_PROFILE=work-b ignored)`,
+    );
     expect(s.env().CLAUDE_CONFIG_DIR).toBe(workDir);
 
     // The key now reaches the command, which refuses it itself, identically to `bun src/cli.ts`.
@@ -1373,7 +1492,9 @@ describe("verification flags", () => {
     expect(parseLocalArgs([]).resultVersion).toBeUndefined();
     expect(() => parseLocalArgs(["--format", "json", "--result-version", "3"])).toThrow("--result-version must be 1 or 2");
     expect(() => parseLocalArgs(["--result-version", "1"])).toThrow(new UsageError("--result-version applies only with --format json."));
-    expect(() => parseLocalArgs(["--format", "markdown", "--result-version", "2"])).toThrow("--result-version applies only with --format json.");
+    expect(() => parseLocalArgs(["--format", "markdown", "--result-version", "2"])).toThrow(
+      "--result-version applies only with --format json.",
+    );
   });
 
   test("--result-version 1 without --format json exits 2 before any call", () => {
@@ -1420,7 +1541,11 @@ describe("verification flags", () => {
     const r = local("ok", ["--no-verify"], { WACHIMAN_VERIFY: "1" });
     expect(r.stderr.split("\n")).toContain("verify: off");
     expect(r.calls()).toHaveLength(1);
-    expect(local("ok", [], { WACHIMAN_VERIFY: "1" }).stderr.split("\n").some((l) => l.startsWith("verify: on ("))).toBe(true);
+    expect(
+      local("ok", [], { WACHIMAN_VERIFY: "1" })
+        .stderr.split("\n")
+        .some((l) => l.startsWith("verify: on (")),
+    ).toBe(true);
   });
 
   test("the verifier can read the base commit, and the base snapshot is gone afterwards", () => {
@@ -1517,7 +1642,8 @@ test("working-tree verification reads a raw base tree and removes both snapshots
 });
 
 describe("memory use", () => {
-  const convention = (id: string, scope: string) => `### ${id} Prefer named exports\n\n- kind: convention\n- scope: ${scope}\n- rule: Prefer named exports.\n- why: because\n- evidence:\n  - 2026-11-01 operator instruction, branch x\n- added: 2026-11-01\n`;
+  const convention = (id: string, scope: string) =>
+    `### ${id} Prefer named exports\n\n- kind: convention\n- scope: ${scope}\n- rule: Prefer named exports.\n- why: because\n- evidence:\n  - 2026-11-01 operator instruction, branch x\n- added: 2026-11-01\n`;
   function repoWithMemory(scope: string) {
     const dir = emptyRepo();
     const id = entryId({ kind: "convention", scope, rule: "Prefer named exports.", why: "because" });

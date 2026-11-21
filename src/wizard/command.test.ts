@@ -28,6 +28,8 @@ test("PowerShell literals escape every single-quote delimiter, including smart a
   // Microsoft documents smart-quote escaping; CharTraits.IsSingleQuote includes all four.
   for (const quote of ["'", "\u2018", "\u2019", "\u201a", "\u201b"]) {
     expect(quoteArgument(`owner${quote}s project`, "powershell")).toBe(`'owner${quote}${quote}s project'`);
-    expect(quoteArgument(`x${quote}; Write-Output injected; ${quote}`, "powershell")).toBe(`'x${quote}${quote}; Write-Output injected; ${quote}${quote}'`);
+    expect(quoteArgument(`x${quote}; Write-Output injected; ${quote}`, "powershell")).toBe(
+      `'x${quote}${quote}; Write-Output injected; ${quote}${quote}'`,
+    );
   }
 });

@@ -48,7 +48,10 @@ export function renderConventions(memory: MemoryLoad | undefined): string {
   if (!memory || conventions.length === 0) return "";
   const sha = memory.revision.slice(0, 7);
   const body = conventions
-    .map((e) => `<convention id="${esc(e.id)}" scope="${esc(e.scope)}"${e.personal ? ' personal="true"' : ""}>\n${esc(e.rule)}\nWhy: ${esc(e.why)}\n</convention>`)
+    .map(
+      (e) =>
+        `<convention id="${esc(e.id)}" scope="${esc(e.scope)}"${e.personal ? ' personal="true"' : ""}>\n${esc(e.rule)}\nWhy: ${esc(e.why)}\n</convention>`,
+    )
     .join("\n\n");
   // Personal conventions are the developer's own, from outside the repository (laptop reviews only).
   const personalNote = conventions.some((e) => e.personal)
@@ -71,7 +74,8 @@ ${body}`;
 }
 
 /** Every exception of the loaded memory. */
-export const exceptionsOf = (memory: MemoryLoad | undefined): MemoryEntry[] => (memory?.entries ?? []).filter((e) => e.kind === "exception");
+export const exceptionsOf = (memory: MemoryLoad | undefined): MemoryEntry[] =>
+  (memory?.entries ?? []).filter((e) => e.kind === "exception");
 
 /** The paths a `holds while` line names, as globs: one, or several separated by commas. */
 const holdsGlobs = (entry: MemoryEntry) => globsOf((entry.holdsWhile ?? "").replaceAll("`", ""));
@@ -95,7 +99,11 @@ export interface ExceptionPlan {
  * with a touched `holds while` path, once per id). A finding only exists on a reviewed file, but a
  * premise changes wherever the change touches it, reviewed or not.
  */
-export function planExceptions(memory: MemoryLoad | undefined, changedPaths: string[], reviewedPaths: string[] = changedPaths): ExceptionPlan {
+export function planExceptions(
+  memory: MemoryLoad | undefined,
+  changedPaths: string[],
+  reviewedPaths: string[] = changedPaths,
+): ExceptionPlan {
   const plan: ExceptionPlan = { active: [], stale: [] };
   const seen = new Set<string>();
   for (const entry of memory?.entries ?? []) {
@@ -116,7 +124,8 @@ export function planExceptions(memory: MemoryLoad | undefined, changedPaths: str
  * The floor of ADR 0057: a Blocker or Fix finding, and a finding of any severity about security,
  * are never muted. The engine checks it twice, before asking and on the answer.
  */
-export const isProtected = (f: Pick<Finding, "severity" | "topic">) => f.severity === "blocker" || f.severity === "fix" || f.topic === "security";
+export const isProtected = (f: Pick<Finding, "severity" | "topic">) =>
+  f.severity === "blocker" || f.severity === "fix" || f.topic === "security";
 
 /** The id a finding has in the matching step: its position in the review's list. */
 const idOf = (index: number) => `f${index + 1}`;
@@ -132,7 +141,9 @@ export interface MatchRequest {
  * to match, so no call is made.
  */
 export function matchRequest(active: MemoryEntry[], findings: Finding[]): MatchRequest | undefined {
-  const offered = findings.flatMap((finding, i) => (isProtected(finding) ? [] : [{ id: idOf(i), finding }])).filter(({ finding }) => active.some((e) => matchesGlob(e.scope, finding.path)));
+  const offered = findings
+    .flatMap((finding, i) => (isProtected(finding) ? [] : [{ id: idOf(i), finding }]))
+    .filter(({ finding }) => active.some((e) => matchesGlob(e.scope, finding.path)));
   if (offered.length === 0) return undefined;
   const entries = active.filter((e) => offered.some(({ finding }) => matchesGlob(e.scope, finding.path)));
   return { findings: offered, entries };
@@ -171,10 +182,15 @@ export function parseMatches(structured: unknown): ExceptionMatch[] | undefined 
 /** The prompt of the matching step: the offered findings, then the exceptions that may cover them. */
 export function buildMatchPrompt(p: { describe: string; request: MatchRequest }): string {
   const findings = p.request.findings
-    .map(({ id, finding: f }) => `<finding id="${id}" severity="${f.severity}" topic="${f.topic}" at="${esc(f.line > 0 ? `${f.path}:${f.line}` : f.path)}">\n<title>${esc(f.title)}</title>\n<body>\n${esc(f.body)}\n</body>\n</finding>`)
+    .map(
+      ({ id, finding: f }) =>
+        `<finding id="${id}" severity="${f.severity}" topic="${f.topic}" at="${esc(f.line > 0 ? `${f.path}:${f.line}` : f.path)}">\n<title>${esc(f.title)}</title>\n<body>\n${esc(f.body)}\n</body>\n</finding>`,
+    )
     .join("\n\n");
   const entries = p.request.entries
-    .map((e) => `<exception id="${esc(e.id)}" scope="${esc(e.scope)}">\n<rule>${esc(e.rule)}</rule>\n<why>${esc(e.why)}</why>\n</exception>`)
+    .map(
+      (e) => `<exception id="${esc(e.id)}" scope="${esc(e.scope)}">\n<rule>${esc(e.rule)}</rule>\n<why>${esc(e.why)}</why>\n</exception>`,
+    )
     .join("\n\n");
   return `You are the last step of an automated code review of ${p.describe}. The review is finished: the findings below were produced without any exception. The repository's owner approved the exceptions below, each saying that one kind of finding is not wanted in a path scope. Your only job is to say which findings an exception covers.
 
@@ -208,7 +224,11 @@ export function protectedNote(f: Pick<Finding, "severity" | "topic">, entry: str
  * first valid match of a finding is the one used. A finding at or above the floor that a valid match
  * names is kept and its body says which exception tried; the order of the findings does not change.
  */
-export function applyMatches<F extends Finding>(findings: F[], active: MemoryEntry[], matches: ExceptionMatch[]): { posted: F[]; muted: MutedFinding[]; protectedBy: { finding: F; entry: string }[] } {
+export function applyMatches<F extends Finding>(
+  findings: F[],
+  active: MemoryEntry[],
+  matches: ExceptionMatch[],
+): { posted: F[]; muted: MutedFinding[]; protectedBy: { finding: F; entry: string }[] } {
   const entries = new Map(active.map((e) => [e.id, e]));
   const chosen = new Map<number, ExceptionMatch>();
   for (const m of matches) {
@@ -230,7 +250,15 @@ export function applyMatches<F extends Finding>(findings: F[], active: MemoryEnt
       protectedBy.push({ finding: next, entry: m.entry });
       return;
     }
-    muted.push({ path: f.path, line: f.line, severity: f.severity, topic: f.topic, title: f.title, entry: m.entry, reason: oneLine(m.reason, 300) });
+    muted.push({
+      path: f.path,
+      line: f.line,
+      severity: f.severity,
+      topic: f.topic,
+      title: f.title,
+      entry: m.entry,
+      reason: oneLine(m.reason, 300),
+    });
   });
   return { posted, muted, protectedBy };
 }
@@ -246,13 +274,22 @@ export const MUTED_HEADING = "**Muted by memory**";
 export function renderMuting(p: { muted: MutedFinding[]; stale: ExceptionPlan["stale"]; failure?: string }): string | undefined {
   const parts: string[] = [];
   for (const { entry, touched } of p.stale) {
-    const shown = touched.slice(0, 3).map((t) => `\`${t}\``).join(", ");
+    const shown = touched
+      .slice(0, 3)
+      .map((t) => `\`${t}\``)
+      .join(", ");
     const effect = entry.kind === "exception" ? " An exception in that state mutes nothing in this review." : "";
-    parts.push(`ℹ️ **Memory entry \`${entry.id}\` may be out of date** ("${oneLine(entry.title, 80)}"): its \`holds while\` paths are touched by this diff (${shown}${touched.length > 3 ? ", …" : ""}).${effect}`);
+    parts.push(
+      `ℹ️ **Memory entry \`${entry.id}\` may be out of date** ("${oneLine(entry.title, 80)}"): its \`holds while\` paths are touched by this diff (${shown}${touched.length > 3 ? ", …" : ""}).${effect}`,
+    );
   }
-  if (p.failure) parts.push(`⚠️ **Memory exceptions were not applied**: matching did not run (${oneLine(p.failure)}), so every finding is posted.`);
+  if (p.failure)
+    parts.push(`⚠️ **Memory exceptions were not applied**: matching did not run (${oneLine(p.failure)}), so every finding is posted.`);
   if (p.muted.length > 0) {
-    const items = p.muted.map((m) => `- ${m.title ? oneLine(m.title) : "(untitled)"} (\`${oneLine(m.line > 0 ? `${m.path}:${m.line}` : m.path)}\`): muted by entry \`${m.entry}\``);
+    const items = p.muted.map(
+      (m) =>
+        `- ${m.title ? oneLine(m.title) : "(untitled)"} (\`${oneLine(m.line > 0 ? `${m.path}:${m.line}` : m.path)}\`): muted by entry \`${m.entry}\``,
+    );
     parts.push([`${MUTED_HEADING} (not posted as comments; each was matched by an exception the owner approved):`, ...items].join("\n"));
   }
   return parts.length > 0 ? parts.join("\n\n") : undefined;

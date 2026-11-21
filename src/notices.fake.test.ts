@@ -105,7 +105,8 @@ function world(initial: Item[] = []) {
         .map((r) => JSON.stringify({ id: r.id, body: r.body, submitted_at: "2026-11-18T00:00:00Z" }))
         .join("\n");
     if (line.includes("/pulls/7/comments") || line.includes("/issues/7/comments")) return "";
-    if (line.startsWith("pr view")) return JSON.stringify({ headRefOid: head, baseRefName: "main", title: "t", body: "b", author: { login: "u" } });
+    if (line.startsWith("pr view"))
+      return JSON.stringify({ headRefOid: head, baseRefName: "main", title: "t", body: "b", author: { login: "u" } });
     if (line.startsWith("api repos/o/r/pulls/7 ")) return BASE;
     if (line.includes("/pulls/7/files")) return JSON.stringify(FILE);
     if (line.startsWith("api graphql")) return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } });
@@ -129,11 +130,7 @@ function world(initial: Item[] = []) {
   };
 }
 
-async function run(
-  w: ReturnType<typeof world>,
-  provider: ProviderAdapter,
-  env: Record<string, string> = {},
-) {
+async function run(w: ReturnType<typeof world>, provider: ProviderAdapter, env: Record<string, string> = {}) {
   const warnings: string[] = [];
   const sleeps: number[] = [];
   const deps: Deps = {
@@ -239,7 +236,10 @@ describe("a $0 refusal is edited in place", () => {
   test("a transient error on the PUT is repeated, with no attempt check, until it lands", async () => {
     const w = world();
     await run(w, new Refusing("billing", CREDIT));
-    const transient = () => new GhError("gh: Validation Failed (HTTP 422)", 422, "Validation Failed", [{ message: "An internal error occurred, please try again." }]);
+    const transient = () =>
+      new GhError("gh: Validation Failed (HTTP 422)", 422, "Validation Failed", [
+        { message: "An internal error occurred, please try again." },
+      ]);
     w.putErrors.push(transient(), transient());
     w.push(HEAD2);
     const second = await run(w, new Refusing("billing", CREDIT));
@@ -255,7 +255,10 @@ describe("a $0 refusal is edited in place", () => {
   test("a transient error that outlasts the retries posts a new review", async () => {
     const w = world();
     await run(w, new Refusing("billing", CREDIT));
-    const transient = () => new GhError("gh: Validation Failed (HTTP 422)", 422, "Validation Failed", [{ message: "An internal error occurred, please try again." }]);
+    const transient = () =>
+      new GhError("gh: Validation Failed (HTTP 422)", 422, "Validation Failed", [
+        { message: "An internal error occurred, please try again." },
+      ]);
     w.putErrors.push(transient(), transient(), transient());
     w.push(HEAD2);
     await run(w, new Refusing("billing", CREDIT));
@@ -344,7 +347,9 @@ describe("the refusal notice names who acts and what to do", () => {
   test("an API key and a subscription token get different Who and Fix, for every kind", () => {
     const base = { detail: "", spentUsd: 0 };
     const rows = (kind: "billing" | "auth" | "rate_limit", auth: ProviderAuth | undefined) =>
-      refusalNotice({ ...base, kind, auth }).table.split("\n").slice(2, 4);
+      refusalNotice({ ...base, kind, auth })
+        .table.split("\n")
+        .slice(2, 4);
     expect(rows("auth", "api-key")).toEqual([
       "| **Who** | The repository owner, who holds the `ANTHROPIC_API_KEY` secret |",
       `| **Fix** | Check the \`ANTHROPIC_API_KEY\` secret, then re-run ${RERUN} |`,
@@ -396,7 +401,9 @@ describe("the state block on a not-reviewed notice (ADR 0060, AC1)", () => {
       findings: { total: 0 },
     });
     // After the signature, last in the body: this POST also carries its attempt line after it.
-    expect(w.reviews[0].body).toMatch(/<!-- wachi:review -->\n\n<!-- wachi:state [A-Za-z0-9_-]+ -->\n\n<!-- wachi:attempt id=[0-9a-f-]{36} -->$/);
+    expect(w.reviews[0].body).toMatch(
+      /<!-- wachi:review -->\n\n<!-- wachi:state [A-Za-z0-9_-]+ -->\n\n<!-- wachi:attempt id=[0-9a-f-]{36} -->$/,
+    );
   });
 
   test("each provider refusal states its own reason", async () => {
@@ -579,7 +586,9 @@ describe("the state block on the base-update line (ADR 0060, AC1, AC2)", () => {
       findings: { total: 3, by_severity: { fix: 1, consider: 1, info: 1 }, by_placement: { inline: 2, body: 1, outside_diff: 0 } },
     });
     // The marker the next push reads is still there, ahead of the block.
-    expect(w.reviews[1].body).toMatch(new RegExp(`<!-- wachiman sha=${HEAD2} -->\\n\\n<!-- wachi:state [A-Za-z0-9_-]+ -->\\n\\n<!-- wachi:attempt`));
+    expect(w.reviews[1].body).toMatch(
+      new RegExp(`<!-- wachiman sha=${HEAD2} -->\\n\\n<!-- wachi:state [A-Za-z0-9_-]+ -->\\n\\n<!-- wachi:attempt`),
+    );
   });
 
   test("a chain of rebases keeps carrying the same counts, each from the head before", async () => {

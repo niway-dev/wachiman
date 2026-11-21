@@ -27,10 +27,26 @@ describe("the shipped catalog", () => {
     expect(catalog.version).toBe(1);
     const defaults = catalog.sections.filter((e) => e.default).map((e) => e.id);
     expect(defaults).toEqual([
-      "type", "issue", "risk", "rollout", "release", "evidence-status", "decisions-status",
-      "needs-you", "what", "why", "evidence", "decisions",
-      "changes", "how-to-test", "not-verified", "checks", "agent-context", "notes",
-      "wachiman", "footer",
+      "type",
+      "issue",
+      "risk",
+      "rollout",
+      "release",
+      "evidence-status",
+      "decisions-status",
+      "needs-you",
+      "what",
+      "why",
+      "evidence",
+      "decisions",
+      "changes",
+      "how-to-test",
+      "not-verified",
+      "checks",
+      "agent-context",
+      "notes",
+      "wachiman",
+      "footer",
     ]);
   });
 
@@ -81,11 +97,19 @@ describe("catalog validation", () => {
       ["footer with <sha>", minimal([row, block, { ...footer, text: "Describes commit <sha>." }]), /placeholder|{sha}/],
       ["footer not last", minimal([row, footer, block]), /footer must be the last/],
       ["no risk row", minimal([{ id: "type", kind: "status-row", label: "Type" }, block, footer]), /risk-floor/],
-      ["risk row not locked", minimal([{ ...row, locked: false }, block, footer]), /must have a locked status row with the risk-floor rule/],
+      [
+        "risk row not locked",
+        minimal([{ ...row, locked: false }, block, footer]),
+        /must have a locked status row with the risk-floor rule/,
+      ],
       ["locked but not default", minimal([{ ...row, default: false }, block, footer]), /locked/],
       ["guide closes the comment", minimal([{ ...row, guide: "x --> y" }, block, footer]), /must not contain/],
       ["pipe in a row guide", minimal([{ ...row, guide: "a | b" }, block, footer]), /one line/],
-      ["rows after sections", minimal([row, { id: "what", kind: "section", heading: "What" }, { id: "t", kind: "status-row", label: "T" }, block, footer]), /status rows must come first/],
+      [
+        "rows after sections",
+        minimal([row, { id: "what", kind: "section", heading: "What" }, { id: "t", kind: "status-row", label: "T" }, block, footer]),
+        /status rows must come first/,
+      ],
     ];
     for (const [, text, pattern] of cases) {
       expect(() => parseCatalog(text)).toThrow(pattern);
@@ -112,7 +136,13 @@ describe("repository choice", () => {
     });
     expect(parsed.add).toEqual(["screenshots"]);
     expect(parsed.drop).toEqual(["decisions"]);
-    expect(parsed.custom[0]).toEqual({ id: "migration-notes", kind: "section", name: "Migration notes", required: false, after: "evidence" });
+    expect(parsed.custom[0]).toEqual({
+      id: "migration-notes",
+      kind: "section",
+      name: "Migration notes",
+      required: false,
+      after: "evidence",
+    });
     expect(parsed.preamble).toEqual(["- [ ] I accept CLA.md."]);
   });
 
@@ -142,12 +172,15 @@ describe("repository choice", () => {
 
   test("a custom entry reusing the id of an existing section or of another custom entry", () => {
     rejects({ custom: [{ id: "what", kind: "section", heading: "Other" }] }, /id is already used/);
-    rejects({
-      custom: [
-        { id: "mine", kind: "section", heading: "One" },
-        { id: "mine", kind: "section", heading: "Two" },
-      ],
-    }, /id is already used/);
+    rejects(
+      {
+        custom: [
+          { id: "mine", kind: "section", heading: "One" },
+          { id: "mine", kind: "section", heading: "Two" },
+        ],
+      },
+      /id is already used/,
+    );
   });
 
   test("a custom entry repeating the name of a section the template shows", () => {
@@ -159,7 +192,10 @@ describe("repository choice", () => {
       custom: [{ id: "mine", kind, [kind === "section" ? "heading" : kind === "status-row" ? "label" : "summary"]: name }],
     });
     // the checker reads a heading trimmed and with spaces collapsed, so the template it generated would not pass
-    rejects({ custom: [{ id: "mine", kind: "section", heading: " Team " }] }, /custom entry "mine": the heading must not start or end with whitespace/);
+    rejects(
+      { custom: [{ id: "mine", kind: "section", heading: " Team " }] },
+      /custom entry "mine": the heading must not start or end with whitespace/,
+    );
     rejects({ custom: [{ id: "mine", kind: "section", heading: "Two  spaces" }] }, /run of spaces/);
     rejects({ custom: [{ id: "mine", kind: "status-row", label: "Owner " }] }, /the label must not start or end with whitespace/);
     // a second heading smuggled in through a newline, a carriage return or another control character

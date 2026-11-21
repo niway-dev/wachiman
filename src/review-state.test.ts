@@ -104,11 +104,7 @@ describe("the partial marker", () => {
 
   test("the last review's state wins; a signed review with no marker (a scoped one) does not erase it", () => {
     const partial = partialMarker({ sha: "aaa1111", rest: ["x.ts"], tried: [] }) as string;
-    const reviews = [
-      { body: signed(marker("old0000")) },
-      { body: signed(partial) },
-      { body: `a scoped review\n\n${SIGNATURE.review}` },
-    ];
+    const reviews = [{ body: signed(marker("old0000")) }, { body: signed(partial) }, { body: `a scoped review\n\n${SIGNATURE.review}` }];
     expect(lastEngineState(reviews)).toEqual({ sha: "aaa1111", rest: ["x.ts"], tried: [] });
     // `lastEngineMarker` keeps answering with the commit, which is all a thread-only run needs.
     expect(lastEngineMarker(reviews)).toBe("aaa1111");
@@ -118,7 +114,14 @@ describe("the partial marker", () => {
   test("a partial review's footer still records its cost for the pull request's ceiling", () => {
     const text = partialMarker({ sha: SHA, rest: ["a.ts"], tried: [] }) as string;
     const body = (attempt: boolean) =>
-      ["review", "<sub>m · $1.25</sub>", SIGNATURE.auto, SIGNATURE.review, text, ...(attempt ? ["<!-- wachi:attempt id=11111111-1111-1111-1111-111111111111 -->"] : [])].join("\n\n");
+      [
+        "review",
+        "<sub>m · $1.25</sub>",
+        SIGNATURE.auto,
+        SIGNATURE.review,
+        text,
+        ...(attempt ? ["<!-- wachi:attempt id=11111111-1111-1111-1111-111111111111 -->"] : []),
+      ].join("\n\n");
     expect(readAutoCost(body(false))).toBe(1.25);
     expect(readAutoCost(body(true))).toBe(1.25);
   });
@@ -156,7 +159,10 @@ describe("buildReview and the partial marker", () => {
   test("a partial review lists what it did not reach in a marker at the head; a complete one writes the plain marker", () => {
     const partial = buildReview({
       ...base,
-      output: out({ files_reviewed: ["a.ts"], files_skipped: [{ path: "c.ts", reason: "not reached: the pull request's budget was spent" }] }),
+      output: out({
+        files_reviewed: ["a.ts"],
+        files_skipped: [{ path: "c.ts", reason: "not reached: the pull request's budget was spent" }],
+      }),
       files: [file("a.ts"), file("b.ts"), file("c.ts")],
     }).body;
     expect(readSignedState(partial)).toEqual({ sha: SHA, rest: ["b.ts", "c.ts"], tried: ["b.ts"] });
@@ -273,7 +279,10 @@ describe("buildReview and the partial marker", () => {
     expect(readSignedState(built.body)?.rest).toEqual(names);
     expect(built.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
     // Inline comments refused by GitHub move into the body: the marker is still the footer.
-    const moved = moveCommentsToBody({ body: built.body, comments: [{ path: "big.ts", line: 1, side: "RIGHT", body: "c".repeat(30_000) }] });
+    const moved = moveCommentsToBody({
+      body: built.body,
+      comments: [{ path: "big.ts", line: 1, side: "RIGHT", body: "c".repeat(30_000) }],
+    });
     expect(moved.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
     expect(readSignedState(moved.body)?.rest).toEqual(names);
   });

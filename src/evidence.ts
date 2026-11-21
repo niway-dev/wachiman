@@ -40,7 +40,20 @@ export const EVIDENCE_CAPS = {
 
 /** Extensions searched; the same list decides which added lines are read. */
 export const SOURCE_EXTENSIONS = [
-  "ts", "tsx", "js", "jsx", "mjs", "cjs", "go", "py", "rs", "java", "kt", "swift", "vue", "svelte",
+  "ts",
+  "tsx",
+  "js",
+  "jsx",
+  "mjs",
+  "cjs",
+  "go",
+  "py",
+  "rs",
+  "java",
+  "kt",
+  "swift",
+  "vue",
+  "svelte",
 ] as const;
 
 const SOURCE_FILE = new RegExp(`\\.(?:${SOURCE_EXTENSIONS.join("|")})$`);
@@ -123,10 +136,7 @@ export interface CalledSymbol {
 
 const IDENT = "[A-Za-z_$][\\w$]*";
 /** `a.b.c(`, `a?.b(`, `a!.b(`, `a::b(` and a leading-dot `.b(`; generics between name and paren allowed. */
-const CALL_RE = new RegExp(
-  `(?<![\\w$])(\\.?${IDENT}(?:!?(?:\\?\\.|\\.|::)${IDENT})*)(?:<[^<>()]*>)?\\(`,
-  "g",
-);
+const CALL_RE = new RegExp(`(?<![\\w$])(\\.?${IDENT}(?:!?(?:\\?\\.|\\.|::)${IDENT})*)(?:<[^<>()]*>)?\\(`, "g");
 const CHANNEL_SHAPE = "[A-Za-z][\\w]*(?:[-:.][\\w]+)+";
 /** `ipcRenderer.invoke("recording-ready:show"` and `const SHOW_CHANNEL = "recording-ready:show"`. */
 const CHANNEL_ARG_RE = new RegExp(`(${IDENT})\\s*\\(\\s*(["'])(${CHANNEL_SHAPE})\\2`, "g");
@@ -165,7 +175,10 @@ export function definedSymbols(addedLines: string[]): Set<string> {
     // Parameters of a function or arrow on this line: calling one is calling a local.
     for (const m of line.matchAll(/\(([^()]*)\)\s*(?::\s*[^=>{]+)?\s*(?:=>|\{)/g)) {
       for (const part of m[1].split(",")) {
-        const name = part.trim().replace(/^\.\.\./, "").match(new RegExp(`^(${IDENT})`))?.[1];
+        const name = part
+          .trim()
+          .replace(/^\.\.\./, "")
+          .match(new RegExp(`^(${IDENT})`))?.[1];
         add(name);
       }
     }
@@ -267,10 +280,7 @@ export interface EvidencePlan {
  * then by files that are not tests, then by occurrences, then by name. A name defined by any
  * added line of the batch is dropped.
  */
-export function planEvidence(
-  files: EvidenceFileInput[],
-  opts: { maxSymbols?: number } = {},
-): EvidencePlan {
+export function planEvidence(files: EvidenceFileInput[], opts: { maxSymbols?: number } = {}): EvidencePlan {
   const max = opts.maxSymbols ?? EVIDENCE_CAPS.symbols;
   const sources = files.filter((f) => isSourceFile(f.filename));
   const defined = definedSymbols(sources.flatMap((f) => f.addedLines));
@@ -345,7 +355,11 @@ export const gitEnv = () => ({
 export const GIT_BASE_ARGS = ["-c", "core.quotepath=off", "-c", "core.fsmonitor=false"] as const;
 
 /** Runs `git` with a minimal environment: the checked-out head is untrusted, the engine's token is not its business. */
-export const spawnGit = (args: string[], { cwd, timeoutMs, maxBytes }: { cwd: string; timeoutMs: number; maxBytes?: number }, env: Record<string, string> = gitEnv()): GitResult => {
+export const spawnGit = (
+  args: string[],
+  { cwd, timeoutMs, maxBytes }: { cwd: string; timeoutMs: number; maxBytes?: number },
+  env: Record<string, string> = gitEnv(),
+): GitResult => {
   const run = spawnSync("git", [...GIT_BASE_ARGS, ...args], {
     cwd,
     encoding: "utf8",
@@ -435,12 +449,30 @@ export function readHeadLines(repoDir: string, path: string): string[] | null {
 export const defaultEvidenceIo: EvidenceIo = { git: spawnGit, readLines: readHeadLines, now: Date.now };
 
 const EXCLUDED_PATHS = [
-  "node_modules/*", "*/node_modules/*", "dist/*", "*/dist/*", "build/*", "*/build/*",
-  ".next/*", "*/.next/*", "vendor/*", "*/vendor/*", "*.min.js", "*.d.ts",
+  "node_modules/*",
+  "*/node_modules/*",
+  "dist/*",
+  "*/dist/*",
+  "build/*",
+  "*/build/*",
+  ".next/*",
+  "*/.next/*",
+  "vendor/*",
+  "*/vendor/*",
+  "*.min.js",
+  "*.d.ts",
 ];
 
 const grepArgs = (symbol: string) => [
-  "grep", "-n", "-I", "-w", "-F", "--no-color", "-e", symbol, "--",
+  "grep",
+  "-n",
+  "-I",
+  "-w",
+  "-F",
+  "--no-color",
+  "-e",
+  symbol,
+  "--",
   ...SOURCE_EXTENSIONS.map((e) => `*.${e}`),
   ...EXCLUDED_PATHS.map((p) => `:(exclude)${p}`),
 ];
@@ -483,10 +515,7 @@ function excerptOf(lines: string[], line: number): string[] {
   const from = Math.max(1, line - EVIDENCE_CAPS.contextLines);
   const to = Math.min(lines.length, line + EVIDENCE_CAPS.contextLines);
   const block = lines.slice(from - 1, to);
-  const indent = Math.min(
-    ...block.filter((l) => l.trim() !== "").map((l) => l.match(/^\s*/)![0].length),
-    Infinity,
-  );
+  const indent = Math.min(...block.filter((l) => l.trim() !== "").map((l) => l.match(/^\s*/)![0].length), Infinity);
   const cut = Number.isFinite(indent) ? indent : 0;
   return block.map((l, i) => `${from + i}| ${clip(l.slice(cut))}`);
 }
@@ -512,8 +541,7 @@ export function collectEvidence(
   const entries: EvidenceEntry[] = [];
   const noOther: string[] = [];
   const notSearched = [...plan.omitted];
-  if (plan.omitted.length > 0)
-    notes.push(`${plan.omitted.length} more candidate symbol(s) beyond the cap of ${EVIDENCE_CAPS.symbols}.`);
+  if (plan.omitted.length > 0) notes.push(`${plan.omitted.length} more candidate symbol(s) beyond the cap of ${EVIDENCE_CAPS.symbols}.`);
   const lineCache = new Map<string, string[] | null>();
   const linesOf = (path: string) => {
     if (!lineCache.has(path)) lineCache.set(path, io.readLines(ctx.repoDir, path));
@@ -546,13 +574,7 @@ export function collectEvidence(
     const all = parseMatches(run.stdout);
     const defPattern = definitionPattern(planned.name);
     const defMatch = planned.kind === "call" ? all.find((m) => defPattern.test(m.text)) : undefined;
-    const others = all.filter(
-      (m) =>
-        !own.has(m.file) &&
-        m !== defMatch &&
-        !IMPORT_LINE.test(m.text) &&
-        !isCommentLine(m.text),
-    );
+    const others = all.filter((m) => !own.has(m.file) && m !== defMatch && !IMPORT_LINE.test(m.text) && !isCommentLine(m.text));
     if (others.length === 0 && !defMatch) {
       noOther.push(planned.name);
       continue;
@@ -692,11 +714,7 @@ const SLICE_SITES = 2;
  * definition guess and the first two call sites with their excerpts, up to `maxBytes`, with a
  * pointer to the whole file. Empty when no symbol has another call site.
  */
-export function renderEvidenceSlice(
-  doc: EvidenceDoc,
-  dir: string,
-  maxBytes: number = EVIDENCE_CAPS.sliceBytes,
-): string {
+export function renderEvidenceSlice(doc: EvidenceDoc, dir: string, maxBytes: number = EVIDENCE_CAPS.sliceBytes): string {
   // A symbol with no other call site (its definition sits in the batch) adds nothing to compare.
   const listed = doc.symbols.filter((e) => e.call_sites.length > 0);
   if (listed.length === 0) return "";

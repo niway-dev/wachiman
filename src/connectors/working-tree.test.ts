@@ -1,6 +1,18 @@
 import { afterAll, expect, test } from "bun:test";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, readdirSync, symlinkSync, mkdirSync, statSync, chmodSync, unlinkSync, rmSync, utimesSync } from "node:fs";
+import {
+  readFileSync,
+  writeFileSync,
+  existsSync,
+  readdirSync,
+  symlinkSync,
+  mkdirSync,
+  statSync,
+  chmodSync,
+  unlinkSync,
+  rmSync,
+  utimesSync,
+} from "node:fs";
 import { join } from "node:path";
 import { emptyRepo, commit, git, removeTempRepos } from "../../test/support/temp-repo";
 import { commentableLines, annotateDiff } from "../engine";
@@ -83,22 +95,24 @@ for (const mode of ["staged", "all"] as const) {
     try {
       // The final identity check must still reject the source mutation. Independently,
       // the temporary Git commands must never consume the replacement index bytes.
-      expect(() => capture(dir, mode, {
-        spawn: ((...args: Parameters<typeof spawnSync>) => {
-          const command = args[1] as string[];
-          if (replaced && !restored && command.includes("ls-files")) {
-            writeFileSync(index, before);
-            restored = true;
-          }
-          const result = spawnSync(...args);
-          if (!replaced && command.includes("init")) {
-            writeFileSync(index, replacement);
-            replaced = true;
-          }
-          if (command.includes("write-tree")) tree = result.stdout!.toString().trim();
-          return result;
-        }) as typeof spawnSync,
-      })).toThrow(/changed.*retry/i);
+      expect(() =>
+        capture(dir, mode, {
+          spawn: ((...args: Parameters<typeof spawnSync>) => {
+            const command = args[1] as string[];
+            if (replaced && !restored && command.includes("ls-files")) {
+              writeFileSync(index, before);
+              restored = true;
+            }
+            const result = spawnSync(...args);
+            if (!replaced && command.includes("init")) {
+              writeFileSync(index, replacement);
+              replaced = true;
+            }
+            if (command.includes("write-tree")) tree = result.stdout!.toString().trim();
+            return result;
+          }) as typeof spawnSync,
+        }),
+      ).toThrow(/changed.*retry/i);
       expect(replaced && restored).toBe(true);
       expect(tree).toBe(expectedTree);
       expect(readFileSync(index)).toEqual(before);
@@ -423,7 +437,9 @@ for (const mode of ["staged", "all"] as const) {
         expect([...commentableLines(file.patch!)]).toEqual(toLink ? [1] : [1, 2]);
         expect(annotateDiff([file])).toContain(toLink ? "    1 +missing-target" : "    2 +second");
         expect(readFileSync(join(b.input.headDir, "a.ts"), "utf8")).toBe(toLink ? link : regular);
-        expect(git(b.input.headDir, "grep", "-n", "--", toLink ? link : "second")).toBe(`a.ts:${toLink ? 1 : 2}:${toLink ? link : "second"}\n`);
+        expect(git(b.input.headDir, "grep", "-n", "--", toLink ? link : "second")).toBe(
+          `a.ts:${toLink ? 1 : 2}:${toLink ? link : "second"}\n`,
+        );
       } finally {
         b.release();
       }
@@ -453,7 +469,10 @@ test("encoded working files preserve raw staged, all and portable/base evidence 
       b.release();
     }
   }
-  for (const [tree, expected] of [["HEAD^{tree}", base], [git(dir, "write-tree").trim(), head]]) {
+  for (const [tree, expected] of [
+    ["HEAD^{tree}", base],
+    [git(dir, "write-tree").trim(), head],
+  ]) {
     const b = snapshotWorkingTree(dir, tree);
     try {
       expect(readFileSync(join(b.dir, "a.ts"), "utf8")).toBe(expected);

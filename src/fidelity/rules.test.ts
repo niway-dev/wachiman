@@ -85,7 +85,15 @@ describe("isGeneratedPath", () => {
   });
 
   test("a name that merely resembles one is not generated", () => {
-    for (const p of ["src/generate.ts", "src/generator/index.ts", "src/minimal.js", "docs/generated-docs.md", "src/distance.ts", "src/builder/a.ts", "src/map.ts"]) {
+    for (const p of [
+      "src/generate.ts",
+      "src/generator/index.ts",
+      "src/minimal.js",
+      "docs/generated-docs.md",
+      "src/distance.ts",
+      "src/builder/a.ts",
+      "src/map.ts",
+    ]) {
       expect(isGeneratedPath(p)).toBe(false);
     }
   });
@@ -97,14 +105,7 @@ describe("isGeneratedPath", () => {
 
 describe("isTestPath", () => {
   test("knows test files by suffix, prefix and directory", () => {
-    for (const p of [
-      "src/a.test.ts",
-      "src/a.spec.tsx",
-      "pkg/a_test.go",
-      "tests/test_a.py",
-      "src/__tests__/a.ts",
-      "test/fixtures/a.json",
-    ]) {
+    for (const p of ["src/a.test.ts", "src/a.spec.tsx", "pkg/a_test.go", "tests/test_a.py", "src/__tests__/a.ts", "test/fixtures/a.json"]) {
       expect(isTestPath(p)).toBe(true);
     }
   });
@@ -151,7 +152,9 @@ describe("isFormattingOnly", () => {
   });
 
   test("a hunk with a text block or a heredoc opener is never formatting: the indentation is part of the string", () => {
-    expect(isFormattingOnly(patch("@@ -1,3 +1,3 @@", '-String s = """', "-    a", '-    """;', '+String s = """', "+        a", '+    """;'))).toBe(false);
+    expect(
+      isFormattingOnly(patch("@@ -1,3 +1,3 @@", '-String s = """', "-    a", '-    """;', '+String s = """', "+        a", '+    """;')),
+    ).toBe(false);
     expect(isFormattingOnly(patch("@@ -1,2 +1,2 @@", "-cat <<-EOT", "-  a", "+cat <<-EOT", "+    a"))).toBe(false);
     expect(isFormattingOnly(patch("@@ -1 +1 @@", "-$x = <<<EOT", "+  $x = <<<EOT"))).toBe(false);
   });
@@ -173,9 +176,7 @@ describe("isFormattingOnly", () => {
   });
 
   test("code moved from one hunk to another is not formatting", () => {
-    expect(
-      isFormattingOnly(patch("@@ -1,2 +1 @@", "-moved();", " keep();", "@@ -9 +8,2 @@", " tail();", "+moved();")),
-    ).toBe(false);
+    expect(isFormattingOnly(patch("@@ -1,2 +1 @@", "-moved();", " keep();", "@@ -9 +8,2 @@", " tail();", "+moved();"))).toBe(false);
   });
 
   test("a patch with no changed line, or no patch at all, is not formatting", () => {
@@ -199,9 +200,7 @@ describe("explainedByRule", () => {
   });
 
   test("a formatting-only change is explained, and a real one is not", () => {
-    expect(explainedByRule({ path: "src/a.ts", patch: patch("@@ -1 +1 @@", "-  a = 1", "+a = 1") })).toBe(
-      "formatting-only",
-    );
+    expect(explainedByRule({ path: "src/a.ts", patch: patch("@@ -1 +1 @@", "-  a = 1", "+a = 1") })).toBe("formatting-only");
     expect(explainedByRule({ path: "src/a.ts", patch: patch("@@ -1 +1 @@", "-a = 1", "+a = 2") })).toBeUndefined();
   });
 
@@ -221,9 +220,7 @@ describe("explainedByRule", () => {
 
   test("a test is explained only when the source it tests is explained by a confirmed claim", () => {
     const confirmed = new Set(["src/risk.ts"]);
-    expect(explainedByRule({ path: "src/risk.test.ts" }, { confirmedPaths: confirmed })).toBe(
-      "test-of-confirmed-claim",
-    );
+    expect(explainedByRule({ path: "src/risk.test.ts" }, { confirmedPaths: confirmed })).toBe("test-of-confirmed-claim");
     expect(explainedByRule({ path: "src/other.test.ts" }, { confirmedPaths: confirmed })).toBeUndefined();
     expect(explainedByRule({ path: "src/risk.test.ts" })).toBeUndefined();
   });
@@ -240,30 +237,20 @@ describe("explainedByRule", () => {
 
   test("a test in a mirrored test directory is matched to its source", () => {
     const confirmed = new Set(["src/fidelity/grade.ts"]);
-    expect(explainedByRule({ path: "test/fidelity/grade.test.ts" }, { confirmedPaths: confirmed })).toBe(
-      "test-of-confirmed-claim",
-    );
+    expect(explainedByRule({ path: "test/fidelity/grade.test.ts" }, { confirmedPaths: confirmed })).toBe("test-of-confirmed-claim");
     expect(explainedByRule({ path: "src/fidelity/__tests__/grade.test.ts" }, { confirmedPaths: confirmed })).toBe(
       "test-of-confirmed-claim",
     );
-    expect(explainedByRule({ path: "test/grade.test.ts" }, { confirmedPaths: confirmed })).toBe(
-      "test-of-confirmed-claim",
-    );
+    expect(explainedByRule({ path: "test/grade.test.ts" }, { confirmedPaths: confirmed })).toBe("test-of-confirmed-claim");
   });
 
   test("go and python test names find their source", () => {
-    expect(explainedByRule({ path: "pkg/user_test.go" }, { confirmedPaths: new Set(["pkg/user.go"]) })).toBe(
-      "test-of-confirmed-claim",
-    );
-    expect(explainedByRule({ path: "tests/test_user.py" }, { confirmedPaths: new Set(["app/user.py"]) })).toBe(
-      "test-of-confirmed-claim",
-    );
+    expect(explainedByRule({ path: "pkg/user_test.go" }, { confirmedPaths: new Set(["pkg/user.go"]) })).toBe("test-of-confirmed-claim");
+    expect(explainedByRule({ path: "tests/test_user.py" }, { confirmedPaths: new Set(["app/user.py"]) })).toBe("test-of-confirmed-claim");
   });
 
   test("a test of the same stem in an unrelated directory does not match", () => {
-    expect(
-      explainedByRule({ path: "src/billing/index.test.ts" }, { confirmedPaths: new Set(["src/auth/index.ts"]) }),
-    ).toBeUndefined();
+    expect(explainedByRule({ path: "src/billing/index.test.ts" }, { confirmedPaths: new Set(["src/auth/index.ts"]) })).toBeUndefined();
   });
 
   test("a test in a flat test directory is matched by stem alone, a known trade-off that also makes test/grade.test.ts find src/fidelity/grade.ts", () => {

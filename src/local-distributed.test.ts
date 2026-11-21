@@ -89,7 +89,8 @@ console.log(JSON.stringify({
     bin,
     canary,
     /** Every review call, in no particular order. */
-    calls: (): { prompt: string; args: string[]; dirs: string[] }[] => readdirSync(calls).map((f) => JSON.parse(readFileSync(join(calls, f), "utf8"))),
+    calls: (): { prompt: string; args: string[]; dirs: string[] }[] =>
+      readdirSync(calls).map((f) => JSON.parse(readFileSync(join(calls, f), "utf8"))),
   };
 }
 
@@ -124,7 +125,11 @@ function site(options: { manifest?: boolean; sibling?: boolean; userFile?: Recor
   if (options.manifest) writeFileSync(join(parent, MANIFEST_FILE), JSON.stringify(MANIFEST));
   const home = temp("wachiman-home-");
   if (options.userFile === "invalid") writeFileSync(userFilePath(home), "{ nope");
-  else if (options.userFile) writeFileSync(userFilePath(home), JSON.stringify({ version: 1, workspaces: [{ manifest: join(parent, MANIFEST_FILE), ...options.userFile }] }));
+  else if (options.userFile)
+    writeFileSync(
+      userFilePath(home),
+      JSON.stringify({ version: 1, workspaces: [{ manifest: join(parent, MANIFEST_FILE), ...options.userFile }] }),
+    );
   return { parent, webSite, desktopApp, home };
 }
 
@@ -278,7 +283,11 @@ writeFileSync("`,
   });
 
   test("a default of on turns the mode on and prints the default-on line before anything is read", () => {
-    const s = site({ manifest: true, sibling: true, userFile: { distributedRepo: "on", versions: { "brand-palette": { rule: "local" } } } });
+    const s = site({
+      manifest: true,
+      sibling: true,
+      userFile: { distributedRepo: "on", versions: { "brand-palette": { rule: "local" } } },
+    });
     const r = run(s, []);
     expect(r.code).toBe(0);
     expect(r.stderr).toContain(`distributed-repo: on (default from ${userFilePath(s.home)})`);
@@ -319,11 +328,17 @@ describe("wachiman local --distributed-repo: names from the manifest", () => {
       join(s.parent, MANIFEST_FILE),
       JSON.stringify({
         format: "workspace/1",
-        members: [{ dir: hostile, repo: "acme/ghost", visibility: "private" }, { dir: "web-site", repo: "acme/web-site", visibility: "public" }],
+        members: [
+          { dir: hostile, repo: "acme/ghost", visibility: "private" },
+          { dir: "web-site", repo: "acme/web-site", visibility: "public" },
+        ],
         contracts: [
           {
             name: "pal\u001b[31mette`\n### Injected too",
-            sides: [{ member: hostile, role: "provider", paths: ["Assets/palette.json"] }, { member: "web-site", role: "consumer", paths: ["packages/tokens/src/**"] }],
+            sides: [
+              { member: hostile, role: "provider", paths: ["Assets/palette.json"] },
+              { member: "web-site", role: "consumer", paths: ["packages/tokens/src/**"] },
+            ],
             sourceOfTruth: { member: hostile, paths: ["Assets/palette.json"] },
           },
         ],
@@ -386,7 +401,14 @@ describe("wachiman local --distributed-repo: the result", () => {
     expect(result).not.toHaveProperty("noWorkspaceContractApplied");
     expect(result.siblings).toHaveLength(1);
     const [row] = result.siblings;
-    expect(row).toMatchObject({ member: "desktop-app", repo: "acme/desktop-app", visibility: "private", status: "read", contracts: ["brand-palette"], ruleSource: "default" });
+    expect(row).toMatchObject({
+      member: "desktop-app",
+      repo: "acme/desktop-app",
+      visibility: "private",
+      status: "read",
+      contracts: ["brand-palette"],
+      ruleSource: "default",
+    });
     expect(row.sha).toBe(git(s.desktopApp!, "rev-parse", "HEAD").trim());
     expect(row).not.toHaveProperty("dir");
     expect(r.stdout).not.toMatch(/wachiman-sibling|distributed-snapshot/);
