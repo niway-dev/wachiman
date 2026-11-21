@@ -36,7 +36,7 @@ function fake(w: World) {
         const c = t.comments.map((x) => ({ author: { login: x.login }, body: x.body, createdAt: "2026-11-19T00:00:00Z", url: `https://github.com/${REPO}/pull/1#discussion_r${from + i}` }));
         return {
           id: t.id ?? `T${from + i}`, isResolved: t.resolved ?? false, isOutdated: t.outdated ?? false, path: t.path ?? "a.ts", line: t.line === undefined ? 10 : t.line, originalLine: 10,
-          first: { nodes: c.slice(0, 1) }, last: { nodes: c.slice(-1) },
+          first: { nodes: c.slice(0, 1) }, last: { nodes: joined.includes("last: comments(last: 1)") ? c.slice(-1) : c.slice(0, 100).slice(-1) },
         };
       });
       const end = from + 100;
@@ -127,7 +127,7 @@ describe("AC7: the rule table, row by row, and its exit code", () => {
     expect(err[0]).toContain("pr-state");
     expect(() => parsePrStateArgs(["abc"])).toThrow(/pull request number/);
     expect(() => parsePrStateArgs(["1", "2"])).toThrow(/one pull request/);
-    expect(() => parsePrStateArgs(["--wait"])).toThrow(/Unknown option/);
+    expect(() => parsePrStateArgs(["--bogus"])).toThrow(/Unknown option/);
     expect(() => parsePrStateArgs(["--repo", "nope"])).toThrow(/owner/);
   });
 });
@@ -248,7 +248,7 @@ describe("AC9: the head moves while reading", () => {
   test("a stable head is read twice and changes nothing", () => {
     const f = fake({ reviews: [rev(complete(HEAD), 1)] });
     expect(readPrState(f.gh, REPO, 1).next).toBe("done");
-    expect(f.calls.filter((a) => a.join(" ").includes(`pulls/1 `) || a[1] === `repos/${REPO}/pulls/1`)).toHaveLength(2);
+    expect(f.calls.filter((a) => a[1] === `repos/${REPO}/pulls/1`)).toHaveLength(2);
   });
 });
 
@@ -278,8 +278,8 @@ describe("AC11: reviews from an engine without the block", () => {
     expect(read({ reviews: [rev(partialLegacy, 1)] })).toMatchObject({ next: "blocked", why: "partial", review: { state: "partial", source: "legacy-markers" } });
   });
   test("a legacy notice without a sha is none, never complete", () => {
-    for (const marker of ["<!-- wachi:refusal kind=billing -->", "<!-- wachi:ceiling usd=1.50 -->", "<!-- wachi:limit reason=limit on=2026-11-18 -->"]) {
-      const body = `Notice\n\n${marker}\n\n${SIGNATURE.review}`;
+    for (const legacyLine of ["<!-- wachi:refusal kind=billing -->", "<!-- wachi:ceiling usd=1.50 -->", "<!-- wachi:limit reason=limit on=2026-11-18 -->"]) {
+      const body = `Notice\n\n${legacyLine}\n\n${SIGNATURE.review}`;
       const doc = read({ reviews: [rev(body, 1)] });
       expect(doc.review).toMatchObject({ state: "none", source: null });
       expect(doc.next).toBe("wait");

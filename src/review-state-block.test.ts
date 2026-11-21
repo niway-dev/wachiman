@@ -115,6 +115,7 @@ describe("the encoded comment", () => {
   test("is base64url: nothing in it can close the comment", () => {
     const block = buildStateBlock({ status: "partial", findings: noFindings() }, { ...CTX, engine: "-->.<!--" }, 0);
     const comment = encodeStateBlock(block);
+    expect(comment.match(/-->/g)).toHaveLength(1);
     expect(comment.slice("<!-- wachi:state ".length, -" -->".length)).toMatch(/^[A-Za-z0-9_-]+$/);
   });
 

@@ -1,6 +1,6 @@
 # ADR 0060: The review state is one versioned block in the signed footer, and `pr-state` derives the next step from it
 
-- **Status:** proposed 2026-11-19. Not implemented. Extends the signed-footer-only
+- **Status:** proposed 2026-11-19. Implemented by the pull request that adds this file. Extends the signed-footer-only
   reading rule of [ADR 0036](0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)
   decision 1 (a marker is read only from the engine's signed footer; the code is `SIGNED_FOOTER`
   and `neutralise` in `src/engine.ts`) to one more marker; reuses the
@@ -31,7 +31,7 @@ owned by the party that writes the markers.
 
 1. Every review the engine POSTs carries one `<!-- wachi:state <base64url JSON> -->` block, schema
    `wachiman.review-state/1`, inside the signed footer, after the review signature and before the
-   attempt footer. Notices carry it too. It is never put on inline comments, replies or issue
+   attempt footer. The notices of an automatic run carry it too; a manual run's notice is unsigned and has none, and a base-update line has one only when the earlier review had counts to carry over. It is never put on inline comments, replies or issue
    comments.
 2. The block holds the engine version, the reviewed head, the attempt id, a `status` (`complete`,
    `partial`, `scoped`, `not-reviewed`), a `reason` when not reviewed, the earlier head a

@@ -89,7 +89,7 @@ describe("the footer position of the block (AC3)", () => {
     expect(readSignedStateBlock(`x\n\n${SIGNATURE.finding}\n\n${comment()}`)).toBeNull();
   });
 
-  test("two blocks do not count: only the last one at the footer is read, and a doubled footer is not one", () => {
+  test("two blocks in a row are read as neither: the first is not at the footer, and a doubled footer is not one", () => {
     const body = `x\n\n${SIGNATURE.review}\n\n${comment()}\n\n${comment()}`;
     expect(readSignedStateBlock(body)).toBeNull();
   });
@@ -169,13 +169,13 @@ describe("the readers that existed before the block give the same results with i
     }
   });
 
-  test("the sum of the automatic spend is unchanged when every footer carries a block", () => {
+  test("the automatic cost of each footer reads the same with or without a block", () => {
     const sub = (usd: string) => `<sub>m · $${usd}</sub>`;
     const bodies = ["0.40", "0.25"].flatMap((usd) => variants(["text", sub(usd), SIGNATURE.auto, SIGNATURE.review, marker(HEAD)]).slice(1));
     expect(bodies.map(readAutoCost)).toEqual([0.4, 0.4, 0.25, 0.25]);
   });
 
-  test("a refusal marker is still found at its position", () => {
+  test("the cost of a refusal notice reads $0.00 with or without a block", () => {
     const notice = ["⛔ Not reviewed", refusalMarker("billing"), "<sub>m · $0.00</sub>", SIGNATURE.auto, SIGNATURE.review];
     for (const body of variants(notice)) expect(readAutoCost(body)).toBe(0);
   });

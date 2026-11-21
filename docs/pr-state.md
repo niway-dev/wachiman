@@ -11,10 +11,45 @@ is derived from GitHub on each call
 wachiman pr-state 42 --json                       # the pull request of the current repository
 wachiman pr-state --repo niway-dev/wachiman 42    # another repository
 wachiman pr-state --json                          # the pull request of the current branch
+wachiman pr-state 42 --wait                       # until Wachiman's review of the head lands, or 540 s
 ```
 
 `<pr>` is digits only. Without `--repo`, the repository is the one `gh` resolves for the current
 directory. `--json` is accepted; JSON is the only output. `gh` must be installed and signed in.
+
+## Waiting: `--wait`, `--timeout`, `--interval`
+
+Without `--wait`, one call is one read and the answer may be `wait`. With `--wait`, the command reads
+again until `next` is not `wait`, then prints that state once and exits with its code.
+
+| Flag | Default | Rule |
+| --- | --- | --- |
+| `--wait` | off | Loop. `--timeout` and `--interval` are a usage error (exit 2) without it |
+| `--timeout <s>` | 540 | Whole seconds, at least 1. Under ten minutes by default so a harness's foreground time limit does not end the wait first |
+| `--interval <s>` | 30 | Whole seconds, at least 20 (the minimum). A bad value is a usage error, exit 2 |
+
+- **On timeout** it prints the last state read with `why: timeout` (still `next: wait`) and exits 21. The deadline bounds the whole call: it does not start a read after it, and a read in progress when it passes is cut off (each `gh` call is killed with the time left), so the call ends with the last state read (when none finished, a `wait` document with `head` as an empty string and `review.state` `none`). A timeout while only finding the repository is exit 1.
+- **At most one state read per interval.** A read is one GraphQL query for the threads, extra pages only when there are more than 100 threads, the other `gh api` calls of a read, and the head check at its end. Two reads are never closer than one interval, whatever else happens.
+- **Stdout is always one JSON object**, printed at the end. Notes about the wait go to stderr. A GitHub error while waiting is exit 1 with nothing on stdout.
+
+### `gh event listen` (optional acceleration, unverified)
+
+When this `gh` has `gh event listen` (v2.105.0 or later, a preview, github.com only), `--wait` starts
+it for the repository and treats each event as a wake signal only. With a listener the loop still
+reads at least every three intervals (the command has no replay and drops events while it is
+disconnected), and an event can bring the next read forward, but never sooner than one interval
+after the last read. The content of an event is never read or trusted: the state is read again.
+The listener is killed when the wait ends, on every path, and on SIGINT, SIGTERM or SIGHUP (the handlers exist only while waiting). While a `gh` call is running the process is blocked, so a signal is handled when that call ends (at most the time left before the deadline).
+
+When the command is missing, not supported, or stops (including its 24 h subscription ending, exit
+8), `--wait` polls every interval and says so once on stderr, for example `gh event listen is not
+available; polling every 30 s.`
+
+**Unverified against a real `gh event listen`.** It was written from the announced interface and was
+developed with `gh` 2.100.0, which has no `event` command. The polling path and the loop are covered
+by tests with a fake clock and a fake GitHub; the listener path is covered with a fake process. The
+exact command line (`gh event listen --repo <owner/repo>`) is an assumption: if the real command
+rejects it, the wait falls back to polling and nothing else changes.
 
 ## What it covers, and what `done` means
 
@@ -29,7 +64,7 @@ run, conflicts and mergeability are not read.
 | --- | --- | --- |
 | `0` | `done` or `closed` | Nothing pending from Wachiman on this head, or the pull request is closed or merged |
 | `20` | `act` | At least one Wachiman finding thread is unresolved, or the review counts Blocker or Fix findings that have no thread |
-| `21` | `wait` | No review of the current head yet, or the head moved while reading |
+| `21` | `wait` | No review of the current head yet, or the head moved while reading. With `--wait`, also the timeout (`why: timeout`) |
 | `22` | `blocked` | The review was refused or skipped (see `why`), it is partial, or its job finished without a review |
 | `1` | | GitHub or `gh` failed. One line on stderr, nothing on stdout |
 | `2` | | Usage error |
@@ -76,7 +111,7 @@ Exits 3, 10, 11 and 130 mean other things in other commands and are never used h
 | `format` | Always `wachiman.pr-state/1`. A change to a field needs a new version |
 | `head` | The pull request's head commit, read at the start of the call |
 | `review.state` | `none` (no review of this head and none of another), `running` (the check run is queued or in progress), `complete`, `partial`, `not-reviewed`, `scoped` (only a scoped review exists for this head; it never decides), `stale` (reviews exist, none for this head) |
-| `review.reason` | Why nothing was reviewed: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `size_gate`, `turn_limit`, `timeout` or `budget`. Null otherwise |
+| `review.reason` | Why nothing was reviewed: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `turn_limit`, `timeout` or `budget`. Null otherwise. A pull request stopped by the size gate has no review (the gate posts an issue comment, which never carries a block), so it reads as `blocked` with `why: review_missing` |
 | `review.reviewed_head` | The head the deciding review covers; for `scoped`, that review's own head; for `stale` and `running`, the latest other review's head. Null when there is none |
 | `review.attempt`, `review.engine` | From the block. Null for `legacy-markers` |
 | `review.source` | `block`, or `legacy-markers` for a review posted by an engine without the block. Null when no review is read |
@@ -86,7 +121,7 @@ Exits 3, 10, 11 and 130 mean other things in other commands and are never used h
 | `findings.open[].outdated` | The code the thread points at changed; the thread is still unresolved |
 | `findings.unthreaded` | Counts from the deciding block of findings with no thread: `blocking` (Blocker and Fix), `body` and `outside_diff` placements. Null with no block to count from |
 | `next` | `wait`, `act`, `blocked`, `done` or `closed` |
-| `why` | A fixed code, not prose: see the table below |
+| `why` | A fixed code, not prose: see the table below. `--wait` adds `timeout` (with `next: wait`) when the timeout passes |
 
 ## The rule table
 
@@ -111,14 +146,15 @@ Rules the table does not repeat:
 - **The latest attempt decides.** With several own reviews of the same head, the most recent by creation time decides. A push makes every older review `stale`.
 - **A `scoped` review never decides.** A review an operator asked for on some paths says nothing about the rest of the head. It is skipped when choosing the head's review, and its threads are still listed under `findings.open`.
 - **A base-update line counts as `complete`** for its head: the engine carries the earlier review over (`carried_from`) and repeats its counts.
+- **"Nothing to review" is a review.** A push whose changed files are all excluded (lockfiles, build output, generated) or outside the requested paths gets a signed notice with a block (`complete`, zero findings; `scoped` when paths were requested), so `pr-state` reads it as a finished review and not as `review_missing`.
 - **Row 4 is `wait`, not `blocked`,** because the workflow's push debounce can delay the check run. A caller decides how long to accept it.
 - **A thread never drops out because someone replied.** Resolving a thread stays with the operator; an agent acting for them resolves it, or waits for Wachiman's automatic reply.
-- **Reviews from an engine without the block** are read from `wachiman sha=` (complete) and `wachi:partial` (partial) with `source: "legacy-markers"`. A notice with no sha (a refusal, ceiling or limit notice from before the block) says nothing about any head and reads as `none`, never `complete`. A legacy review of the head has no counts (`findings.unthreaded` is null), so with no unresolved Wachiman finding thread it is `done` with `why: clean_legacy`, never `clean`.
+- **Reviews from an engine without the block** are read from `wachiman sha=` (complete) and `wachi:partial` (partial) with `source: "legacy-markers"`. A notice with no sha (a refusal, ceiling or limit notice from before the block) says nothing about any head, so it is skipped and never reads as `complete`: the review state is `stale` when an earlier review of another head exists, and `none` when no review is read. A legacy review of the head has no counts (`findings.unthreaded` is null), so with no unresolved Wachiman finding thread it is `done` with `why: clean_legacy`, never `clean`.
 - **Threads are read in full.** Review threads are read 100 at a time until the last page, and each thread's first and last comment are read by name, so no thread or comment count hides one.
 
 ## The state block: `wachiman.review-state/1`
 
-Every review the engine posts (full review, re-review, partial, base-update line, notices) ends its
+Every signed review the engine posts (full review, re-review, partial, the notices of an automatic run, and a base-update line that can carry the earlier counts over) ends its
 signed footer with one `<!-- wachi:state <base64url JSON> -->`, after the review signature and its
 marker and before the attempt line. It never holds finding text, and it is never placed on inline
 comments, replies or issue comments. It is built last, from the body and inline comments actually
@@ -151,13 +187,13 @@ counts them under `body`.
 | `head` | The commit the review is about |
 | `attempt` | The attempt id the engine also writes in the footer; one per post |
 | `status` | `complete`, `partial` (some files not reached; the `wachi:partial` marker keeps the continuation state), `scoped` (a review of some paths an operator asked for) or `not-reviewed` (a notice: nothing was reviewed) |
-| `reason` | Required when `not-reviewed`, null otherwise: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `size_gate`, `turn_limit`, `timeout`, `budget` |
+| `reason` | Required when `not-reviewed`, null otherwise: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `size_gate`, `turn_limit`, `timeout`, `budget`. The engine does not write `size_gate` today: the size gate posts an issue comment, not a review |
 | `carried_from` | Optional. On a base-update line, the earlier head whose review it carries over |
-| `scope` | Optional. `binary_only` on the all-binary notice (`complete`, zero findings); the number of paths on a scoped review |
+| `scope` | Optional. `binary_only` on the all-binary notice (zero findings; `complete`, or `scoped` when the request named paths); otherwise, on a scoped review, the number of paths |
 | `findings.total` | The headline count |
 | `findings.by_severity`, `findings.by_placement` | Counts that each add up to `total`. `inline` findings have a thread; `outside_diff` ones are listed under "Outside the diff"; `body` ones (information, pre-existing, inconclusive, or inline findings GitHub refused to anchor) are in the body only. This is why the headline count can differ from the inline comments |
 | `findings.unthreaded_blocking` | Blocker and Fix findings that have no thread |
 
 A block that does not validate (another format version, a wrong type, counts that do not add up, a
 reason missing on a notice) is read as no block. When an encoded block would pass 2,000 characters
-the engine drops the optional fields and shortens the ids, and keeps the counts.
+the engine drops the optional fields and the engine version (it becomes `unknown`), and keeps the counts.

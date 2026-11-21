@@ -16,7 +16,10 @@
 export const REVIEW_STATE_FORMAT = "wachiman.review-state/1";
 
 /** The comment as it is written, with the encoded JSON in the group. The alphabet has no `>`, so no content can close it. */
-export const STATE_SOURCE = "<!-- wachi:state ([A-Za-z0-9_-]+) -->";
+export const STATE_ALPHABET = "[A-Za-z0-9_-]+";
+export const STATE_SOURCE = `<!-- wachi:state (${STATE_ALPHABET}) -->`;
+/** The same comment with no capture group, for readers that embed it and keep their own group indexes. */
+export const STATE_SOURCE_NO_GROUP = `<!-- wachi:state ${STATE_ALPHABET} -->`;
 
 /**
  * The most characters the whole `<!-- wachi:state … -->` comment may take. A real block is about
@@ -149,8 +152,8 @@ const encodeJson = (value: unknown) => `<!-- wachi:state ${Buffer.from(JSON.stri
 
 /**
  * The comment to write: `<!-- wachi:state <base64url JSON> -->`. When it would pass
- * `MAX_STATE_BLOCK_CHARS` the optional fields go first and the engine version is shortened, so the
- * counts always stay; never throws and never returns something longer than the cap.
+ * `MAX_STATE_BLOCK_CHARS` the optional fields go first and the engine version becomes `unknown`, so the
+ * counts always stay (a guard for hand-built blocks: `buildStateBlock` already keeps a block far under the cap); never throws and never returns something longer than the cap.
  */
 export function encodeStateBlock(block: ReviewStateBlock): string {
   const full = encodeJson(block);
