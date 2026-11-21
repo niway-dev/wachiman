@@ -101,6 +101,16 @@ describe("AC13: --wait returns as soon as next is not wait, or times out", () =>
     expect(() => parsePrStateArgs(["--interval", "30"])).toThrow(/--wait/);
   });
 
+  test("a timeout while only finding the repository is exit 1 with nothing on stdout, not a timeout document", async () => {
+    for (const args of [{ ...ARGS, repo: undefined }, { ...ARGS, pr: undefined }]) {
+      const w = world({ reviewAtMs: 10 ** 9 });
+      const r = await run(w, args, { limitGh: () => () => { throw new GhTimeoutError(["repo", "view"]); } });
+      expect(r.code).toBe(1);
+      expect(r.out).toEqual([]);
+      expect(r.err[0]).toContain("pr-state");
+    }
+  });
+
   test("a GitHub error while waiting is exit 1 with nothing on stdout", async () => {
     const w = world({ reviewAtMs: 10 ** 9 });
     let n = 0;
