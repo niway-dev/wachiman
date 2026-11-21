@@ -101,7 +101,6 @@ type Case = { name: string; cmd: string[]; cwd: string; runs: number; warmup: nu
 
 function build(): Case[] {
   const home = temp("wachiman-bench-home-");
-  const bunDir = dirname(pinned);
   // The pinned Bun is called by path, so node_modules/.bin is not on PATH; node is, for the launcher case.
   const base: Record<string, string> = {
     PATH: [...(node ? [dirname(node)] : []), "/usr/bin", "/bin"].join(delimiter),
@@ -119,7 +118,7 @@ function build(): Case[] {
 
   // The fixed fixture: test/support/temp-repo.ts `branchRepo()`, five files changed between main and feat/x.
   const repo = branchRepo();
-  const reviewEnv = { ...base, PATH: [fakeBin, bunDir, base.PATH].join(delimiter) };
+  const reviewEnv = { ...base, PATH: [fakeBin, base.PATH].join(delimiter) };
 
   const cli = (name: string, args: string[], launcher?: string): Case => ({
     name,
