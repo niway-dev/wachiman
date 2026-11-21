@@ -238,6 +238,10 @@ export function applyMatches<F extends Finding>(findings: F[], active: MemoryEnt
 /** The start of the "Muted by memory" paragraph; the engine finds the list by it when it trims a long body. */
 export const MUTED_HEADING = "**Muted by memory**";
 
+/** How the paragraphs about an out-of-date entry and about exceptions that did not run start; the review format finds the notices by them. */
+export const MEMORY_ENTRY_NOTICE = "ℹ️ **Memory entry";
+export const MEMORY_EXCEPTIONS_NOT_APPLIED = "⚠️ **Memory exceptions were not applied";
+
 /**
  * The summary's text about memory exceptions, or undefined when there is nothing to say: the
  * entries that may be out of date, the matching step that did not run, and the "Muted by memory"
@@ -248,9 +252,9 @@ export function renderMuting(p: { muted: MutedFinding[]; stale: ExceptionPlan["s
   for (const { entry, touched } of p.stale) {
     const shown = touched.slice(0, 3).map((t) => `\`${t}\``).join(", ");
     const effect = entry.kind === "exception" ? " An exception in that state mutes nothing in this review." : "";
-    parts.push(`ℹ️ **Memory entry \`${entry.id}\` may be out of date** ("${oneLine(entry.title, 80)}"): its \`holds while\` paths are touched by this diff (${shown}${touched.length > 3 ? ", …" : ""}).${effect}`);
+    parts.push(`${MEMORY_ENTRY_NOTICE} \`${entry.id}\` may be out of date** ("${oneLine(entry.title, 80)}"): its \`holds while\` paths are touched by this diff (${shown}${touched.length > 3 ? ", …" : ""}).${effect}`);
   }
-  if (p.failure) parts.push(`⚠️ **Memory exceptions were not applied**: matching did not run (${oneLine(p.failure)}), so every finding is posted.`);
+  if (p.failure) parts.push(`${MEMORY_EXCEPTIONS_NOT_APPLIED}**: matching did not run (${oneLine(p.failure)}), so every finding is posted.`);
   if (p.muted.length > 0) {
     const items = p.muted.map((m) => `- ${m.title ? oneLine(m.title) : "(untitled)"} (\`${oneLine(m.line > 0 ? `${m.path}:${m.line}` : m.path)}\`): muted by entry \`${m.entry}\``);
     parts.push([`${MUTED_HEADING} (not posted as comments; each was matched by an exception the owner approved):`, ...items].join("\n"));

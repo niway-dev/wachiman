@@ -308,7 +308,7 @@ describe("a push after a review whose footer carries a block (AC5)", () => {
     expect(w.provider.requests[0]!.prompt).toContain(`- ${STORE} +4 −0`);
     expect(w.provider.requests[0]!.prompt).not.toContain(`- ${MANAGER} +6`);
     const body = w.posts[0]!.body;
-    expect(body.split("\n")[0]).toContain("review of the changes since `old1111`");
+    expect(body.split("\n")[0]).toContain("changes since `old1111` at `head123`");
     // Its own block describes this review, at the new head, not the earlier one.
     const state = readSignedStateBlock(body);
     expect(state).toMatchObject({ head: HEAD, status: "complete", findings: { total: 1, by_severity: { consider: 1 } } });
