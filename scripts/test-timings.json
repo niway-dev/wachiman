@@ -1,5 +1,6 @@
 {
   "scripts/install-local.test.ts": 0.65,
+  "scripts/ratchet.test.ts": 0.1,
   "scripts/test-shard.test.ts": 0.03,
   "src/accounts/config.test.ts": 0.42,
   "src/accounts/confirm.test.ts": 0.2,
