@@ -7,9 +7,7 @@
  * content is never read (the state is read again). Nothing here stores anything or posts anything.
  *
  * The timeout bounds the whole call, reads included: each `gh` call of a read is killed when the
- * time left runs out, and the wait then ends with the last known state and `why: timeout`. The one
- * exception is the probe for `gh event listen`, which has its own 5 s limit: the call can end up to
- * 5 s after the timeout.
+ * time left runs out, and the wait then ends with the last known state and `why: timeout`.
  */
 import { UsageError } from "./config";
 import { GhTimeoutError, ghWithin, type GhFn } from "./engine";
