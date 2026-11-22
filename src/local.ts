@@ -40,6 +40,7 @@ import {
   reviewChange,
   reviewOptionsOf,
   splitUnreviewable,
+  usd3,
   type ReviewInput,
   type ReviewResult,
 } from "./engine";
@@ -518,6 +519,8 @@ export function localScopeInput(p: {
   from?: string;
   maxDepth?: number;
   paths: string[];
+  /** False when the caller never routes files to `format_model` (`ask`): the range's commits are not read. */
+  format?: boolean;
   log: (line: string) => void;
   warn: (line: string) => void;
   /** The refs `openLocalSession` already resolved for these same flags (its `resolved.refs`), so they are not resolved twice. */
@@ -544,6 +547,7 @@ export function localScopeInput(p: {
     from: p.from,
     maxDepth,
     paths: p.paths,
+    format: p.format,
     log: p.log,
     warn: p.warn,
     refs: p.refs,
@@ -582,7 +586,7 @@ export function sizeWarning(estimate: ReviewEstimate, budgetUsd: number, model: 
       ? `above the $${roomUsd.toFixed(2)} the batches get out of this run's budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD), once the verifier and memory reserves are taken`
       : `above this run's budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD)`;
   const format = estimate.format
-    ? ` plus ${estimate.format.batches} batches × $${estimate.format.perBatchUsd.toFixed(estimate.format.perBatchUsd < 0.1 ? 3 : 2)} for ${estimate.format.model} on the ${estimate.format.files} files changed only by commits in ${IGNORE_REVS_PATH}`
+    ? ` plus ${estimate.format.batches} batches × ${usd3(estimate.format.perBatchUsd)} for ${estimate.format.model} on the ${estimate.format.files} files changed only by commits in ${IGNORE_REVS_PATH}`
     : "";
   return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}${format}), ${above}. Local runs are never refused; this one continues and stops at that budget, so the review may be partial. Raise WACHIMAN_BUDGET_USD to cover the estimate, or review less.`;
 }
@@ -748,7 +752,7 @@ export async function runLocal(
         reviewable.map((f) => f.filename),
       ),
     );
-    const warning = sizeWarning(estimateFor(kept, config, input.pathRules, input.formatOnly), config.budgetUsd, config.model, room);
+    const warning = sizeWarning(estimateFor(kept, config, input.pathRules, formatProvider ? input.formatOnly : undefined), config.budgetUsd, config.model, room);
     if (warning) io.stderr(warning);
     const result = await reviewChange(
       input,

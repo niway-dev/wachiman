@@ -428,7 +428,7 @@ export function localFormatOnly(
       note(`${IGNORE_REVS_PATH} is not used: this clone is shallow, so the commits of the range cannot all be seen. Every file goes to the main model.`);
       return [];
     }
-    const log = run(git, repoDir, ["log", "-z", "-m", "-M", "--name-status", "--format=%x01%H", mergeBase === null ? head : `${mergeBase}..${head}`], DIFF_MAX_BYTES);
+    const log = run(git, repoDir, ["-c", "log.showRoot=true", "log", "--no-show-signature", "--no-notes", "--no-color", "-z", "-m", "-M", "--name-status", "--format=%x01%H", mergeBase === null ? head : `${mergeBase}..${head}`], DIFF_MAX_BYTES);
     const touches: CommitTouch[] = [];
     // `-z --name-status` prints a status token and then one path, or two (old, new) for a rename or a copy.
     const tokens = log.split("\0");
@@ -438,9 +438,12 @@ export function localFormatOnly(
         touches.push({ sha: token.slice(1).trim(), paths: [], renamedTo: [] });
         continue;
       }
+      if (token === "") continue;
+      // Anything before the first commit, or a status git does not define, means the output is not what
+      // this parser reads (a configured pager or hook, say): fail, so every file stays with the main model.
       const current = touches[touches.length - 1];
-      if (token === "" || !current) continue;
       const status = token.replace(/^\n/, "");
+      if (!current || !/^[ACDMRTUXB]\d*$/.test(status)) throw new Error(`unexpected git log output: ${JSON.stringify(token.slice(0, 40))}`);
       if (/^[RC]\d*$/.test(status)) {
         const [from, to] = [tokens[i + 1], tokens[i + 2]];
         if (from === undefined || to === undefined) throw new Error("git log ended inside a rename");
@@ -859,6 +862,8 @@ export function buildLocalInput(p: {
   from?: string;
   maxDepth?: number;
   paths: string[];
+  /** False skips the read of the range's commits for `.git-blame-ignore-revs`; `ask` routes nothing. */
+  format?: boolean;
   log: (line: string) => void;
   warn: (line: string) => void;
   git?: GitRunner;
@@ -888,7 +893,7 @@ export function buildLocalInput(p: {
   const author = run(git, p.repoDir, ["log", "-1", "--format=%an", refs.headSha]).trim();
   const snapshot = snapshotHead(p.repoDir, refs.headSha, git);
   warnSnapshotDifferences(snapshot, p.warn);
-  const formatOnly = localFormatOnly(p.repoDir, refs.baseRef === EMPTY_TREE_LABEL ? null : refs.mergeBase, refs.headSha, files.map((f) => f.filename), readIgnoreRevs(top), p.log, git);
+  const formatOnly = p.format === false ? [] : localFormatOnly(p.repoDir, refs.baseRef === EMPTY_TREE_LABEL ? null : refs.mergeBase, refs.headSha, files.map((f) => f.filename), readIgnoreRevs(top), p.log, git);
   const input: ReviewInput = {
     format: REVIEW_INPUT_FORMAT,
     change: {

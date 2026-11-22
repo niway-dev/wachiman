@@ -167,13 +167,7 @@ function runCli(args: string[], env: Record<string, string>) {
 }
 
 /** `wachiman local` on a fresh branch repository, with the stubs first on PATH and a temporary HOME. */
-function local(
-  variant: Variant,
-  args: string[] = [],
-  extraEnv: Record<string, string> = {},
-  repo: BranchRepo = branchRepo(),
-  auth: AuthVariant = "claude.ai",
-) {
+function local(variant: Variant, args: string[] = [], extraEnv: Record<string, string> = {}, repo: Pick<BranchRepo, "dir"> = branchRepo(), auth: AuthVariant = "claude.ai") {
   const s = stubs(variant, repo.dir, auth);
   const home = extraEnv.HOME ?? temp("wachiman-home-");
   // `"<unset>"` removes a variable the helper sets, to test the real default.
@@ -1843,13 +1837,13 @@ describe("one resolution of the refs per review", () => {
 
 describe("format_model routing (ADR 0063, AC21)", () => {
   /** `feat/x`: a formatter run over src/a.ts, then a feature change to src/b.ts. */
-  function formatRepo() {
+  function formatRepo(): { dir: string; format: string } {
     const dir = emptyRepo();
     commit(dir, { "src/a.ts": "a=1\n", "src/b.ts": "b=1\n" }, "base");
     git(dir, "switch", "-q", "-c", "feat/x");
     const format = commit(dir, { "src/a.ts": "a = 1;\n" }, "style: format");
     commit(dir, { "src/b.ts": "b = 2;\n" }, "feat: change b");
-    return { dir, format } as unknown as BranchRepo & { format: string };
+    return { dir, format };
   }
   const modelsOf = (calls: string[]) => calls.map((l) => l.match(/--model (\S+)/)?.[1]);
   const effortsOf = (calls: string[]) => calls.map((l) => l.match(/--effort (\S+)/)?.[1]);

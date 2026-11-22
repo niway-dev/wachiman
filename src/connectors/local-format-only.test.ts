@@ -1,6 +1,6 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { rmSync } from "node:fs";
-import type { GitRunner } from "../evidence";
+import { spawnGit, type GitRunner } from "../evidence";
 import { commit, emptyRepo, git, removeTempRepos, write } from "../../test/support/temp-repo";
 import { buildLocalInput, localFormatOnly, readIgnoreRevs } from "./local-git";
 
@@ -93,6 +93,21 @@ describe("localFormatOnly reads the range with one git log", () => {
     expect(notes.join("\n")).toContain("shallow");
   });
 
+  test("an empty commit in the range does not shift the commits after it", () => {
+    const b = formattedBranch();
+    git(b.dir, "commit", "-q", "--allow-empty", "-m", "chore: empty");
+    expect(run(b, `${b.format1}\n${b.format2}\n`).only).toEqual(["a.ts", "b.ts"]);
+  });
+
+  test("output the parser does not read is an error, so no file is routed", () => {
+    const b = formattedBranch();
+    const noisy: GitRunner = (args, opts) =>
+      args.includes("log") ? { status: 0, stdout: "gpg: Good signature\x01abc\0M\0a.ts\0", stderr: "" } : spawnGit(args, opts);
+    const notes: string[] = [];
+    expect(localFormatOnly(b.dir, b.mergeBase, "HEAD", ["a.ts"], `${b.format1}\n`, (l) => notes.push(l), noisy)).toEqual([]);
+    expect(notes.join("\n")).toContain("could not be used");
+  });
+
   test("a git failure is a note and an empty answer, never an error", () => {
     const b = formattedBranch();
     const notes: string[] = [];
@@ -117,6 +132,19 @@ describe("buildLocalInput routes by the working tree's file (AC21)", () => {
     const built = buildLocalInput({ repoDir: b.dir, base: "main", paths: [], log: () => {}, warn: () => {} });
     try {
       expect(built.input.formatOnly).toEqual(["a.ts", "b.ts"]);
+    } finally {
+      rmSync(built.snapshotDir, { recursive: true, force: true });
+    }
+  });
+
+  test("format: false (ask) reads no commits and the input has no formatOnly", () => {
+    const b = formattedBranch();
+    write(b.dir, { ".git-blame-ignore-revs": `${b.format1}\n${b.format2}\n` });
+    const lines: string[] = [];
+    const built = buildLocalInput({ repoDir: b.dir, base: "main", paths: [], format: false, log: (l) => lines.push(l), warn: () => {} });
+    try {
+      expect(built.input.formatOnly).toBeUndefined();
+      expect(lines.join("\n")).not.toContain(".git-blame-ignore-revs");
     } finally {
       rmSync(built.snapshotDir, { recursive: true, force: true });
     }

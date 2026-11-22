@@ -3166,7 +3166,7 @@ export const SIZE_GATE_MARKER = "<!-- wachi:size-gate -->";
 const usd2 = (n: number) => `$${n.toFixed(2)}`;
 const usd0 = (n: number) => `$${n}`;
 /** A figure under ten cents keeps its third decimal: the format group's $0.015 a batch must not read $0.01. */
-const usd3 = (n: number) => (n < 0.1 ? `$${n.toFixed(3)}` : usd2(n));
+export const usd3 = (n: number) => (n < 0.1 ? `$${n.toFixed(3)}` : usd2(n));
 const count = (n: number) => n.toLocaleString("en-US");
 
 /** A changed file a `critical` path rule matches, and the maintainer's reason. */

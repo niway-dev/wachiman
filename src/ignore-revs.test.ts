@@ -3,7 +3,8 @@ import { formatOnlyPaths, listedCommitsIn, parseIgnoreRevs } from "./ignore-revs
 
 // ADR 0063 decisions 1 and 2: `.git-blame-ignore-revs` names the formatting commits, and a file
 // goes to the cheaper model only when every commit of the range that touches it is named. The
-// file is read as `git blame --ignore-revs-file` reads it, and nothing in it is ever an error.
+// file is read like `git blame --ignore-revs-file` reads full hashes and comments, with
+// abbreviations (7 characters or more) accepted and every bad line skipped, never an error.
 
 const A = "a639481" + "0".repeat(33);
 const B = "b11d2e9" + "1".repeat(33);

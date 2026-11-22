@@ -508,7 +508,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
         : undefined;
     // The files only listed formatting commits touched are read by their own adapter on `format_model`, always at effort low (ADR 0063).
     const formatProvider =
-      routed.formatModel && mode !== "threads"
+      routed.formatModel && mode !== "threads" && effective !== "comment"
         ? getProvider(routed.provider, { ...routed, model: routed.formatModel, effort: FORMAT_EFFORT })
         : undefined;
     let provider = mainProvider(routed);
