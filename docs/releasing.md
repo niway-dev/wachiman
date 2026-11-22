@@ -82,7 +82,7 @@ of another file, and because a tag created with `GITHUB_TOKEN` does not start a 
 `push: tags`, so a separate release workflow would silently not run whenever the PAT is missing.
 Nothing waits for a tag event.
 
-The `verify-tests` and `verify` jobs re-run the tests and `scripts/verify-package.sh` on the tagged SHA; it replaces a cross-workflow `needs:` on `ci.yml`, which a workflow cannot do.
+The `verify-tests` and `verify` jobs re-run the tests and `scripts/verify-package.sh` on the tagged SHA; they replace a cross-workflow `needs:` on `ci.yml`, which a workflow cannot do.
 
 | Job | What it does | Authority |
 | --- | --- | --- |

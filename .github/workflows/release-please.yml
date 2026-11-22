@@ -4,7 +4,7 @@ name: Release Please
 # Commits on main. Merging it creates the exact tag vX.Y.Z and a GitHub Release. Then the
 # last step moves the floating major tag (v1) to the release commit.
 # When it cuts a release, the same run then verifies the tagged commit and publishes the package
-# to npm (jobs `verify` and `publish` below). That lives in this workflow on purpose: a workflow
+# to npm (jobs `verify-tests`, `verify` and `publish` below). That lives in this workflow on purpose: a workflow
 # cannot `needs:` a job of another file, and a tag created with GITHUB_TOKEN does not start a
 # workflow on `push: tags`, so a separate release workflow would not run when the PAT is missing.
 # See docs/releasing.md ("Publishing to npm").
