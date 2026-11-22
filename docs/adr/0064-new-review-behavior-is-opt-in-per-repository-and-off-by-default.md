@@ -34,7 +34,7 @@ overnight. The rule suits some codebases and would be noise in others.
 2. **The consumer turns it on.** Upgrading Wachiman alone never changes a repository's reviews
    beyond bug fixes and the settings it already chose. Because an off-by-default addition keeps
    every existing input, secret and behavior working, it is backward compatible in the sense of
-   [the release rule](../releasing.md) and may ride the floating `v1` tag. For new behavior the
+   [the release rule](../releasing.md) and may ride the floating `v1` tag: the release rule's "policy change" is a change to what existing repositories are asked, which an off-by-default flag does not make until the repository turns it on. Changing a default to on is a policy change and follows that rule. For new behavior the
    settings file is the home; the existing workflow inputs and environment variables stay as they are.
 3. **The setting is read like the other keys of the file**: from the base commit in Actions and from
    the merge-base locally ([ADR 0049](0049-model-and-effort-in-wachiman-yml-read-from-the-base-commit.md)),
