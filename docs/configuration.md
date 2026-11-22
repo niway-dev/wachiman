@@ -555,8 +555,9 @@ Files your repository marks as generated or vendored are left out too: any file 
 head's, so a pull request cannot take its own files out of its review by adding a mark;
 `wachiman local` reads them at the merge-base of its range. One `git check-attr --source` call
 answers for the whole run, which needs git 2.40 or newer: on an older git, or when the base commit
-is not in the clone (a shallow checkout fetches it once), nothing is excluded and the log says
-so. Marks with `=false` or `-linguist-generated` keep the file reviewed. Like the built-in
+is not in the clone, nothing is excluded and the log says so. A shallow checkout fetches the base
+commit once, with the run's `GH_TOKEN` or `GITHUB_TOKEN` passed to that one fetch only; without a
+token or network the fetch fails and the log names it. `wachiman local ask` applies the same marks. Marks with `=false` or `-linguist-generated` keep the file reviewed. Like the built-in
 patterns, a mark cannot be overridden by a path rule, and excluded files are only counted, not
 listed.
 

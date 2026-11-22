@@ -18,6 +18,7 @@ import { type AskAnswer, askSchema, buildAskPrompt, checkRefs, isAskAnswer, rend
 import { repoLineCounter } from "./contracts";
 import { UsageError } from "./config";
 import { askDistributed, type ResolvedSibling } from "./distributed";
+import { linguistExcluded } from "./linguist";
 import { annotateDiff, DEFAULT_EXCLUDE, filterFiles, renderInstructions, runProvider, type ReviewInput, type ReviewResult } from "./engine";
 import { historyRoot, readRuns, repositoryKey } from "./history/store";
 import { type LocalArgs, type LocalDeps, localScopeInput, openLocalSession, parseFlags } from "./local";
@@ -165,7 +166,10 @@ export async function runAsk(
     release = scope.release;
     const { input } = scope;
     // The same files the review would send (its excludes and its scope), so both read one change.
-    const { kept, dropped } = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...config.exclude], input.scope);
+    const filtered = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...config.exclude], input.scope);
+    const marked = linguistExcluded(filtered.kept.map((f) => f.filename), { repoDir, baseSha: input.change.base.sha, log: io.stderr });
+    const kept = filtered.kept.filter((f) => !marked.has(f.filename));
+    const dropped = [...filtered.dropped, ...filtered.kept.filter((f) => marked.has(f.filename))];
     if (kept.length === 0) {
       throw new UsageError(`No file in this scope is kept for review (${dropped.length} excluded): there is nothing to ask about.`);
     }

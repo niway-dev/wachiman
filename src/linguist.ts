@@ -44,14 +44,25 @@ export interface LinguistOptions {
   log: (line: string) => void;
 }
 
-const git = (repoDir: string, args: string[], input?: string) =>
+/**
+ * The token of the run, as a one-off git config in the environment (never in argv, never written to
+ * the checkout), for the fetch of a base commit a credential-less shallow checkout lacks.
+ */
+function fetchEnv(): Record<string, string> {
+  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
+  if (!token) return gitEnv();
+  const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
+  return { ...gitEnv(), GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "http.https://github.com/.extraheader", GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}` };
+}
+
+const git = (repoDir: string, args: string[], input?: string, env: Record<string, string> = gitEnv()) =>
   spawnSync("git", [...GIT_BASE_ARGS, ...args], {
     cwd: repoDir,
     encoding: "utf8",
     input,
     timeout: TIMEOUT_MS,
     maxBuffer: MAX_BYTES,
-    env: gitEnv(),
+    env,
   });
 
 /** Of `paths`, those the base commit's `.gitattributes` marks `linguist-generated` or `linguist-vendored`. */
@@ -67,11 +78,13 @@ export function linguistExcluded(paths: readonly string[], o: LinguistOptions): 
     // Changed paths are relative to the repository root, and check-attr reads them relative to its cwd.
     const top = git(o.repoDir, ["rev-parse", "--show-toplevel"]);
     const cwd = top.status === 0 && top.stdout.trim() !== "" ? top.stdout.trim() : o.repoDir;
+    // A range that starts at a root commit has the empty tree as its base: a tree, with no marks.
+    if (git(cwd, ["cat-file", "-t", o.baseSha]).stdout.trim() === "tree") return none;
     const has = () => git(cwd, ["cat-file", "-e", `${o.baseSha}^{commit}`]).status === 0;
     const shallow = () => git(cwd, ["rev-parse", "--is-shallow-repository"]).stdout.trim() === "true";
     let fetchNote = "";
     if (!has() && o.fetchMissingBase && shallow()) {
-      const fetched = git(cwd, ["fetch", "--no-tags", "--depth=1", "origin", o.baseSha]);
+      const fetched = git(cwd, ["fetch", "--no-tags", "--depth=1", "origin", o.baseSha], undefined, fetchEnv());
       if (fetched.status !== 0) fetchNote = ` (fetching it failed: ${fetched.stderr.trim().slice(0, 200)})`;
     }
     if (!has()) {

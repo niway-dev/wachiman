@@ -1,3 +1,5 @@
+import { rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, test } from "bun:test";
 import { commit, emptyRepo, git, removeTempRepos } from "../test/support/temp-repo";
@@ -71,6 +73,34 @@ describe("linguist exclusion from the base commit", () => {
     const f = fixture();
     const excluded = linguistExcluded(f.paths, { repoDir: join(f.dir, "src"), baseSha: f.base, log: () => {} });
     expect([...excluded].sort()).toEqual(["gen/a.js", "vendor/b.js"]);
+  });
+
+  test("a root-commit range (the empty tree as base) excludes nothing and logs nothing", () => {
+    const f = fixture();
+    const tree = git(f.dir, "hash-object", "-t", "tree", "/dev/null").trim();
+    const logs: string[] = [];
+    expect(linguistExcluded(f.paths, { repoDir: f.dir, baseSha: tree, log: (l) => logs.push(l) }).size).toBe(0);
+    expect(logs).toEqual([]);
+  });
+
+  test("a shallow clone fetches the missing base once; a failed fetch is named", () => {
+    const f = fixture();
+    const clone = join(tmpdir(), `wachiman-linguist-shallow-${process.pid}`);
+    rmSync(clone, { recursive: true, force: true });
+    git(f.dir, "config", "uploadpack.allowAnySHA1InWant", "true");
+    git(tmpdir(), "clone", "-q", "--depth=1", `file://${f.dir}`, clone);
+    try {
+      const logs: string[] = [];
+      const missingBase = { repoDir: clone, baseSha: f.base, log: (l: string) => logs.push(l) };
+      expect(linguistExcluded(f.paths, missingBase).size).toBe(0);
+      const excluded = linguistExcluded(f.paths, { ...missingBase, fetchMissingBase: true });
+      expect([...excluded].sort()).toEqual(["gen/a.js", "vendor/b.js"]);
+      const failed = linguistExcluded(f.paths, { repoDir: clone, baseSha: "2".repeat(40), fetchMissingBase: true, log: (l) => logs.push(l) });
+      expect(failed.size).toBe(0);
+      expect(logs.at(-1)).toContain("fetching it failed");
+    } finally {
+      rmSync(clone, { recursive: true, force: true });
+    }
   });
 
   test("a base commit that is not in the clone excludes nothing and logs one line", () => {
