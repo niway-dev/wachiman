@@ -1864,11 +1864,15 @@ describe("format_model routing (ADR 0063, AC21)", () => {
     const haiku = calls.findIndex((l) => l.includes("--model claude-haiku-5-5"));
     expect(effortsOf(calls)[haiku]).toBe("low");
     expect(r.stderr).toContain(".git-blame-ignore-revs lists 1 of the 2 commit(s) of this range; 1 of the 2 file(s) changed only by them.");
+    // One file each way: the planned groups, not one plan over both, are what the log line counts.
+    expect(r.stderr).toContain("batches: 2 (1 main, 1 with claude-haiku-5-5)");
   }, 60_000);
 
   test("without a .git-blame-ignore-revs file every call uses the main model", () => {
     const plain = local("ok", ["--base", "main"], { WACHIMAN_MODEL: "claude-sonnet-5-5" }, formatRepo());
+    expect(plain.calls().length).toBeGreaterThan(0);
     expect(modelsOf(plain.calls()).every((m) => m === "claude-sonnet-5-5")).toBe(true);
+    expect(plain.stderr).toContain("batches: 1\n");
   }, 60_000);
 
   test("a working-tree review has no range and is never routed", () => {
@@ -1876,6 +1880,7 @@ describe("format_model routing (ADR 0063, AC21)", () => {
     writeFileSync(join(repo.dir, ".git-blame-ignore-revs"), `${repo.format}\n`);
     writeFileSync(join(repo.dir, "src/a.ts"), "a = 1;\n// edit\n");
     const r = local("ok", ["--working-tree", "all"], { WACHIMAN_MODEL: "claude-sonnet-5-5" }, repo);
+    expect(r.calls().length).toBeGreaterThan(0);
     expect(modelsOf(r.calls()).every((m) => m === "claude-sonnet-5-5")).toBe(true);
   }, 60_000);
 

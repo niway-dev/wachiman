@@ -16,7 +16,7 @@ export const IGNORE_REVS_PATH = ".git-blame-ignore-revs";
 /** An abbreviation shorter than this is not matched: it names too many commits to mean one. */
 const MIN_ABBREV = 7;
 
-/** The commits one commit of the range changed, as the paths it touched (the new name of a rename). */
+/** One commit of the range and every path it touched; a rename counts as both its old and its new name. */
 export interface CommitTouch {
   sha: string;
   paths: string[];

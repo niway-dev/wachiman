@@ -405,15 +405,15 @@ export function readIgnoreRevs(repoDir: string): string | undefined {
 
 /**
  * The files of `files` that only commits listed in `.git-blame-ignore-revs` touched in
- * `mergeBase..head` (ADR 0063). One `git log` lists every commit of the range with the paths it
- * touched; `-m` shows a merge commit against each parent, so a file a merge brought in is touched
+ * `mergeBase..head` (ADR 0063; a `null` start is a review from a root commit, so the range is all
+ * of `head`). One `git log` lists every commit of the range with the paths it touched; `-m` shows a merge commit against each parent, so a file a merge brought in is touched
  * by an unlisted commit and stays with the main model. A shallow clone cannot show the whole range
  * and is not routed. Git is never asked to fetch. Anything that goes wrong is a note and an empty
  * answer, never an error.
  */
 export function localFormatOnly(
   repoDir: string,
-  mergeBase: string,
+  mergeBase: string | null,
   head: string,
   files: readonly string[],
   ignoreRevs: string | undefined,
@@ -428,7 +428,7 @@ export function localFormatOnly(
       note(`${IGNORE_REVS_PATH} is not used: this clone is shallow, so the commits of the range cannot all be seen. Every file goes to the main model.`);
       return [];
     }
-    const log = run(git, repoDir, ["log", "-z", "-m", "--no-renames", "--name-only", "--format=%x01%H", `${mergeBase}..${head}`], DIFF_MAX_BYTES);
+    const log = run(git, repoDir, ["log", "-z", "-m", "--no-renames", "--name-only", "--format=%x01%H", mergeBase === null ? head : `${mergeBase}..${head}`], DIFF_MAX_BYTES);
     const touches: CommitTouch[] = [];
     for (const token of log.split("\0")) {
       if (token === "") continue;
@@ -870,7 +870,7 @@ export function buildLocalInput(p: {
   const author = run(git, p.repoDir, ["log", "-1", "--format=%an", refs.headSha]).trim();
   const snapshot = snapshotHead(p.repoDir, refs.headSha, git);
   warnSnapshotDifferences(snapshot, p.warn);
-  const formatOnly = localFormatOnly(p.repoDir, refs.mergeBase, refs.headSha, files.map((f) => f.filename), readIgnoreRevs(top), p.log, git);
+  const formatOnly = localFormatOnly(p.repoDir, refs.baseRef === EMPTY_TREE_LABEL ? null : refs.mergeBase, refs.headSha, files.map((f) => f.filename), readIgnoreRevs(top), p.log, git);
   const input: ReviewInput = {
     format: REVIEW_INPUT_FORMAT,
     change: {

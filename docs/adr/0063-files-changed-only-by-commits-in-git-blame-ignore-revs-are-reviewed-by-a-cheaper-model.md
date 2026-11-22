@@ -45,10 +45,11 @@ files were touched by the formatter commit and by no other commit of the pull re
 
 - The author of a pull request decides which of its files get the cheaper model, by listing a
   commit. It lowers the review depth of those files, never removes them from the review.
-- The saving is not measured yet: the per-batch figures of ADR 0037 put Haiku at $0.28 and Sonnet
-  at $0.32, both at high effort. Layer 4 of the spec measures Haiku at low effort on pull request
-  287 and records the figure in `src/estimate.ts` before the estimate uses it.
-- `format_model` is a new reusable-workflow input.
+- The saving is measured: Haiku at effort low read the 282 formatter-only files of pull request 287
+  in 15 batches for $0.2253 over 17 calls (two batches were retried), $0.015 a batch, about 20 times
+  below the $0.32 of Sonnet at high effort. That figure is recorded in `src/estimate.ts` and
+  `docs/costs.md`, and the estimate prices the format group with it.
+- `format_model` is a reusable-workflow input (default `claude-haiku-5-5`); an empty value is the default.
 
 ## Non-goals
 

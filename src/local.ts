@@ -691,16 +691,15 @@ export async function runLocal(
       io.stderr(`head: ${short(head)}`);
     }
     const { kept, dropped } = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...config.exclude], input.scope);
-    const batches = planBatches(
-      kept,
-      {
-        maxLines: config.batchLines,
-        maxChars: config.batchChars,
-      },
-      input.pathRules,
-    );
+    const planLimits = { maxLines: config.batchLines, maxChars: config.batchChars };
+    // The same split `reviewChange` makes (ADR 0063): the files only listed formatting commits touched
+    // are planned apart, so the count below is the number of batches the run will report.
+    const formatNames = formatProvider ? new Set(input.formatOnly ?? []) : new Set<string>();
+    const formatKept = kept.filter((f) => formatNames.has(f.filename));
+    const mainBatches = planBatches(formatKept.length > 0 ? kept.filter((f) => !formatNames.has(f.filename)) : kept, planLimits, input.pathRules).length;
+    const formatBatches = formatKept.length > 0 ? planBatches(formatKept, planLimits, input.pathRules).length : 0;
     io.stderr(`files: ${kept.length} (${dropped.length} excluded)`);
-    io.stderr(`batches: ${batches.length}`);
+    io.stderr(formatBatches > 0 ? `batches: ${mainBatches + formatBatches} (${mainBatches} main, ${formatBatches} with ${config.formatModel})` : `batches: ${mainBatches}`);
     io.stderr(
       config.verify
         ? `verify: on (${config.verifierModel}, reserve $${Math.min(config.verifyBudgetUsd, config.budgetUsd / 2).toFixed(2)})`

@@ -565,9 +565,12 @@ review names those files, the model and the reason on their own line
   commit of the range. A file also touched by an unlisted commit, a merge commit, or no commit the
   engine could see goes to `model`.
 - **What is never an error.** A missing or unreadable file, a malformed line, a hash outside the range,
-  a shallow clone (local), a failed GitHub call, or a pull request of more than 100 commits (the
-  engine does not read that many commits one by one) each send every file to `model` and print a
-  note.
+  a shallow clone (local), a failed GitHub call, a pull request of more than 100 commits (the
+  engine does not read that many commits one by one) and a commit that touched 3,000 files or more
+  (more than GitHub lists) each send every file to `model`.
+  Only the shallow clone, the failed read, the over-100-commits case, the 3,000-file commit and,
+  in a pull request run, a listing that names no commit of the range say so in a note; a missing
+  file or one with no valid hash is silent.
 - **The estimate and the size gate** price the two groups apart, each with its own model and
   figure; see [costs.md](costs.md#files-changed-only-by-formatting-commits).
 

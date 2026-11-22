@@ -57,6 +57,8 @@ interface Options {
   commits?: { sha: string; paths: string[] }[];
   /** Make the commits endpoint fail. */
   commitsFail?: boolean;
+  /** The file count each commit's page reports, as the engine's jq prints it; omitted prints none. */
+  fileCount?: number;
 }
 
 function world(files: ReturnType<typeof bigFile>[], o: Options = {}) {
@@ -88,7 +90,10 @@ function world(files: ReturnType<typeof bigFile>[], o: Options = {}) {
       return (o.commits ?? []).map((c) => c.sha).join("\n");
     }
     const commit = line.match(/repos\/o\/r\/commits\/([0-9a-f]{40})\?per_page=100/);
-    if (commit) return (o.commits ?? []).find((c) => c.sha === commit[1])?.paths.join("\n") ?? "";
+    if (commit) {
+      const paths = (o.commits ?? []).find((c) => c.sha === commit[1])?.paths ?? [];
+      return [...(o.fileCount === undefined ? [] : [`\u0001${o.fileCount}`]), ...paths].join("\n");
+    }
     if (line.startsWith("api graphql")) return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } });
     if (line.includes("/contents/")) {
       const m = line.match(/contents\/(.+)\?ref=(.+)$/);
@@ -160,11 +165,18 @@ describe("a file changed only by listed commits is reviewed by format_model (AC1
     expect(logs).toContain("could not be used");
   });
 
-  test("format_model unset, or no format provider, keeps the one-model behaviour", async () => {
+  test("no format provider keeps the one-model behaviour and reads no commits", async () => {
     const w = world(FILES, { ignoreRevs: LISTING, commits: COMMITS });
     const { main } = await run(w, {}, false);
     expect(main.files.length).toBe(3);
     expect(w.calls.some((c) => c.includes("/pulls/7/commits"))).toBe(false);
+  });
+
+  test("an empty format_model is the default model, so the commits are still read", async () => {
+    const w = world(FILES, { ignoreRevs: LISTING, commits: COMMITS });
+    const { format } = await run(w, { WACHIMAN_FORMAT_MODEL: "" });
+    expect(format.files).toEqual(["src/fmt.ts"]);
+    expect(w.calls.some((c) => c.includes("/pulls/7/commits"))).toBe(true);
   });
 });
 
@@ -186,9 +198,21 @@ describe("githubFormatOnly reads the pull request through GitHub (AC17)", () => 
     expect(githubFormatOnly(w.gh, "o/r", 7, HEAD, names, () => {})).toEqual(["src/fmt.ts"]);
   });
 
-  test("a renamed file is matched by its new name", () => {
-    const w = world(FILES, { ignoreRevs: LISTING, commits: [{ sha: FORMAT_SHA, paths: ["src/fmt.ts", "src/old-fmt.ts"] }] });
+  test("a commit that touched 3000 files is not trusted: nothing is routed and the note says why", () => {
+    const w = world(FILES, { ignoreRevs: LISTING, commits: COMMITS, fileCount: 3000 });
+    const notes: string[] = [];
+    expect(githubFormatOnly(w.gh, "o/r", 7, HEAD, names, (l) => notes.push(l))).toEqual([]);
+    expect(notes.join("\n")).toContain("3000 or more files");
+  });
+
+  test("a commit under the cap with its count printed is routed as before", () => {
+    const w = world(FILES, { ignoreRevs: LISTING, commits: COMMITS, fileCount: 2 });
     expect(githubFormatOnly(w.gh, "o/r", 7, HEAD, names, () => {})).toEqual(["src/fmt.ts"]);
+  });
+
+  test("a renamed file is matched by either of its names", () => {
+    const w = world(FILES, { ignoreRevs: LISTING, commits: [{ sha: FORMAT_SHA, paths: ["src/fmt.ts", "src/old-fmt.ts"] }] });
+    expect(githubFormatOnly(w.gh, "o/r", 7, HEAD, [...names, "src/old-fmt.ts"], () => {})).toEqual(["src/fmt.ts", "src/old-fmt.ts"]);
   });
 });
 

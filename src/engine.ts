@@ -56,7 +56,7 @@ import {
   type ReviewStateDraft,
 } from "./review-state";
 import { batchStartFloor, estimateReview, type ReviewEstimate } from "./estimate";
-import { IGNORE_REVS_PATH, formatOnlyPaths, listedCommitsIn, parseIgnoreRevs } from "./ignore-revs";
+import { IGNORE_REVS_PATH, formatOnlyPaths, listedCommitsIn, parseIgnoreRevs, type CommitTouch } from "./ignore-revs";
 import { FORMAT_EFFORT, UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
 import {
   SETTINGS_PATH,
@@ -1767,6 +1767,8 @@ function fileAtBase(gh: GhFn, repo: string, path: string, sha: string): Instruct
 export const MAX_FORMAT_RANGE_COMMITS = 100;
 /** The pull request commits endpoint lists at most this many, so a longer range cannot be seen whole. */
 const GITHUB_COMMIT_LIST_CAP = 250;
+/** The commit endpoint lists at most this many files of one commit. */
+const GITHUB_COMMIT_FILE_CAP = 3000;
 
 /**
  * The files of `files` that only commits listed in the head's `.git-blame-ignore-revs` touched
@@ -1804,13 +1806,23 @@ export function githubFormatOnly(
       note(`${IGNORE_REVS_PATH} lists ${listed.size} commit(s) of this pull request, but it has ${range.length >= GITHUB_COMMIT_LIST_CAP ? `${GITHUB_COMMIT_LIST_CAP} or more` : range.length} commits, over the ${MAX_FORMAT_RANGE_COMMITS} whose files are read one by one: every file goes to the main model.`);
       return [];
     }
-    const jq = ".files // [] | .[] | (.filename, .previous_filename // empty)";
-    const touches = range.map((sha) => ({
-      sha,
-      paths: gh(["api", "--paginate", `repos/${repo}/commits/${sha}?per_page=100`, "--jq", jq])
+    // Each page of a commit prints its file count first (behind a control character, which no path
+    // starts with), then every name the page holds, old and new for a rename.
+    const jq = '.files // [] | (length | "\\u0001" + tostring), (.[] | (.filename, .previous_filename // empty))';
+    const touches: CommitTouch[] = [];
+    for (const sha of range) {
+      const lines = gh(["api", "--paginate", `repos/${repo}/commits/${sha}?per_page=100`, "--jq", jq])
         .split("\n")
-        .filter(Boolean),
-    }));
+        .filter(Boolean);
+      const seen = lines.filter((l) => l.startsWith("\u0001")).reduce((sum, l) => sum + Number(l.slice(1)), 0);
+      // GitHub lists at most this many files of one commit: past it a touch can be hidden, and a
+      // file this commit changed could look untouched by it.
+      if (seen >= GITHUB_COMMIT_FILE_CAP) {
+        note(`${IGNORE_REVS_PATH} is not used: commit ${sha.slice(0, 7)} touched ${GITHUB_COMMIT_FILE_CAP} or more files, more than GitHub lists, so every file goes to the main model.`);
+        return [];
+      }
+      touches.push({ sha, paths: lines.filter((l) => !l.startsWith("\u0001")) });
+    }
     const only = formatOnlyPaths(files, touches, listed);
     note(`${IGNORE_REVS_PATH} lists ${listed.size} of the ${range.length} commit(s) of this pull request; ${only.length} of the ${files.length} file(s) changed only by them.`);
     return only;

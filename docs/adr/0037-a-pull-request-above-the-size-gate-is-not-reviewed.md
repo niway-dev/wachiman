@@ -8,7 +8,8 @@
   Decisions 3, 4, 5, 6, 7, 8 and 10 and the rejected alternative "Ask in the pull request before reviewing" are
   amended by [ADR 0062](0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)
   (amendment implemented): the gate becomes the room the run may spend, and the
-  operator approves a budget for one head. The text below is still the current behaviour.
+  operator approves a budget for one head. The text below is the original decision; ADR 0062
+  amends it where it says so.
 - **Date:** 2026-11-12
 
 ## Context

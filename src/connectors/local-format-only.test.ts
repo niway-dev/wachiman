@@ -63,6 +63,14 @@ describe("localFormatOnly reads the range with one git log", () => {
     expect(run(b, listing, ["a.ts", "b.ts"]).only).toEqual([]);
   });
 
+  test("a review that starts at a root commit reads all of the head's history", () => {
+    const dir = emptyRepo();
+    const root = commit(dir, { "a.ts": "a=1\n" }, "style: format everything");
+    const notes: string[] = [];
+    expect(localFormatOnly(dir, null, "HEAD", ["a.ts"], `${root}\n`, (l) => notes.push(l))).toEqual(["a.ts"]);
+    expect(notes.join("\n")).not.toContain("could not be used");
+  });
+
   test("a shallow clone is not routed and says why", () => {
     const b = formattedBranch();
     const shallow: GitRunner = (args, opts) =>
