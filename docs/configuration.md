@@ -88,6 +88,7 @@ engine through the environment variable in the third column; those variables are
 | `pr_confidence` | boolean | `WACHIMAN_CONFIDENCE` | `false` | PR Confidence ([ADR 0033](adr/0033-a-fidelity-grade-the-engine-computes-from-checked-claims.md), [page](pr-confidence.md)): a full review of a pull request lists the claims in its title and body with one more small call, grades the change against them and writes the grade between two markers at the top of the description. On each push that starts a review run (`synchronize`, with `review_on_push` on and the pull request not a draft), a step that makes no model call first sets that block to `cannot say` for the commit under review. Needs the `pull-requests: write` permission the review job already has. Not used by `wachiman local`. Off by default. |
 | `memory_proposals` | boolean | `WACHIMAN_MEMORY_PROPOSALS` | `false` | Let a thread reply propose an entry for the [repository memory](cli.md#memory) when the operator's latest reply in the thread is an instruction with a reason. The reply shows the exact entry text and its id and says how to approve it; this job writes nothing and its token stays `contents: read`; the operator's approval is acted on by the separate `wachiman-memory.yml` workflow. The thread run sends the model one more optional field and a paragraph of instructions only when this is on, so with it off the prompt and the schema are unchanged. Only the operator's own reply can lead to a proposal. The reply counts toward the two replies Wachiman writes in a thread. See [Capturing memory in Actions](cli.md#capturing-memory-in-actions-layer-5). |
 | `verifier_model` | string | `WACHIMAN_VERIFIER_MODEL` | `claude-opus-5-5` | The verifier's model. It always runs at effort `high`, whatever `effort` says. |
+| `format_model` | string | `WACHIMAN_FORMAT_MODEL` | `claude-haiku-5-5` | The model for files whose every commit in the pull request is listed in `.git-blame-ignore-revs` at the head ([ADR 0063](adr/0063-files-changed-only-by-commits-in-git-blame-ignore-revs-are-reviewed-by-a-cheaper-model.md)). It always runs at effort `low`, in batches of its own, on its own adapter, and the review lists those files on their own line. With no `.git-blame-ignore-revs` file, no listed commit in the pull request, or a pull request of more than 100 commits, every file goes to `model`. See [Files changed only by formatting commits](#files-changed-only-by-formatting-commits). |
 | `max_turns` | number | `WACHIMAN_MAX_TURNS` | `40` | Most agent turns one provider call may take. A whole number. **New in v1.4.0.** Sent as `--max-turns` to Claude Code, the only provider the workflow runs. A call that reaches the cap is reported and its files get one retry. See [Turn cap and call timeout](#turn-cap-and-call-timeout). |
 | `call_timeout_s` | number | `WACHIMAN_CALL_TIMEOUT_S` | `900` | Wall-clock seconds one provider call may run before the process is killed. A whole number. **New in v1.4.0.** Keep it well under the job's 30-minute limit. See [Turn cap and call timeout](#turn-cap-and-call-timeout). |
 | `on_provider_unavailable` | string | `WACHIMAN_ON_PROVIDER_UNAVAILABLE` | `warn` | What a run does when the Anthropic account rejects every call (no credit or spend limit, a rejected key, a rate limit that persists after one retry). `warn` posts a "Not reviewed" notice with the provider's message and passes the check; `fail` posts it and fails the check, which blocks a merge only when branch rules require that check. Any other value is a usage error. Errors the engine cannot classify always fail. See [troubleshooting](troubleshooting.md). |
@@ -208,6 +209,7 @@ applies.
 | `WACHIMAN_PRIORITY_TRIAL` | flag | off | `1` | The finding priority A/B (ADR 0059): each pull request review shows either the Important/Nit word or the Priority row, chosen by a hash of the repository and the pull request number, so a push never changes it; the result records `arm` (`word` or `priority`). `priority` and `rank` are computed in both arms. Only the exact value `1` turns it on; off, every review shows the priority and the result has no `arm`. Never applies to `wachiman local`. | pull request reviews only |
 | `WACHIMAN_MEMORY_PROPOSALS` | flag | off | `1`, `true`, `0`, `false` | A thread reply may propose a memory entry from the operator's instruction. The same flag tells the push review, the thread run and the on-demand comment step that `<mention> remember <id>` belongs to the memory write job, so none of them answers it as a question. Any other value is a usage error (exit 2). | `threads`, `review`, `comment` |
 | `WACHIMAN_VERIFIER_MODEL` | string | `claude-opus-5-5` for `claude-code`, none for `codex` | Any string the provider accepts | The verifier's model; always at effort `high`. | both |
+| `WACHIMAN_FORMAT_MODEL` | string | `claude-haiku-5-5` for `claude-code`, none for `codex` | Any string the provider accepts | The model for files that only commits listed in `.git-blame-ignore-revs` touched; always at effort `low` ([ADR 0063](adr/0063-files-changed-only-by-commits-in-git-blame-ignore-revs-are-reviewed-by-a-cheaper-model.md)). An empty value is the default; with `codex` and no value, those files go to the main model. `wachiman ask` never uses it. | both |
 | `WACHIMAN_DRY_RUN` | flag | off | `1` | Only the exact value `1` turns it on. Reads GitHub, runs the provider, and prints the review and replies instead of posting them. It still spends: see [Dry run](#dry-run). | both |
 | `WACHIMAN_FULL_REVIEW` | flag | off | `1` | Only with `WACHIMAN_DRY_RUN=1` (alone it is a usage error, exit 2). The dry run reviews the whole pull request without reading the previous-review marker, as a first review would. See [Dry run](#dry-run). | both |
 | `WACHIMAN_EXCLUDE` | list | none | Comma-separated globs | Extra files to leave out, on top of the [built-in list](#excluded-files). | both |
@@ -547,6 +549,27 @@ batch starts when adding the next file would pass `batch_lines` (additions plus 
 `batch_chars` (diff text). A single file larger than either limit becomes a batch of its own and is
 not split, so a batch can exceed both limits. Neither limit is a ceiling on prompt size. The
 ordering and its limits are described in [architecture.md](architecture.md).
+
+### Files changed only by formatting commits
+
+A file whose every commit in the review range is listed in `.git-blame-ignore-revs` is read by
+`format_model` (default `claude-haiku-5-5`) at effort `low`, in batches after the main ones, and the
+review names those files, the model and the reason on their own line
+([ADR 0063](adr/0063-files-changed-only-by-commits-in-git-blame-ignore-revs-are-reviewed-by-a-cheaper-model.md)). Everything else is unchanged.
+
+- **Where the file is read.** In a pull request run, at the head commit through the GitHub API; the
+  engine runs no `git` on the checkout, which may be shallow. In `wachiman local`, from the working
+  tree, with one `git log -m` of the range, and never a fetch.
+- **What counts.** At least one commit of the range touches the file and every commit that touches it
+  is listed. A hash is matched in full or, from 7 characters, as an abbreviation that names one
+  commit of the range. A file also touched by an unlisted commit, a merge commit, or no commit the
+  engine could see goes to `model`.
+- **What is never an error.** A missing or unreadable file, a malformed line, a hash outside the range,
+  a shallow clone (local), a failed GitHub call, or a pull request of more than 100 commits (the
+  engine does not read that many commits one by one) each send every file to `model` and print a
+  note.
+- **The estimate and the size gate** price the two groups apart, each with its own model and
+  figure; see [costs.md](costs.md#files-changed-only-by-formatting-commits).
 
 ### Excluded files
 

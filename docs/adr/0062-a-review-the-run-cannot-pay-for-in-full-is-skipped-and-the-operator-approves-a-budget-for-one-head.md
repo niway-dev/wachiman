@@ -1,6 +1,6 @@
 # ADR 0062: A review the run cannot pay for in full is skipped, and the operator approves a budget for one head
 
-- **Status:** proposed 2026-11-21. Amends decisions 3, 4, 5, 6, 7, 8 and 10 and the rejected
+- **Status:** accepted and implemented 2026-11-21. Amends decisions 3, 4, 5, 6, 7, 8 and 10 and the rejected
   alternative "Ask in the pull request before reviewing" of
   [ADR 0037](0037-a-pull-request-above-the-size-gate-is-not-reviewed.md). Builds on
   [ADR 0012](0012-automatic-thread-replies-and-a-per-pr-ceiling.md) (the per-pull-request ceiling)

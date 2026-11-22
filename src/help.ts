@@ -214,6 +214,7 @@ const localPage: Page = {
     PROFILE_ENV,
     ["WACHIMAN_HISTORY", "1 saves the run, as --history"],
     ["WACHIMAN_VERIFY, WACHIMAN_VERIFIER_MODEL", "Turn verification on, and pick the verifier's model"],
+    ["WACHIMAN_FORMAT_MODEL", "The model for files only commits listed in .git-blame-ignore-revs touched, at effort low. Default: claude-haiku-5-5"],
     ["WACHIMAN_BUDGET_USD", "The most one run may spend. Default: 3. An estimate above it prints one warning and the run continues"],
     ["WACHIMAN_BATCH_BUDGET_USD", "The cap on each call (soft)"],
     OTHER_ENV,

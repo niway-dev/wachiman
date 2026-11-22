@@ -1,6 +1,6 @@
 # ADR 0063: Files changed only by commits in `.git-blame-ignore-revs` are reviewed by a cheaper model
 
-- **Status:** proposed 2026-11-21. Builds on
+- **Status:** accepted and implemented 2026-11-21. Builds on
   [ADR 0062](0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)
   (the room is the gate) and [ADR 0037](0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)
   decision 1 (the estimate). Design: [budget gate spec](../specs/2026-11-21-budget-gate-design.md).

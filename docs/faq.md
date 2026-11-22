@@ -119,6 +119,11 @@ Code as given; the engine does not check it, and no other Claude model is docume
 here. The Codex adapter defaults to `gpt-6.1-sol`. See [configuration.md](configuration.md) and
 [providers/claude-code.md](providers/claude-code.md).
 
+One more model is in play for files that only formatting commits touched: when the repository's
+`.git-blame-ignore-revs` lists the commits that formatted them, those files are read by
+`format_model` (default `claude-haiku-5-5`) at effort `low`, and the review says which files and why.
+See [Files changed only by formatting commits](configuration.md#files-changed-only-by-formatting-commits).
+
 ### Does it work with Codex or OpenAI models?
 
 From the command line, yes. In the reusable workflow, not yet. The engine has a Codex adapter
