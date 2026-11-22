@@ -58,6 +58,14 @@ describe("linguist exclusion from the base commit", () => {
     expect(fromHead.has("src/n.ts")).toBe(true);
   });
 
+  test("AC16: a local range reads the marks at its merge-base, never fetching", () => {
+    const f = fixture();
+    const mergeBase = git(f.dir, "merge-base", "main", "feat").trim();
+    expect(mergeBase).toBe(f.base);
+    const excluded = linguistExcluded(f.paths, { repoDir: f.dir, baseSha: mergeBase, log: () => {} });
+    expect([...excluded].sort()).toEqual(["gen/a.js", "vendor/b.js"]);
+  });
+
   test("a base commit that is not in the clone excludes nothing and logs one line", () => {
     const f = fixture();
     const logs: string[] = [];

@@ -28,6 +28,7 @@ import {
   warnSnapshotDifferences,
 } from "./connectors/local-git";
 import { DEFAULT_EXCLUDE, estimateFor, filterFiles, planBatches, reviewChange, reviewOptionsOf, splitUnreviewable, type ReviewInput, type ReviewResult } from "./engine";
+import { linguistExcluded } from "./linguist";
 import { sizeGate, type ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
 import { personalSourceFor } from "./memory/personal";
@@ -614,7 +615,13 @@ export async function runLocal(
       input = { ...fromFile, headDir: snapshot.dir };
       io.stderr(`head: ${short(head)}`);
     }
-    const { kept, dropped } = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...config.exclude], input.scope);
+    const filtered = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...config.exclude], input.scope);
+    // The marks come from the base of the range, never from the head's `.gitattributes`; a local run never fetches.
+    const marked = linguistExcluded(filtered.kept.map((f) => f.filename), { repoDir, baseSha: input.change.base.sha, log: io.stderr });
+    const kept = filtered.kept.filter((f) => !marked.has(f.filename));
+    const dropped = [...filtered.dropped, ...filtered.kept.filter((f) => marked.has(f.filename))];
+    // `reviewChange` filters `input.files` again, so the marked files leave the input too.
+    if (marked.size > 0) input = { ...input, files: input.files.filter((f) => !marked.has(f.filename)) };
     const batches = planBatches(
       kept,
       {
