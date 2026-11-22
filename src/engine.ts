@@ -3581,7 +3581,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
    * below the minimum but money is reserved by batches in flight, it waits: what they do not spend
    * comes back, and giving up now would skip a batch that a sequential run would have afforded.
    */
-  const acquire = async (id: number, launching: boolean): Promise<{ usd: number } | { why: "rejected" | "budget" | "failed" }> => {
+  const acquire = async (id: number, launching: boolean): Promise<{ usd: number; runLimited: boolean } | { why: "rejected" | "budget" | "failed" }> => {
     for (;;) {
       if (fatal) return { why: "failed" };
       if (rejection) return { why: "rejected" };
@@ -3590,7 +3590,9 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
         if (left >= (launching ? startFloor : MIN_BATCH_USD)) {
           const usd = Math.min(batchBudget, left);
           reserved.set(id, usd);
-          return { usd };
+          // Limited by the run itself: even if every reservation came back unspent, the room would be
+          // below the per-call cap. A cap shrunk only by other batches' reservations is not.
+          return { usd, runLimited: batchTotal - spent < batchBudget };
         }
         if (reserved.size === 0) return { why: "budget" };
       }
@@ -3598,7 +3600,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     }
   };
 
-  const runBatch = async (i: number, batch: Batch, firstBudget: number): Promise<BatchOutcome> => {
+  const runBatch = async (i: number, batch: Batch, firstBudget: number, runLimited: boolean): Promise<BatchOutcome> => {
     const label = `Batch ${i + 1} of ${batches.length}`;
     const out: BatchOutcome = {
       report: { label, files: batch.files.length, lines: batch.lines, maxRisk: batch.maxRisk, status: "", turns: 0, costUsd: 0 },
@@ -3655,9 +3657,10 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     // A refused call (no credit, bad key) would be refused again: no retry.
     // Only this batch's own refusal explains its gaps; another batch's refusal only stops new calls.
     const ownRefusal = first.rejection !== undefined && first.rejection.kind !== "other";
-    // A call cut on a budget that was the run's remaining room (below the per-call cap) would meet the
-    // same limit again with less room; one cut at the full cap gets a fresh cap.
-    const roomCut = first.budget && firstBudget < batchBudget;
+    // A call cut on a budget that was the run's own remaining room would meet the same limit again with
+    // less room; one cut at the full cap gets a fresh cap. A cap that only other batches' reservations
+    // shrank is not the run's limit: that money comes back, and the retry waits for it.
+    const roomCut = first.budget && runLimited;
     const grant = gaps.length > 0 && first.stopped !== "timeout" && !ownRefusal && !roomCut ? await acquire(i, false) : undefined;
     if (gaps.length > 0 && grant && "usd" in grant) {
       const retry = await reviewBatchBackingOff(
@@ -3733,7 +3736,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       break;
     }
     inFlight++;
-    const task: Promise<void> = runBatch(i, batch, granted.usd)
+    const task: Promise<void> = runBatch(i, batch, granted.usd, granted.runLimited)
       .then(
         (outcome) => void (outcomes[i] = outcome),
         (error) => void (fatal ??= { error }),
