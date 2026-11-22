@@ -54,7 +54,7 @@ until you raise the limit or ask yourself.
 ## The room gate
 
 **New in the next release** ([ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md), which
-supersedes the fixed dollar gate of [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)).
+amends the fixed dollar gate of [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)).
 The budgets above bound what a run spends. They do not bound what a run would need to spend to be
 complete. On a very large pull request a run spent its whole budget on the riskiest batches and
 posted that as a review of a small part of the change. The room gate asks the other question first:
@@ -157,7 +157,7 @@ operator, comments it:
 - `--budget` and `--head` come together. One without the other, a missing value or the `--budget=8`
   spelling is refused with one reply, and nothing runs.
 - Anyone else who comments the command is ignored without a reply.
-- The approved run uses `N` as its `budget_usd`, and its footer says `approved budget $N`. Running
+- The approved run uses `N` as its `budget_usd`, and its footer says `approved budget $N.00`. Running
   the command again on a head that is already completely reviewed spends nothing, and a partial
   review resumes within `N`.
 
