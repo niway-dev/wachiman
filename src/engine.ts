@@ -133,7 +133,7 @@ import type { ProviderErrorClass } from "./providers/errors";
 import type { Effort, ProviderAdapter, ProviderAuth } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
 import { buildRiskMap, wellFormed, type JudgementItem, type RiskFact, type RiskMap } from "./risk";
-import { linguistExcluded } from "./linguist";
+import { linguistExcluded, type AttributeFile } from "./linguist";
 import { ASK_SCHEMA, buildAskPrompt, checkRefs, isAskAnswer, renderAnswer } from "./ask";
 
 export type { Profile, ResultFinding, ReviewChange, ReviewInput, ReviewResult, Stop } from "./formats";
@@ -1681,6 +1681,36 @@ function fileAtBase(gh: GhFn, repo: string, path: string, sha: string): Instruct
   // The contents API sends no content for a file over 1 MB.
   if (meta.encoding !== "base64") return { path, content: "", truncated: true };
   return instructionFileOf(path, Buffer.from(meta.content ?? "", "base64"));
+}
+
+const MAX_ATTRIBUTE_FILES = 50;
+
+/**
+ * The `.gitattributes` files of the base commit, through the same API and token as every other base
+ * read. One recursive tree read finds them; a truncated tree leaves only the root file. A file the
+ * API cannot send whole is skipped, since half an attributes file would mark the wrong files.
+ */
+export function readBaseAttributeFiles(gh: GhFn, repo: string, sha: string, log: (line: string) => void): AttributeFile[] {
+  const tree = JSON.parse(gh(["api", `repos/${repo}/git/trees/${sha}?recursive=1`])) as { tree?: { path: string; type: string }[]; truncated?: boolean };
+  let paths: string[];
+  if (tree.truncated) {
+    log("The base commit's file tree is too large to list; only the root .gitattributes is read for linguist marks.");
+    paths = [".gitattributes"];
+  } else {
+    paths = (tree.tree ?? []).filter((e) => e.type === "blob" && (e.path === ".gitattributes" || e.path.endsWith("/.gitattributes"))).map((e) => e.path);
+    if (paths.length > MAX_ATTRIBUTE_FILES) {
+      log(`The base commit has ${paths.length} .gitattributes files; only the first ${MAX_ATTRIBUTE_FILES} are read for linguist marks.`);
+      paths = paths.slice(0, MAX_ATTRIBUTE_FILES);
+    }
+  }
+  const files: AttributeFile[] = [];
+  for (const path of paths) {
+    const file = fileAtBase(gh, repo, path, sha);
+    if (!file) continue;
+    if (file.truncated) log(`${path} is too large to read through the API and is skipped for linguist marks.`);
+    else files.push({ path, content: file.content });
+  }
+  return files;
 }
 
 /** An instruction file from its bytes, cut at `MAX_INSTRUCTION_BYTES`. Shared by every connector. */
@@ -4519,7 +4549,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const base = filtered.kept.length > 0 ? baseSha(gh, repo, pr) : "";
   const marked =
     filtered.kept.length > 0
-      ? linguistExcluded(filtered.kept.map((f) => f.filename), { repoDir: deps.repoDir ?? process.cwd(), baseSha: base, fetchMissingBase: true, log: deps.log })
+      ? linguistExcluded(filtered.kept.map((f) => f.filename), { repoDir: deps.repoDir ?? process.cwd(), baseSha: base, readBaseAttributes: () => readBaseAttributeFiles(gh, repo, base, deps.log), log: deps.log })
       : new Set<string>();
   const kept = filtered.kept.filter((f) => !marked.has(f.filename));
   const dropped = [...filtered.dropped, ...filtered.kept.filter((f) => marked.has(f.filename))];

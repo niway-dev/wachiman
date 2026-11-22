@@ -107,59 +107,59 @@ describe("linguist exclusion from the base commit", () => {
     expect(logs).toEqual([]);
   });
 
-  test("a shallow clone fetches the missing base and a failed fetch is named", () => {
+  test("a base missing from the clone is answered from the attribute files alone, with no fetch and no token in any git", () => {
     const f = fixture();
-    const clone = join(tmpdir(), `wachiman-linguist-shallow-${process.pid}`);
-    rmSync(clone, { recursive: true, force: true });
-    git(f.dir, "config", "uploadpack.allowAnySHA1InWant", "true");
-    git(tmpdir(), "clone", "-q", "--depth=1", `file://${f.dir}`, clone);
-    try {
-      const logs: string[] = [];
-      const missingBase = { repoDir: clone, baseSha: f.base, log: (l: string) => logs.push(l) };
-      expect(linguistExcluded(f.paths, missingBase).size).toBe(0);
-      const excluded = linguistExcluded(f.paths, { ...missingBase, fetchMissingBase: true });
-      expect([...excluded].sort()).toEqual(["gen/a.js", "vendor/b.js"]);
-      const failed = linguistExcluded(f.paths, { repoDir: clone, baseSha: "2".repeat(40), fetchMissingBase: true, log: (l) => logs.push(l) });
-      expect(failed.size).toBe(0);
-      expect(logs.at(-1)).toMatch(/fetching it failed: \S/);
-    } finally {
-      rmSync(clone, { recursive: true, force: true });
-    }
-  });
-
-  test("a shallow clone fetches the base once, one check-attr answers, and no git receives the run token", () => {
-    const f = fixture();
-    const clone = join(tmpdir(), `wachiman-linguist-token-${process.pid}`);
-    rmSync(clone, { recursive: true, force: true });
-    git(f.dir, "config", "uploadpack.allowAnySHA1InWant", "true");
-    git(tmpdir(), "clone", "-q", "--depth=1", `file://${f.dir}`, clone);
-    try {
-      withGitShim((calls) => {
-        const excluded = linguistExcluded(f.paths, { repoDir: clone, baseSha: f.base, fetchMissingBase: true, log: () => {} });
-        expect([...excluded].sort()).toEqual(["gen/a.js", "vendor/b.js"]);
-        const all = calls();
-        expect(all.filter((c) => c.includes(" fetch ")).length).toBe(1);
-        expect(all.filter((c) => c.includes(" check-attr ")).length).toBe(1);
-        expect(all.every((c) => c.startsWith("token=|config= "))).toBe(true);
+    const logs: string[] = [];
+    const reads: number[] = [];
+    withGitShim((calls) => {
+      const excluded = linguistExcluded(f.paths, {
+        repoDir: f.dir,
+        baseSha: "1".repeat(40),
+        readBaseAttributes: () => {
+          reads.push(1);
+          return [
+            { path: ".gitattributes", content: BASE_ATTRIBUTES },
+            { path: "nested/.gitattributes", content: "x.txt linguist-vendored\n" },
+          ];
+        },
+        log: (l) => logs.push(l),
       });
-    } finally {
-      rmSync(clone, { recursive: true, force: true });
-    }
+      expect([...excluded].sort()).toEqual(["gen/a.js", "nested/x.txt", "vendor/b.js"]);
+      const all = calls();
+      expect(all.some((c) => c.includes(" fetch "))).toBe(false);
+      expect(all.filter((c) => c.includes(" check-attr ")).length).toBe(1);
+      expect(all.every((c) => c.startsWith("token=|config= "))).toBe(true);
+    });
+    expect(reads).toEqual([1]);
+    expect(logs).toEqual(["3 file(s) are marked linguist-generated or linguist-vendored at the base commit and are not reviewed."]);
   });
 
-  test("a failed fetch names a reason", () => {
+  test("a base present in the clone is read with --source and the attribute files are never requested", () => {
     const f = fixture();
-    const clone = join(tmpdir(), `wachiman-linguist-nofetch-${process.pid}`);
-    rmSync(clone, { recursive: true, force: true });
-    git(tmpdir(), "clone", "-q", "--depth=1", `file://${f.dir}`, clone);
-    try {
-      git(clone, "remote", "set-url", "origin", join(tmpdir(), "wachiman-no-such-remote"));
-      const logs: string[] = [];
-      linguistExcluded(f.paths, { repoDir: clone, baseSha: f.base, fetchMissingBase: true, log: (l) => logs.push(l) });
-      expect(logs.at(-1)).toMatch(/fetching it failed: \S/);
-    } finally {
-      rmSync(clone, { recursive: true, force: true });
-    }
+    const excluded = linguistExcluded(f.paths, {
+      repoDir: f.dir,
+      baseSha: f.base,
+      readBaseAttributes: () => {
+        throw new Error("must not be called");
+      },
+      log: () => {},
+    });
+    expect([...excluded].sort()).toEqual(["gen/a.js", "vendor/b.js"]);
+  });
+
+  test("a failing attribute read fails open with one line", () => {
+    const f = fixture();
+    const logs: string[] = [];
+    const excluded = linguistExcluded(f.paths, {
+      repoDir: f.dir,
+      baseSha: "1".repeat(40),
+      readBaseAttributes: () => {
+        throw new Error("HTTP 502");
+      },
+      log: (l) => logs.push(l),
+    });
+    expect(excluded.size).toBe(0);
+    expect(logs).toEqual(["linguist-generated and linguist-vendored are not applied: Error: HTTP 502."]);
   });
 
   test("a base commit that is not in the clone excludes nothing and logs one line", () => {

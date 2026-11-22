@@ -5,10 +5,15 @@
  * its own files as generated and so remove them from its own review.
  *
  * One `git check-attr --source=<base>` process answers for every changed path of a run. `--source`
- * needs git 2.40; on an older git, or when the base commit is not in the clone, nothing is
- * excluded and one line says so. This never fails a run.
+ * needs git 2.40; on an older git nothing is excluded and one line says so. When the base commit is
+ * not in the clone (a shallow CI checkout), the caller hands over the base's `.gitattributes` files,
+ * read through the GitHub API, and one `check-attr` runs in a throwaway repository that holds only
+ * them. No git ever fetches, so no token ever reaches a git process. This never fails a run.
  */
 import { spawnSync } from "node:child_process";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
 import { GIT_BASE_ARGS, gitEnv } from "./evidence";
 
 const TIMEOUT_MS = 60_000;
@@ -36,11 +41,19 @@ export function parseCheckAttr(stdout: string): Set<string> {
   return marked;
 }
 
+export interface AttributeFile {
+  path: string;
+  content: string;
+}
+
 export interface LinguistOptions {
   repoDir: string;
   baseSha: string;
-  /** Fetch the base commit when a shallow clone (a CI checkout) lacks it. Local runs never fetch. */
-  fetchMissingBase?: boolean;
+  /**
+   * The base commit's `.gitattributes` files (repository-relative path and content), for when the
+   * clone lacks the base commit. Called at most once; it may throw, which fails open. Local runs omit it.
+   */
+  readBaseAttributes?: () => AttributeFile[];
   log: (line: string) => void;
 }
 
@@ -60,48 +73,77 @@ function failureReason(r: ReturnType<typeof git>): string {
   return why.slice(0, 200);
 }
 
+const NOT_APPLIED = "linguist-generated and linguist-vendored are not applied";
+
+/** The marks of `paths` according to attribute files alone, in a throwaway repository. Null when git failed. */
+function markedByFiles(files: AttributeFile[], paths: readonly string[], log: (line: string) => void): Set<string> | null {
+  const dir = mkdtempSync(join(tmpdir(), "wachiman-attrs-"));
+  try {
+    const init = git(dir, ["init", "-q"]);
+    if (init.status !== 0) {
+      log(`${NOT_APPLIED}: git init failed (${failureReason(init)}).`);
+      return null;
+    }
+    for (const f of files) {
+      const target = join(dir, f.path);
+      mkdirSync(dirname(target), { recursive: true });
+      writeFileSync(target, f.content);
+    }
+    // Nothing but the base's own files: no user or system attributes file.
+    const run = spawnSync("git", [...GIT_BASE_ARGS, "-c", "core.attributesFile=/dev/null", "check-attr", "--stdin", "-z", "linguist-generated", "linguist-vendored"], {
+      cwd: dir,
+      encoding: "utf8",
+      input: paths.join("\0") + "\0",
+      timeout: TIMEOUT_MS,
+      maxBuffer: MAX_BYTES,
+      env: { ...gitEnv(), GIT_ATTR_NOSYSTEM: "1" },
+    });
+    if (run.status !== 0) {
+      log(`${NOT_APPLIED}: git check-attr failed (${failureReason(run)}).`);
+      return null;
+    }
+    return parseCheckAttr(run.stdout);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 /** Of `paths`, those the base commit's `.gitattributes` marks `linguist-generated` or `linguist-vendored`. */
 export function linguistExcluded(paths: readonly string[], o: LinguistOptions): Set<string> {
   const none = new Set<string>();
   if (paths.length === 0) return none;
+  const report = (marked: Set<string>) => {
+    if (marked.size > 0) o.log(`${marked.size} file(s) are marked linguist-generated or linguist-vendored at the base commit and are not reviewed.`);
+    return marked;
+  };
   try {
-    const version = git(o.repoDir, ["--version"]);
-    if (version.status !== 0 || !gitSupportsAttrSource(version.stdout)) {
-      o.log(`linguist-generated and linguist-vendored are not applied: this git (${version.stdout.trim() || "unknown version"}) has no check-attr --source (2.40 or newer).`);
-      return none;
-    }
     // Changed paths are relative to the repository root, and check-attr reads them relative to its cwd.
     const top = git(o.repoDir, ["rev-parse", "--show-toplevel"]);
     const cwd = top.status === 0 && top.stdout.trim() !== "" ? top.stdout.trim() : o.repoDir;
     // A range that starts at a root commit has the empty tree as its base: a tree, with no marks.
-    const kind = () => git(cwd, ["cat-file", "-t", o.baseSha]).stdout.trim();
-    let type = kind();
+    const type = git(cwd, ["cat-file", "-t", o.baseSha]).stdout.trim();
     if (type === "tree") return none;
-    let fetchNote = "";
-    const shallow = () => git(cwd, ["rev-parse", "--is-shallow-repository"]).stdout.trim() === "true";
-    if (type !== "commit" && o.fetchMissingBase && shallow()) {
-      // Like every git the engine runs here, with no token in its environment: a checkout that kept
-      // its credentials (actions/checkout does by default) fetches, one that did not fails and is named.
-      const fetched = git(cwd, ["fetch", "--no-tags", "--depth=1", "origin", o.baseSha]);
-      if (fetched.status !== 0) {
-        fetchNote = ` (fetching it failed: ${failureReason(fetched)})`;
-      }
-      type = kind();
-    }
     if (type !== "commit") {
-      o.log(`linguist-generated and linguist-vendored are not applied: the base commit ${o.baseSha.slice(0, 7)} is not in the clone${fetchNote}.`);
+      if (!o.readBaseAttributes) {
+        o.log(`${NOT_APPLIED}: the base commit ${o.baseSha.slice(0, 7)} is not in the clone.`);
+        return none;
+      }
+      const marked = markedByFiles(o.readBaseAttributes(), paths, o.log);
+      return marked ? report(marked) : none;
+    }
+    const version = git(o.repoDir, ["--version"]);
+    if (version.status !== 0 || !gitSupportsAttrSource(version.stdout)) {
+      o.log(`${NOT_APPLIED}: this git (${version.stdout.trim() || "unknown version"}) has no check-attr --source (2.40 or newer).`);
       return none;
     }
     const run = git(cwd, ["check-attr", `--source=${o.baseSha}`, "--stdin", "-z", "linguist-generated", "linguist-vendored"], paths.join("\0") + "\0");
     if (run.status !== 0) {
-      o.log(`linguist-generated and linguist-vendored are not applied: git check-attr failed (${failureReason(run)}).`);
+      o.log(`${NOT_APPLIED}: git check-attr failed (${failureReason(run)}).`);
       return none;
     }
-    const marked = parseCheckAttr(run.stdout);
-    if (marked.size > 0) o.log(`${marked.size} file(s) are marked linguist-generated or linguist-vendored at the base commit and are not reviewed.`);
-    return marked;
+    return report(parseCheckAttr(run.stdout));
   } catch (error) {
-    o.log(`linguist-generated and linguist-vendored are not applied: ${String(error).slice(0, 200)}.`);
+    o.log(`${NOT_APPLIED}: ${String(error).slice(0, 200)}.`);
     return none;
   }
 }
