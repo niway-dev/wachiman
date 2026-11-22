@@ -327,6 +327,22 @@ describe("reviewChange from a ReviewInput", () => {
     expect(result.coverage.skipped).toEqual([{ path: second[0], reason: "not reached: the pull request's budget was spent" }]);
   });
 
+  test("a call cut on a budget that was the run's remaining room is not retried; one cut at the per-call cap is", async () => {
+    const input = branchInput({
+      files: [{ filename: "src/a.ts", additions: 2, deletions: 0, patch: "@@ -1,1 +1,3 @@\n const a = 1;\n+const b = 2;\n+const c = 3;" }],
+    });
+    const cut = () => ({ costUsd: 0.1, terminalReason: "budget" as const, isError: true });
+    const room = new FakeProvider([cut, cut]);
+    // Room $0.30 is below the $1 per-call cap: the retry would meet the same limit with less room.
+    const limited = await reviewChange(input, options({ totalBudgetUsd: 0.3, batchBudgetUsd: 1 }), coreDeps(room).deps);
+    expect(room.requests).toHaveLength(1);
+    expect(limited.coverage.skipped).toEqual([{ path: "src/a.ts", reason: "not reached: the call ran out of its budget" }]);
+    // The same cut at the full cap, with room left: retried as before.
+    const capped = new FakeProvider([cut, cut]);
+    await reviewChange(input, options({ totalBudgetUsd: 5, batchBudgetUsd: 0.3 }), coreDeps(capped).deps);
+    expect(capped.requests).toHaveLength(2);
+  });
+
   test("an unknown format is a usage error before any call", async () => {
     const provider = new FakeProvider([]);
     const input = { ...branchInput(), format: "wachiman.review-input/3" } as unknown as ReviewInput;

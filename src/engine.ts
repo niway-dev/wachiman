@@ -3655,7 +3655,10 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     // A refused call (no credit, bad key) would be refused again: no retry.
     // Only this batch's own refusal explains its gaps; another batch's refusal only stops new calls.
     const ownRefusal = first.rejection !== undefined && first.rejection.kind !== "other";
-    const grant = gaps.length > 0 && first.stopped !== "timeout" && !ownRefusal ? await acquire(i, false) : undefined;
+    // A call cut on a budget that was the run's remaining room (below the per-call cap) would meet the
+    // same limit again with less room; one cut at the full cap gets a fresh cap.
+    const roomCut = first.budget && firstBudget < batchBudget;
+    const grant = gaps.length > 0 && first.stopped !== "timeout" && !ownRefusal && !roomCut ? await acquire(i, false) : undefined;
     if (gaps.length > 0 && grant && "usd" in grant) {
       const retry = await reviewBatchBackingOff(
         core,
