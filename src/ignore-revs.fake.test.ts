@@ -210,6 +210,11 @@ describe("githubFormatOnly reads the pull request through GitHub (AC17)", () => 
     expect(githubFormatOnly(w.gh, "o/r", 7, HEAD, names, () => {})).toEqual(["src/fmt.ts"]);
   });
 
+  test("a file the listed commit renamed into, as the jq marks it, is not routed", () => {
+    const w = world(FILES, { ignoreRevs: LISTING, commits: [{ sha: FORMAT_SHA, paths: ["src/fmt.ts", "src/old-fmt.ts", "\u0002src/fmt.ts"] }] });
+    expect(githubFormatOnly(w.gh, "o/r", 7, HEAD, names, () => {})).toEqual([]);
+  });
+
   test("a renamed file is matched by either of its names", () => {
     const w = world(FILES, { ignoreRevs: LISTING, commits: [{ sha: FORMAT_SHA, paths: ["src/fmt.ts", "src/old-fmt.ts"] }] });
     expect(githubFormatOnly(w.gh, "o/r", 7, HEAD, [...names, "src/old-fmt.ts"], () => {})).toEqual(["src/fmt.ts", "src/old-fmt.ts"]);

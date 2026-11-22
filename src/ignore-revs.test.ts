@@ -81,4 +81,14 @@ describe("formatOnlyPaths", () => {
   test("with nothing listed there is no format-only file", () => {
     expect(formatOnlyPaths(files, touches, new Set())).toEqual([]);
   });
+
+  test("a file a commit renamed into is never format-only: an unlisted edit may sit under its old name", () => {
+    // B (unlisted) edits old.ts; A (listed) renames it to new.ts. new.ts has only A against its name.
+    const renaming = [
+      { sha: B, paths: ["src/old.ts"] },
+      { sha: A, paths: ["src/old.ts", "src/new.ts"], renamedTo: ["src/new.ts"] },
+    ];
+    expect(formatOnlyPaths(["src/new.ts"], renaming, new Set([A]))).toEqual([]);
+    expect(formatOnlyPaths(["src/new.ts"], [{ sha: A, paths: ["src/new.ts"] }], new Set([A]))).toEqual(["src/new.ts"]);
+  });
 });

@@ -63,6 +63,19 @@ describe("localFormatOnly reads the range with one git log", () => {
     expect(run(b, listing, ["a.ts", "b.ts"]).only).toEqual([]);
   });
 
+  test("a file a listed commit renamed after an unlisted edit stays with the main model", () => {
+    const dir = emptyRepo();
+    const body = Array.from({ length: 40 }, (_, i) => `line ${i}\n`).join("");
+    const mergeBase = commit(dir, { "old.ts": body, "other.ts": "x=1\n" }, "base");
+    git(dir, "switch", "-q", "-c", "feat/x");
+    commit(dir, { "old.ts": `${body}// behaviour change\n` }, "feat: change old");
+    git(dir, "mv", "old.ts", "new.ts");
+    git(dir, "commit", "-q", "-m", "style: rename");
+    const rename = git(dir, "rev-parse", "HEAD").trim();
+    const notes: string[] = [];
+    expect(localFormatOnly(dir, mergeBase, "HEAD", ["new.ts"], `${rename}\n`, (l) => notes.push(l))).toEqual([]);
+  });
+
   test("a review that starts at a root commit reads all of the head's history", () => {
     const dir = emptyRepo();
     const root = commit(dir, { "a.ts": "a=1\n" }, "style: format everything");

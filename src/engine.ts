@@ -1807,8 +1807,9 @@ export function githubFormatOnly(
       return [];
     }
     // Each page of a commit prints its file count first (behind a control character, which no path
-    // starts with), then every name the page holds, old and new for a rename.
-    const jq = '.files // [] | (length | "\\u0001" + tostring), (.[] | (.filename, .previous_filename // empty))';
+    // starts with), then every name the page holds: old and new for a rename, the new one also
+    // marked with a second control character as renamed into.
+    const jq = '.files // [] | (length | "\\u0001" + tostring), (.[] | .filename, (if .previous_filename then (.previous_filename, "\\u0002" + .filename) else empty end))';
     const touches: CommitTouch[] = [];
     for (const sha of range) {
       const lines = gh(["api", "--paginate", `repos/${repo}/commits/${sha}?per_page=100`, "--jq", jq])
@@ -1821,7 +1822,11 @@ export function githubFormatOnly(
         note(`${IGNORE_REVS_PATH} is not used: commit ${sha.slice(0, 7)} touched ${GITHUB_COMMIT_FILE_CAP} or more files, more than GitHub lists, so every file goes to the main model.`);
         return [];
       }
-      touches.push({ sha, paths: lines.filter((l) => !l.startsWith("\u0001")) });
+      touches.push({
+        sha,
+        paths: lines.filter((l) => !l.startsWith("\u0001") && !l.startsWith("\u0002")),
+        renamedTo: lines.filter((l) => l.startsWith("\u0002")).map((l) => l.slice(1)),
+      });
     }
     const only = formatOnlyPaths(files, touches, listed);
     note(`${IGNORE_REVS_PATH} lists ${listed.size} of the ${range.length} commit(s) of this pull request; ${only.length} of the ${files.length} file(s) changed only by them.`);

@@ -16,10 +16,14 @@ export const IGNORE_REVS_PATH = ".git-blame-ignore-revs";
 /** An abbreviation shorter than this is not matched: it names too many commits to mean one. */
 const MIN_ABBREV = 7;
 
-/** One commit of the range and every path it touched; a rename counts as both its old and its new name. */
+/**
+ * One commit of the range and every path it touched; a rename counts as both its old and its new
+ * name. `renamedTo` holds the new names of the files the commit renamed, when the connector can tell.
+ */
 export interface CommitTouch {
   sha: string;
   paths: string[];
+  renamedTo?: string[];
 }
 
 /**
@@ -53,11 +57,15 @@ export function listedCommitsIn(hashes: readonly string[], range: readonly strin
 /**
  * The paths of `files` that go to the cheaper model: at least one commit of the range touches the
  * path and every commit that touches it is in `listed` (full hashes, from `listedCommitsIn`). A path
- * no commit is seen touching, which a merge or a truncated log can leave, is never format-only.
+ * no commit is seen touching, which a merge or a truncated log can leave, is never format-only. Nor
+ * is a path some commit of the range renamed into: its history before the rename sits under its old
+ * name, so an unlisted edit to the old name could hide behind a listed rename.
  */
 export function formatOnlyPaths(files: readonly string[], touches: readonly CommitTouch[], listed: ReadonlySet<string>): string[] {
   const touched = new Map<string, { listed: boolean; unlisted: boolean }>();
-  for (const { sha, paths } of touches) {
+  const renamed = new Set<string>();
+  for (const { sha, paths, renamedTo } of touches) {
+    for (const path of renamedTo ?? []) renamed.add(path);
     const isListed = listed.has(sha.toLowerCase());
     for (const path of paths) {
       const seen = touched.get(path) ?? { listed: false, unlisted: false };
@@ -68,6 +76,6 @@ export function formatOnlyPaths(files: readonly string[], touches: readonly Comm
   }
   return files.filter((path) => {
     const seen = touched.get(path);
-    return seen !== undefined && seen.listed && !seen.unlisted;
+    return seen !== undefined && seen.listed && !seen.unlisted && !renamed.has(path);
   });
 }

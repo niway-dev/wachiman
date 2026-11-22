@@ -428,12 +428,30 @@ export function localFormatOnly(
       note(`${IGNORE_REVS_PATH} is not used: this clone is shallow, so the commits of the range cannot all be seen. Every file goes to the main model.`);
       return [];
     }
-    const log = run(git, repoDir, ["log", "-z", "-m", "--no-renames", "--name-only", "--format=%x01%H", mergeBase === null ? head : `${mergeBase}..${head}`], DIFF_MAX_BYTES);
+    const log = run(git, repoDir, ["log", "-z", "-m", "-M", "--name-status", "--format=%x01%H", mergeBase === null ? head : `${mergeBase}..${head}`], DIFF_MAX_BYTES);
     const touches: CommitTouch[] = [];
-    for (const token of log.split("\0")) {
-      if (token === "") continue;
-      if (token.startsWith("\x01")) touches.push({ sha: token.slice(1).trim(), paths: [] });
-      else touches[touches.length - 1]?.paths.push(token.replace(/^\n/, ""));
+    // `-z --name-status` prints a status token and then one path, or two (old, new) for a rename or a copy.
+    const tokens = log.split("\0");
+    for (let i = 0; i < tokens.length; i++) {
+      const token = tokens[i];
+      if (token.startsWith("\x01")) {
+        touches.push({ sha: token.slice(1).trim(), paths: [], renamedTo: [] });
+        continue;
+      }
+      const current = touches[touches.length - 1];
+      if (token === "" || !current) continue;
+      const status = token.replace(/^\n/, "");
+      if (/^[RC]\d*$/.test(status)) {
+        const [from, to] = [tokens[i + 1], tokens[i + 2]];
+        if (from === undefined || to === undefined) throw new Error("git log ended inside a rename");
+        current.paths.push(from, to);
+        current.renamedTo?.push(to);
+        i += 2;
+      } else {
+        const path = tokens[++i];
+        if (path === undefined) throw new Error("git log ended inside a status line");
+        current.paths.push(path);
+      }
     }
     const range = [...new Set(touches.map((t) => t.sha))];
     const listed = listedCommitsIn(hashes, range);
