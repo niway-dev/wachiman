@@ -82,6 +82,7 @@ class World {
     if (line.startsWith("api repos/o/r/pulls/7 ")) return BASE;
     if (line.includes("/pulls/7/files")) return this.files(this.head).map((f) => JSON.stringify(f)).join("\n");
     if (line.includes("/pulls/7/reviews")) return this.reviews.map((r) => JSON.stringify(r)).join("\n");
+    if (line.includes("/issues/7/comments")) return "";
     if (line.includes("/pulls/7/comments")) return this.inlineReplies.map((body) => JSON.stringify({ body })).join("\n");
     if (line.startsWith("api graphql"))
       return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: this.threads } } } } });
@@ -184,6 +185,8 @@ async function run(world: World, provider: Provider, env: Record<string, string>
 const stopsInBatchSeven = () =>
   new Provider((files) => (files.some((f) => [F13, F14, F15, F16].includes(f)) ? { cost: 0.3, budget: true } : { cost: 0.45 }));
 const reviewsEverything = (cost = 0.2) => new Provider(() => ({ cost }));
+/** A model with the lowest per-batch estimate, so a small total still passes the room gate and the run reaches the batch loop. */
+const CHEAP_ESTIMATE = { WACHIMAN_MODEL: "claude-haiku-5-5" };
 
 const COMPLETE_MARKER = (sha: string) => `<!-- wachiman sha=${sha} -->`;
 
@@ -247,7 +250,7 @@ describe("a push after a partial review resumes with the files it did not reach"
     world.push("aaaa0002", allFiles({ [F01]: 1 }));
     // Five files are due. The first part is reviewed; the second and third parts stop on their budget.
     const second = new Provider((_files, call) => (call === 1 ? { cost: 0.4 } : { cost: 0.5, budget: true }));
-    const r2 = await run(world, second, { WACHIMAN_BUDGET_USD: "0.9" });
+    const r2 = await run(world, second, { WACHIMAN_BUDGET_USD: "0.9", ...CHEAP_ESTIMATE });
     // The second part and the third share what the first leaves: both stop on it.
     expect(second.requests.length).toBeGreaterThanOrEqual(2);
     expect(r2.posted[0].split("\n")[0]).toContain("⚠️ **Partial: 3 of 5 files not reviewed**");
@@ -370,7 +373,7 @@ describe("a push after a partial review resumes with the files it did not reach"
     for (const sha of ["aaaa0002", "aaaa0003"]) {
       world.push(sha, allFiles({ [F01]: sha === "aaaa0002" ? 1 : 2 }));
       const next = new Provider((_files, call) => (call === 1 ? { cost: 0.4 } : { cost: 0.5, budget: true }));
-      const r = await run(world, next, { WACHIMAN_BUDGET_USD: "0.9" });
+      const r = await run(world, next, { WACHIMAN_BUDGET_USD: "0.9", ...CHEAP_ESTIMATE });
       expect(r.posted[0]).not.toContain("after two tries");
     }
     world.push("aaaa0004", allFiles({ [F01]: 2 }));

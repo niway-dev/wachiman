@@ -30,11 +30,18 @@ export interface EngineConfig {
    */
   autoBudgetUsd: number;
   /**
-   * `WACHIMAN_SIZE_GATE_USD`: the most a review's estimate may be before a GitHub run skips it
-   * and posts one comment instead. The effective gate is never below what the run may spend
-   * (`sizeGate` in estimate.ts), so raising the budgets lifts it. Local runs only warn.
+   * `WACHIMAN_SIZE_GATE_USD`: deprecated (ADR 0062). The gate is the room the run may spend
+   * (`batchRoom` in engine.ts), so this value gates nothing. It is still read and validated so a
+   * caller that sets it does not fail; one deprecation line is logged when it is set, none when it
+   * is not. Removed in the next major version.
    */
-  sizeGateUsd: number;
+  sizeGateUsd?: number;
+  /**
+   * `WACHIMAN_APPROVE_MAX_USD`: the most an operator's `/wachiman review --budget N --head SHA`
+   * may approve for one run (default 20). Above it the command is refused and the skip comment
+   * offers no command.
+   */
+  approveMaxUsd: number;
   /**
    * `WACHIMAN_LEDGER_URL`: the spend ledger service, trimmed, without a trailing slash. Unset
    * means no ledger call of any kind. It is also the OIDC audience, as configured.
@@ -266,10 +273,16 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
       `WACHIMAN_PROVIDER ${provider} cannot run in a job that holds an OIDC request token: its sandbox can read it from the engine's environment. Use claude-code, or call review.yml instead of wachiman-platform.yml.`,
     );
   }
+  // Deprecated and without effect (ADR 0062): validated like before, and said once when it is set.
+  const sizeGateUsd = get("SIZE_GATE_USD") === undefined ? undefined : number("SIZE_GATE_USD", 0);
+  if (sizeGateUsd !== undefined) {
+    warn("WACHIMAN_SIZE_GATE_USD (size_gate_usd) is deprecated and no longer gates a review: the gate is the room the run may spend. Remove it; it will be removed in the next major version.");
+  }
   return {
     budgetUsd: number("BUDGET_USD", 3),
     autoBudgetUsd: number("AUTO_BUDGET_USD", 6),
-    sizeGateUsd: number("SIZE_GATE_USD", 6),
+    sizeGateUsd,
+    approveMaxUsd: number("APPROVE_MAX_USD", 20),
     threadsBudgetUsd: number("THREADS_BUDGET_USD", 0.25),
     trigger: trigger || undefined,
     batchBudgetUsd: number("BATCH_BUDGET_USD", 0.75),

@@ -135,6 +135,48 @@ describe("parseCommand", () => {
     expect(parseCommand("/wachi review --force docs/")).toEqual({ kind: "review", paths: ["--force", "docs/"], force: true });
   });
 
+  test("--budget and --head are the approval: read apart from the paths, with their values (AC7)", () => {
+    expect(parseCommand("/wachiman review --budget 9 --head abc1234")).toEqual({
+      kind: "review",
+      paths: [],
+      force: false,
+      approve: { budget: "9", head: "abc1234" },
+    });
+    // Either order, and with paths: the approval words and their values never reach `paths`.
+    expect(parseCommand("/wachiman review src/ --head abc1234 --budget 9.5 docs/")).toEqual({
+      kind: "review",
+      paths: ["src/", "docs/"],
+      force: false,
+      approve: { budget: "9.5", head: "abc1234" },
+    });
+    // `--force` still stays among the words, as before.
+    expect(parseCommand("/wachiman review --force --budget 9 --head abc1234")).toEqual({
+      kind: "review",
+      paths: ["--force"],
+      force: true,
+      approve: { budget: "9", head: "abc1234" },
+    });
+  });
+
+  test("an approval that is incomplete or in another form is a problem, never a path (AC7)", () => {
+    const problem = (body: string) => {
+      const parsed = parseCommand(body);
+      expect(parsed?.kind).toBe("review");
+      if (parsed?.kind !== "review") return "";
+      expect(parsed.paths).toEqual([]);
+      expect(parsed.approve?.problem).toBeString();
+      return parsed.approve?.problem ?? "";
+    };
+    expect(problem("/wachiman review --budget 8")).toContain("--head");
+    expect(problem("/wachiman review --head abc1234")).toContain("--budget");
+    expect(problem("/wachiman review --budget")).toContain("needs a value");
+    expect(problem("/wachiman review --head")).toContain("needs a value");
+    expect(problem("/wachiman review --budget --head abc1234")).toContain("needs a value");
+    expect(problem("/wachiman review --budget=8 --head abc1234")).toContain("--budget 8");
+    expect(problem("/wachiman review --budget 8 --head=abc1234")).toContain("--head abc1234");
+    expect(problem("/wachiman review --budget 8 --budget 9 --head abc1234")).toContain("twice");
+  });
+
   test("treats any other mention as a question", () => {
     expect(parseCommand("/wachiman why is this async?")).toEqual({ kind: "answer" });
   });

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { estimateReview, PER_BATCH_USD, sizeGate, suggestedBudget } from "./estimate";
-import { estimateFor, type ReviewFile } from "./engine";
+import { estimateReview, PER_BATCH_USD } from "./estimate";
+import { approvalBudget, batchRoom, estimateFor, type ReviewFile } from "./engine";
+import type { ExceptionPlan } from "./memory/mute";
 import { loadConfig } from "./config";
 
 const file = (filename: string, additions: number, deletions = 0): ReviewFile => ({ filename, additions, deletions });
@@ -51,28 +52,39 @@ describe("estimateFor", () => {
   });
 });
 
-describe("sizeGate", () => {
-  test("never falls below what the run may spend", () => {
-    const config = { sizeGateUsd: 6, budgetUsd: 3, autoBudgetUsd: 6 };
-    expect(sizeGate(config, false)).toBe(6);
-    expect(sizeGate(config, true)).toBe(6);
+describe("batchRoom: what the batches get once the reserves are taken (AC4)", () => {
+  const none = { active: [], stale: [] } as ExceptionPlan;
+  const exceptions = { active: [{ id: "e" }], stale: [] } as unknown as ExceptionPlan;
+
+  test("with no verifier and no exception the batches get the whole total", () => {
+    expect(batchRoom(3, undefined, none)).toBe(3);
   });
 
-  test("an operator run is lifted by budget_usd alone", () => {
-    const config = { sizeGateUsd: 6, budgetUsd: 33, autoBudgetUsd: 6 };
-    expect(sizeGate(config, false)).toBe(33);
+  test("the verifier reserve is its budget, at most half the total", () => {
+    expect(batchRoom(3, { budgetUsd: 1 }, none)).toBe(2);
+    expect(batchRoom(1, { budgetUsd: 1 }, none)).toBe(0.5);
   });
 
-  test("an automatic run is bounded by auto_budget_usd too, so both must be raised", () => {
-    expect(sizeGate({ sizeGateUsd: 6, budgetUsd: 33, autoBudgetUsd: 6 }, true)).toBe(6);
-    expect(sizeGate({ sizeGateUsd: 6, budgetUsd: 33, autoBudgetUsd: 40 }, true)).toBe(33);
+  test("an active exception reserves a matching call: $0.25 at most, a quarter of what is left", () => {
+    expect(batchRoom(3, undefined, exceptions)).toBe(2.75);
+    expect(batchRoom(0.4, undefined, exceptions)).toBeCloseTo(0.3, 10);
+    expect(batchRoom(3, { budgetUsd: 1 }, exceptions)).toBe(1.75);
   });
 });
 
-describe("suggestedBudget", () => {
-  test("rounds 1.5 times the estimate up to a whole dollar, at least 1", () => {
-    expect(suggestedBudget(21.76)).toBe(33);
-    expect(suggestedBudget(20)).toBe(30);
-    expect(suggestedBudget(0.1)).toBe(1);
+describe("approvalBudget: the smallest whole dollar whose batch room is 1.5 times the estimate (AC5)", () => {
+  const none = { active: [], stale: [] } as ExceptionPlan;
+
+  test("with no reserve it is 1.5 times the estimate rounded up", () => {
+    expect(approvalBudget(9.6, (n) => batchRoom(n, undefined, none))).toBe(15);
+    expect(approvalBudget(5.76, (n) => batchRoom(n, undefined, none))).toBe(9);
+  });
+
+  test("a verifier reserve is paid out of N, so N grows to leave the batches their share (AC15)", () => {
+    expect(approvalBudget(9.6, (n) => batchRoom(n, { budgetUsd: 1 }, none))).toBe(16);
+  });
+
+  test("an estimate that needs less than a dollar still asks for $1", () => {
+    expect(approvalBudget(0.1, (n) => batchRoom(n, undefined, none))).toBe(1);
   });
 });

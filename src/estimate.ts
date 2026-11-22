@@ -1,4 +1,3 @@
-import type { EngineConfig } from "./config";
 import type { ReviewFile } from "./engine";
 
 /**
@@ -45,20 +44,3 @@ export function estimateReview(
     usd: opts.batches * perBatchUsd,
   };
 }
-
-/**
- * The most an estimate may be before a GitHub run skips the review. A run that may spend the
- * whole estimate can afford a full review, so raising `budget_usd` alone lifts the gate for
- * `/wachiman review`. An automatic run is bounded by `auto_budget_usd` too, so it is lifted only
- * when both are raised. A gate below the run's budget would skip pull requests the run could pay
- * for in full.
- */
-export function sizeGate(
-  config: Pick<EngineConfig, "sizeGateUsd" | "budgetUsd" | "autoBudgetUsd">,
-  automatic: boolean,
-): number {
-  return Math.max(config.sizeGateUsd, automatic ? Math.min(config.budgetUsd, config.autoBudgetUsd) : config.budgetUsd);
-}
-
-/** A whole-dollar budget that covers the estimate's upper error (about 40% either way, plus margin). */
-export const suggestedBudget = (usd: number) => Math.max(1, Math.ceil(usd * 1.5));

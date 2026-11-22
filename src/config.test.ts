@@ -12,7 +12,7 @@ describe("loadConfig", () => {
     expect(config).toEqual({
       budgetUsd: 3,
       autoBudgetUsd: 6,
-      sizeGateUsd: 6,
+      approveMaxUsd: 20,
       threadsBudgetUsd: 0.25,
       trigger: undefined,
       batchBudgetUsd: 0.75,
@@ -171,12 +171,31 @@ describe("loadConfig", () => {
     expect(() => load({ WACHIMAN_AUTO_BUDGET_USD: "abc" })).toThrow("WACHIMAN_AUTO_BUDGET_USD");
   });
 
-  test("reads the size gate and rejects one that is not a positive number", () => {
-    expect(load({ WACHIMAN_SIZE_GATE_USD: "12.5" }).config.sizeGateUsd).toBe(12.5);
+  test("AC9: the size gate has no default: unset is empty and logs nothing", () => {
+    const { config, warnings } = load({});
+    expect(config.sizeGateUsd).toBeUndefined();
+    expect(warnings).toEqual([]);
+    expect(load({ WACHIMAN_SIZE_GATE_USD: "" }).config.sizeGateUsd).toBeUndefined();
+  });
+
+  test("AC9: a size gate that is set still validates, logs one deprecation line, and is kept without effect", () => {
+    const { config, warnings } = load({ WACHIMAN_SIZE_GATE_USD: "12.5" });
+    expect(config.sizeGateUsd).toBe(12.5);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("WACHIMAN_SIZE_GATE_USD");
+    expect(warnings[0]).toContain("deprecated");
     for (const bad of ["0", "-1", "two", "NaN", "Infinity"]) {
       expect(() => load({ WACHIMAN_SIZE_GATE_USD: bad })).toThrow(UsageError);
     }
     expect(() => load({ WACHIMAN_SIZE_GATE_USD: "abc" })).toThrow("WACHIMAN_SIZE_GATE_USD");
+  });
+
+  test("approve_max_usd defaults to $20 and must be a positive number", () => {
+    expect(load({}).config.approveMaxUsd).toBe(20);
+    expect(load({ WACHIMAN_APPROVE_MAX_USD: "35" }).config.approveMaxUsd).toBe(35);
+    for (const bad of ["0", "-1", "two", "NaN", "Infinity"]) {
+      expect(() => load({ WACHIMAN_APPROVE_MAX_USD: bad })).toThrow(UsageError);
+    }
   });
 
   test("a run is automatic unless the trigger is absent or the operator's comment", () => {
