@@ -193,6 +193,16 @@ describe("githubFormatOnly reads the pull request through GitHub (AC17)", () => 
     expect(notes.join("\n")).toContain("101 commits");
   });
 
+  test("a listed commit in a range of 250 is a truncated list: nothing is routed and the note says 250 or more", () => {
+    const many = Array.from({ length: 250 }, (_, i) => ({ sha: (i + 1).toString(16).padStart(40, "0"), paths: [] as string[] }));
+    many[0] = { sha: FORMAT_SHA, paths: ["src/fmt.ts"] };
+    const w = world(FILES, { ignoreRevs: LISTING, commits: many });
+    const notes: string[] = [];
+    expect(githubFormatOnly(w.gh, "o/r", 7, HEAD, names, (l) => notes.push(l))).toEqual([]);
+    expect(w.calls.some((c) => /repos\/o\/r\/commits\//.test(c))).toBe(false);
+    expect(notes.join("\n")).toContain("250 or more commits");
+  });
+
   test("the answer is the names, in the order of the files", () => {
     const order = ["src/zeta.ts", "src/alpha.ts", "src/mid.ts"];
     const w = world(FILES, { ignoreRevs: LISTING, commits: [{ sha: FORMAT_SHA, paths: [...order].reverse() }] });

@@ -141,9 +141,9 @@ on:
         type: string
         default: claude-opus-5-5
       format_model:
-        description: Model for files that only commits listed in .git-blame-ignore-revs touched; it always runs at effort low. Without that file in the repository no file is routed to it
+        description: Model for files that only commits listed in .git-blame-ignore-revs touched; it always runs at effort low. Without that file in the repository no file is routed to it. Empty means the provider's default (claude-haiku-5-5 with claude-code, none with codex)
         type: string
-        default: claude-haiku-5-5
+        default: ''
       max_turns:
         description: Most agent turns one call may take (Claude Code --max-turns); a call that reaches it is reported, and its files are retried once
         type: number
