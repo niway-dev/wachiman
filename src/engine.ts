@@ -1799,7 +1799,11 @@ export function githubFormatOnly(
       .filter(Boolean);
     const listed = listedCommitsIn(hashes, range);
     if (listed.size === 0) {
-      note(`${IGNORE_REVS_PATH} lists no commit of this pull request's ${range.length} commit(s): every file goes to the main model.`);
+      note(
+        range.length >= GITHUB_COMMIT_LIST_CAP
+          ? `${IGNORE_REVS_PATH} lists none of the first ${range.length} commits GitHub returned for this pull request, which may have more: every file goes to the main model.`
+          : `${IGNORE_REVS_PATH} lists no commit of this pull request's ${range.length} commit(s): every file goes to the main model.`,
+      );
       return [];
     }
     if (range.length >= GITHUB_COMMIT_LIST_CAP || range.length > MAX_FORMAT_RANGE_COMMITS) {
@@ -3142,17 +3146,34 @@ async function settledOnError<T>(deps: Deps, grant: SpendGrant, run: () => Promi
   }
 }
 
-/** The estimate of reviewing `files` with this configuration: the batches `planBatches` makes, priced per batch. */
 /**
- * The names of the files read by `format_model` (ADR 0063): the listed ones, less any file a path
- * rule matches. The maintainer named that path, so it stays with the main model and in the first
- * batches, whatever the head's `.git-blame-ignore-revs` says.
+ * Files that always stay with the main model, even when only listed commits touch them (ADR 0063):
+ * anything under `.github/` (workflows, actions, the focus file) and the repository instruction
+ * files, wherever they sit in the tree. The head's listing is the pull request author's, and these
+ * files steer the review or the CI, so it cannot lower their review.
+ */
+const SENSITIVE_NAMES: ReadonlySet<string> = new Set([...INSTRUCTION_PATHS.map((p) => p.split("/").pop() ?? p), ".wachiman.yml", ".gitattributes", IGNORE_REVS_PATH]);
+function isSensitivePath(path: string): boolean {
+  return path.startsWith(".github/") || SENSITIVE_NAMES.has(path.split("/").pop() ?? path);
+}
+
+/**
+ * The names of the files read by `format_model` (ADR 0063): the listed ones, less any sensitive
+ * file (`.github/`, the instruction files, `.wachiman.yml`, `.gitattributes`, the listing itself)
+ * and any file a path rule matches. The maintainer named that path, or the file steers the review
+ * or the CI, so it stays with the main model and in the first batches, whatever the head's
+ * `.git-blame-ignore-revs` says.
  */
 export function formatGroupNames(formatOnly: readonly string[], files: readonly ReviewFile[], rules?: readonly PathRule[]): Set<string> {
   const listed = new Set(formatOnly);
-  return new Set(files.filter((f) => listed.has(f.filename) && !matchPathRule(f.filename, rules, f.previous_filename)).map((f) => f.filename));
+  const sensitive = (f: ReviewFile) => isSensitivePath(f.filename) || (f.previous_filename !== undefined && isSensitivePath(f.previous_filename));
+  return new Set(files.filter((f) => listed.has(f.filename) && !sensitive(f) && !matchPathRule(f.filename, rules, f.previous_filename)).map((f) => f.filename));
 }
 
+/**
+ * The estimate of reviewing `files` with this configuration: the batches `planBatches` makes, priced
+ * per batch. `formatOnly` names the files read by `format_model`, which are planned and priced apart.
+ */
 export function estimateFor(files: ReviewFile[], config: EngineConfig, rules?: readonly PathRule[], formatOnly: readonly string[] = []): ReviewEstimate {
   const limits = { maxLines: config.batchLines, maxChars: config.batchChars };
   // The same split `reviewChange` makes (ADR 0063): the format group is planned and priced apart.

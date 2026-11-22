@@ -563,7 +563,9 @@ review names those files, the model and the reason on their own line
 - **What counts.** At least one commit of the range touches the file and every commit that touches it
   is listed. A hash is matched in full or, from 7 characters, as an abbreviation that names one
   commit of the range. A file that a `paths` rule of `.wachiman.yml` matches stays with `model` and in
-  the first batches, whatever the listing says. A file also touched by an unlisted commit, renamed by any commit of the range
+  the first batches, whatever the listing says. So does anything under `.github/` and the files
+  `CLAUDE.md`, `AGENTS.md`, `.wachiman.yml`, `.gitattributes` and `.git-blame-ignore-revs`, because
+  they steer the review or the CI and the listing is the pull request author's. A file also touched by an unlisted commit, renamed by any commit of the range
   (its history under the old name cannot be followed), touched by a merge commit, or by no commit the
   engine could see goes to `model`.
 - **What is never an error.** A missing or unreadable file, a malformed line, a hash outside the range,

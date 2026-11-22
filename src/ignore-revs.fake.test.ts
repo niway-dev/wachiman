@@ -194,8 +194,19 @@ describe("githubFormatOnly reads the pull request through GitHub (AC17)", () => 
   });
 
   test("the answer is the names, in the order of the files", () => {
-    const w = world(FILES, { ignoreRevs: LISTING, commits: COMMITS });
-    expect(githubFormatOnly(w.gh, "o/r", 7, HEAD, names, () => {})).toEqual(["src/fmt.ts"]);
+    const order = ["src/zeta.ts", "src/alpha.ts", "src/mid.ts"];
+    const w = world(FILES, { ignoreRevs: LISTING, commits: [{ sha: FORMAT_SHA, paths: [...order].reverse() }] });
+    expect(githubFormatOnly(w.gh, "o/r", 7, HEAD, order, () => {})).toEqual(order);
+  });
+
+  test("a range of 250 commits is a truncated list: the note says so, and no commit's files are read", () => {
+    const many = Array.from({ length: 250 }, (_, i) => ({ sha: (i + 1).toString(16).padStart(40, "0"), paths: [] as string[] }));
+    const w = world(FILES, { ignoreRevs: LISTING, commits: many });
+    const notes: string[] = [];
+    expect(githubFormatOnly(w.gh, "o/r", 7, HEAD, names, (l) => notes.push(l))).toEqual([]);
+    expect(w.calls.some((c) => /repos\/o\/r\/commits\//.test(c))).toBe(false);
+    expect(notes.join("\n")).toContain("first 250 commits GitHub returned");
+    expect(notes.join("\n")).not.toContain("lists no commit of");
   });
 
   test("a commit that touched 3000 files is not trusted: nothing is routed and the note says why", () => {
@@ -289,5 +300,13 @@ describe("a path rule keeps its file with the main model", () => {
     const names = formatGroupNames(["src/auth/login.ts", "src/util.ts", "lib/moved.ts"], files, rules);
     expect([...names]).toEqual(["src/util.ts"]);
     expect([...formatGroupNames(["src/auth/login.ts", "src/util.ts"], files, undefined)].sort()).toEqual(["src/auth/login.ts", "src/util.ts"]);
+  });
+});
+
+describe("sensitive files keep the main model whatever the listing says", () => {
+  test("workflows, instruction files and the listing itself are never in the format group", () => {
+    const paths = [".github/workflows/ci.yml", ".github/actions/x/action.yml", "CLAUDE.md", "AGENTS.md", "docs/AGENTS.md", ".wachiman.yml", ".gitattributes", ".git-blame-ignore-revs", "src/util.ts"];
+    const files = paths.map((p) => bigFile(p, 5));
+    expect([...formatGroupNames(paths, files)]).toEqual(["src/util.ts"]);
   });
 });
