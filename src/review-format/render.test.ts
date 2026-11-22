@@ -233,10 +233,10 @@ describe("S5: the partial review is readable", () => {
     expect([...listed].sort()).toEqual([...missing].sort());
   });
 
-  test("the first line of the callout reads: Reviewed X of Y files. Not reviewed: Z (n reason; n reason).", () => {
+  test("the first line of the callout reads: Reviewed X of Y files. Not reviewed: Z (n files: reason; n files: reason).", () => {
     const callout = body.split("\n").find((l) => l.startsWith("> "))!;
     expect(callout).toBe(
-      "> ⚠️ **Partial review.** Reviewed 30 of 82 files. Not reviewed: 52 (42 not reached: the pull request's budget was spent; 10 not reached: the call ran out of its budget).",
+      "> ⚠️ **Partial review.** Reviewed 30 of 82 files. Not reviewed: 52 (42 files: not reached: the pull request's budget was spent; 10 files: not reached: the call ran out of its budget).",
     );
     expect(body).toContain("<details><summary>Files not reviewed");
   });

@@ -172,7 +172,7 @@ function partialCallout(view: ReviewView, fit: Fit): string | null {
   const { files } = view;
   const notReviewed = files.total - files.reviewed;
   if (notReviewed === 0) return null;
-  const reasons = files.notReviewed.map((g) => `${g.paths.length} ${oneLineText(g.reason) || "no reason recorded"}`).join("; ");
+  const reasons = files.notReviewed.map((g) => `${g.paths.length} ${g.paths.length === 1 ? "file" : "files"}: ${oneLineText(g.reason) || "no reason recorded"}`).join("; ");
   const twice =
     files.notReviewedTwice.length > 0
       ? ` ${files.notReviewedTwice.length} of them ${files.notReviewedTwice.length === 1 ? "was" : "were"} not reviewed after two tries, so the next push will not carry ${files.notReviewedTwice.length === 1 ? "it" : "them"}.`
