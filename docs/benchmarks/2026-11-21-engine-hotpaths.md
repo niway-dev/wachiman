@@ -41,7 +41,7 @@ For the review (`wachiman local --repo-dir <fixture> --base main`, 476 ms in the
 
 A CPU profile of the 569-file case (Bun 1.3.14, because 1.3.4 has no `--cpu-prof`) shows 436 of 532 ms
 inside `spawnSync`. Of that, `snapshotHead` accounts for 172 ms and evidence gathering for about
-125 ms; the settings and input stages (`openLocalSession`) for about 60 ms before the changes below.
+125 ms; the settings stage (`openLocalSession`, `withLocalSettings`) for about 60 ms before the changes below.
 
 Why the spawn count matters, measured with `spawnbench.ts` over 200 runs per row (two rounds):
 
@@ -63,15 +63,17 @@ here and not applied.
 Counts are source lines that mention the name in `src/**/*.ts`, tests excluded, so they include import
 lines. "Per review" is the number of calls in one `wachiman local` run on the benchmark fixture,
 counted by a shim that replaced the `node:fs` import (file-system calls) or by a preload counter
-(spawns). "Bun equivalent" lists what exists in Bun 1.3.4.
+(spawns). "Bun equivalent" lists what exists in Bun 1.3.4. In the Verdict column, timings read "Node vs Bun", Node
+first, and the Bun forms of file reads, writes and `exists` are async, so adopting them would add an
+`await` to synchronous code.
 
 | Node API | Lines / files | Per review (fixture) | Bun equivalent | Verdict |
 | --- | --- | --- | --- | --- |
-| `spawnSync` (`node:child_process`) | 51 / 20 | 41 before, 28 after (`git`: 37 before, 24 after) | `Bun.spawnSync` | no gain: 8.25 vs 8.01 ms per spawn; the lever is the count |
+| `spawnSync` (`node:child_process`) | 51 / 20 | 41 before, 28 after (`git`: 37 before, 24 after) | `Bun.spawnSync` | no gain: 8.25 vs 8.01 ms per spawn (Node vs Bun); the lever is the count |
 | `spawn` (`node:child_process`) | 9 / 7 | 1 (the `claude` process) | `Bun.spawn` | no gain: one call, dominated by the child |
-| `readFileSync` | 98 / 37 | 2 | `Bun.file(p).text()` (async only) | slower: 21.1 vs 10.9 us for 1 KB; 741 vs 777 us for 10 MB, and review files are capped at 1 MB |
-| `writeFileSync` | 43 / 14 | 5 | `Bun.write` (async) | equal: 18.3 vs 18.2 us for 1 KB |
-| `existsSync` | 87 / 24 | 4 | `Bun.file(p).exists()` (async) | slower: 1.28 vs 0.94 us |
+| `readFileSync` | 98 / 37 | 2 | `Bun.file(p).text()` (async only) | Bun is 1.9x slower: 21.1 us (`readFileSync` is 10.9 us) for 1 KB; for 10 MB 777 vs 741 us, and review files are capped at 1 MB |
+| `writeFileSync` | 43 / 14 | 5 | `Bun.write` (async) | equal: 18.2 vs 18.3 us for 1 KB |
+| `existsSync` | 87 / 24 | 4 | `Bun.file(p).exists()` (async) | Bun is 1.4x slower: 1.28 us (`existsSync` is 0.94 us) |
 | `statSync` | 70 / 22 | 1 | `Bun.file(p).stat()` (async) | none sync; 1 call per review |
 | `lstatSync` | 35 / 12 | 7 | none | none |
 | `readdirSync` | 34 / 11 | 0 | `Bun.Glob` scan | not on the review path |
@@ -79,7 +81,7 @@ counted by a shim that replaced the `node:fs` import (file-system calls) or by a
 | `mkdtempSync` and `rmSync` | 28 and 40 / 11 and 14 | 4 and 6 | none | 96.6 us for one pair; ten pairs under 1 ms |
 | `realpathSync` | 40 / 17 | 4 | none | none |
 | `renameSync`, `appendFileSync`, `copyFileSync` | 26, 5, 2 / 13, 3, 1 | 0 | `Bun.write` for the last two | not on the review path |
-| `createHash` (`node:crypto`) | 18 / 9 | not counted | `Bun.CryptoHasher` | equal: 0.81 vs 0.87 us for 1 KB |
+| `createHash` (`node:crypto`) | 18 / 9 | not counted | `Bun.CryptoHasher` | equal: 0.87 vs 0.81 us for 1 KB |
 | `randomUUID` (`node:crypto`) | 2 / 1 | not counted | `crypto.randomUUID()` (the same call) | none |
 | `fetch` | 2 / 1 | 0 (network paths only) | the same global | none |
 | `node:readline` | 2 / 1 | 0 | none | none |
