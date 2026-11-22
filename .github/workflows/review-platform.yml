@@ -401,7 +401,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           WACHIMAN_BUDGET_USD: ${{ inputs.budget_usd }}
-          WACHIMAN_SIZE_GATE_USD: ${{ inputs.size_gate_usd }}
+          WACHIMAN_SIZE_GATE_USD: ${{ inputs.size_gate_usd != 0 && inputs.size_gate_usd || '' }}
           WACHIMAN_APPROVE_MAX_USD: ${{ inputs.approve_max_usd }}
           WACHIMAN_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}
           WACHIMAN_BATCH_BUDGET_USD: ${{ inputs.batch_budget_usd }}
@@ -679,7 +679,7 @@ jobs:
           # The operator's own request: `auto_budget_usd` does not limit it.
           WACHIMAN_TRIGGER: comment
           WACHIMAN_BUDGET_USD: ${{ inputs.budget_usd }}
-          WACHIMAN_SIZE_GATE_USD: ${{ inputs.size_gate_usd }}
+          WACHIMAN_SIZE_GATE_USD: ${{ inputs.size_gate_usd != 0 && inputs.size_gate_usd || '' }}
           WACHIMAN_APPROVE_MAX_USD: ${{ inputs.approve_max_usd }}
           WACHIMAN_BATCH_BUDGET_USD: ${{ inputs.batch_budget_usd }}
           WACHIMAN_ANSWER_BUDGET_USD: ${{ inputs.answer_budget_usd }}

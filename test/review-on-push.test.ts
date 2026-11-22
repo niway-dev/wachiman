@@ -226,6 +226,8 @@ describe("thread replies without a push (ADR 0012)", () => {
       expect(input("size_gate_usd")).toMatch(/Deprecated, no effect/);
       expect(input("approve_max_usd")).toMatch(/type: number/);
       expect(input("approve_max_usd")).toMatch(/default: 20\b/);
+      // An unset number input reaches the env as 0, which loadConfig rejects: it is mapped to empty (unset), like daily_budget_usd.
+      expect(text.match(/WACHIMAN_SIZE_GATE_USD: \$\{\{ inputs\.size_gate_usd != 0 && inputs\.size_gate_usd \|\| '' \}\}/g)).toHaveLength(2);
       expect(text.match(/WACHIMAN_APPROVE_MAX_USD: \$\{\{ inputs\.approve_max_usd \}\}/g)).toHaveLength(2);
     }
   });
