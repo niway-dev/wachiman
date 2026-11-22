@@ -48,6 +48,16 @@ describe("linguist exclusion from the base commit", () => {
     expect(logs).toEqual(["2 file(s) are marked linguist-generated or linguist-vendored at the base commit and are not reviewed."]);
   });
 
+  test("AC12: marks the head adds for its own files are never read", () => {
+    const f = fixture();
+    const excluded = linguistExcluded(f.paths, { repoDir: f.dir, baseSha: f.base, log: () => {} });
+    expect(excluded.has("src/n.ts")).toBe(false);
+    expect(excluded.has("nested/x.txt")).toBe(false);
+    // Read from the head instead, the same call would exclude them: the base is what keeps them reviewed.
+    const fromHead = linguistExcluded(f.paths, { repoDir: f.dir, baseSha: f.head, log: () => {} });
+    expect(fromHead.has("src/n.ts")).toBe(true);
+  });
+
   test("a base commit that is not in the clone excludes nothing and logs one line", () => {
     const f = fixture();
     const logs: string[] = [];
