@@ -28,7 +28,7 @@ import {
   warnSnapshotDifferences,
 } from "./connectors/local-git";
 import { DEFAULT_EXCLUDE, estimateFor, filterFiles, planBatches, reviewChange, reviewOptionsOf, splitUnreviewable, type ReviewInput, type ReviewResult } from "./engine";
-import { sizeGate, type ReviewEstimate } from "./estimate";
+import type { ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
 import { personalSourceFor } from "./memory/personal";
 import { assertReviewInputFormat, NO_V1_DISTRIBUTED, REVIEW_INPUT_V2 } from "./formats";
@@ -508,12 +508,13 @@ export function localScopeInput(p: {
 }
 
 /**
- * The one warning a local run prints when its estimate is above the size gate, or null. Local runs
- * are never refused: the run continues and stops at its budget.
+ * The one warning a local run prints when its estimate is above `budget_usd` (ADR 0062 decision 6;
+ * `size_gate_usd` has no effect), or null. Local runs are never refused: the run continues and
+ * stops at its budget.
  */
-export function sizeWarning(estimate: ReviewEstimate, gate: number, budgetUsd: number, model: string): string | null {
-  if (estimate.usd <= gate) return null;
-  return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}), above the $${gate.toFixed(2)} size gate. Local runs are never refused; this one continues and stops at its budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD).`;
+export function sizeWarning(estimate: ReviewEstimate, budgetUsd: number, model: string): string | null {
+  if (estimate.usd <= budgetUsd) return null;
+  return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}), above this run's budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD). Local runs are never refused; this one continues and stops at that budget, so the review may be partial. Raise WACHIMAN_BUDGET_USD to cover the estimate, or review less.`;
 }
 
 export async function runLocal(
@@ -625,7 +626,7 @@ export async function runLocal(
     );
     io.stderr(`files: ${kept.length} (${dropped.length} excluded)`);
     io.stderr(`batches: ${batches.length}`);
-    const warning = sizeWarning(estimateFor(kept, config, input.pathRules), sizeGate(config, false), config.budgetUsd, config.model);
+    const warning = sizeWarning(estimateFor(kept, config, input.pathRules), config.budgetUsd, config.model);
     if (warning) io.stderr(warning);
     io.stderr(
       config.verify
