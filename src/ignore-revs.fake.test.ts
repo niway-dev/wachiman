@@ -319,4 +319,13 @@ describe("sensitive files keep the main model whatever the listing says", () => 
     const files = paths.map((p) => bigFile(p, 5));
     expect([...formatGroupNames(paths, files)]).toEqual(["src/util.ts"]);
   });
+
+  test("a rename into or out of a sensitive path keeps the main model", () => {
+    const out = { ...bigFile("src/ci.yml", 5), previous_filename: ".github/workflows/ci.yml" };
+    const into = { ...bigFile(".github/workflows/new.yml", 5), previous_filename: "src/new.yml" };
+    const focus = bigFile(".github/wachiman.md", 5);
+    const plain = bigFile("src/util.ts", 5);
+    const files = [out, into, focus, plain];
+    expect([...formatGroupNames(files.map((f) => f.filename), files)]).toEqual(["src/util.ts"]);
+  });
 });
