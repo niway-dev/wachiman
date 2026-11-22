@@ -25,6 +25,8 @@ files were touched by the formatter commit and by no other commit of the pull re
    are full or abbreviated commit hashes; `#` starts a comment. No commit-title convention is read.
 2. **A file goes to the cheaper model only when every commit of the range that touches it is
    listed.** A file also changed by an unlisted commit is reviewed as today, with its whole diff.
+   A file that a `paths` rule of `.wachiman.yml` matches stays with the main model and in the first
+   batches: the maintainer named that path, and the head's listing cannot lower its review.
    Nothing is dropped: every file is read by a model.
 3. **The cheaper model is an input.** `format_model` (default Haiku, effort low) reviews those files
    in their own batches, planned apart from the rest. The review lists them under their own line

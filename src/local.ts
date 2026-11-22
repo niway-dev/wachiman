@@ -36,6 +36,7 @@ import {
   touchedPathsOf,
   estimateFor,
   filterFiles,
+  formatGroupNames,
   planBatches,
   reviewChange,
   reviewOptionsOf,
@@ -93,8 +94,6 @@ export interface LocalArgs {
   history: boolean;
   /** `--verify` forces the verifier on, `--no-verify` off; unset follows `WACHIMAN_VERIFY` (off by default, ADR 0027). */
   verify: boolean | undefined;
-  /** False for a command that never routes files to `format_model` (`ask`): no second adapter is built or checked. */
-  format?: boolean;
   /** `--no-memory`: review as a repository without a `.wachiman/memory/` folder (the control arm of the memory replay). */
   noMemory?: boolean;
   /** `--result-version`: with `--format json`, which result version to write (default 1 for a committed change). */
@@ -698,7 +697,7 @@ export async function runLocal(
     const planLimits = { maxLines: config.batchLines, maxChars: config.batchChars };
     // The same split `reviewChange` makes (ADR 0063): the files only listed formatting commits touched
     // are planned apart, so the count below is the number of batches the run will report.
-    const formatNames = formatProvider ? new Set(input.formatOnly ?? []) : new Set<string>();
+    const formatNames = formatProvider ? formatGroupNames(input.formatOnly ?? [], kept, input.pathRules) : new Set<string>();
     const formatKept = kept.filter((f) => formatNames.has(f.filename));
     const mainBatches = planBatches(formatKept.length > 0 ? kept.filter((f) => !formatNames.has(f.filename)) : kept, planLimits, input.pathRules).length;
     const formatBatches = formatKept.length > 0 ? planBatches(formatKept, planLimits, input.pathRules).length : 0;

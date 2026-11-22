@@ -562,7 +562,8 @@ review names those files, the model and the reason on their own line
   tree, with one `git log -m` of the range, and never a fetch.
 - **What counts.** At least one commit of the range touches the file and every commit that touches it
   is listed. A hash is matched in full or, from 7 characters, as an abbreviation that names one
-  commit of the range. A file also touched by an unlisted commit, renamed by any commit of the range
+  commit of the range. A file that a `paths` rule of `.wachiman.yml` matches stays with `model` and in
+  the first batches, whatever the listing says. A file also touched by an unlisted commit, renamed by any commit of the range
   (its history under the old name cannot be followed), touched by a merge commit, or by no commit the
   engine could see goes to `model`.
 - **What is never an error.** A missing or unreadable file, a malformed line, a hash outside the range,

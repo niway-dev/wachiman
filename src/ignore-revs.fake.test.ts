@@ -3,7 +3,7 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "./config";
-import { GhError, githubFormatOnly, review, type Deps, type GhFn, type ReviewOutput } from "./engine";
+import { GhError, formatGroupNames, githubFormatOnly, review, type Deps, type GhFn, type ReviewOutput } from "./engine";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
 
 // Routing by `.git-blame-ignore-revs` in a pull request run (ADR 0063): a file only listed
@@ -279,5 +279,15 @@ describe("the review lists the files read by the cheaper model on their own line
     expect(body).toContain("40 files reviewed by `claude-haiku-5-5` at effort low");
     expect(body.match(/^- `pkg\d\d\/mod\.ts`$/gm)?.length).toBe(30);
     expect(body).toContain("- and 10 more");
+  });
+});
+
+describe("a path rule keeps its file with the main model", () => {
+  test("a listed file that a rule matches is not in the format group, a rename is matched by its old name", () => {
+    const files = [bigFile("src/auth/login.ts", 5), bigFile("src/util.ts", 5), { ...bigFile("lib/moved.ts", 5), previous_filename: "src/auth/old.ts" }];
+    const rules = [{ match: "src/auth/**", severity: "critical" as const, reason: "auth" }];
+    const names = formatGroupNames(["src/auth/login.ts", "src/util.ts", "lib/moved.ts"], files, rules);
+    expect([...names]).toEqual(["src/util.ts"]);
+    expect([...formatGroupNames(["src/auth/login.ts", "src/util.ts"], files, undefined)].sort()).toEqual(["src/auth/login.ts", "src/util.ts"]);
   });
 });

@@ -3143,10 +3143,20 @@ async function settledOnError<T>(deps: Deps, grant: SpendGrant, run: () => Promi
 }
 
 /** The estimate of reviewing `files` with this configuration: the batches `planBatches` makes, priced per batch. */
+/**
+ * The names of the files read by `format_model` (ADR 0063): the listed ones, less any file a path
+ * rule matches. The maintainer named that path, so it stays with the main model and in the first
+ * batches, whatever the head's `.git-blame-ignore-revs` says.
+ */
+export function formatGroupNames(formatOnly: readonly string[], files: readonly ReviewFile[], rules?: readonly PathRule[]): Set<string> {
+  const listed = new Set(formatOnly);
+  return new Set(files.filter((f) => listed.has(f.filename) && !matchPathRule(f.filename, rules, f.previous_filename)).map((f) => f.filename));
+}
+
 export function estimateFor(files: ReviewFile[], config: EngineConfig, rules?: readonly PathRule[], formatOnly: readonly string[] = []): ReviewEstimate {
   const limits = { maxLines: config.batchLines, maxChars: config.batchChars };
   // The same split `reviewChange` makes (ADR 0063): the format group is planned and priced apart.
-  const formatNames = config.formatModel ? new Set(formatOnly) : new Set<string>();
+  const formatNames = config.formatModel ? formatGroupNames(formatOnly, files, rules) : new Set<string>();
   const formatFiles = files.filter((f) => formatNames.has(f.filename));
   const mainFiles = formatFiles.length > 0 ? files.filter((f) => !formatNames.has(f.filename)) : files;
   const batches = planBatches(mainFiles, limits, rules).length;
@@ -3759,7 +3769,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   };
   // The files only listed formatting commits touched (ADR 0063) are planned apart and read by
   // `format_model`; with no format model or provider they stay in the main group, as before.
-  const formatNames = options.format && deps.formatProvider ? new Set(input.formatOnly ?? []) : new Set<string>();
+  const formatNames = options.format && deps.formatProvider ? formatGroupNames(input.formatOnly ?? [], kept, input.pathRules) : new Set<string>();
   const formatFiles = kept.filter((f) => formatNames.has(f.filename));
   const batches: Batch[] = [
     ...planBatches(formatFiles.length > 0 ? kept.filter((f) => !formatNames.has(f.filename)) : kept, batchLimits, input.pathRules),
