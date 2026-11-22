@@ -549,6 +549,17 @@ are matched with `Bun.Glob` against each changed file's repository-relative path
 way the built-ins are written: `*.md` does not match `docs/a.md`, `**/*.md` matches at any depth.
 The reusable workflow has no input for `WACHIMAN_EXCLUDE`.
 
+Files your repository marks as generated or vendored are left out too: any file with
+`linguist-generated` or `linguist-vendored` set (`gen/** linguist-generated`, or `=true`) in a
+`.gitattributes` of the **base commit**. Wachiman reads the base commit's attributes, never the
+head's, so a pull request cannot take its own files out of its review by adding a mark;
+`wachiman local` reads them at the merge-base of its range. One `git check-attr --source` call
+answers for the whole run, which needs git 2.40 or newer: on an older git, or when the base commit
+is not in the clone (a shallow checkout fetches it once), nothing is excluded and the log says
+so. Marks with `=false` or `-linguist-generated` keep the file reviewed. Like the built-in
+patterns, a mark cannot be overridden by a path rule, and excluded files are only counted, not
+listed.
+
 When everything that changed is excluded or outside the requested scope, the run posts
 `Nothing to review at <sha>: …` and exits 0.
 

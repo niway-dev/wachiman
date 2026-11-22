@@ -133,6 +133,7 @@ import type { ProviderErrorClass } from "./providers/errors";
 import type { Effort, ProviderAdapter, ProviderAuth } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
 import { buildRiskMap, wellFormed, type JudgementItem, type RiskFact, type RiskMap } from "./risk";
+import { linguistExcluded } from "./linguist";
 import { ASK_SCHEMA, buildAskPrompt, checkRefs, isAskAnswer, renderAnswer } from "./ask";
 
 export type { Profile, ResultFinding, ReviewChange, ReviewInput, ReviewResult, Stop } from "./formats";
@@ -4510,7 +4511,17 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     const unreadNames = new Set(resumed);
     files = [...files.filter((f) => !unreadNames.has(f.filename)), ...carried];
   }
-  const { kept, dropped } = filterFiles(files, [...DEFAULT_EXCLUDE, ...config.exclude], paths);
+  const filtered = filterFiles(files, [...DEFAULT_EXCLUDE, ...config.exclude], paths);
+  // Files the base commit's `.gitattributes` marks `linguist-generated` or `linguist-vendored` leave
+  // the review like the default excludes; the head's `.gitattributes` is never read.
+  const base = filtered.kept.length > 0 ? baseSha(gh, repo, pr) : "";
+  const marked =
+    filtered.kept.length > 0
+      ? linguistExcluded(filtered.kept.map((f) => f.filename), { repoDir: deps.repoDir ?? process.cwd(), baseSha: base, fetchMissingBase: true, log: deps.log })
+      : new Set<string>();
+  const kept = filtered.kept.filter((f) => !marked.has(f.filename));
+  const dropped = [...filtered.dropped, ...filtered.kept.filter((f) => marked.has(f.filename))];
+  files = files.filter((f) => !marked.has(f.filename));
   if (kept.length === 0) {
     // Signed, with a block: an unsigned notice would leave `pr-state` at `review_missing` for a head
     // the engine decided on purpose has nothing to review. The marker moves unless the request was scoped.
@@ -4549,7 +4560,6 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // review and no marker is written, so the next push sees no marker and gates again.
   // The path rules come from the base commit whatever the model and effort inputs say; they reorder
   // the batches, so the estimate is made with them.
-  const base = baseSha(gh, repo, pr);
   const baseRules = readBasePathRules(gh, repo, base, deps.warn);
   // A pull request that edits the rules is reviewed under the base's, and `.wachiman.yml` itself is
   // a critical path for that review: the head's rules are never applied, only compared.
