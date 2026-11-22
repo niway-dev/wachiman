@@ -54,6 +54,12 @@ const git = (repoDir: string, args: string[], input?: string) =>
     env: gitEnv(),
   });
 
+/** Why a git call failed: its stderr, else the spawn error or signal (a timeout leaves stderr empty), else the exit status. */
+function failureReason(r: ReturnType<typeof git>): string {
+  const why = r.stderr.trim() || r.error?.message || (r.signal ? `killed by ${r.signal}` : `exit status ${r.status}`);
+  return why.slice(0, 200);
+}
+
 /** Of `paths`, those the base commit's `.gitattributes` marks `linguist-generated` or `linguist-vendored`. */
 export function linguistExcluded(paths: readonly string[], o: LinguistOptions): Set<string> {
   const none = new Set<string>();
@@ -78,8 +84,7 @@ export function linguistExcluded(paths: readonly string[], o: LinguistOptions): 
       // its credentials (actions/checkout does by default) fetches, one that did not fails and is named.
       const fetched = git(cwd, ["fetch", "--no-tags", "--depth=1", "origin", o.baseSha]);
       if (fetched.status !== 0) {
-        const why = fetched.stderr.trim() || fetched.error?.message || (fetched.signal ? `killed by ${fetched.signal}` : `exit status ${fetched.status}`);
-        fetchNote = ` (fetching it failed: ${why.slice(0, 200)})`;
+        fetchNote = ` (fetching it failed: ${failureReason(fetched)})`;
       }
       type = kind();
     }
@@ -89,7 +94,7 @@ export function linguistExcluded(paths: readonly string[], o: LinguistOptions): 
     }
     const run = git(cwd, ["check-attr", `--source=${o.baseSha}`, "--stdin", "-z", "linguist-generated", "linguist-vendored"], paths.join("\0") + "\0");
     if (run.status !== 0) {
-      o.log(`linguist-generated and linguist-vendored are not applied: git check-attr failed (${run.stderr.trim().slice(0, 200)}).`);
+      o.log(`linguist-generated and linguist-vendored are not applied: git check-attr failed (${failureReason(run)}).`);
       return none;
     }
     const marked = parseCheckAttr(run.stdout);
