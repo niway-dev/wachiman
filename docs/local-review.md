@@ -422,7 +422,7 @@ export WACHIMAN_DIR="$PWD"   # in your shell profile
   `WACHIMAN_CALL_TIMEOUT_S`; the run by `WACHIMAN_BUDGET_USD` (default $3), counted in the
   API-equivalent estimate. See [configuration](configuration.md#local-mode).
 - **Size warning, never a refusal.** Before the first call, `local` estimates what reviewing all of
-  the change would cost. When that is above your budget (`WACHIMAN_BUDGET_USD`), it prints one
+  the change would cost. When that is above your budget (`WACHIMAN_BUDGET_USD`, less the verifier and memory reserves when they apply), it prints one
   warning line on stderr and carries on, so the review may be partial. `WACHIMAN_SIZE_GATE_USD` has
   no effect. The money caps are
   `WACHIMAN_BUDGET_USD` for the run (default $3) and `WACHIMAN_BATCH_BUDGET_USD` for each

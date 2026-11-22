@@ -255,7 +255,7 @@ prints, never posts:** the report goes to stdout (or `--output`), so `--format j
 the result alone.
 
 Size never blocks a run. When the estimated cost of the whole review is above
-`WACHIMAN_BUDGET_USD`, `local` prints one warning on stderr before the first model call and
+`WACHIMAN_BUDGET_USD` (less the verifier and memory reserves when they apply), `local` prints one warning on stderr before the first model call and
 continues (`WACHIMAN_SIZE_GATE_USD` has no effect). The run is capped by `WACHIMAN_BUDGET_USD`
 (default $3) and each call by `WACHIMAN_BATCH_BUDGET_USD` (passed to Claude Code as
 `--max-budget-usd`, soft); there is no `WACHIMAN_AUTO_BUDGET_USD` ceiling locally. In GitHub mode the

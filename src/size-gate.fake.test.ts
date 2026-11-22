@@ -197,7 +197,7 @@ describe("a review the run cannot pay for in full is skipped with one comment", 
     await run(w, { WACHIMAN_VERIFY: "1" });
     const body = w.posted[0].body;
     expect(body).toContain("this run has room for **$2.00**");
-    expect(body).toContain("$3.00, less $1.00 that the verifier and memory matching keep");
+    expect(body).toContain("$3.00, less $1.00 that the reserves keep (the verifier, memory matching and, with PR Confidence, the claims call)");
     expect(body).toContain("--budget 16 --head abc1234");
   });
 

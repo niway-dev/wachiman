@@ -3124,7 +3124,7 @@ export function sizeGateBody(o: {
       `**Not reviewed: this review would cost more than the run can spend.** Reviewing all of it would cost about **${usd2(e.usd)}**, and this run has room for **${usd2(room)}**, so nothing was sent to a model and nothing was spent.`,
     ),
     ...(o.critical?.length ? [criticalPathsSection(o.critical)] : []),
-    `The estimate: ${count(e.batches)} batches × ${usd2(e.perBatchUsd)} a batch for \`${model}\` (${count(e.files)} files, ${count(e.lines)} changed lines), from the diff alone, before any model call. It can be off by about 40% either way. The room is **${usd2(room)}**: ${limit.label} is ${usd2(limit.usd)}${reserves > 0.005 ? `, less ${usd2(reserves)} that the verifier and memory matching keep` : ""}.`,
+    `The estimate: ${count(e.batches)} batches × ${usd2(e.perBatchUsd)} a batch for \`${model}\` (${count(e.files)} files, ${count(e.lines)} changed lines), from the diff alone, before any model call. It can be off by about 40% either way. The room is **${usd2(room)}**: ${limit.label} is ${usd2(limit.usd)}${reserves > 0.005 ? `, less ${usd2(reserves)} that the reserves keep (the verifier, memory matching and, with PR Confidence, the claims call)` : ""}.`,
     next,
     `<sub>Estimated at \`${sha}\`. A run can pass its budget by about one call. This comment is updated on each push instead of a new one.</sub>`,
     SIZE_GATE_MARKER,

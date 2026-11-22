@@ -190,7 +190,7 @@ deprecation line and has no effect; leaving it unset logs nothing.
 ### Local runs
 
 `wachiman local` never refuses and never prompts, and `size_gate_usd` has no effect on it. When the
-estimate is above `budget_usd`, it prints one warning on stderr before the first model call and
+estimate is above `budget_usd` (less the verifier and memory reserves when they apply), it prints one warning on stderr before the first model call and
 carries on, stopping at that budget. For example (the estimate this code computes from the diff of [pingdotgg/t3code#28845](https://github.com/pingdotgg/t3code/pull/28845)):
 
 ```text

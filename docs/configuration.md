@@ -184,7 +184,7 @@ applies.
 | `WACHIMAN_MENTION` | string | `/wachiman` | Any non-empty string | The command word `comment` looks for, in addition to `/wachiman`, `/wachi` and `@claude`. An empty value counts as unset. | both |
 | `WACHIMAN_BUDGET_USD` | number | `3` | Finite, greater than 0 | Total for one `review` invocation. See [Budgets](#budgets). | both |
 | `WACHIMAN_AUTO_BUDGET_USD` | number | `6` | Finite, greater than 0 | Ceiling for all automatic runs on one pull request, summed from the engine's own signed review footers. **New in v1.5.0.** Applies only when `WACHIMAN_TRIGGER` names an automatic run; `/wachiman review` (`comment`) ignores it. See [Budgets](#budgets). | both |
-| `WACHIMAN_SIZE_GATE_USD` | number | none | Finite, greater than 0 | Deprecated, no effect ([ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)). Logs one deprecation line when set. In GitHub mode the gate is the room the run may spend; in `local` the only signal is a warning when the estimate is above `WACHIMAN_BUDGET_USD`. See [the room gate](costs.md#the-room-gate). | both |
+| `WACHIMAN_SIZE_GATE_USD` | number | none | Finite, greater than 0 | Deprecated, no effect ([ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)). Logs one deprecation line when set. In GitHub mode the gate is the room the run may spend; in `local` the only signal is a warning when the estimate is above `WACHIMAN_BUDGET_USD` (less the verifier and memory reserves when they apply). See [the room gate](costs.md#the-room-gate). | both |
 | `WACHIMAN_APPROVE_MAX_USD` | number | `20` | Finite, greater than 0 | The most the operator may approve for one head with `--budget`. **New in the next release.** See [how to approve a budget](costs.md#how-to-approve-a-budget). | GitHub |
 | `WACHIMAN_THREADS_BUDGET_USD` | number | `0.25` | Finite, greater than 0 | Cap for the one provider call of a `threads` run. **New in v1.5.0.** | same as the batch cap |
 | `WACHIMAN_TRIGGER` | string | unset | A lowercase event action: `opened`, `ready_for_review`, `synchronize`, `comment`, `thread`… | Why the run started. **New in v1.5.0.** `comment` is the operator's command and is never limited by the ceiling; any other value is an automatic run that is. Unset means a person ran the CLI by hand, which is not limited either. The workflow sets it (`github.event.action`, `comment`, `thread`); the `comment` and `threads` commands set it themselves, whatever the environment says. A value that is not a lowercase word is a usage error (exit 2). | both |
@@ -324,7 +324,7 @@ GitHub-side applies.
   Also `WACHIMAN_HISTORY=1` (keep the [history](local-review.md#keep-a-history-of-your-runs-optional)
   of the run, the same as `--history`) and `WACHIMAN_HISTORY_DAYS` (days to keep it, default 30,
   `0` forever, anything else exits 2 before any call). GitHub mode ignores both.
-- **Warning only:** when the estimate is above `WACHIMAN_BUDGET_USD`, `local` prints one line on
+- **Warning only:** when the estimate is above `WACHIMAN_BUDGET_USD` (less the verifier and memory reserves when they apply), `local` prints one line on
   stderr and continues; it never refuses or asks ([ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)).
   `WACHIMAN_SIZE_GATE_USD` has no effect. The money caps are `WACHIMAN_BUDGET_USD` for the run and
   `WACHIMAN_BATCH_BUDGET_USD` for each call.
