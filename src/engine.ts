@@ -1671,7 +1671,7 @@ export function baseSha(gh: GhFn, repo: string, pr: number) {
 function fileAtBase(gh: GhFn, repo: string, path: string, sha: string): InstructionFile | null {
   let raw: string;
   try {
-    raw = gh(["api", `repos/${repo}/contents/${path}?ref=${sha}`]);
+    raw = gh(["api", `repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${sha}`]);
   } catch (error) {
     if (error instanceof GhError && error.status === 404) return null;
     throw error;

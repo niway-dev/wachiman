@@ -2061,6 +2061,7 @@ describe("linguist marks come from the base commit", () => {
     const files = [
       { filename: "gen/a.js", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-1\n+2" },
       { filename: "src/n.ts", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-1\n+2" },
+      { filename: "my dir/#x/z.js", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-1\n+2" },
     ];
     const posted: { review?: { body: string; comments: unknown[] } } = {};
     const inner = fakeGh(posted, {}, files);
@@ -2069,10 +2070,10 @@ describe("linguist marks come from the base commit", () => {
       const line = args.join(" ");
       if (line.startsWith("api repos/o/r/pulls/7 ")) return missingBase;
       if (line.includes(`git/trees/${missingBase}?recursive=1`)) {
-        return JSON.stringify({ truncated: false, tree: [{ path: "a.txt", type: "blob" }, { path: ".gitattributes", type: "blob" }, { path: "gen/.gitattributes", type: "blob" }, { path: "docs", type: "tree" }] });
+        return JSON.stringify({ truncated: false, tree: [{ path: "a.txt", type: "blob" }, { path: ".gitattributes", type: "blob" }, { path: "my dir/#x/.gitattributes", type: "blob" }, { path: "docs", type: "tree" }] });
       }
-      if (line.includes("contents/.gitattributes?ref=")) return b64("src/** -linguist-generated\n");
-      if (line.includes("contents/gen/.gitattributes?ref=")) return b64("a.js linguist-generated\n");
+      if (line.includes("contents/.gitattributes?ref=")) return b64("gen/** linguist-generated\n");
+      if (line.includes("contents/my%20dir/%23x/.gitattributes?ref=")) return b64("z.js linguist-generated\n");
       if (/contents\/(.+)\?ref=/.test(line)) throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
       return inner(args, input);
     };
@@ -2083,7 +2084,8 @@ describe("linguist marks come from the base commit", () => {
     const prompt = provider.requests[0].prompt;
     expect(prompt).toContain("src/n.ts");
     expect(prompt).not.toContain("gen/a.js");
-    expect(logs).toContain("1 file(s) are marked linguist-generated or linguist-vendored at the base commit and are not reviewed.");
+    expect(prompt).not.toContain("z.js");
+    expect(logs).toContain("2 file(s) are marked linguist-generated or linguist-vendored at the base commit and are not reviewed.");
   });
 
   test("readBaseAttributeFiles: a truncated tree leaves the root file, and a failing read throws for the caller to fail open", () => {

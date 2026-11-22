@@ -560,11 +560,11 @@ reusable workflow's (`persist-credentials: false`, no base commit), never fetche
 the base commit's tree through the GitHub API with the run's own token, reads each `.gitattributes`
 file there (only the root one when GitHub truncates the tree), and checks the changed paths against
 them in a throwaway repository. No git process sees a token, and the workflow needs no fetch step or
-extra token scope. If any of that fails, nothing is excluded and the log says so. `wachiman local ask` applies the same marks. Marks with
-`=false` or `-linguist-generated` keep the file reviewed. Like the built-in patterns, a mark cannot
-be overridden by a path rule, and excluded files are only counted, not
-listed. New files under a directory the base marks stay excluded, and an edit to `.gitattributes`
-in the pull request is not applied (it raises no policy-changed notice either).
+extra token scope. If any of that fails, nothing is excluded and the log says so.
+`wachiman local ask` applies the same marks. Marks with `=false` or `-linguist-generated` keep the
+file reviewed. Like the built-in patterns, a mark cannot be overridden by a path rule, and excluded
+files are only counted, not listed. New files under a directory the base marks stay excluded, and an
+edit to `.gitattributes` in the pull request is not applied (it raises no policy-changed notice either).
 
 When everything that changed is excluded or outside the requested scope, the run posts
 `Nothing to review at <sha>: …` and exits 0.
