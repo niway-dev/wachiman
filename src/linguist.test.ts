@@ -170,7 +170,7 @@ describe("linguist exclusion from the base commit", () => {
     expect(logs).toEqual([`linguist-generated and linguist-vendored are not applied: the base commit ${"1".repeat(7)} is not in the clone.`]);
   });
 
-  test("paths with spaces, newlines-free odd characters and no paths at all", () => {
+  test("paths with spaces and glob characters match, and an empty path list excludes nothing", () => {
     const dir = emptyRepo("wachiman-linguist-odd-");
     const base = commit(dir, { ".gitattributes": "gen/** linguist-generated\n", "gen/a b.js": "1\n", "gen/[x].js": "1\n" }, "base");
     expect([...linguistExcluded(["gen/a b.js", "gen/[x].js", "z"], { repoDir: dir, baseSha: base, log: () => {} })].sort()).toEqual(["gen/[x].js", "gen/a b.js"]);

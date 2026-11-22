@@ -69,7 +69,7 @@ const git = (repoDir: string, args: string[], input?: string) =>
 
 /** Why a git call failed: its stderr, else the spawn error or signal (a timeout leaves stderr empty), else the exit status. */
 function failureReason(r: ReturnType<typeof git>): string {
-  const why = r.stderr.trim() || r.error?.message || (r.signal ? `killed by ${r.signal}` : `exit status ${r.status}`);
+  const why = (r.stderr ?? "").trim() || r.error?.message || (r.signal ? `killed by ${r.signal}` : `exit status ${r.status}`);
   return why.slice(0, 200);
 }
 
