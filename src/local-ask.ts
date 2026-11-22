@@ -159,6 +159,7 @@ export async function runAsk(
   const { config, provider, state } = openLocalSession({
     profile: args.profile,
     verify: false,
+    format: false,
     repoDir,
     env,
     stderr: io.stderr,

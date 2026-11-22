@@ -1840,3 +1840,50 @@ describe("one resolution of the refs per review", () => {
     expect(s.calls()).toHaveLength(1);
   }, 30_000);
 });
+
+describe("format_model routing (ADR 0063, AC21)", () => {
+  /** `feat/x`: a formatter run over src/a.ts, then a feature change to src/b.ts. */
+  function formatRepo() {
+    const dir = emptyRepo();
+    commit(dir, { "src/a.ts": "a=1\n", "src/b.ts": "b=1\n" }, "base");
+    git(dir, "switch", "-q", "-c", "feat/x");
+    const format = commit(dir, { "src/a.ts": "a = 1;\n" }, "style: format");
+    commit(dir, { "src/b.ts": "b = 2;\n" }, "feat: change b");
+    return { dir, format } as unknown as BranchRepo & { format: string };
+  }
+  const modelsOf = (calls: string[]) => calls.map((l) => l.match(/--model (\S+)/)?.[1]);
+  const effortsOf = (calls: string[]) => calls.map((l) => l.match(/--effort (\S+)/)?.[1]);
+
+  test("a file only a listed commit touched is read by format_model at effort low; the rest by the main model", () => {
+    const repo = formatRepo();
+    writeFileSync(join(repo.dir, ".git-blame-ignore-revs"), `${repo.format}\n`);
+    const r = local("ok", ["--base", "main"], { WACHIMAN_MODEL: "claude-sonnet-5-5" }, repo);
+    const calls = r.calls();
+    expect(modelsOf(calls)).toContain("claude-haiku-5-5");
+    expect(modelsOf(calls)).toContain("claude-sonnet-5-5");
+    const haiku = calls.findIndex((l) => l.includes("--model claude-haiku-5-5"));
+    expect(effortsOf(calls)[haiku]).toBe("low");
+    expect(r.stderr).toContain(".git-blame-ignore-revs lists 1 of the 2 commit(s) of this range; 1 of the 2 file(s) changed only by them.");
+  }, 60_000);
+
+  test("without a .git-blame-ignore-revs file every call uses the main model", () => {
+    const plain = local("ok", ["--base", "main"], { WACHIMAN_MODEL: "claude-sonnet-5-5" }, formatRepo());
+    expect(modelsOf(plain.calls()).every((m) => m === "claude-sonnet-5-5")).toBe(true);
+  }, 60_000);
+
+  test("a working-tree review has no range and is never routed", () => {
+    const repo = formatRepo();
+    writeFileSync(join(repo.dir, ".git-blame-ignore-revs"), `${repo.format}\n`);
+    writeFileSync(join(repo.dir, "src/a.ts"), "a = 1;\n// edit\n");
+    const r = local("ok", ["--working-tree", "all"], { WACHIMAN_MODEL: "claude-sonnet-5-5" }, repo);
+    expect(modelsOf(r.calls()).every((m) => m === "claude-sonnet-5-5")).toBe(true);
+  }, 60_000);
+
+  test("--input validates formatOnly as a list of names", () => {
+    const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
+    fixture.formatOnly = "src/a.ts";
+    const path = join(temp("wachiman-input-"), "input.json");
+    writeFileSync(path, JSON.stringify(fixture));
+    expect(() => readInputFile(path)).toThrow("formatOnly must be a list of file names");
+  });
+});

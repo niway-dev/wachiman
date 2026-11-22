@@ -10,10 +10,11 @@
  * directory that fails (spec correction 1 of the plan).
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { basename, dirname, join, resolve } from "node:path";
 import { UsageError } from "../config";
+import { IGNORE_REVS_PATH, formatOnlyPaths, listedCommitsIn, parseIgnoreRevs, type CommitTouch } from "../ignore-revs";
 import {
   instructionFileOf,
   instructionsFrom,
@@ -385,6 +386,65 @@ function blobAt(repoDir: string, sha: string, path: string, git: GitRunner): Buf
   if (entry.status !== 0) throw new Error(`git ls-tree ${short(sha)} -- ${path} failed: ${entry.stderr ?? entry.error}`);
   // Only the exact path, as a regular file, counts.
   return regularBlob(repoDir, treeEntries(entry.stdout.split("\0")[0]).get(path));
+}
+
+/** The largest `.git-blame-ignore-revs` read from the working tree; a longer file is not a list of commits. */
+const MAX_IGNORE_REVS_BYTES = 1024 * 1024;
+
+/** The working tree's `.git-blame-ignore-revs` (ADR 0063), or undefined when it is absent, not a regular file or too large. */
+export function readIgnoreRevs(repoDir: string): string | undefined {
+  try {
+    const path = join(repoDir, IGNORE_REVS_PATH);
+    const stat = lstatSync(path);
+    if (!stat.isFile() || stat.size > MAX_IGNORE_REVS_BYTES) return undefined;
+    return readFileSync(path, "utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+/**
+ * The files of `files` that only commits listed in `.git-blame-ignore-revs` touched in
+ * `mergeBase..head` (ADR 0063). One `git log` lists every commit of the range with the paths it
+ * touched; `-m` shows a merge commit against each parent, so a file a merge brought in is touched
+ * by an unlisted commit and stays with the main model. A shallow clone cannot show the whole range
+ * and is not routed. Git is never asked to fetch. Anything that goes wrong is a note and an empty
+ * answer, never an error.
+ */
+export function localFormatOnly(
+  repoDir: string,
+  mergeBase: string,
+  head: string,
+  files: readonly string[],
+  ignoreRevs: string | undefined,
+  note: (line: string) => void,
+  git: GitRunner = spawnGit,
+): string[] {
+  if (ignoreRevs === undefined) return [];
+  const hashes = parseIgnoreRevs(ignoreRevs);
+  if (hashes.length === 0) return [];
+  try {
+    if (run(git, repoDir, ["rev-parse", "--is-shallow-repository"]).trim() === "true") {
+      note(`${IGNORE_REVS_PATH} is not used: this clone is shallow, so the commits of the range cannot all be seen. Every file goes to the main model.`);
+      return [];
+    }
+    const log = run(git, repoDir, ["log", "-z", "-m", "--no-renames", "--name-only", "--format=%x01%H", `${mergeBase}..${head}`], DIFF_MAX_BYTES);
+    const touches: CommitTouch[] = [];
+    for (const token of log.split("\0")) {
+      if (token === "") continue;
+      if (token.startsWith("\x01")) touches.push({ sha: token.slice(1).trim(), paths: [] });
+      else touches[touches.length - 1]?.paths.push(token.replace(/^\n/, ""));
+    }
+    const range = [...new Set(touches.map((t) => t.sha))];
+    const listed = listedCommitsIn(hashes, range);
+    if (listed.size === 0) return [];
+    const only = formatOnlyPaths(files, touches, listed);
+    note(`${IGNORE_REVS_PATH} lists ${listed.size} of the ${range.length} commit(s) of this range; ${only.length} of the ${files.length} file(s) changed only by them.`);
+    return only;
+  } catch (error) {
+    note(`${IGNORE_REVS_PATH} could not be used (${error instanceof Error ? error.message.split("\n")[0].slice(0, 160) : String(error)}): every file goes to the main model.`);
+    return [];
+  }
 }
 
 /** Reads a file of one commit: the bytes, or null when it is not a regular file there. */
@@ -810,6 +870,7 @@ export function buildLocalInput(p: {
   const author = run(git, p.repoDir, ["log", "-1", "--format=%an", refs.headSha]).trim();
   const snapshot = snapshotHead(p.repoDir, refs.headSha, git);
   warnSnapshotDifferences(snapshot, p.warn);
+  const formatOnly = localFormatOnly(p.repoDir, refs.mergeBase, refs.headSha, files.map((f) => f.filename), readIgnoreRevs(top), p.log, git);
   const input: ReviewInput = {
     format: REVIEW_INPUT_FORMAT,
     change: {
@@ -829,6 +890,7 @@ export function buildLocalInput(p: {
     ...(pathRules?.length ? { pathRules } : {}),
     ...(pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
     ...(policy.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
+    ...(formatOnly.length > 0 ? { formatOnly } : {}),
   };
   return { input, snapshotDir: snapshot.dir, refs };
 }

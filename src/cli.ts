@@ -41,7 +41,7 @@
 import { existsSync, readFileSync, statSync, writeSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { writeStepSummary, type CallCost } from "./cost";
-import { loadConfig, UsageError } from "./config";
+import { FORMAT_EFFORT, loadConfig, UsageError } from "./config";
 import { runTelemetry } from "./telemetry/command";
 import { parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus } from "./status/command";
@@ -506,6 +506,11 @@ export async function main(argv: string[], env: Record<string, string | undefine
       routed.verify && mode !== "threads"
         ? getProvider(routed.provider, { ...routed, model: routed.verifierModel, effort: "high" })
         : undefined;
+    // The files only listed formatting commits touched are read by their own adapter on `format_model`, always at effort low (ADR 0063).
+    const formatProvider =
+      routed.formatModel && mode !== "threads"
+        ? getProvider(routed.provider, { ...routed, model: routed.formatModel, effort: FORMAT_EFFORT })
+        : undefined;
     let provider = mainProvider(routed);
     required(env, "GH_TOKEN");
     const repo = required(env, "GITHUB_REPOSITORY");
@@ -514,6 +519,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
     try {
       provider.preflight();
       verifier?.preflight();
+      formatProvider?.preflight();
     } catch (error) {
       console.error(`wachiman: ${error instanceof Error ? error.message : error}`);
       return 1;
@@ -552,6 +558,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
       gh: defaultGh,
       provider,
       ...(verifier ? { verifier } : {}),
+      ...(formatProvider ? { formatProvider } : {}),
       config,
       repoDir,
       engineVersion: readVersion(),
