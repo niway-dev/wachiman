@@ -120,9 +120,9 @@ The automatic job is skipped for draft pull requests, fork pull requests, Depend
 `release-please--` branches. The comment job is not skipped for drafts, Dependabot or those
 branches; it refuses fork pull requests. Lockfiles, build output and generated files are dropped
 first. A file no batch accounts for marks the review "⚠️ Partial review" on its first line. There
-is no file-count guard, and the room gate (a review whose estimate is above what the run may spend
-is skipped with one comment; see [costs.md](costs.md#the-room-gate)) takes `WACHIMAN_BUDGET_USD`
-and `WACHIMAN_APPROVE_MAX_USD` from the workflow `env`. The review body is kept under 60,000 characters (GitHub
+is no file-count guard. The room gate applies here too: a review whose estimate is above what the
+run may spend is skipped with one comment (see [costs.md](costs.md#the-room-gate)). It reads
+`WACHIMAN_BUDGET_USD`, and `WACHIMAN_APPROVE_MAX_USD` is optional (default 20). The review body is kept under 60,000 characters (GitHub
 refuses about 65,000): a long "Not reviewed" list is cut to what fits and ends with "… and N more
 (see the Coverage by batch table)".
 

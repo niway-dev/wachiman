@@ -129,14 +129,18 @@ estimate was made for, and that a run may pass the approved figure by about one 
 ```text
 **Not reviewed: this review would cost more than the run can spend.** Reviewing all of it would cost about **$9.60**, and this run has room for **$3.00**, so nothing was sent to a model and nothing was spent.
 
-The estimate: 30 batches × $0.32 a batch for `claude-sonnet-5-5` (180 files, 24,000 changed lines), from the diff alone, before any model call. It can be off by about 40% either way. The room is **$3.00**: the run budget is $3.00.
+The estimate: 30 batches × $0.32 a batch for `claude-sonnet-5-5` (180 files, 24,000 changed lines), from the diff alone, before any model call. It can be off by about 40% either way. The room is **$3.00**: the run budget (`budget_usd`) is $3.00.
 
 To review all of it, the operator comments this, which approves a budget of **$15** for the head `abc1234` and for no other:
 
     /wachiman review --budget 15 --head abc1234
 
 The run may pass the approved figure by about one call. A push cancels the approval, and the next automatic run estimates the new head. To review part of it now, comment `/wachiman review <path> [path…]`.
+
+<sub>Estimated at `abc1234`. A run can pass its budget by about one call. This comment is updated on each push instead of a new one.</sub>
 ```
+
+(The comment also starts with the Wachiman label and ends with the hidden marker, which are left out here.)
 
 ### How to approve a budget
 
@@ -317,8 +321,10 @@ run with a new budget, and it does not move the "reviewed up to here" marker, so
 finish an incremental review. See [reviews.md](reviews.md). A partial review, by contrast, records the
 files it did not reach, so the next push or unscoped `/wachiman review` reviews those files (with their
 whole diff) plus what changed since, and not the files the partial review already read. Each such run
-is a new run with its own `budget_usd`, and counts against `auto_budget_usd`: a pull request too big
-for one budget is finished over several pushes, not paid for again from batch 1.
+is a new run with its own `budget_usd`, and counts against `auto_budget_usd`: a review that started
+within the room and stopped short (the estimate was low) is finished over several pushes, not paid
+for again from batch 1. A pull request whose estimate is above the room does not start at all until
+the operator approves a budget for its head.
 
 ## Things that add to the total
 
