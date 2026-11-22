@@ -250,7 +250,7 @@ download or something worse, and this page cannot tell which. See
 
 The first line of the review reads, after the brand:
 
-> Partial review. Reviewed X of Y files. Not reviewed: Z (n1 reason1; n2 reason2).
+> Partial review. Reviewed X of Y files. Not reviewed: Z (n1 files — reason1; n2 files — reason2).
 > They are listed under "Files not reviewed". Ask `/wachiman review <paths>` for the rest.
 
 The files are in the collapsed "Files not reviewed" block, grouped by reason.

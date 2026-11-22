@@ -254,9 +254,10 @@ The engine does not stop the review early with an error. It posts what it has:
   figure, never below $0.05). Its files are listed in the review as not
   reviewed, with the reason "not reached: the pull request's budget was spent", and the coverage table
   shows `not run: budget spent` for that batch.
-- A batch whose call ended on its cap without a usable result has no review for its files. The
-  engine retries it if at least $0.05 is left; otherwise the table shows
-  `N file(s) left: budget spent`.
+- A batch whose call ended on its cap without a usable result has no review for its files. If the
+  cap was the full per-call cap, the engine retries it when at least $0.05 is left. If the cap was
+  the run's own remaining room (below the per-call cap even with every other batch's reservation
+  returned), it is not retried; the table shows `N file(s) left: budget spent`.
 - A batch whose call stopped at the **turn cap** (`max_turns`) has no review either, because Claude Code
   prints no answer when it stops there. It is handled like a spent budget: one retry for its files if
   at least $0.05 is left, the table shows `hit the turn limit`, and files still missing are listed as

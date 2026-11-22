@@ -153,7 +153,7 @@ adds `--budget <n>` and `--head <sha>` the same way and removes both words and t
 ### The partial comment
 
 The visible line becomes, for pull request 287: "Reviewed 138 of 312 files. Not reviewed: 174 (103
-files: not reached: the pull request's budget was spent; 71 files: not reached: the call ran out of its budget)."
+files — not reached: the pull request's budget was spent; 71 files — not reached: the call ran out of its budget)."
 These are the counts in the review posted on that pull request.
 The per-file list follows in `<details><summary>Files not reviewed</summary>`, grouped by reason.
 The hidden marker that ADR 0036 caps at 10,000 characters is built separately and does not change.

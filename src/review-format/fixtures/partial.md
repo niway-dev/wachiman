@@ -1,6 +1,6 @@
 👮 **Wachiman** · ⚠️ **Partial: 3 of 4 files not reviewed** · 1 to fix in this PR · whole PR at `d6f4431`
 
-> ⚠️ **Partial review.** Reviewed 1 of 4 files. Not reviewed: 3 (2 files: not reached: the pull request's budget was spent; 1 file: the provider rejected the call).
+> ⚠️ **Partial review.** Reviewed 1 of 4 files. Not reviewed: 3 (2 files — not reached: the pull request's budget was spent; 1 file — the provider rejected the call).
 > They are listed under "Files not reviewed". Ask `/wachiman review <paths>` for the rest.
 
 | At a glance | |

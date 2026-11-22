@@ -448,7 +448,7 @@ inline replies. It keeps those signed by this engine whose footer carries the au
 amount on their cost line. Model text cannot forge either part: `<!--` is defused in everything a
 model writes, and the footer is read only at the very end of the body.
 
-- If `auto_budget_usd` minus that sum is less than $0.05 (a batch's minimum), the run posts one
+- If `auto_budget_usd` minus that sum is less than $0.05 (the least a batch can run on), the run posts one
   notice, "Automatic reviews paused: $X of $Y spent on this pull request. Comment `/wachiman review`
   to review now.", and starts no model call. A second notice for the same ceiling is not posted:
   later pushes post nothing. Raising `auto_budget_usd` lets the next push run.
