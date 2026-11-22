@@ -215,13 +215,16 @@ describe("S5: the partial review is readable", () => {
     const reviewed = new Set(input.output.files_reviewed);
     const missing = input.files.map((f) => f.filename).filter((f) => !reviewed.has(f));
     const callout = body.split("\n").find((l) => l.startsWith("> "))!;
-    const counted = [...callout.matchAll(/(\d+) not reached: /g)].map((m) => Number(m[1]));
+    const reasons = callout.match(/Not reviewed: \d+ \((.*)\)\./)![1]!.split("; ");
+    const counted = reasons.map((r) => Number(r.match(/^(\d+) /)![1]));
     expect(counted.length).toBeGreaterThan(0);
     expect(counted.reduce((a, b) => a + b, 0)).toBe(missing.length);
     const section = body.slice(body.indexOf("<summary>Files not reviewed"));
     const groups = [...section.matchAll(/\*\*(Because [^\n]*?) \((\d+)\)\*\*\n\n((?:- [^\n]*\n?)+)/g)];
     expect(groups.length).toBe(counted.length);
     const listed: string[] = [];
+    // Same groups, same order, same counts as the callout's reasons.
+    expect(groups.map((g) => Number(g[2]))).toEqual(counted);
     for (const [, , n, items] of groups) {
       const paths = items!.trim().split("\n").map((l) => l.slice(3, -1));
       expect(paths.length).toBe(Number(n));

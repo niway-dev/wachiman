@@ -343,6 +343,13 @@ describe("reviewChange from a ReviewInput", () => {
     expect(capped.requests).toHaveLength(2);
   });
 
+  test("a run whose room is below the start floor makes no call and stops on its budget", async () => {
+    const provider = new FakeProvider([]);
+    const result = await reviewChange(branchInput(), options({ totalBudgetUsd: 0.1 }), coreDeps(provider).deps);
+    expect(provider.requests).toHaveLength(0);
+    expect(result.execution.stop).toBe("budget");
+  });
+
   test("an unknown format is a usage error before any call", async () => {
     const provider = new FakeProvider([]);
     const input = { ...branchInput(), format: "wachiman.review-input/3" } as unknown as ReviewInput;

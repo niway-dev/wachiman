@@ -469,8 +469,8 @@ What one review does, in order:
 1. Batches start in risk order, riskiest first, and up to four run at once. The limit is a constant
    in the engine (`BATCH_CONCURRENCY`), not a setting, and it is the same in CI and on a laptop.
 2. Before each call, the engine computes what is left: `budget_usd` minus what the finished calls
-   reported, minus what the calls still running may spend (their reservations). If less than $0.05
-   is left and some call is still running, the batch waits, because that call may give money back.
+   reported, minus what the calls still running may spend (their reservations). If less than the start
+   floor for a batch (or $0.05 for a retry) is left and some call is still running, the batch waits, because that call may give money back.
    If nothing is running, no more calls start, and the remaining files are listed as not reviewed
    (`not run: budget spent`).
 3. A call gets the smaller of `batch_budget_usd` and what is left, and that amount is reserved
@@ -513,8 +513,8 @@ What "cap" means depends on the provider:
 
 Smaller edges:
 
-- A total below $0.05 is accepted as a setting, but no call ever starts. The run ends with
-  `The agent did not return a review for any batch.` and exit 1.
+- A total below a batch's start floor (60% of the model's mean batch figure, never below $0.05) is
+  accepted as a setting, but no call ever starts. The run reports that it ran out of its budget.
 - If no batch produced any output and at least one batch's first call hit its cap, the engine posts
   a short review saying nothing was reviewed reliably, with a hint to review by path, and exits 0.
 - If some batches produced output, the review is posted with partial coverage and exit 0.

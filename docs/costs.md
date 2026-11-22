@@ -201,9 +201,10 @@ Four rules follow from that code:
 2. **A call that fails is counted at its cap.** The engine cannot know what it spent, so it assumes
    the worst case it allowed. The real figure may be lower, or higher if the provider's cap was
    exceeded.
-3. **The engine does not start a call with less than $0.05 left.** The same limit applies to the
-   retry. A total below $0.05 is accepted as a setting but starts no batch: the run ends with the
-   error "The agent did not return a review for any batch."
+3. **The engine does not start a batch with less than its start floor left, and no call with less
+   than $0.05.** The start floor is 60% of the model's mean batch figure, never below $0.05 (about
+   $0.19 for Sonnet). The $0.05 limit applies to the retry. A total below the start floor is accepted
+   as a setting but starts no batch: the run reports that it ran out of its budget.
 4. **The total can be overshot.** The engine checks `spent` after each call, using what the call
    reported. The last call can push the total past `budget_usd`, because the cap on a call is not
    exact (see the next section).
@@ -249,7 +250,8 @@ run does not start and posts the skip comment instead.
 
 The engine does not stop the review early with an error. It posts what it has:
 
-- A batch is **not started** when less than $0.05 is left. Its files are listed in the review as not
+- A batch is **not started** when less than its start floor is left (60% of the model's mean batch
+  figure, never below $0.05). Its files are listed in the review as not
   reviewed, with the reason "not reached: the pull request's budget was spent", and the coverage table
   shows `not run: budget spent` for that batch.
 - A batch whose call ended on its cap without a usable result has no review for its files. The
