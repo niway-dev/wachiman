@@ -247,6 +247,27 @@ describe("batches run side by side", () => {
     expect(r.posted.review?.body).toContain("reviewed after a retry");
   });
 
+  test("a call cut at a cap that another batch's reservation shrank is retried once that money returns", async () => {
+    // Total 0.80, per call 0.50: batch 1 reserves 0.50, so batch 2 gets a 0.30 cap, below the per-call cap only because
+    // of that reservation (the run itself has 0.80 left). Batch 2 spends its whole cap and is cut on budget. The run's
+    // room is then zero until batch 1 finishes and returns what it did not use, so the retry waits for it.
+    let batch2Calls = 0;
+    const provider = new TimedProvider((file) => {
+      if (file === fileName(1)) return { delayMs: 60, costUsd: () => 0.02 };
+      batch2Calls++;
+      return batch2Calls === 1 ? { delayMs: 10, budget: true, costUsd: (q) => q.maxBudgetUsd ?? 0 } : { delayMs: 10, costUsd: () => 0.02 };
+    });
+    const r = run(2, provider, { WACHIMAN_BATCH_BUDGET_USD: "0.5", WACHIMAN_BUDGET_USD: "0.8" });
+    await r.done;
+    expect(provider.requests).toHaveLength(3);
+    expect(provider.requests[1].maxBudgetUsd).toBeCloseTo(0.3, 5);
+    // Batch 2 was cut first, then batch 1 finished, and only then did batch 2's retry run, with the room that came back.
+    expect(provider.finished).toEqual([fileName(2), fileName(1), fileName(2)]);
+    expect(provider.requests[2].maxBudgetUsd).toBeCloseTo(0.48, 5);
+    expect(r.posted.review?.body).toContain("reviewed after a retry");
+    expect(r.posted.review?.body).not.toContain("not reached");
+  });
+
   test("a batch that throws ends the review after the running batches finish, and starts no more", async () => {
     // Writing the log line of batch 2 fails: an error outside any provider call.
     const provider = new TimedProvider(() => ({ delayMs: 40 }));
