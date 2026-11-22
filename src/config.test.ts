@@ -37,6 +37,7 @@ describe("loadConfig", () => {
       verify: false,
       verifyBudgetUsd: 1,
       verifierModel: "claude-opus-5-5",
+      formatModel: "claude-haiku-5-5",
       confidence: false,
       priorityTrial: false,
       memoryProposals: false,
@@ -150,6 +151,16 @@ describe("loadConfig", () => {
     expect(load({ WACHIMAN_CONFIDENCE: "false" }).config.confidence).toBe(false);
     expect(load({ WACHIMAN_CONFIDENCE: "" }).config.confidence).toBe(false);
     expect(() => load({ WACHIMAN_CONFIDENCE: "yes" })).toThrow(/WACHIMAN_CONFIDENCE must be/);
+  });
+
+  test("format_model defaults to Haiku with Claude Code, to nothing with Codex, and an explicit value wins", () => {
+    expect(load({}).config.formatModel).toBe("claude-haiku-5-5");
+    expect(load({ WACHIMAN_FORMAT_MODEL: "claude-sonnet-5-5" }).config.formatModel).toBe("claude-sonnet-5-5");
+    // An empty workflow input counts as unset.
+    expect(load({ WACHIMAN_FORMAT_MODEL: "" }).config.formatModel).toBe("claude-haiku-5-5");
+    // A Claude model id would fail on Codex, so there it is off unless the consumer names a model.
+    expect(load({ WACHIMAN_PROVIDER: "codex" }).config.formatModel).toBeUndefined();
+    expect(load({ WACHIMAN_PROVIDER: "codex", WACHIMAN_FORMAT_MODEL: "gpt-6.1-sol" }).config.formatModel).toBe("gpt-6.1-sol");
   });
 
   test("the verifier is opt-in and needs a model outside Claude Code", () => {

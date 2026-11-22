@@ -56,7 +56,8 @@ import {
   type ReviewStateDraft,
 } from "./review-state";
 import { batchStartFloor, estimateReview, type ReviewEstimate } from "./estimate";
-import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
+import { IGNORE_REVS_PATH, formatOnlyPaths, listedCommitsIn, parseIgnoreRevs } from "./ignore-revs";
+import { FORMAT_EFFORT, UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
 import {
   SETTINGS_PATH,
   applyRepoSettings,
@@ -739,6 +740,8 @@ export interface Batch {
   files: ReviewFile[];
   lines: number;
   maxRisk: number;
+  /** Planned apart from the main group: reviewed by `format_model` (ADR 0063). Absent for the main group. */
+  cheap?: true;
 }
 
 const KIND_ORDER: Record<FileKind, number> = { code: 0, test: 1, docs: 2 };
@@ -1757,6 +1760,63 @@ function fileAtBase(gh: GhFn, repo: string, path: string, sha: string): Instruct
   return instructionFileOf(path, Buffer.from(meta.content ?? "", "base64"));
 }
 
+/** The most commits of a pull request whose files are read one by one to find the format-only files. */
+export const MAX_FORMAT_RANGE_COMMITS = 100;
+/** The pull request commits endpoint lists at most this many, so a longer range cannot be seen whole. */
+const GITHUB_COMMIT_LIST_CAP = 250;
+
+/**
+ * The files of `files` that only commits listed in the head's `.git-blame-ignore-revs` touched
+ * (ADR 0063). The file is read at the head through the contents API, like every other file the
+ * engine reads from GitHub; the engine runs no `git` on the checkout in a pull request run, and
+ * the checkout may be shallow. With no listing the cost is one call. With a listing, one more call
+ * lists the pull request's commits and, only when one of them is listed, one call per commit reads
+ * the files it touched. A pull request with more commits than `MAX_FORMAT_RANGE_COMMITS` is not
+ * routed: its history cannot be read cheaply, and the safe answer is the main model for every file.
+ * Anything that goes wrong here is a note and an empty answer, never an error.
+ */
+export function githubFormatOnly(
+  gh: GhFn,
+  repo: string,
+  pr: number,
+  headSha: string,
+  files: readonly string[],
+  note: (line: string) => void,
+): string[] {
+  try {
+    const file = fileAtBase(gh, repo, IGNORE_REVS_PATH, headSha);
+    if (!file) return [];
+    const hashes = parseIgnoreRevs(file.content);
+    if (hashes.length === 0) return [];
+    const range = gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/commits`, "--jq", ".[].sha"])
+      .split("\n")
+      .map((l) => l.trim())
+      .filter(Boolean);
+    const listed = listedCommitsIn(hashes, range);
+    if (listed.size === 0) {
+      note(`${IGNORE_REVS_PATH} lists no commit of this pull request's ${range.length} commit(s): every file goes to the main model.`);
+      return [];
+    }
+    if (range.length >= GITHUB_COMMIT_LIST_CAP || range.length > MAX_FORMAT_RANGE_COMMITS) {
+      note(`${IGNORE_REVS_PATH} lists ${listed.size} commit(s) of this pull request, but it has ${range.length >= GITHUB_COMMIT_LIST_CAP ? `${GITHUB_COMMIT_LIST_CAP} or more` : range.length} commits, over the ${MAX_FORMAT_RANGE_COMMITS} whose files are read one by one: every file goes to the main model.`);
+      return [];
+    }
+    const jq = ".files // [] | .[] | (.filename, .previous_filename // empty)";
+    const touches = range.map((sha) => ({
+      sha,
+      paths: gh(["api", "--paginate", `repos/${repo}/commits/${sha}?per_page=100`, "--jq", jq])
+        .split("\n")
+        .filter(Boolean),
+    }));
+    const only = formatOnlyPaths(files, touches, listed);
+    note(`${IGNORE_REVS_PATH} lists ${listed.size} of the ${range.length} commit(s) of this pull request; ${only.length} of the ${files.length} file(s) changed only by them.`);
+    return only;
+  } catch (error) {
+    note(`${IGNORE_REVS_PATH} could not be used (${oneLine(String(error), 160)}): every file goes to the main model.`);
+    return [];
+  }
+}
+
 /** An instruction file from its bytes, cut at `MAX_INSTRUCTION_BYTES`. Shared by every connector. */
 export function instructionFileOf(path: string, bytes: Buffer): InstructionFile {
   if (bytes.length <= MAX_INSTRUCTION_BYTES) return { path, content: bytes.toString("utf8"), truncated: false };
@@ -2055,6 +2115,11 @@ export interface CoreDeps {
   provider: ProviderAdapter;
   /** The verifier's adapter, on its own model (ADR 0027). Default: `provider`. */
   verifier?: ProviderAdapter;
+  /**
+   * The adapter of `format_model`, at effort low (ADR 0063). Without it, or without
+   * `ReviewOptions.format`, every file goes to `provider`, whatever `ReviewInput.formatOnly` says.
+   */
+  formatProvider?: ProviderAdapter;
   /**
    * A read-only copy of the base commit, made only when the verifier has candidates and is about
    * to run, and released when it ends (ADR 0030 decision 4). Absent: the verifier cannot cite the
@@ -3058,9 +3123,21 @@ async function settledOnError<T>(deps: Deps, grant: SpendGrant, run: () => Promi
 }
 
 /** The estimate of reviewing `files` with this configuration: the batches `planBatches` makes, priced per batch. */
-export function estimateFor(files: ReviewFile[], config: EngineConfig, rules?: readonly PathRule[]): ReviewEstimate {
-  const batches = planBatches(files, { maxLines: config.batchLines, maxChars: config.batchChars }, rules).length;
-  return estimateReview(files, { batches, batchBudgetUsd: config.batchBudgetUsd, model: config.model });
+export function estimateFor(files: ReviewFile[], config: EngineConfig, rules?: readonly PathRule[], formatOnly: readonly string[] = []): ReviewEstimate {
+  const limits = { maxLines: config.batchLines, maxChars: config.batchChars };
+  // The same split `reviewChange` makes (ADR 0063): the format group is planned and priced apart.
+  const formatNames = config.formatModel ? new Set(formatOnly) : new Set<string>();
+  const formatFiles = files.filter((f) => formatNames.has(f.filename));
+  const mainFiles = formatFiles.length > 0 ? files.filter((f) => !formatNames.has(f.filename)) : files;
+  const batches = planBatches(mainFiles, limits, rules).length;
+  return estimateReview(mainFiles, {
+    batches,
+    batchBudgetUsd: config.batchBudgetUsd,
+    model: config.model,
+    ...(formatFiles.length > 0 && config.formatModel
+      ? { format: { files: formatFiles, batches: planBatches(formatFiles, limits, rules).length, model: config.formatModel } }
+      : {}),
+  });
 }
 
 /** The hidden marker of the size-gate comment, so the next push updates it instead of adding another. */
@@ -3068,6 +3145,8 @@ export const SIZE_GATE_MARKER = "<!-- wachi:size-gate -->";
 
 const usd2 = (n: number) => `$${n.toFixed(2)}`;
 const usd0 = (n: number) => `$${n}`;
+/** A figure under ten cents keeps its third decimal: the format group's $0.015 a batch must not read $0.01. */
+const usd3 = (n: number) => (n < 0.1 ? `$${n.toFixed(3)}` : usd2(n));
 const count = (n: number) => n.toLocaleString("en-US");
 
 /** A changed file a `critical` path rule matches, and the maintainer's reason. */
@@ -3161,7 +3240,7 @@ export function sizeGateBody(o: {
       `**Not reviewed: this review would cost more than the run can spend.** Reviewing all of it would cost about **${usd2(e.usd)}**, and this run has room for **${usd2(room)}**, so nothing was sent to a model and nothing was spent.`,
     ),
     ...(o.critical?.length ? [criticalPathsSection(o.critical)] : []),
-    `The estimate: ${count(e.batches)} batches × ${usd2(e.perBatchUsd)} a batch for \`${model}\` (${count(e.files)} files, ${count(e.lines)} changed lines), from the diff alone, before any model call. It can be off by about 40% either way. The room is **${usd2(room)}**: ${limit.label} is ${usd2(limit.usd)}${reserves > 0.005 ? `, less ${usd2(reserves)} that the reserves keep (the verifier, memory matching and, with PR Confidence, the claims call)` : ""}.`,
+    `The estimate: ${count(e.batches)} batches × ${usd2(e.perBatchUsd)} a batch for \`${model}\` (${count(e.files)} files, ${count(e.lines)} changed lines)${e.format ? `, plus ${count(e.format.batches)} batches × ${usd3(e.format.perBatchUsd)} a batch for \`${e.format.model}\` at low effort (${count(e.format.files)} files, ${count(e.format.lines)} changed lines, changed only by commits in \`${IGNORE_REVS_PATH}\`)` : ""}, from the diff alone, before any model call. It can be off by about 40% either way. The room is **${usd2(room)}**: ${limit.label} is ${usd2(limit.usd)}${reserves > 0.005 ? `, less ${usd2(reserves)} that the reserves keep (the verifier, memory matching and, with PR Confidence, the claims call)` : ""}.`,
     next,
     `<sub>Estimated at \`${sha}\`. A run can pass its budget by about one call. This comment is updated on each push instead of a new one.</sub>`,
     SIZE_GATE_MARKER,
@@ -3506,6 +3585,12 @@ export interface ReviewOptions {
   trigger?: Trigger;
   profile: Profile;
   /**
+   * The model for the files of `ReviewInput.formatOnly` (ADR 0063): they are planned in batches of
+   * their own and each batch runs on `CoreDeps.formatProvider`. Set from `format_model`, never by a
+   * caller that has no such provider.
+   */
+  format?: { model: string; effort: Effort };
+  /**
    * The verifier (ADR 0027): when set, one more call after the batches tries to refute every
    * finding above `info`. Its money is reserved out of `totalBudgetUsd` before the batches run.
    */
@@ -3560,6 +3645,7 @@ export function reviewOptionsOf(config: EngineConfig, totalBudgetUsd: number, pr
     effort: config.effort,
     trigger: config.trigger,
     profile,
+    ...(config.formatModel ? { format: { model: config.formatModel, effort: FORMAT_EFFORT } } : {}),
     ...(config.verify ? { verify: { model: config.verifierModel, budgetUsd: config.verifyBudgetUsd } } : {}),
   };
 }
@@ -3646,15 +3732,19 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const batchBudget = options.batchBudgetUsd;
   // A batch starts only with room for about one turn of the model; a retry only needs a call's minimum.
   const startFloor = batchStartFloor(options.model, batchBudget, MIN_BATCH_USD);
-  const batches = planBatches(
-    kept,
-    {
-      maxLines: options.batchLines,
-      // About 40k tokens at 3.5 characters a token.
-      maxChars: options.batchChars,
-    },
-    input.pathRules,
-  );
+  const batchLimits = {
+    maxLines: options.batchLines,
+    // About 40k tokens at 3.5 characters a token.
+    maxChars: options.batchChars,
+  };
+  // The files only listed formatting commits touched (ADR 0063) are planned apart and read by
+  // `format_model`; with no format model or provider they stay in the main group, as before.
+  const formatNames = options.format && deps.formatProvider ? new Set(input.formatOnly ?? []) : new Set<string>();
+  const formatFiles = kept.filter((f) => formatNames.has(f.filename));
+  const batches: Batch[] = [
+    ...planBatches(formatFiles.length > 0 ? kept.filter((f) => !formatNames.has(f.filename)) : kept, batchLimits, input.pathRules),
+    ...(formatFiles.length > 0 ? planBatches(formatFiles, batchLimits, input.pathRules).map((b): Batch => ({ ...b, cheap: true })) : []),
+  ];
   // The files this run reviews whole because the previous review did not reach them.
   const keptNames = new Set(kept.map((f) => f.filename));
   const carriedHere = (input.since?.carried ?? []).filter((f) => keptNames.has(f));
@@ -3787,9 +3877,12 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     core.log(
       `batch ${i + 1}/${batches.length}: started (${inFlight} of ${BATCH_CONCURRENCY} running, $${firstBudget.toFixed(2)} reserved)`,
     );
+    // A batch of the format group runs on the format model's adapter (ADR 0063); every other call is unchanged.
+    const callCore: CoreDeps = batch.cheap && deps.formatProvider ? { ...core, provider: deps.formatProvider } : core;
+    const callLimits: ReviewOptions = batch.cheap && options.format ? { ...options, model: options.format.model, effort: options.format.effort } : options;
     const first = await reviewBatchBackingOff(
-      core,
-      options,
+      callCore,
+      callLimits,
       context,
       batch.files,
       threadsByBatch[i],
@@ -3837,8 +3930,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     const grant = gaps.length > 0 && first.stopped !== "timeout" && !ownRefusal && !roomCut ? await acquire(i, false) : undefined;
     if (gaps.length > 0 && grant && "usd" in grant) {
       const retry = await reviewBatchBackingOff(
-        core,
-        options,
+        callCore,
+        callLimits,
         context,
         gaps,
         [],
@@ -4132,6 +4225,10 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       baseSha: input.instructions.baseSha,
     },
     ...(input.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
+    // The files `format_model` read, so the review says which model read them and why (AC19).
+    ...(options.format && formatFiles.some((f) => reviewedSet.has(f.filename))
+      ? { formatReview: { model: options.format.model, effort: options.format.effort, files: formatFiles.map((f) => f.filename).filter((f) => reviewedSet.has(f)) } }
+      : {}),
     ...(options.distributed ? distributedResultFields(options.distributed, settled?.removed ?? 0) : {}),
     execution: {
       costUsdEstimate: spent,
@@ -4447,6 +4544,8 @@ export function githubReviewInput(p: {
   pathPolicyChanged?: boolean;
   /** `review.comments_point_to_docs` is on at the base commit. */
   commentsPointToDocs?: boolean;
+  /** The files only commits listed in `.git-blame-ignore-revs` touched (ADR 0063); omitted or empty when none. */
+  formatOnly?: string[];
 }): ReviewInput {
   return {
     format: REVIEW_INPUT_FORMAT,
@@ -4480,6 +4579,7 @@ export function githubReviewInput(p: {
     ...(p.pathRules?.length ? { pathRules: p.pathRules } : {}),
     ...(p.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
     ...(p.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
+    ...(p.formatOnly?.length ? { formatOnly: p.formatOnly } : {}),
   };
 }
 
@@ -4850,7 +4950,13 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // a critical path for that review: the head's rules are never applied, only compared.
   const pathPolicyChanged = touchesSettingsFile(prFiles) && headEditsPathRules(gh, repo, headSha, baseRules);
   const pathRules = pathPolicyChanged ? withPolicyEditRule(baseRules) : baseRules;
-  const estimate = estimateFor(allBinary.reviewable, config, pathRules);
+  // The files only listed formatting commits touched go to `format_model` (ADR 0063). Read before the
+  // estimate, which prices the two groups apart; the calls are GitHub reads, not model calls.
+  const formatOnly =
+    config.formatModel && deps.formatProvider
+      ? githubFormatOnly(gh, repo, pr, headSha, allBinary.reviewable.map((f) => f.filename), (line) => deps.log(line))
+      : [];
+  const estimate = estimateFor(allBinary.reviewable, config, pathRules, formatOnly);
   // The ceiling is read first: it is the term of the room that changes between runs, and it keeps its
   // own notice for less than a call's minimum. After the rebase exits above (they cost nothing and
   // move the marker) and before any paid step.
@@ -4943,6 +5049,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     pathRules,
     pathPolicyChanged,
     commentsPointToDocs,
+    formatOnly,
   });
   // Everything the run reads from GitHub is read by now. The ledger is asked last, just before the
   // first paid step, so a failing read cannot leave a reservation that nobody settles.

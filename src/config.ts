@@ -133,6 +133,13 @@ export interface EngineConfig {
   /** `WACHIMAN_VERIFIER_MODEL`: the verifier's model; it always runs at effort `high`. */
   verifierModel: string;
   /**
+   * `WACHIMAN_FORMAT_MODEL` (the `format_model` input): the model that reviews the files whose
+   * every commit in the range is listed in `.git-blame-ignore-revs` (ADR 0063), always at effort
+   * `low`. Undefined when the provider is not Claude Code and none was set: those files then go to
+   * the main model, as before.
+   */
+  formatModel: string | undefined;
+  /**
    * `WACHIMAN_CONFIDENCE`: PR Confidence (ADR 0033). A full review of a pull request lists the
    * claims in its title and body with one more small call, grades the change against them and
    * writes the grade into the description. Off by default; enabled only by `1` or `true`. Read by
@@ -156,6 +163,12 @@ export interface EngineConfig {
 
 /** The verifier's model when `WACHIMAN_VERIFIER_MODEL` is unset (Claude Code only). */
 export const DEFAULT_VERIFIER_MODEL = "claude-opus-5-5";
+
+/** The model of the files that only formatting commits touched when `WACHIMAN_FORMAT_MODEL` is unset (Claude Code only). */
+export const DEFAULT_FORMAT_MODEL = "claude-haiku-5-5";
+
+/** The effort of the format model: the files it reads changed only by listed commits, and the saving is the point. */
+export const FORMAT_EFFORT = "low" as const;
 
 type Env = Record<string, string | undefined>;
 
@@ -315,6 +328,7 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     verify,
     verifyBudgetUsd: number("VERIFY_BUDGET_USD", 1),
     verifierModel: verifierModel ?? DEFAULT_VERIFIER_MODEL,
+    formatModel: get("FORMAT_MODEL") ?? (provider === "claude-code" ? DEFAULT_FORMAT_MODEL : undefined),
     confidence: confidenceRaw === "1" || confidenceRaw === "true",
     priorityTrial: get("PRIORITY_TRIAL") === "1",
     memoryProposals: memoryProposalsRaw === "1" || memoryProposalsRaw === "true",

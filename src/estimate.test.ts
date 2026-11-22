@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { estimateReview, PER_BATCH_USD } from "./estimate";
+import { estimateReview, PER_BATCH_LOW_USD, PER_BATCH_USD } from "./estimate";
 import { approvalBudget, batchRoom, estimateFor, type ReviewFile } from "./engine";
 import type { ExceptionPlan } from "./memory/mute";
 import { loadConfig } from "./config";
@@ -33,6 +33,57 @@ describe("estimateReview", () => {
     const e = estimateReview(files, { batches: 2, batchBudgetUsd: 0.2, model: "claude-opus-5-5" });
     expect(e.perBatchUsd).toBe(0.2);
     expect(e.usd).toBeCloseTo(0.4, 10);
+  });
+});
+
+describe("the format group is priced with its own model and effort (AC18, AC20)", () => {
+  const main = [file("a.ts", 10, 5)];
+  const format = [file("f1.ts", 40), file("f2.ts", 40)];
+
+  test("the measured figure for Haiku at low effort is far below Sonnet's batch", () => {
+    expect(PER_BATCH_LOW_USD).toEqual({ haiku: 0.015 });
+    expect(PER_BATCH_LOW_USD.haiku).toBeLessThan(PER_BATCH_USD.sonnet / 10);
+  });
+
+  test("the total is the main group's batches plus the format group's, each at its own figure", () => {
+    const e = estimateReview(main, { batches: 2, batchBudgetUsd: 0.75, model: "claude-sonnet-5-5", format: { files: format, batches: 3, model: "claude-haiku-5-5" } });
+    expect(e).toMatchObject({ files: 1, lines: 15, batches: 2, perBatchUsd: 0.32 });
+    expect(e.format).toMatchObject({ files: 2, lines: 80, batches: 3, perBatchUsd: 0.015, model: "claude-haiku-5-5" });
+    expect(e.format?.usd).toBeCloseTo(0.045, 10);
+    expect(e.usd).toBeCloseTo(0.64 + 0.045, 10);
+  });
+
+  test("a format model with no low-effort measurement is priced at its high-effort figure, never lower", () => {
+    const e = estimateReview(main, { batches: 1, batchBudgetUsd: 0.75, model: "claude-sonnet-5-5", format: { files: format, batches: 1, model: "claude-sonnet-5-5" } });
+    expect(e.format?.perBatchUsd).toBe(0.32);
+  });
+
+  test("the per-call cap still bounds the format figure", () => {
+    const e = estimateReview(main, { batches: 1, batchBudgetUsd: 0.01, model: "claude-sonnet-5-5", format: { files: format, batches: 4, model: "claude-haiku-5-5" } });
+    expect(e.format?.perBatchUsd).toBe(0.01);
+  });
+
+  test("without a format group the estimate is what it was", () => {
+    const e = estimateReview(main, { batches: 2, batchBudgetUsd: 0.75, model: "claude-sonnet-5-5" });
+    expect(e.format).toBeUndefined();
+    expect(e.usd).toBeCloseTo(0.64, 10);
+  });
+
+  test("estimateFor plans the two groups apart: a formatter group of 2,400 lines is 3 batches, the rest 1", () => {
+    const config = loadConfig({ WACHIMAN_BATCH_LINES: "1000", WACHIMAN_MODEL: "claude-sonnet-5-5" });
+    const formatFiles = [file("s/a.ts", 800), file("t/b.ts", 800), file("u/c.ts", 800)];
+    const e = estimateFor([file("m/x.ts", 100), ...formatFiles], config, undefined, formatFiles.map((f) => f.filename));
+    expect(e).toMatchObject({ files: 1, batches: 1 });
+    expect(e.format).toMatchObject({ files: 3, lines: 2400, batches: 3 });
+    expect(e.usd).toBeCloseTo(0.32 + 3 * 0.015, 10);
+  });
+
+  test("estimateFor with no format model leaves every file in the main group", () => {
+    const config = loadConfig({ WACHIMAN_PROVIDER: "codex", WACHIMAN_MODEL: "gpt-6.1-sol", WACHIMAN_BATCH_LINES: "1000" });
+    const files = [file("s/a.ts", 800), file("t/b.ts", 800)];
+    const e = estimateFor(files, config, undefined, ["s/a.ts"]);
+    expect(e.format).toBeUndefined();
+    expect(e.batches).toBe(2);
   });
 });
 
