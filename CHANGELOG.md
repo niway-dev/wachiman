@@ -5,6 +5,13 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.19.0](https://github.com/niway-dev/wachiman/compare/v1.18.0...v1.19.0) (2026-11-21)
+
+
+### Features
+
+* **review:** open every review summary with one status line and a fixed, scannable layout ([#288](https://github.com/niway-dev/wachiman/issues/288)) ([47a70b5](https://github.com/niway-dev/wachiman/commit/47a70b5be89056d6529bc6a63a99da3409e9909c))
+
 ## [1.18.0](https://github.com/niway-dev/wachiman/compare/v1.17.0...v1.18.0) (2026-11-21)
 
 
