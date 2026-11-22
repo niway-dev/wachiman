@@ -1386,6 +1386,8 @@ export function buildReview(input: {
   instructionChanges?: { files: string[]; baseSha: string };
   /** The pull request edits the path rules in `.wachiman.yml`; the review ran under the base's. */
   pathPolicyChange?: { baseSha: string };
+  /** The files read by `format_model` and why (ADR 0063); the review lists them on their own line. */
+  formatReview?: { model: string; effort: string; files: string[] };
   /** The verifier's record (ADR 0027): its outcome goes in the footer's cost line. */
   verification?: ResultVerificationV2;
   /** The run is on a Claude subscription: its dollar figures are API-price estimates (ADR 0037). */
@@ -1482,6 +1484,7 @@ export function buildReview(input: {
     unreviewable: input.unreviewable,
     instructionChanges: input.instructionChanges,
     pathPolicyChange: input.pathPolicyChange,
+    formatReview: input.formatReview,
     verification: input.verification,
     riskMap: input.riskMap,
     fidelity: input.fidelity,
@@ -4672,6 +4675,7 @@ export function githubReview(
     ...(github.earlierThreads !== undefined ? { earlierThreads: github.earlierThreads } : {}),
     instructionChanges: github.instructionChanges,
     ...(result.pathPolicyChanged ? { pathPolicyChange: { baseSha: github.instructionChanges.baseSha } } : {}),
+    ...(result.formatReview ? { formatReview: result.formatReview } : {}),
     riskMap: result.riskMap,
     ...(result.arm ? { arm: result.arm } : {}),
     ...(result.fidelity ? { fidelity: result.fidelity } : {}),

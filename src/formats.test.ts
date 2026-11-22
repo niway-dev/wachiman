@@ -73,6 +73,22 @@ describe("review formats", () => {
   });
 });
 
+describe("format-only files in the formats (ADR 0063)", () => {
+  test("a review input may carry formatOnly as a list of names, and nothing else", () => {
+    const withFormat = { ...fixtures.branch, formatOnly: ["src/a.ts"] };
+    expect(validate(inputSchema, JSON.parse(JSON.stringify(withFormat)))).toEqual([]);
+    expect(validate(inputSchema, { ...fixtures.branch, formatOnly: "src/a.ts" }).length).toBeGreaterThan(0);
+    expect(validate(inputSchema, { ...fixtures.branch, formatOnly: [1] }).length).toBeGreaterThan(0);
+  });
+
+  test("a /2 result may carry formatReview with the model, the effort and the files; the /1 result has no place for it", () => {
+    const withFormat = { ...structuredClone(fixtures.resultV2), formatReview: { model: "claude-haiku-5-5", effort: "low", files: ["src/a.ts"] } };
+    expect(validate(resultSchemaV2, withFormat)).toEqual([]);
+    expect(validate(resultSchemaV2, { ...withFormat, formatReview: { model: "m", effort: "low" } })).toEqual(['$.formatReview: missing required "files"']);
+    expect(Object.keys(toResultV1(withFormat as never))).not.toContain("formatReview");
+  });
+});
+
 describe("review result /2", () => {
   const clone = () => structuredClone(fixtures.resultV2);
 

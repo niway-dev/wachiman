@@ -222,3 +222,33 @@ describe("the estimate prices each group with its own figure (AC18)", () => {
     expect(body).toContain("$0.015 a batch");
   });
 });
+
+describe("the review lists the files read by the cheaper model on their own line (AC19)", () => {
+  const reviewBody = (w: ReturnType<typeof world>) => w.posted.filter((p) => p.kind === "review").map((p) => p.body).join("\n");
+
+  test("one paragraph names the model, the effort and the reason, and a collapsed list names the files", async () => {
+    const w = world(FILES, { ignoreRevs: LISTING, commits: COMMITS });
+    await run(w);
+    const body = reviewBody(w);
+    expect(body).toContain("ℹ️ **1 file reviewed by `claude-haiku-5-5` at effort low**: changed only by commits in `.git-blame-ignore-revs`.");
+    expect(body).toContain("<details><summary>Files reviewed by `claude-haiku-5-5`</summary>");
+    expect(body).toContain("- `src/fmt.ts`");
+    expect(body).not.toContain("- `src/work.ts`");
+  });
+
+  test("a review with no format-only file has no such line", async () => {
+    const w = world(FILES, { commits: COMMITS });
+    await run(w);
+    expect(reviewBody(w)).not.toContain("reviewed by `claude-haiku-5-5`");
+  });
+
+  test("the list is bounded: 40 files show 30 names and the count of the rest", async () => {
+    const many = Array.from({ length: 40 }, (_, i) => bigFile(`pkg${String(i).padStart(2, "0")}/mod.ts`, 5));
+    const w = world(many, { ignoreRevs: LISTING, commits: [{ sha: FORMAT_SHA, paths: many.map((f) => f.filename) }] });
+    await run(w);
+    const body = reviewBody(w);
+    expect(body).toContain("40 files reviewed by `claude-haiku-5-5` at effort low");
+    expect(body.match(/^- `pkg\d\d\/mod\.ts`$/gm)?.length).toBe(30);
+    expect(body).toContain("- and 10 more");
+  });
+});

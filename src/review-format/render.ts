@@ -21,6 +21,7 @@
 import { oneLine, renderContracts, SEVERITY, TOPIC } from "../engine";
 import { A_MEANS } from "../fidelity/summary";
 import { inertText } from "../fidelity/inert";
+import { IGNORE_REVS_PATH } from "../ignore-revs";
 import { MUTED_HEADING } from "../memory/mute";
 import { PRIORITY_WORD } from "../priority";
 import { SETTINGS_PATH } from "../repo-settings";
@@ -195,6 +196,21 @@ function partialCallout(view: ReviewView, fit: Fit): string | null {
   ].join("\n");
 }
 
+/** How many names the format notice lists; it sits in the slot size fitting never drops, so it is bounded. */
+const MAX_FORMAT_LISTED = 30;
+
+/** The files read by `format_model`: one paragraph with the model and the reason, and a collapsed list of the names (ADR 0063). */
+function formatNotice(f: { model: string; effort: string; files: string[] }): string {
+  const model = codeSpan(f.model);
+  const n = f.files.length;
+  const listed = f.files.slice(0, MAX_FORMAT_LISTED).map((name) => `- ${codeSpan(name)}`);
+  if (n > listed.length) listed.push(`- and ${n - listed.length} more`);
+  return [
+    `ℹ️ **${n} ${n === 1 ? "file" : "files"} reviewed by ${model} at effort ${neutralise(f.effort)}**: changed only by commits in ${codeSpan(IGNORE_REVS_PATH)}.`,
+    collapsed(`Files reviewed by ${model}`, listed.join("\n")),
+  ].join("\n\n");
+}
+
 /** Instructions, policy and verifier notices, and what memory did: one visible paragraph each (slot 2). */
 function notices(view: ReviewView): string | null {
   const out: string[] = [];
@@ -215,6 +231,7 @@ function notices(view: ReviewView): string | null {
       `ℹ️ **Review policy changed**: this pull request edits the path rules in ${codeSpan(SETTINGS_PATH)}. The review ran under the rules at the base commit ${codeSpan(short(pathPolicyChange.baseSha))}; the change takes effect after merge.`,
     );
   }
+  if (view.notices.formatReview) out.push(formatNotice(view.notices.formatReview));
   if (view.verifier.status === "failed") {
     out.push(
       "⚠️ **Not verified**: the second reader that checks each finding did not finish, so these findings are posted as the review wrote them.",
