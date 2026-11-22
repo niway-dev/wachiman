@@ -69,5 +69,5 @@ automation does not authorize it here.
 ## 9. Add behavior without breaking what is already installed
 
 A new review rule that could change what an existing repository sees, or fail its build, is off by
-default and turned on in `.wachiman.yml` by the repository when ready. See
+default and turned on in `.wachiman.yml` by the repository when ready (proposed, not yet implemented). See
 [ADR 0064](../adr/0064-new-review-behavior-is-opt-in-per-repository-and-off-by-default.md).

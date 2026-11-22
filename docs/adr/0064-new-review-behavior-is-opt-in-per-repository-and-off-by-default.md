@@ -15,8 +15,8 @@ comment that now blocks, a check that goes red. The consumer did not ask for it 
 only when a build fails.
 
 The project already leans this way without having said it. The verifier (`verify`) and PR Confidence
-(`pr_confidence`) are off by default ([configuration reference](../configuration.md)), and
-`.wachiman.yml` ([ADR 0048](0048-a-repository-settings-file-at-the-root-wachiman-yml.md)) exists so
+(`pr_confidence`) are off by default as workflow inputs and environment variables
+([configuration reference](../configuration.md)), and `.wachiman.yml` ([ADR 0048](0048-a-repository-settings-file-at-the-root-wachiman-yml.md)) exists so
 a repository can carry its own choices. What is missing is the rule: nothing says that a new
 behavior must start off, so the next one could ship on by default.
 
@@ -32,7 +32,10 @@ overnight. The rule suits some codebases and would be noise in others.
    see" includes a new finding class, a new check, a stricter existing check, a different comment
    layout that tooling may parse, and a new failing exit code.
 2. **The consumer turns it on.** Upgrading Wachiman alone never changes a repository's reviews
-   beyond bug fixes and the settings it already chose.
+   beyond bug fixes and the settings it already chose. Because an off-by-default addition keeps
+   every existing input, secret and behavior working, it is backward compatible in the sense of
+   [the release rule](../releasing.md) and may ride the floating `v1` tag. For new behavior the
+   settings file is the home; the existing workflow inputs and environment variables stay as they are.
 3. **The setting is read like the other keys of the file**: from the base commit in Actions and from
    the merge-base locally ([ADR 0049](0049-model-and-effort-in-wachiman-yml-read-from-the-base-commit.md)),
    so a pull request cannot switch a rule off for itself.
