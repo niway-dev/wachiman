@@ -62,6 +62,7 @@ What changes when you migrate:
 | --- | --- |
 | `WACHIMAN_OPERATOR` and the login in the on-demand `if:` | `operator` (required, set once) |
 | `WACHIMAN_BUDGET_USD`, `WACHIMAN_BATCH_BUDGET_USD`, `WACHIMAN_ANSWER_BUDGET_USD` | `budget_usd`, `batch_budget_usd`, `answer_budget_usd` |
+| `WACHIMAN_APPROVE_MAX_USD` | `approve_max_usd` |
 | `WACHIMAN_BATCH_LINES`, `WACHIMAN_BATCH_CHARS` | `batch_lines`, `batch_chars` |
 | `WACHIMAN_MODEL`, `WACHIMAN_PROVIDER` | `model`, `provider` (the workflow installs Claude Code only; see [providers/codex.md](providers/codex.md)). `model` and `effort` default to empty: then `.wachiman.yml` at the base commit, then the built-in default ([configuration.md](configuration.md#the-settings-file-wachimanyml)) |
 | `WACHIMAN_MENTION` | `mention` |
@@ -119,7 +120,9 @@ The automatic job is skipped for draft pull requests, fork pull requests, Depend
 `release-please--` branches. The comment job is not skipped for drafts, Dependabot or those
 branches; it refuses fork pull requests. Lockfiles, build output and generated files are dropped
 first. A file no batch accounts for marks the review "⚠️ Partial review" on its first line. There
-is no size gate and no file-count guard. The review body is kept under 60,000 characters (GitHub
+is no file-count guard, and the room gate (a review whose estimate is above what the run may spend
+is skipped with one comment; see [costs.md](costs.md#the-room-gate)) takes `WACHIMAN_BUDGET_USD`
+and `WACHIMAN_APPROVE_MAX_USD` from the workflow `env`. The review body is kept under 60,000 characters (GitHub
 refuses about 65,000): a long "Not reviewed" list is cut to what fits and ends with "… and N more
 (see the Coverage by batch table)".
 
@@ -213,6 +216,7 @@ covers):
 | `WACHIMAN_BATCH_BUDGET_USD` | `0.75` | Limit for one batch call; retries count against the total |
 | `WACHIMAN_BUDGET_USD` | `3` | Total for all batches (and retries) of one review |
 | `WACHIMAN_ANSWER_BUDGET_USD` | `1` | Limit for one question |
+| `WACHIMAN_APPROVE_MAX_USD` | `20` | The most the operator may approve for one head with `/wachiman review --budget N --head <sha>` |
 | `WACHIMAN_OPERATOR` | (edit) | The login allowed to command the tool |
 
 ## Migrating a very old copy

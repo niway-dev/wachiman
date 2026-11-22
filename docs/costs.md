@@ -11,9 +11,9 @@ the cost a review reports.
 **Most budgets limit one run. One limit covers a pull request's automatic runs together: `auto_budget_usd` (default $6).** Nothing limits a month. For the supported
 Claude workflow the per-call cap is soft: a call can spend more than its cap. For Codex there is no
 per-call dollar cap at all. Treat the settings as guard rails, and set a spend limit at the provider
-if you need a hard ceiling. New in the next release: a pull request whose estimated cost is above
-the size gate (`size_gate_usd`, default $6) is not reviewed at all, and Wachiman says why in one
-comment. See [The size gate](#the-size-gate).
+if you need a hard ceiling. New in the next release: a review whose estimated cost is above the
+room the run may spend is not started, and Wachiman says why in one comment that also gives the
+command to approve a budget for that head. See [The room gate](#the-room-gate).
 
 Everything below describes the code on the `main` branch (`src/engine.ts`, `src/providers/`,
 `.github/workflows/review.yml`). It is advisory software: a review never approves, requests changes
@@ -51,13 +51,15 @@ until you raise the limit or ask yourself.
 - It bounds the engine's own accounting. For Claude the per-call cap is soft, so a pull request can
   still go past the ceiling by a call's overshoot.
 
-## The size gate
+## The room gate
 
-**New in the next release** ([ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)). The budgets above bound what a run spends. They do not bound
-what a run would need to spend to be complete. On a very large pull request a run spent its whole
-budget on the riskiest batches and posted that as a review of a small part of the change. The size
-gate asks the other question first: what would the whole review cost? If the answer is above the
-gate, Wachiman reviews nothing and says so.
+**New in the next release** ([ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md), which
+supersedes the fixed dollar gate of [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)).
+The budgets above bound what a run spends. They do not bound what a run would need to spend to be
+complete. On a very large pull request a run spent its whole budget on the riskiest batches and
+posted that as a review of a small part of the change. The room gate asks the other question first:
+what would the whole review cost, and can this run pay for it? If not, Wachiman reviews nothing
+and says so.
 
 ### The estimate
 
@@ -90,49 +92,82 @@ retries and the opt-in verifier all move the real cost. **Expect the estimate to
 either way.** It is a gate, not a quote. The verifier, the PR Confidence claims call and thread
 replies are not in the estimate; they are small and have their own budgets.
 
-### The gate
+### The room
 
-`size_gate_usd` (`WACHIMAN_SIZE_GATE_USD`) is a finite number greater than 0, default **$6**.
-There is no value for "unlimited": a typo cannot remove the bound, and the most a run can spend is
-still `budget_usd`. The gate that applies to a run is never below what the run may spend:
+There is no gate figure to set. The gate is the room this run has, taken from three limits:
 
-- `/wachiman review`: the larger of `size_gate_usd` and `budget_usd`.
-- An automatic run: the larger of `size_gate_usd` and the smaller of `budget_usd` and `auto_budget_usd`.
+- the run budget, `budget_usd` (or the figure the operator approves, see below);
+- for an automatic run, what is left of `auto_budget_usd` for the pull request (an operator's
+  `/wachiman review` is not bounded by it);
+- when a spend ledger is connected, the grant it gives the run.
 
-A run that may pay for the whole estimate gets the whole review.
+The run's total is the smallest of those. The batches get that total less two reserves that the run
+keeps for other calls: the verifier's (at most half the total, when the verifier is on) and the
+memory-match reserve (when the base commit's exceptions are active). That is the room, and the
+estimate is compared with it. A review is only started when the room covers the whole estimate, so
+it is never a partial review of a change that the run already knew it could not finish. The
+comparison happens twice: once with the budget and the ceiling, before the ledger is asked, and
+again after the ledger's grant arrives.
 
 ### What happens
 
 | The estimate is | What the run does |
 | --- | --- |
-| At or below `budget_usd` | A normal review. |
-| Above `budget_usd`, at or below the gate | A partial review of the riskiest batches, as described in [When the budget runs out](#when-the-budget-runs-out). The next push resumes it ([ADR 0036](adr/0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)). Unchanged. |
-| Above the gate | GitHub Actions posts no review, writes no marker and spends nothing. It posts one issue comment instead. |
+| At or below the room | A normal review. |
+| Above the room | GitHub Actions posts no review, writes no marker and spends nothing. It posts one issue comment instead. |
+
+A review that starts can still stop short: the estimate is a guess ("about 40% either way"), and
+[When the budget runs out](#when-the-budget-runs-out) describes what happens then. The next push
+resumes it ([ADR 0036](adr/0036-a-partial-review-records-the-files-it-did-not-reach-so-the-next-push-resumes.md)).
 
 The comment carries a hidden marker (`<!-- wachi:size-gate -->`). A later skip on the same pull
 request finds it and edits the comment instead of posting another, so a pull request that keeps
-growing has one comment, kept current. For example (the estimate this code computes from the diff of [pingdotgg/t3code#28845](https://github.com/pingdotgg/t3code/pull/28845)):
+growing has one comment, kept current. It states the estimate, the room, the short head SHA the
+estimate was made for, and that a run may pass the approved figure by about one call. For example
+(an illustrative pull request, with the figures this code would compute for it):
 
 ```text
-**Not reviewed: this pull request is above the size gate.** Reviewing all of it would cost about **$20.80**, and the gate is **$6.00**, so nothing was sent to a model and nothing was spent.
+**Not reviewed: this review would cost more than the run can spend.** Reviewing all of it would cost about **$9.60**, and this run has room for **$3.00**, so nothing was sent to a model and nothing was spent.
 
-The estimate: 65 batches × $0.32 a batch for `claude-sonnet-5-5` (606 files, 59,273 changed lines), from the diff alone, before any model call. It can be off by about 40% either way.
+The estimate: 30 batches × $0.32 a batch for `claude-sonnet-5-5` (180 files, 24,000 changed lines), from the diff alone, before any model call. It can be off by about 40% either way. The room is **$3.00**: the run budget is $3.00.
 
-To review the whole pull request, set the run budget in the workflow that calls Wachiman, then comment `/wachiman review`:
+To review all of it, the operator comments this, which approves a budget of **$15** for the head `abc1234` and for no other:
 
-    with:
-      budget_usd: 32
+    /wachiman review --budget 15 --head abc1234
 
-A `budget_usd` at or above the estimate lifts the gate for that run. To have pushes reviewed automatically as well, also set `auto_budget_usd: 32`. To review part of it now, comment `/wachiman review <path> [path…]`.
+The run may pass the approved figure by about one call. A push cancels the approval, and the next automatic run estimates the new head. To review part of it now, comment `/wachiman review <path> [path…]`.
 ```
 
-### How to lift it
+### How to approve a budget
 
-Set `budget_usd` in the caller workflow to the figure the comment gives (1.5 times the estimate,
-rounded up, to cover the error), then comment `/wachiman review`. Because the gate is never below
-the run budget, that one change is enough. To have pushes reviewed automatically as well, raise
-`auto_budget_usd` to the same figure, since automatic runs share that ceiling. Set `size_gate_usd`
-only to move the gate without raising a run budget.
+The comment offers a command with a budget `N`: the smallest whole dollar for which the room is at
+least 1.5 times the estimate (the margin covers the estimate's error). The operator, and only the
+operator, comments it:
+
+```text
+/wachiman review --budget N --head <short sha>
+```
+
+- The approval is for one head. `--head` must be a prefix of at least 7 characters of the pull
+  request's current head. After a push the head changed, so the approval is refused with one reply
+  and no model call, and the next automatic run posts a new estimate.
+- `N` must be a finite number above 0 and at most `approve_max_usd` (default **$20**, a workflow
+  input). A larger estimate gets no command: the comment says to raise `approve_max_usd` in the
+  workflow that calls Wachiman, or to review paths.
+- `--budget` and `--head` come together. One without the other, a missing value or the `--budget=8`
+  spelling is refused with one reply, and nothing runs.
+- Anyone else who comments the command is ignored without a reply.
+- The approved run uses `N` as its `budget_usd`, and its footer says `approved budget $N`. Running
+  the command again on a head that is already completely reviewed spends nothing, and a partial
+  review resumes within `N`.
+
+When the smallest limit is the ceiling of automatic runs and `budget_usd` already covers the estimate,
+the comment offers a plain `/wachiman review` instead (an operator's review is not bounded by the
+ceiling). When the ledger's grant is below the estimate, `--budget` cannot lift it: the run settles
+$0.00 with the ledger before posting, names the grant, and offers `/wachiman review --force`.
+
+`size_gate_usd` (`WACHIMAN_SIZE_GATE_USD`) is deprecated. Setting it is still valid, logs one
+deprecation line and has no effect; leaving it unset logs nothing.
 
 ### Re-reviews, resume and the ceiling
 
@@ -143,17 +178,18 @@ only to move the gate without raising a run budget.
   updates the same comment.
 - `/wachiman review <paths>` is estimated on those paths only, so reviewing part of a large pull
   request stays one comment away.
-- The skip comment has no cost line, so `auto_budget_usd` does not count it. The gate is checked
-  before the ceiling, so a skip never posts "Automatic reviews paused".
+- The skip comment has no cost line, so `auto_budget_usd` does not count it. The ceiling is read
+  first, because it is a term of the room: with less than $0.05 left, an automatic run posts
+  "Automatic reviews paused" and no skip comment.
 
 ### Local runs
 
-`wachiman local` never refuses and never prompts. When the estimate is above the larger of
-`size_gate_usd` and `budget_usd`, it prints one warning on stderr before the first model call and
-carries on. For example (the estimate this code computes from the diff of [pingdotgg/t3code#28845](https://github.com/pingdotgg/t3code/pull/28845)):
+`wachiman local` never refuses and never prompts, and `size_gate_usd` has no effect on it. When the
+estimate is above `budget_usd`, it prints one warning on stderr before the first model call and
+carries on, stopping at that budget. For example (the estimate this code computes from the diff of [pingdotgg/t3code#28845](https://github.com/pingdotgg/t3code/pull/28845)):
 
 ```text
-warning: reviewing all of this would cost about $20.80 at API prices (65 batches × $0.32 for claude-sonnet-5-5), above the $6.00 size gate. Local runs are never refused; this one continues and stops at its budget, $3.00 (WACHIMAN_BUDGET_USD).
+warning: reviewing all of this would cost about $20.80 at API prices (65 batches × $0.32 for claude-sonnet-5-5), above this run's budget, $3.00 (WACHIMAN_BUDGET_USD). Local runs are never refused; this one continues and stops at that budget, so the review may be partial. Raise WACHIMAN_BUDGET_USD to cover the estimate, or review less.
 ```
 
 The money caps of a local run are `budget_usd` for the run (`WACHIMAN_BUDGET_USD`, default $3) and
@@ -172,9 +208,10 @@ There are three settings, all in USD. Their defaults and names are in
 | `batch_budget_usd` / `WACHIMAN_BATCH_BUDGET_USD` | `0.75` | The cap passed to **each provider call** |
 | `answer_budget_usd` / `WACHIMAN_ANSWER_BUDGET_USD` | `1` | The cap for the one call that answers a question |
 
-`size_gate_usd` / `WACHIMAN_SIZE_GATE_USD` (default `6`, new in the next release) is not a budget. It
-spends nothing and bounds nothing a run pays. It decides whether a run starts at all, by comparing
-the cost estimate of the whole review with a number. See [The size gate](#the-size-gate).
+`approve_max_usd` / `WACHIMAN_APPROVE_MAX_USD` (default `20`, new in the next release) is not a
+budget either: it is the most the operator may approve for one head with `--budget`. Whether a run
+starts at all is decided by the room, not by a setting. See [The room gate](#the-room-gate).
+`size_gate_usd` is deprecated and has no effect.
 
 A review splits the changed files into batches and sends each batch to the agent as one call, riskiest
 files first (the risk score is a heuristic on file paths; see [architecture.md](architecture.md)).
@@ -241,8 +278,9 @@ What this means in practice:
 
 ## When the budget runs out
 
-This applies when the estimate is at or below [the size gate](#the-size-gate). Above the gate, the
-run does not start and posts the skip comment instead.
+This applies when the estimate is at or below [the room](#the-room-gate). Above the room, the
+run does not start and posts the skip comment instead. The estimate can be low, so a run the
+gate let through can still reach its budget.
 
 The engine does not stop the review early with an error. It posts what it has:
 
@@ -267,8 +305,9 @@ The engine does not stop the review early with an error. It posts what it has:
   came back and no call ran out of budget, the run fails with "The agent did not return a review for
   any batch."
 
-A partial review therefore happens only for a pull request that costs more than `budget_usd` and
-no more than the gate (about $6 by default). Larger ones are not reviewed.
+A partial review therefore happens only when the estimate was at or below the room and the run
+still used its budget (the estimate is about 40% off either way). A review the estimate says the run
+cannot pay for in full is not started.
 
 Because batches run riskiest first, the files left out are the ones the path heuristic ranks lowest.
 That is a heuristic on file names. It does not mean they are safe.

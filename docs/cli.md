@@ -254,12 +254,14 @@ count and the number of batches on stderr, then `verify: off` or `verify: on (<m
 prints, never posts:** the report goes to stdout (or `--output`), so `--format json` on stdout is
 the result alone.
 
-Size never blocks a run. When the estimated cost of the whole review is above the larger of
-`WACHIMAN_SIZE_GATE_USD` and `WACHIMAN_BUDGET_USD`, `local` prints one warning on stderr
-before the first model call and continues. The run is capped by `WACHIMAN_BUDGET_USD` (default $3)
-and each call by `WACHIMAN_BATCH_BUDGET_USD` (passed to Claude Code as `--max-budget-usd`, soft);
-there is no `WACHIMAN_AUTO_BUDGET_USD` ceiling locally. See [the size gate](costs.md#the-size-gate)
-and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
+Size never blocks a run. When the estimated cost of the whole review is above
+`WACHIMAN_BUDGET_USD`, `local` prints one warning on stderr before the first model call and
+continues (`WACHIMAN_SIZE_GATE_USD` has no effect). The run is capped by `WACHIMAN_BUDGET_USD`
+(default $3) and each call by `WACHIMAN_BATCH_BUDGET_USD` (passed to Claude Code as
+`--max-budget-usd`, soft); there is no `WACHIMAN_AUTO_BUDGET_USD` ceiling locally. In GitHub mode the
+same estimate is compared with the room the run may spend and the review is skipped instead: see
+[the room gate](costs.md#the-room-gate) and
+[ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md).
 
 It refuses to start, with exit 2, when `ANTHROPIC_API_KEY` is set, when `WACHIMAN_PROVIDER`
 is not `claude-code`, for a detached or unborn `HEAD`, a `HEAD` on the base branch without `--base`, a range deeper than `--max-depth`, a base with no merge-base, `--base`, `--from` and `--commit` used together, a `--from` that is not an ancestor of `HEAD`, a `--commit` or `--from` that is not a commit, a refused
