@@ -3767,7 +3767,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     if (outcome.budgetError) budgetError = true;
     // A batch that never started for want of room: with no batch output the run stopped on its budget,
     // so the review posts the budget notice instead of failing with "no review for any batch".
-    if (outcome.notRun.length > 0) budgetError = true;
+    if (outcome.notRun.length > 0 && otherError === undefined) budgetError = true;
     if (outcome.stopped) limitError = outcome.stopped;
     if (outcome.anyLimit) anyLimit = true;
   }
