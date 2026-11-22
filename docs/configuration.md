@@ -329,6 +329,8 @@ GitHub-side applies.
   `WACHIMAN_SIZE_GATE_USD` has no effect. The money caps are `WACHIMAN_BUDGET_USD` for the run and
   `WACHIMAN_BATCH_BUDGET_USD` for each call.
 - **Do not apply:** `WACHIMAN_AUTO_BUDGET_USD` (no ceiling), `WACHIMAN_THREADS_BUDGET_USD`,
+  `WACHIMAN_APPROVE_MAX_USD` (a local run is never refused, so nothing is approved; it is still
+  validated, and a bad value exits 2),
   `WACHIMAN_OPERATOR`, `WACHIMAN_MENTION`, `WACHIMAN_TRIGGER` (ignored: the run is a
   person's) and `WACHIMAN_ON_PROVIDER_UNAVAILABLE` (a refused call is the `stop:` line of the
   report and the exit code).
@@ -430,11 +432,14 @@ How to use these commands day to day is in [reviews.md](reviews.md).
 
 ## Budgets
 
-There are five dollar settings and they bound different things. A sixth number, `approve_max_usd`,
-is not one of them: it spends nothing and only caps what the operator may approve for one head (see the last row). Four of them are per invocation: one
-automatic run, one comment, one thread-reply run, or one CLI call. A re-run, a second comment, or two
-jobs at once each start from the full budget. The fifth, `auto_budget_usd`, adds the automatic runs
-of one pull request together.
+The table lists the dollar settings. Five of them bound spending, and they bound different things:
+`budget_usd`, `auto_budget_usd`, `batch_budget_usd`, `threads_budget_usd` and `answer_budget_usd`.
+`ask_ceiling_usd` caps what collaborators' questions add up to on one pull request. `size_gate_usd` is
+deprecated and bounds nothing, and `approve_max_usd` is not a budget: it spends nothing and only caps what
+the operator may approve for one head (see the `approve_max_usd` row). Four of the five spending budgets
+are per invocation: one automatic run, one comment, one thread-reply run, or one CLI call. A re-run, a
+second comment, or two jobs at once each start from the full budget. The fifth, `auto_budget_usd`, adds
+the automatic runs of one pull request together.
 
 | Setting | Bounds |
 | --- | --- |

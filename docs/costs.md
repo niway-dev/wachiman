@@ -101,9 +101,10 @@ There is no gate figure to set. The gate is the room this run has, taken from th
   `/wachiman review` is not bounded by it);
 - when a spend ledger is connected, the grant it gives the run.
 
-The run's total is the smallest of those. The batches get that total less two reserves that the run
-keeps for other calls: the verifier's (at most half the total, when the verifier is on) and the
-memory-match reserve (when the base commit's exceptions are active). That is the room, and the
+The run's total is the smallest of those. The batches get that total less the reserves that the run
+keeps for other calls: the verifier's (at most half the total, when the verifier is on), the
+memory-match reserve (when the base commit's exceptions are active) and, on a full review with
+`pr_confidence` on, the claims call's (at most $0.15, a quarter of what is left). That is the room, and the
 estimate is compared with it. A review is only started when the room covers the whole estimate, so
 it is never a partial review of a change that the run already knew it could not finish. The
 comparison happens twice: once with the budget and the ceiling, before the ledger is asked, and
