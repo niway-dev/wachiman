@@ -490,14 +490,14 @@ export function resolveScope(words: string[], filenames: string[]) {
   return { paths, ignored: words.filter((w) => !paths.includes(w)) };
 }
 
-export function filterFiles(files: ReviewFile[], exclude: string[], scope: string[]) {
+export function filterFiles(files: ReviewFile[], exclude: string[], scope: string[], excludePaths?: ReadonlySet<string>) {
   const globs = exclude.map((pattern) => new Bun.Glob(pattern));
   const inScope = (name: string) => scope.length === 0 || scope.some((p) => underPath(name, p));
   const kept: ReviewFile[] = [];
   const dropped: ReviewFile[] = [];
   for (const f of files) {
     if (!inScope(f.filename)) continue;
-    (globs.some((g) => g.match(f.filename)) ? dropped : kept).push(f);
+    (globs.some((g) => g.match(f.filename)) || excludePaths?.has(f.filename) ? dropped : kept).push(f);
   }
   return { kept, dropped };
 }
@@ -3376,6 +3376,8 @@ export interface ReviewOptions {
   batchChars: number;
   /** On top of `DEFAULT_EXCLUDE`. */
   exclude: string[];
+  /** Exact paths left out as well: the files the base commit marks `linguist-generated` or `linguist-vendored`. */
+  excludePaths?: ReadonlySet<string>;
   maxTurns: number;
   callTimeoutS: number;
   model: string;
@@ -3465,7 +3467,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     },
   };
   const { change } = input;
-  const filtered = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...options.exclude], input.scope);
+  const filtered = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...options.exclude], input.scope, options.excludePaths);
   const { dropped } = filtered;
   const { reviewable: kept, unreviewable } = splitUnreviewable(filtered.kept, input.headDir);
   const totalBudget = options.totalBudgetUsd;
@@ -4521,7 +4523,6 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
       : new Set<string>();
   const kept = filtered.kept.filter((f) => !marked.has(f.filename));
   const dropped = [...filtered.dropped, ...filtered.kept.filter((f) => marked.has(f.filename))];
-  files = files.filter((f) => !marked.has(f.filename));
   if (kept.length === 0) {
     // Signed, with a block: an unsigned notice would leave `pr-state` at `review_missing` for a head
     // the engine decided on purpose has nothing to review. The marker moves unless the request was scoped.
@@ -4613,6 +4614,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const totalBudget = Math.min(config.budgetUsd, ceiling.room, grant.roomUsd);
   const options: ReviewOptions = {
     ...reviewOptionsOf(config, totalBudget),
+    ...(marked.size > 0 ? { excludePaths: marked } : {}),
     ...(memory ? { memory } : {}),
     // The check of `holds while` reads the whole pull request, not the delta this run reviews.
     changedPaths: touchedPathsOf(prFiles),

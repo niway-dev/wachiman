@@ -620,8 +620,6 @@ export async function runLocal(
     const marked = linguistExcluded(filtered.kept.map((f) => f.filename), { repoDir, baseSha: input.change.base.sha, log: io.stderr });
     const kept = filtered.kept.filter((f) => !marked.has(f.filename));
     const dropped = [...filtered.dropped, ...filtered.kept.filter((f) => marked.has(f.filename))];
-    // `reviewChange` filters `input.files` again, so the marked files leave the input too.
-    if (marked.size > 0) input = { ...input, files: input.files.filter((f) => !marked.has(f.filename)) };
     const batches = planBatches(
       kept,
       {
@@ -657,7 +655,7 @@ export async function runLocal(
     if (args.noMemory) io.stderr("memory: off (--no-memory)");
     // The developer's personal memory for this repository (keyed by `origin`) is loaded after it, on the laptop only.
     const memory = args.noMemory ? undefined : localMemory(repoDir, input.change.base.sha, reviewable.map((f) => f.filename), io.stderr, spawnGit, personalSourceFor(home, repoDir, spawnGit, io.stderr));
-    const result = await reviewChange(input, { ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), ...(memory ? { memory } : {}), ...(siblingContext ? { distributed: siblingContext } : {}) }, {
+    const result = await reviewChange(input, { ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), ...(marked.size > 0 ? { excludePaths: marked } : {}), ...(memory ? { memory } : {}), ...(siblingContext ? { distributed: siblingContext } : {}) }, {
       provider,
       ...(verifier ? { verifier } : {}),
       // The verifier reads the code before the change too; made once, only when there is something to check.
