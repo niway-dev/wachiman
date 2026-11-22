@@ -71,9 +71,9 @@ first, and the Bun forms of file reads, writes and `exists` are async, so adopti
 | --- | --- | --- | --- | --- |
 | `spawnSync` (`node:child_process`) | 51 / 20 | 41 before, 28 after (`git`: 37 before, 24 after) | `Bun.spawnSync` | no gain: 8.25 vs 8.01 ms per spawn (Node vs Bun); the lever is the count |
 | `spawn` (`node:child_process`) | 9 / 7 | 1 (the `claude` process) | `Bun.spawn` | no gain: one call, dominated by the child |
-| `readFileSync` | 98 / 37 | 2 | `Bun.file(p).text()` (async only) | Bun is 1.9x slower: 21.1 us (`readFileSync` is 10.9 us) for 1 KB; for 10 MB 777 vs 741 us, and review files are capped at 1 MB |
+| `readFileSync` | 98 / 37 | 2 | `Bun.file(p).text()` (async only) | Bun is 1.9x slower for 1 KB (10.9 vs 21.1 us); for 10 MB it is 4.6% faster (777 vs 741 us), which does not apply because review files are capped at 1 MB |
 | `writeFileSync` | 43 / 14 | 5 | `Bun.write` (async) | equal: 18.2 vs 18.3 us for 1 KB |
-| `existsSync` | 87 / 24 | 4 | `Bun.file(p).exists()` (async) | Bun is 1.4x slower: 1.28 us (`existsSync` is 0.94 us) |
+| `existsSync` | 87 / 24 | 4 | `Bun.file(p).exists()` (async) | Bun is 1.4x slower (0.94 vs 1.28 us) |
 | `statSync` | 70 / 22 | 1 | `Bun.file(p).stat()` (async) | none sync; 1 call per review |
 | `lstatSync` | 35 / 12 | 7 | none | none |
 | `readdirSync` | 34 / 11 | 0 | `Bun.Glob` scan | not on the review path |
