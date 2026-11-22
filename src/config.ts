@@ -274,7 +274,10 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
     );
   }
   // Deprecated and without effect (ADR 0062): validated like before, and said once when it is set.
-  const sizeGateUsd = get("SIZE_GATE_USD") === undefined ? undefined : number("SIZE_GATE_USD", 0);
+  // Read once, so a legacy CLAUDE_REVIEW_ name is reported once: NaN is the fallback of an unset value,
+  // and a set one is finite and above 0.
+  const sizeGate = number("SIZE_GATE_USD", Number.NaN);
+  const sizeGateUsd = Number.isNaN(sizeGate) ? undefined : sizeGate;
   if (sizeGateUsd !== undefined) {
     warn("WACHIMAN_SIZE_GATE_USD (size_gate_usd) is deprecated and no longer gates a review: the gate is the room the run may spend. Remove it; it will be removed in the next major version.");
   }

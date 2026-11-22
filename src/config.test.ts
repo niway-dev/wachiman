@@ -190,6 +190,13 @@ describe("loadConfig", () => {
     expect(() => load({ WACHIMAN_SIZE_GATE_USD: "abc" })).toThrow("WACHIMAN_SIZE_GATE_USD");
   });
 
+  test("AC9: a size gate under the legacy CLAUDE_REVIEW_ name is reported once for the prefix and once as deprecated", () => {
+    const { config, warnings } = load({ CLAUDE_REVIEW_SIZE_GATE_USD: "9" });
+    expect(config.sizeGateUsd).toBe(9);
+    expect(warnings.filter((w) => w.includes("CLAUDE_REVIEW_SIZE_GATE_USD is deprecated"))).toHaveLength(1);
+    expect(warnings).toHaveLength(2);
+  });
+
   test("approve_max_usd defaults to $20 and must be a positive number", () => {
     expect(load({}).config.approveMaxUsd).toBe(20);
     expect(load({ WACHIMAN_APPROVE_MAX_USD: "35" }).config.approveMaxUsd).toBe(35);
