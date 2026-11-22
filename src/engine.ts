@@ -4971,18 +4971,19 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // a critical path for that review: the head's rules are never applied, only compared.
   const pathPolicyChanged = touchesSettingsFile(prFiles) && headEditsPathRules(gh, repo, headSha, baseRules);
   const pathRules = pathPolicyChanged ? withPolicyEditRule(baseRules) : baseRules;
-  // The files only listed formatting commits touched go to `format_model` (ADR 0063). Read before the
-  // estimate, which prices the two groups apart; the calls are GitHub reads, not model calls.
-  const formatOnly =
-    config.formatModel && deps.formatProvider
-      ? githubFormatOnly(gh, repo, pr, headSha, allBinary.reviewable.map((f) => f.filename), (line) => deps.log(line))
-      : [];
-  const estimate = estimateFor(allBinary.reviewable, config, pathRules, formatOnly);
   // The ceiling is read first: it is the term of the room that changes between runs, and it keeps its
   // own notice for less than a call's minimum. After the rebase exits above (they cost nothing and
   // move the marker) and before any paid step.
   const ceiling = ceilingRoom(deps, repo, pr, headSha);
   if (ceiling === null) return;
+  // The files only listed formatting commits touched go to `format_model` (ADR 0063). Read after the ceiling
+  // check, which can end the run without needing them, and before the estimate, which prices the two
+  // groups apart; the calls are GitHub reads, not model calls.
+  const formatOnly =
+    config.formatModel && deps.formatProvider
+      ? githubFormatOnly(gh, repo, pr, headSha, allBinary.reviewable.map((f) => f.filename), (line) => deps.log(line))
+      : [];
+  const estimate = estimateFor(allBinary.reviewable, config, pathRules, formatOnly);
   // What the automatic runs before this one cost; an operator's run is not counted and shows none.
   const automatic = isAutomatic(config.trigger);
   const prior = automatic ? { spent: ceiling.spent, runs: ceiling.runs } : undefined;
