@@ -37,7 +37,7 @@ describe("release-please.yml", () => {
     const steps = stepText(verifyTests);
     expect(steps).toContain("needs.release-please.outputs.sha");
     expect(steps).toContain("scripts/test-shard.ts --check");
-    expect(steps).toContain("bun test \\\"${files[@]}\\\"");
+    expect(steps).toContain('bun test \\"${files[@]}\\"');
     expect(steps).toContain("across ${#files[@]} files");
   });
 
