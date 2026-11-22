@@ -582,7 +582,7 @@ describe("review() under the ceiling", () => {
     await review(t.deps, "o/r", 7, []);
     expect(t.posted[0]).toContain("Partial review");
     expect(t.posted[0]).not.toContain("<!-- wachiman sha=");
-    // The partial review's cost is in its footer: $0.05 is left of $0.30, i.e. a batch can still start.
+    // The partial review's cost is in its footer: $0.05 is left of $0.30 (the pause threshold; a batch itself needs its start floor).
     const next = setup({ env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.3" }, reviews: t.reviews });
     expect(automaticSpend(next.deps.gh, "o/r", 7).spent).toBeCloseTo(0.25, 10);
   });

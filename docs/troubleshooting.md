@@ -301,6 +301,8 @@ The comment reads:
 > The agent ran out of its budget ($0.75 a batch, $3 the pull request) before finishing any batch: nothing here was reviewed reliably. Review part of it: `/wachiman review <path> [path…]`.
 
 The numbers are your settings. The job is green and exit 0, and the comment is the only output.
+The same comment appears when `budget_usd` is below a batch's start floor (60% of the model's mean batch
+figure, never below 0.05 USD): no batch starts, at no cost.
 Review part of the pull request with a path, or raise `batch_budget_usd` and `budget_usd`.
 
 ### `The agent did not return a review for any batch.`
@@ -310,8 +312,6 @@ is posted. Causes, in the order to check:
 
 - Every batch call failed. The `A batch call failed: <first 300 characters of the error>` lines above it say why.
 - Every call ended in an error result with no review. The JSON lines show `"is_error":true`.
-- `budget_usd` is below 0.05. The engine starts no batch when less than its start floor remains (60% of the model's mean batch
-  figure, never below 0.05 USD), so a total under that starts none, and the run reports it ran out of its budget at no cost.
 
 ### The cost was higher than the budget
 
