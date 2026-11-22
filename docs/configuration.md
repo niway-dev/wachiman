@@ -277,7 +277,7 @@ v1.4.0**; v1.3.0 has neither (its only hard limit was a fixed 15 minutes for Cod
 | Codex | Ignored: `codex exec` has no such flag. | Same limit and signal as Claude Code. |
 
 - Normal batches take 5 to 12 turns; the turn cap only stops a looping run.
-- A call that ends as `turns` has its files retried once, if at least $0.05 is left (unless the call was cut on a budget that was the run's remaining room, which is never retried). A call that ends as `timeout` is not
+- A call that ends as `turns` has its files retried once, if at least $0.05 is left. A call that ends as `timeout` is not
   retried, and its cost is reported as 0 because the CLI prints nothing before it ends, so the
   money it spent is not in the review's total.
 - Keep `call_timeout_s` well under the job's 30-minute limit: a job that reaches that limit is
@@ -448,7 +448,7 @@ inline replies. It keeps those signed by this engine whose footer carries the au
 amount on their cost line. Model text cannot forge either part: `<!--` is defused in everything a
 model writes, and the footer is read only at the very end of the body.
 
-- If `auto_budget_usd` minus that sum is less than $0.05 (the least a batch can run on), the run posts one
+- If `auto_budget_usd` minus that sum is less than $0.05 (the gate's threshold, lower than the start floor a batch needs), the run posts one
   notice, "Automatic reviews paused: $X of $Y spent on this pull request. Comment `/wachiman review`
   to review now.", and starts no model call. A second notice for the same ceiling is not posted:
   later pushes post nothing. Raising `auto_budget_usd` lets the next push run.
