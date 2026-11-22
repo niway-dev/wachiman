@@ -399,7 +399,11 @@ How the parser reads a comment, once the job has started:
 - The first match in the comment is used, on any line, and only the rest of that line is read.
   `/wachiman review` on line 3 works; text on later lines is not read as paths.
 - If the first word after the command word is `review` (any case), the rest of the line is the
-  scope: `review` or `review src docs/api`. Anything else, including a bare `/wachiman` or
+  scope: `review` or `review src docs/api`. The two flags `--budget N` and `--head <sha>` are not
+  scope words: they approve a budget for one head, and the operator's comment must carry both
+  (see [how to approve a budget](costs.md#how-to-approve-a-budget)). One without the other, a flag
+  without its value, a flag given twice and the `--budget=8` spelling are refused with one reply
+  and no run. Anything else, including a bare `/wachiman` or
   `/wachiman, review`, is a question, and the whole comment is sent to the answer call.
 - The operator is checked again by the engine when `WACHIMAN_COMMENT_AUTHOR` is set (see above).
 

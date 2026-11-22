@@ -3548,7 +3548,9 @@ export function reserveSplit(total: number, verify: { budgetUsd: number } | unde
 
 /**
  * What the batches get out of `total` once the reserves are taken. `reviewChange` spends this much
- * on batches and the gate in `review` compares the estimate with it, so the two cannot disagree.
+ * on batches and the gate in `review` compares the estimate with it, so the two use the same room.
+ * The PR Confidence claims call (at most `CLAIMS_BUDGET_USD`) is paid out of it before the batches
+ * when that is on, which the 1.5 times margin of an approval covers.
  */
 export function batchRoom(total: number, verify: { budgetUsd: number } | undefined, exceptionPlan: ExceptionPlan): number {
   const { verifier, match } = reserveSplit(total, verify, exceptionPlan);
