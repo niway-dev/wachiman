@@ -97,8 +97,32 @@ describe("linguist exclusion from the base commit", () => {
       expect([...excluded].sort()).toEqual(["gen/a.js", "vendor/b.js"]);
       const failed = linguistExcluded(f.paths, { repoDir: clone, baseSha: "2".repeat(40), fetchMissingBase: true, log: (l) => logs.push(l) });
       expect(failed.size).toBe(0);
-      expect(logs.at(-1)).toContain("fetching it failed");
+      expect(logs.at(-1)).toMatch(/fetching it failed: \S/);
     } finally {
+      rmSync(clone, { recursive: true, force: true });
+    }
+  });
+
+  test("the run token never reaches the fetch, and a failed fetch names a reason", () => {
+    const f = fixture();
+    const clone = join(tmpdir(), `wachiman-linguist-token-${process.pid}`);
+    rmSync(clone, { recursive: true, force: true });
+    git(tmpdir(), "clone", "-q", "--depth=1", `file://${f.dir}`, clone);
+    const saved = { GH_TOKEN: process.env.GH_TOKEN, GITHUB_TOKEN: process.env.GITHUB_TOKEN };
+    process.env.GH_TOKEN = "secret-token-value";
+    process.env.GITHUB_TOKEN = "secret-token-value";
+    try {
+      // The origin is a file path that cannot serve the commit: the fetch fails whatever the token.
+      git(clone, "remote", "set-url", "origin", join(tmpdir(), "wachiman-no-such-remote"));
+      const logs: string[] = [];
+      linguistExcluded(f.paths, { repoDir: clone, baseSha: f.base, fetchMissingBase: true, log: (l) => logs.push(l) });
+      expect(logs.join("\n")).not.toContain("secret-token-value");
+      expect(logs.at(-1)).toMatch(/fetching it failed: \S/);
+    } finally {
+      for (const [k, v] of Object.entries(saved)) {
+        if (v === undefined) delete process.env[k];
+        else process.env[k] = v;
+      }
       rmSync(clone, { recursive: true, force: true });
     }
   });

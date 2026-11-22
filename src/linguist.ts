@@ -44,25 +44,14 @@ export interface LinguistOptions {
   log: (line: string) => void;
 }
 
-/**
- * The token of the run, as a one-off git config in the environment (never in argv, never written to
- * the checkout), for the fetch of a base commit a credential-less shallow checkout lacks.
- */
-function fetchEnv(): Record<string, string> {
-  const token = process.env.GH_TOKEN || process.env.GITHUB_TOKEN;
-  if (!token) return gitEnv();
-  const basic = Buffer.from(`x-access-token:${token}`).toString("base64");
-  return { ...gitEnv(), GIT_CONFIG_COUNT: "1", GIT_CONFIG_KEY_0: "http.https://github.com/.extraheader", GIT_CONFIG_VALUE_0: `AUTHORIZATION: basic ${basic}` };
-}
-
-const git = (repoDir: string, args: string[], input?: string, env: Record<string, string> = gitEnv()) =>
+const git = (repoDir: string, args: string[], input?: string) =>
   spawnSync("git", [...GIT_BASE_ARGS, ...args], {
     cwd: repoDir,
     encoding: "utf8",
     input,
     timeout: TIMEOUT_MS,
     maxBuffer: MAX_BYTES,
-    env,
+    env: gitEnv(),
   });
 
 /** Of `paths`, those the base commit's `.gitattributes` marks `linguist-generated` or `linguist-vendored`. */
@@ -79,16 +68,22 @@ export function linguistExcluded(paths: readonly string[], o: LinguistOptions): 
     const top = git(o.repoDir, ["rev-parse", "--show-toplevel"]);
     const cwd = top.status === 0 && top.stdout.trim() !== "" ? top.stdout.trim() : o.repoDir;
     // A range that starts at a root commit has the empty tree as its base: a tree, with no marks.
-    if (git(cwd, ["cat-file", "-t", o.baseSha]).stdout.trim() === "tree") return none;
-    // `cat-file -t`, not `-e <sha>^{commit}`: a probe in that shape is how callers recognise a stored commit check.
-    const has = () => git(cwd, ["cat-file", "-t", o.baseSha]).stdout.trim() === "commit";
-    const shallow = () => git(cwd, ["rev-parse", "--is-shallow-repository"]).stdout.trim() === "true";
+    const kind = () => git(cwd, ["cat-file", "-t", o.baseSha]).stdout.trim();
+    let type = kind();
+    if (type === "tree") return none;
     let fetchNote = "";
-    if (!has() && o.fetchMissingBase && shallow()) {
-      const fetched = git(cwd, ["fetch", "--no-tags", "--depth=1", "origin", o.baseSha], undefined, fetchEnv());
-      if (fetched.status !== 0) fetchNote = ` (fetching it failed: ${fetched.stderr.trim().slice(0, 200)})`;
+    const shallow = () => git(cwd, ["rev-parse", "--is-shallow-repository"]).stdout.trim() === "true";
+    if (type !== "commit" && o.fetchMissingBase && shallow()) {
+      // Like every git the engine runs here, with no token in its environment: a checkout that kept
+      // its credentials (actions/checkout does by default) fetches, one that did not fails and is named.
+      const fetched = git(cwd, ["fetch", "--no-tags", "--depth=1", "origin", o.baseSha]);
+      if (fetched.status !== 0) {
+        const why = fetched.stderr.trim() || fetched.error?.message || (fetched.signal ? `killed by ${fetched.signal}` : `exit status ${fetched.status}`);
+        fetchNote = ` (fetching it failed: ${why.slice(0, 200)})`;
+      }
+      type = kind();
     }
-    if (!has()) {
+    if (type !== "commit") {
       o.log(`linguist-generated and linguist-vendored are not applied: the base commit ${o.baseSha.slice(0, 7)} is not in the clone${fetchNote}.`);
       return none;
     }
