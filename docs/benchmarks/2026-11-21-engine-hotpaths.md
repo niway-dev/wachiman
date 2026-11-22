@@ -16,7 +16,7 @@ Tree before: `4e4c48f` (the baseline). Tree after: `e49d544`.
   (inventory and microbenchmarks below).
 - Three changes remove 13 of the 37 `git` processes without changing behavior:
   `local review e2e` 472 to 343 ms (-27%) and a 569-file repository 657 to 592 ms (-10%) in the
-  interleaved comparison. CLI start-up is unchanged.
+  interleaved comparison (-15% in a second, separate run; see below). CLI start-up is unchanged.
 
 ## Where the time goes
 
@@ -127,11 +127,16 @@ machine:
 | tests: engine fakes | 393.7 / 386.8 ms | 395.3 / 398.8 ms |
 | local review (fake claude, e2e) | 434.4 / 482.7 ms | 306.8 / 316.4 ms |
 
-The first five rows differ between runs of the same tree by up to 17 ms in either direction, more
-than any difference between base and head, so they are unchanged. The review row moves by 118 to 166 ms.
+The first five rows differ between the two runs of the same tree by up to 7.2 ms (base, `--version`
+under Node: 63.1 vs 70.3 ms), in either direction, and no base-versus-head difference in them is larger
+than that, so they are unchanged. In the review row every head run (306.8 and 316.4 ms) is faster than
+every base run (434.4 and 482.7 ms), by 118.0 to 175.9 ms depending on which two runs are paired.
 The interleaved comparison on the same clones (30 rounds) agrees: `--version` under Bun 54.3 vs 54.3 ms
 (0.0%), under Node 70.3 vs 69.3 ms (-1.4%), `local --help` 53.7 vs 53.2 ms (-0.9%), review e2e 476.4 vs
-344.5 ms (-27.7%), 569-file review 693.0 vs 589.4 ms (-14.9%).
+344.5 ms (-27.7%), 569-file review 693.0 vs 589.4 ms (-14.9%). This is a separate run from the four-tree
+comparison above (base 656.7 ms for the 569-file case there, 693.0 ms here): that case spreads widely
+(p90 about 740 ms on base in both), so read its effect as a range of about -10% to -15%, not one
+figure.
 
 ## Left unchanged
 
