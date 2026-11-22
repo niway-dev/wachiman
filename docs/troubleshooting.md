@@ -262,7 +262,7 @@ Open the collapsed "Coverage by batch" table. Each row's status tells you why:
 | `reviewed` | The agent accounted for every file in the batch on the first call. |
 | `reviewed after a retry` | The first call left files unaccounted for, or returned nothing, and the single retry covered them. |
 | `N file(s) left after a retry` | The retry also left files out (a retry that again hit `max_turns` shows here). This is also what a batch whose calls failed shows, when budget remained for the retry. |
-| `N file(s) left: budget spent` | Files were left out and less than 0.05 USD remained for a retry. |
+| `N file(s) left: budget spent` | Files were left out and no retry was attempted: either the call was cut on the run's own remaining room (a retry would meet the same limit), or less than 0.05 USD remained for a retry. |
 | `N file(s) left: the call timed out` | The call was killed at `call_timeout_s` and is not retried. Raise `call_timeout_s` (keep it under the 30 minute job limit) or lower `batch_lines`. |
 | `not run: budget spent` | The review's total budget was gone before this batch started. |
 | `not run: provider rejected the call` / `N file(s) left: the provider rejected the call` | An earlier call was refused for a reason on the reviewer's side (no credit, a rejected key, a rate limit that outlasted its one retry), so the rest was not tried. The log of that call has a readable line (`❌ batch 1/1: the Anthropic API refused the call: the account has no credit…`) next to a JSON line with `error_class` and `error`. Batches that were already running when the call was refused finish; none starts after it. Fix the account, then re-run. |

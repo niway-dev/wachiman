@@ -433,8 +433,8 @@ into six batches.
 | Batch 2, retry | min(0.75, 1.63) = 0.75 | 0.50 | 1.87 | Files reviewed after a retry |
 | Batch 3, first call | min(0.75, 1.13) = 0.75 | 0.70 | 2.57 | Every file reviewed |
 | Batch 4, first call | min(0.75, 0.43) = 0.43 | 0.43 | 3.00 | Hit its cap, no usable review |
-| Batch 4, retry | not started | none | 3.00 | Less than $0.05 left |
-| Batches 5 and 6 | not started | none | 3.00 | Less than $0.05 left |
+| Batch 4, retry | not started | none | 3.00 | The call was cut on the run's own remaining room, so a retry would meet the same limit |
+| Batches 5 and 6 | not started | none | 3.00 | The room is below the start floor |
 
 What the review shows: a "Partial review" line naming the files of batches 4, 5 and 6; the footer
 `... · 6 batches · $3.00`; and a coverage table with batch 2 at `reviewed after a retry` and `$1.25`,
