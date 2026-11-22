@@ -466,6 +466,12 @@ describe("wachiman local", () => {
       );
       expect(sizeWarning({ ...estimate, usd: 3 }, 3, "m")).toBeNull();
     });
+
+    test("an estimate between the batch room and the budget warns and names the reserves", () => {
+      const estimate = { files: 10, lines: 100, batches: 10, perBatchUsd: 0.32, usd: 2.5 };
+      expect(sizeWarning(estimate, 3, "m", 2)).toContain("above the $2.00 the batches get out of this run's budget, $3.00");
+      expect(sizeWarning(estimate, 3, "m", 2.5)).toBeNull();
+    });
   });
 
   test("--input reviews a ReviewInput file and snapshots its head from --repo-dir", () => {
