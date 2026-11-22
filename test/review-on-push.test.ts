@@ -216,4 +216,17 @@ describe("thread replies without a push (ADR 0012)", () => {
     expect(jobOf(workflow, "threads")).toContain("WACHIMAN_AUTO_BUDGET_USD: ${{ inputs.auto_budget_usd }}");
     expect(jobOf(workflow, "threads")).toContain("WACHIMAN_THREADS_BUDGET_USD: ${{ inputs.threads_budget_usd }}");
   });
+
+  test("size_gate_usd has no default and approve_max_usd defaults to 20, passed by the review and on-demand jobs (AC9)", () => {
+    for (const file of [".github/workflows/review.yml", ".github/workflows/review-platform.yml", ".github/workflows/wachiman-platform.yml"]) {
+      const text = read(file);
+      const input = (name: string) => text.match(new RegExp(`\\n {6}${name}:\\n([\\s\\S]*?)(?=\\n {6}[a-z_]+:\\n|\\n {4}secrets:)`))?.[1] ?? "";
+      expect(input("size_gate_usd")).toMatch(/type: number/);
+      expect(input("size_gate_usd")).not.toMatch(/default:/);
+      expect(input("size_gate_usd")).toMatch(/Deprecated, no effect/);
+      expect(input("approve_max_usd")).toMatch(/type: number/);
+      expect(input("approve_max_usd")).toMatch(/default: 20\b/);
+      expect(text.match(/WACHIMAN_APPROVE_MAX_USD: \$\{\{ inputs\.approve_max_usd \}\}/g)).toHaveLength(2);
+    }
+  });
 });
