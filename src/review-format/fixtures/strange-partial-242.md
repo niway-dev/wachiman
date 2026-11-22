@@ -1,6 +1,7 @@
 👮 **Wachiman** · ⚠️ **Partial: 52 of 82 files not reviewed** · 2 to fix in this PR · 1 question for you · 11 to consider · whole PR at `711da9e`
 
-> ⚠️ **Partial review: 30 of 82 files reviewed.** 52 not reviewed: 42 because the pull request's budget was spent, 10 because a call ran out of its budget. They are listed under "Files not reviewed". Ask `/wachiman review <paths>` for the rest.
+> ⚠️ **Partial review.** Reviewed 30 of 82 files. Not reviewed: 52 (42 not reached: the pull request's budget was spent; 10 not reached: the call ran out of its budget).
+> They are listed under "Files not reviewed". Ask `/wachiman review <paths>` for the rest.
 
 | At a glance | |
 | --- | --- |

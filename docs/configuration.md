@@ -277,7 +277,7 @@ v1.4.0**; v1.3.0 has neither (its only hard limit was a fixed 15 minutes for Cod
 | Codex | Ignored: `codex exec` has no such flag. | Same limit and signal as Claude Code. |
 
 - Normal batches take 5 to 12 turns; the turn cap only stops a looping run.
-- A call that ends as `turns` has its files retried once, if at least $0.05 is left. A call that ends as `timeout` is not
+- A call that ends as `turns` has its files retried once, if at least $0.05 is left (unless the call was cut on a budget that was the run's remaining room, which is never retried). A call that ends as `timeout` is not
   retried, and its cost is reported as 0 because the CLI prints nothing before it ends, so the
   money it spent is not in the review's total.
 - Keep `call_timeout_s` well under the job's 30-minute limit: a job that reaches that limit is
@@ -478,7 +478,11 @@ What one review does, in order:
    total can never pass `budget_usd` by more than a call's own overshoot.
 4. **If a batch comes back with files unaccounted for, the engine makes one more call for those
    files**, in the same slot and by the same rule: the smaller of `batch_budget_usd` and what is
-   left, as long as at least $0.05 remains. Money reserved by the batches still running is not
+   left, as long as at least $0.05 remains. A call that ended on its budget when that budget was
+   what the run had left (below `batch_budget_usd`) is not retried: the files are reported as not
+   reached because the call ran out of its budget. A batch starts only when the room is at least
+   60% of the model's mean batch cost (never below $0.05); below that it waits for room from
+   batches still running, and is reported as not reached when none comes back. Money reserved by the batches still running is not
    available to it, so a retry can get a smaller cap than the first call. A batch can therefore
    cost up to two calls. This also happens when the first call failed or returned nothing: the
    retry then covers every file of the batch.

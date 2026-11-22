@@ -167,21 +167,20 @@ function because(reason: string): string {
 
 const capitalise = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
 
-/** The partial callout: counts per reason, and how to ask for the rest. */
+/** The partial callout: how much was read, the count per reason on one line, and how to ask for the rest. */
 function partialCallout(view: ReviewView, fit: Fit): string | null {
   const { files } = view;
   const notReviewed = files.total - files.reviewed;
   if (notReviewed === 0) return null;
-  const groups = files.notReviewed;
-  const detail =
-    groups.length === 1
-      ? `${notReviewed} not reviewed ${because(groups[0].reason)}.`
-      : `${notReviewed} not reviewed: ${groups.map((g) => `${g.paths.length} ${because(g.reason)}`).join(", ")}.`;
+  const reasons = files.notReviewed.map((g) => `${g.paths.length} ${oneLineText(g.reason) || "no reason recorded"}`).join("; ");
   const twice =
     files.notReviewedTwice.length > 0
       ? ` ${files.notReviewedTwice.length} of them ${files.notReviewedTwice.length === 1 ? "was" : "were"} not reviewed after two tries, so the next push will not carry ${files.notReviewedTwice.length === 1 ? "it" : "them"}.`
       : "";
-  return `> ⚠️ **Partial review: ${files.reviewed} of ${files.total} files reviewed.** ${detail}${twice} ${listing(fit) === "paths" ? 'They are listed under "Files not reviewed".' : NAMES_GONE} Ask ${codeSpan(`${view.mention} review <paths>`)} for the rest.`;
+  return [
+    `> ⚠️ **Partial review.** Reviewed ${files.reviewed} of ${files.total} files. Not reviewed: ${notReviewed} (${reasons}).`,
+    `>${twice} ${listing(fit) === "paths" ? 'They are listed under "Files not reviewed".' : NAMES_GONE} Ask ${codeSpan(`${view.mention} review <paths>`)} for the rest.`,
+  ].join("\n");
 }
 
 /** Instructions, policy and verifier notices, and what memory did: one visible paragraph each (slot 2). */

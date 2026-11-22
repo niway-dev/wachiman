@@ -195,6 +195,9 @@ Four rules follow from that code:
    engine makes one retry with only those files. The retry is a second call with its own cap, again
    `min(batch_budget_usd, what is left)`. A batch can therefore cost up to twice the per-batch
    figure. A call that failed without a result (the process crashed, say) is retried the same way.
+   A call cut on a budget that was the run's remaining room is not retried, because the retry would
+   meet the same limit with less room. A batch also never starts with room below 60% of the model's
+   mean batch figure (never below $0.05).
 2. **A call that fails is counted at its cap.** The engine cannot know what it spent, so it assumes
    the worst case it allowed. The real figure may be lower, or higher if the provider's cap was
    exceeded.
