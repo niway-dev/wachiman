@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { loadConfig as loadConfigWithDefaults } from "./config";
 
 /** These tests script the batches only; the opt-in verifier has its own tests. */
@@ -22,9 +22,10 @@ import {
   type ReviewOutput,
 } from "./engine";
 import type { ProviderAdapter, ProviderAuth, ProviderRequest, ProviderResult } from "./providers/types";
-import { commit, emptyRepo, git, removeTempRepos } from "../test/support/temp-repo";
-import { afterAll } from "bun:test";
+import { commit, emptyRepo, removeTempRepos } from "../test/support/temp-repo";
 import { checkGoldenPrompts, recordPrompt } from "../test/support/golden-prompts";
+
+afterAll(removeTempRepos);
 
 /** Plays back one scripted answer per call and records what the engine asked for. */
 class FakeProvider implements ProviderAdapter {
@@ -2021,8 +2022,6 @@ describe("a pull request that edits paths: cannot weaken its own review", () => 
     expect(r.order[0]).toBe(CHARGE);
   });
 });
-
-afterAll(removeTempRepos);
 
 describe("linguist marks come from the base commit", () => {
   test("a file the base marks generated is not reviewed, and a mark the pull request adds is ignored", async () => {

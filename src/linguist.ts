@@ -64,13 +64,21 @@ export function linguistExcluded(paths: readonly string[], o: LinguistOptions): 
       o.log(`linguist-generated and linguist-vendored are not applied: this git (${version.stdout.trim() || "unknown version"}) has no check-attr --source (2.40 or newer).`);
       return none;
     }
-    const has = () => git(o.repoDir, ["cat-file", "-e", `${o.baseSha}^{commit}`]).status === 0;
-    const shallow = () => git(o.repoDir, ["rev-parse", "--is-shallow-repository"]).stdout.trim() === "true";
-    if (!has() && !(o.fetchMissingBase && shallow() && git(o.repoDir, ["fetch", "--no-tags", "--depth=1", "origin", o.baseSha]).status === 0 && has())) {
-      o.log(`linguist-generated and linguist-vendored are not applied: the base commit ${o.baseSha.slice(0, 7)} is not in the clone.`);
+    // Changed paths are relative to the repository root, and check-attr reads them relative to its cwd.
+    const top = git(o.repoDir, ["rev-parse", "--show-toplevel"]);
+    const cwd = top.status === 0 && top.stdout.trim() !== "" ? top.stdout.trim() : o.repoDir;
+    const has = () => git(cwd, ["cat-file", "-e", `${o.baseSha}^{commit}`]).status === 0;
+    const shallow = () => git(cwd, ["rev-parse", "--is-shallow-repository"]).stdout.trim() === "true";
+    let fetchNote = "";
+    if (!has() && o.fetchMissingBase && shallow()) {
+      const fetched = git(cwd, ["fetch", "--no-tags", "--depth=1", "origin", o.baseSha]);
+      if (fetched.status !== 0) fetchNote = ` (fetching it failed: ${fetched.stderr.trim().slice(0, 200)})`;
+    }
+    if (!has()) {
+      o.log(`linguist-generated and linguist-vendored are not applied: the base commit ${o.baseSha.slice(0, 7)} is not in the clone${fetchNote}.`);
       return none;
     }
-    const run = git(o.repoDir, ["check-attr", `--source=${o.baseSha}`, "--stdin", "-z", "linguist-generated", "linguist-vendored"], paths.join("\0") + "\0");
+    const run = git(cwd, ["check-attr", `--source=${o.baseSha}`, "--stdin", "-z", "linguist-generated", "linguist-vendored"], paths.join("\0") + "\0");
     if (run.status !== 0) {
       o.log(`linguist-generated and linguist-vendored are not applied: git check-attr failed (${run.stderr.trim().slice(0, 200)}).`);
       return none;

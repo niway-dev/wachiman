@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { afterAll, describe, expect, test } from "bun:test";
 import { commit, emptyRepo, git, removeTempRepos } from "../test/support/temp-repo";
 import { gitSupportsAttrSource, linguistExcluded, parseCheckAttr } from "./linguist";
@@ -63,6 +64,12 @@ describe("linguist exclusion from the base commit", () => {
     const mergeBase = git(f.dir, "merge-base", "main", "feat").trim();
     expect(mergeBase).toBe(f.base);
     const excluded = linguistExcluded(f.paths, { repoDir: f.dir, baseSha: mergeBase, log: () => {} });
+    expect([...excluded].sort()).toEqual(["gen/a.js", "vendor/b.js"]);
+  });
+
+  test("run from a subdirectory, repository-root-relative paths still match", () => {
+    const f = fixture();
+    const excluded = linguistExcluded(f.paths, { repoDir: join(f.dir, "src"), baseSha: f.base, log: () => {} });
     expect([...excluded].sort()).toEqual(["gen/a.js", "vendor/b.js"]);
   });
 
