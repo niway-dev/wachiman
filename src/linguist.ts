@@ -80,7 +80,8 @@ export function linguistExcluded(paths: readonly string[], o: LinguistOptions): 
     const cwd = top.status === 0 && top.stdout.trim() !== "" ? top.stdout.trim() : o.repoDir;
     // A range that starts at a root commit has the empty tree as its base: a tree, with no marks.
     if (git(cwd, ["cat-file", "-t", o.baseSha]).stdout.trim() === "tree") return none;
-    const has = () => git(cwd, ["cat-file", "-e", `${o.baseSha}^{commit}`]).status === 0;
+    // `cat-file -t`, not `-e <sha>^{commit}`: a probe in that shape is how callers recognise a stored commit check.
+    const has = () => git(cwd, ["cat-file", "-t", o.baseSha]).stdout.trim() === "commit";
     const shallow = () => git(cwd, ["rev-parse", "--is-shallow-repository"]).stdout.trim() === "true";
     let fetchNote = "";
     if (!has() && o.fetchMissingBase && shallow()) {
