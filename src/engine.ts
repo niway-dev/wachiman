@@ -44,7 +44,7 @@ import {
   type ReviewStateBlock,
   type ReviewStateDraft,
 } from "./review-state";
-import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
+import { batchStartFloor, estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
 import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, matchPathRule, parseRepoSettings, pathsEdited, touchesSettingsFile, wantsRepoSettings, withPolicyEditRule, type PathRule, type PathSeverity, type RepoSettings } from "./repo-settings";
 import { newCandidate, proposability, renderEntry, today, type Candidate } from "./memory/candidates";
@@ -3477,6 +3477,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const matchReserve = exceptionPlan.active.length > 0 ? Math.min(MEMORY_MATCH_BUDGET_USD, (totalBudget - reserve) / 4) : 0;
   const batchTotal = totalBudget - reserve - matchReserve;
   const batchBudget = options.batchBudgetUsd;
+  // A batch starts only with room for about one turn of the model; a retry only needs a call's minimum.
+  const startFloor = batchStartFloor(options.model, batchBudget, MIN_BATCH_USD);
   const batches = planBatches(
     kept,
     {
@@ -3585,7 +3587,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       if (rejection) return { why: "rejected" };
       if (!launching || inFlight < BATCH_CONCURRENCY) {
         const left = room();
-        if (left >= MIN_BATCH_USD) {
+        if (left >= (launching ? startFloor : MIN_BATCH_USD)) {
           const usd = Math.min(batchBudget, left);
           reserved.set(id, usd);
           return { usd };

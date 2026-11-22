@@ -356,10 +356,10 @@ describe("review() with the spend ledger", () => {
   });
 
   test("the reserve asks for min(budget, what the ceiling leaves)", async () => {
-    const spent = `x\n\n<sub>m · $1.90</sub>\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`;
+    const spent = `x\n\n<sub>m · $1.70</sub>\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`;
     const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_AUTO_BUDGET_USD: "2" }, reviews: [spent] });
     await review(t.deps, "o/r", 7, []);
-    expect(t.reserves[0]!.wantedUsd as number).toBeCloseTo(0.1, 10);
+    expect(t.reserves[0]!.wantedUsd as number).toBeCloseTo(0.3, 10);
   });
 
   test("the repository's own daily and weekly budgets are sent as the caller's limits", async () => {

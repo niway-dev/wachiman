@@ -227,7 +227,7 @@ describe("batches run side by side", () => {
   });
 
   test("a retry waits in its own slot for money another running batch reserved", async () => {
-    // Total 0.60, per call 0.50: batch 1 reserves 0.50 and batch 2 the 0.10 left. Batch 1 spends all
+    // Total 0.80, per call 0.50: batch 1 reserves 0.50 and batch 2 the 0.30 left (above the start floor). Batch 1 spends all
     // of its cap and leaves its file unreviewed, so its retry finds nothing until batch 2 finishes
     // and gives back what it did not use.
     const provider = new TimedProvider((file) =>
@@ -235,13 +235,13 @@ describe("batches run side by side", () => {
         ? { delayMs: 10, costUsd: (q) => q.maxBudgetUsd ?? 0, leaveFirstPassUnreviewed: true }
         : { delayMs: 50, costUsd: () => 0.02 },
     );
-    const r = run(2, provider, { WACHIMAN_BATCH_BUDGET_USD: "0.5", WACHIMAN_BUDGET_USD: "0.6" });
+    const r = run(2, provider, { WACHIMAN_BATCH_BUDGET_USD: "0.5", WACHIMAN_BUDGET_USD: "0.8" });
     await r.done;
     expect(provider.requests).toHaveLength(3);
     // Batch 1's first call, batch 2, then batch 1's retry only after batch 2 finished.
     expect(provider.finished).toEqual([fileName(1), fileName(2), fileName(1)]);
     expect(provider.requests[2].prompt).toContain("second pass");
-    expect(provider.requests[2].maxBudgetUsd).toBeCloseTo(0.08, 5);
+    expect(provider.requests[2].maxBudgetUsd).toBeCloseTo(0.28, 5);
     // The retry used batch 1's slot: two batches, never more than two calls at once.
     expect(provider.maxInFlight).toBe(2);
     expect(r.posted.review?.body).toContain("reviewed after a retry");

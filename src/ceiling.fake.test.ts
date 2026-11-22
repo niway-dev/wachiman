@@ -463,8 +463,8 @@ describe("review() under the ceiling", () => {
     const paused = setup({ env: { ...base, WACHIMAN_AUTO_BUDGET_USD: "0.5" }, reviews: [spentBody(0.5)] });
     await review(paused.deps, "o/r", 7, []);
     expect(paused.posted).toHaveLength(1);
-    // The same pull request, now with a ceiling of $0.60 and the old $0.50 notice: $0.10 is left, so it runs.
-    const raised = setup({ env: { ...base, WACHIMAN_AUTO_BUDGET_USD: "0.6" }, reviews: paused.reviews });
+    // The same pull request, now with a ceiling of $0.80 and the old $0.50 notice: $0.30 is left, enough for a batch, so it runs.
+    const raised = setup({ env: { ...base, WACHIMAN_AUTO_BUDGET_USD: "0.8" }, reviews: paused.reviews });
     await review(raised.deps, "o/r", 7, []);
     expect(raised.provider.requests).toHaveLength(1);
     // A $0.55 ceiling with $0.60 spent: a notice for that ceiling, not skipped because of the old $0.50 one.
