@@ -452,9 +452,9 @@ describe("a grant below the estimate after the gate passed (AC14)", () => {
     expect(body).toContain("this run has room for **$0.30**");
     expect(body).toContain("the spend ledger's grant is $0.30");
     expect(body).toContain("/wachiman review --force");
-    expect(body).toContain("**$0.00** was settled");
+    expect(body).toContain("made no model call, so nothing was spent");
     expect(body).not.toContain("--budget");
-    expect(t.notes.join(" ")).toContain("settled with $0.00");
+    expect(t.notes.join(" ")).toContain("settle with $0.00");
     expect(t.posted).toHaveLength(0);
   });
 

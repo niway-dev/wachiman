@@ -3108,7 +3108,7 @@ export function sizeGateBody(o: {
       return `The ceiling for automatic runs stops this one, not \`budget_usd\`, which covers the estimate. The operator's review is not bounded by the ceiling: comment \`${mention} review\`. ${part}`;
     }
     if (lift.kind === "ledger") {
-      return `The spend ledger granted less than the estimate, and **$0.00** was settled. A bigger budget cannot lift a ledger limit. To review now anyway, the operator comments \`${mention} review --force\`, or the limit is raised in the ledger. ${part}`;
+      return `The spend ledger granted less than the estimate, and the run made no model call, so nothing was spent. A bigger budget cannot lift a ledger limit. To review now anyway, the operator comments \`${mention} review --force\`, or the limit is raised in the ledger. ${part}`;
     }
     if (lift.approveUsd <= lift.maxUsd) {
       return [
@@ -3549,12 +3549,16 @@ export function reserveSplit(total: number, verify: { budgetUsd: number } | unde
 /**
  * What the batches get out of `total` once the reserves are taken. `reviewChange` spends this much
  * on batches and the gate in `review` compares the estimate with it, so the two use the same room.
- * The PR Confidence claims call (at most `CLAIMS_BUDGET_USD`) is paid out of it before the batches
- * when that is on, which the 1.5 times margin of an approval covers.
+ * The PR Confidence claims call (at most `CLAIMS_BUDGET_USD`, a quarter of the room) is paid out of
+ * `reviewChange`'s batch room before the batches. The gate passes `claims` when that call will run
+ * (a full review with `confidence` on), so the room it compares the estimate with already has the
+ * claims call's money taken out; `reviewChange` itself leaves `claims` off because it pays the call
+ * from this room.
  */
-export function batchRoom(total: number, verify: { budgetUsd: number } | undefined, exceptionPlan: ExceptionPlan): number {
+export function batchRoom(total: number, verify: { budgetUsd: number } | undefined, exceptionPlan: ExceptionPlan, claims = false): number {
   const { verifier, match } = reserveSplit(total, verify, exceptionPlan);
-  return total - verifier - match;
+  const room = total - verifier - match;
+  return claims ? room - Math.min(CLAIMS_BUDGET_USD, room / 4) : room;
 }
 
 /**
@@ -4746,7 +4750,10 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const memory = readBaseMemory(gh, repo, base, allBinary.reviewable.map((f) => f.filename), deps.warn);
   const exceptionPlan = planExceptions(memory, touchedPathsOf(prFiles), allBinary.reviewable.map((f) => f.filename));
   const verifyReserve = config.verify ? { budgetUsd: config.verifyBudgetUsd } : undefined;
-  const roomOf = (total: number) => batchRoom(total, verifyReserve, exceptionPlan);
+  // PR Confidence grades a full review only (ADR 0033): an incremental or scoped review reads a
+  // part of the change, and "nothing else changed" cannot be said of a part.
+  const fullReview = since === null && paths.length === 0;
+  const roomOf = (total: number) => batchRoom(total, verifyReserve, exceptionPlan, config.confidence && fullReview);
   // The room gate (ADR 0062): the estimate against what the batches would get. Nothing is posted as a
   // review and no marker is written, so the next push sees no marker and gates again.
   const runTotal = Math.min(budgetUsd, ceiling.room);
@@ -4811,9 +4818,6 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     pathRules,
     pathPolicyChanged,
   });
-  // PR Confidence grades a full review only (ADR 0033): an incremental or scoped review reads a
-  // part of the change, and "nothing else changed" cannot be said of a part.
-  const fullReview = since === null && paths.length === 0;
   // Everything the run reads from GitHub is read by now. The ledger is asked last, just before the
   // first paid step, so a failing read cannot leave a reservation that nobody settles.
   const grant = spendReserve(deps, repo, pr, headSha, runTotal, force && !automatic);
@@ -4822,10 +4826,12 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // room (AC14): no call, the reservation is settled at $0.00 BEFORE anything is posted, so a post that
   // fails leaves nothing counted, and the comment names the grant and `--force`, not `--budget`.
   if (estimate.usd > roomOf(totalBudget)) {
+    // The release is attempted before the post; a failure only warns and notes (the reservation stays
+    // counted), so the comment says what was asked, not that it was done.
     spendSettle(deps, grant, 0);
     ledgerNote(
       deps,
-      `The ledger granted ${usd(grant.roomUsd)}, below the estimate of ${usd(estimate.usd)} the review needs, so it made no model call and settled with $0.00.${onSubscription(deps) ? ` ${ESTIMATE_NOTE}.` : ""}`,
+      `The ledger granted ${usd(grant.roomUsd)}, below the estimate of ${usd(estimate.usd)} the review needs, so it made no model call and asked the ledger to settle with $0.00. If a settlement warning appears above, the reservation stays counted.${onSubscription(deps) ? ` ${ESTIMATE_NOTE}.` : ""}`,
     );
     deps.log(`The ledger granted ${usd(grant.roomUsd)}; the room is $${roomOf(totalBudget).toFixed(2)}, below the $${estimate.usd.toFixed(2)} estimate; no model call.`);
     postSizeGateNotice(

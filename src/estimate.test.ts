@@ -70,6 +70,12 @@ describe("batchRoom: what the batches get once the reserves are taken (AC4)", ()
     expect(batchRoom(0.4, undefined, exceptions)).toBeCloseTo(0.3, 10);
     expect(batchRoom(3, { budgetUsd: 1 }, exceptions)).toBe(1.75);
   });
+
+  test("the gate's room takes the PR Confidence claims call out too: $0.15 at most, a quarter of the room", () => {
+    expect(batchRoom(3, undefined, none, true)).toBeCloseTo(2.85, 10);
+    expect(batchRoom(0.4, undefined, none, true)).toBeCloseTo(0.3, 10);
+    expect(batchRoom(3, undefined, none, false)).toBe(3);
+  });
 });
 
 describe("approvalBudget: the smallest whole dollar whose batch room is 1.5 times the estimate (AC5)", () => {
