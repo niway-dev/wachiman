@@ -1,0 +1,162 @@
+# The code-only pipeline baseline of the review engine (scripts/pipeline-bench/README.md): time and size
+# metrics with a stub provider, base and head on the same runner, so runner differences cancel.
+# It reports and never gates: only a crash of the harness itself fails the job.
+name: Pipeline bench
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+    paths:
+      - "src/**"
+      - "scripts/pipeline-bench/**"
+      - ".github/workflows/pipeline-bench.yml"
+  workflow_dispatch:
+    inputs:
+      include_extreme:
+        description: Also run the extreme tier (about half an hour per engine)
+        type: boolean
+        default: false
+      base:
+        description: Ref to compare against (the selected ref is the head)
+        type: string
+        default: main
+permissions:
+  contents: read
+concurrency:
+  group: pipeline-bench-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  bench:
+    # A label other than bench:extreme changes nothing about the run, so it does not start one.
+    if: github.event_name != 'pull_request' || github.event.action != 'labeled' || github.event.label.name == 'bench:extreme'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          path: head
+          # The full history: the base is the merge-base with the target branch.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.4
+      # Pinned and verified, so a later engine change can use it; the base engine ignores it.
+      # The hash is the one in the upstream release's `.sha256` file, and the download must match it.
+      - name: Install ripgrep 15.2.0
+        env:
+          RG_ASSET: ripgrep-15.2.0-x86_64-unknown-linux-musl
+          RG_SHA256: 33e15bcf1624b25cdd2a55813a47a2f95dbe126268203e76aa6a585d1e7b149c
+        run: |
+          curl --fail --silent --show-error --location --output "$RUNNER_TEMP/rg.tar.gz" \
+            "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/$RG_ASSET.tar.gz"
+          echo "$RG_SHA256  $RUNNER_TEMP/rg.tar.gz" | sha256sum --check --strict
+          mkdir -p "$RUNNER_TEMP/rg-bin"
+          tar -xzf "$RUNNER_TEMP/rg.tar.gz" -C "$RUNNER_TEMP/rg-bin" --strip-components=1 "$RG_ASSET/rg"
+          echo "$RUNNER_TEMP/rg-bin" >> "$GITHUB_PATH"
+      # The base is the merge-base with the target branch, so changes that landed on the target
+      # after this branch started do not show up as this pull request's effect.
+      - name: Check out the base engine
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || inputs.base }}
+        run: |
+          cd head
+          git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null || git fetch --no-tags origin "$BASE"
+          target=$(git rev-parse --verify "$BASE^{commit}" 2>/dev/null || git rev-parse --verify "origin/$BASE^{commit}")
+          mb=$(git merge-base "$target" HEAD 2>/dev/null || echo "$target")
+          echo "base engine: $mb; head engine: $(git rev-parse HEAD)"
+          git worktree add --detach ../base "$mb"
+      - name: Decide the cases
+        id: cases
+        env:
+          DISPATCH_EXTREME: ${{ inputs.include_extreme }}
+          LABELLED: ${{ contains(github.event.pull_request.labels.*.name, 'bench:extreme') }}
+        run: |
+          if [ "$DISPATCH_EXTREME" = true ] || [ "$LABELLED" = true ]; then tiers='["pr","extreme"]'; else tiers='["pr"]'; fi
+          # shellcheck disable=SC2016 # `$x` and `$t` are jq variables, not shell ones
+          sel='.cases[] | select(.tier as $x | $t | index($x))'
+          jq -r --argjson t "$tiers" "$sel | .id" head/scripts/pipeline-bench/corpus.json > cases.txt
+          # The cache key is the repository and merge commit of each selected case.
+          digest=$(jq -r --argjson t "$tiers" "$sel | \"\(.repo)@\(.sha)\"" head/scripts/pipeline-bench/corpus.json | sha256sum | cut -c1-32)
+          echo "corpus_key=bench-corpus-v1-$digest" >> "$GITHUB_OUTPUT"
+          echo "cases:"; cat cases.txt
+      - name: Restore the corpus
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: corpus
+          key: ${{ steps.cases.outputs.corpus_key }}
+      - name: Fetch the corpus
+        run: |
+          while read -r id; do bun head/scripts/pipeline-bench/fetch.ts "$id" "corpus/$id"; done < cases.txt
+      # The harness comes from the head checkout and measures both engines, so the same code times
+      # both. `--no-env-file --config` keeps a corpus repository's bunfig.toml and environment files
+      # from loading, as the review workflows do. Cases run one at a time, base then head.
+      - name: Measure
+        id: measure
+        run: |
+          mkdir -p bench-out
+          : > bench-out/base.jsonl
+          : > bench-out/head.jsonl
+          crashed=0
+          cd head
+          while read -r id; do
+            for side in base head; do
+              echo "::group::$id ($side)"
+              if ! bun --no-env-file --config=bunfig.toml scripts/pipeline-bench/run.ts \
+                --src "$GITHUB_WORKSPACE/$side/src" --repo "$GITHUB_WORKSPACE/corpus/$id" --case "$id" \
+                >> "$GITHUB_WORKSPACE/bench-out/$side.jsonl"; then
+                echo "::error title=bench harness crashed::case $id on the $side engine"
+                crashed=1
+              fi
+              echo "::endgroup::"
+            done
+          done < "$GITHUB_WORKSPACE/cases.txt"
+          echo "crashed=$crashed" >> "$GITHUB_OUTPUT"
+      - name: Write the report
+        if: always()
+        run: |
+          mkdir -p bench-out
+          touch bench-out/base.jsonl bench-out/head.jsonl
+          cd head
+          bun scripts/pipeline-bench/compare.ts --base ../bench-out/base.jsonl --head ../bench-out/head.jsonl --out ../bench-out/table.md
+          cd ..
+          { echo "<!-- wachiman-pipeline-bench -->"; cat bench-out/table.md; } > bench-out/report.md
+          cat bench-out/table.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: bench-report
+          path: bench-out
+          if-no-files-found: ignore
+      - name: Fail only when the harness crashed
+        if: steps.measure.outputs.crashed == '1'
+        run: exit 1
+  # A fork's token cannot write, so only a pull request from this repository gets a comment; a fork
+  # still has the job summary. This job has no checkout and no secret, and `pull-requests: write`
+  # stays here, out of the job that runs the engine.
+  comment:
+    needs: bench
+    if: always() && needs.bench.result != 'skipped' && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: bench-report
+          path: bench-out
+      - name: Post or update the sticky comment
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          [ -f bench-out/report.md ] || { echo "no report to post"; exit 0; }
+          id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" --jq '.[] | select(.body | startswith("<!-- wachiman-pipeline-bench -->")) | .id' | head -n1)
+          if [ -n "$id" ]; then
+            gh api --method PATCH "repos/$REPO/issues/comments/$id" --field body=@bench-out/report.md >/dev/null
+          else
+            gh api --method POST "repos/$REPO/issues/$PR/comments" --field body=@bench-out/report.md >/dev/null
+          fi
