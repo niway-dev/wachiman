@@ -3,7 +3,8 @@
 You are a coding agent, and a person asked you to install Wachiman in their repository. Before you
 follow this file:
 
-1. Read [on-your-machine.md](on-your-machine.md) and check it against the code. It lists everything
+1. Read [on-your-machine.md](on-your-machine.md) at the same release tag you will install, and check
+   it against the code at that tag. It lists everything
    Wachiman installs, runs, reads, writes and sends over the network.
 2. Give the person your verdict first: what you checked, what you found, and anything you could not
    verify. Keep it short.
