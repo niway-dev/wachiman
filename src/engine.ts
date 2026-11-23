@@ -5141,6 +5141,9 @@ the diff leaves unchanged or removes, or one inside a string. One finding per co
 - a body that names the action in one sentence.
 Pick the category by what the comment does. A comment that fits none of them is not a finding.`;
 
+/** How `COMMENT_PARAGRAPH` tells the model to title a comment finding. */
+const COMMENT_FINDING_TITLE = /^Comment \((tautology|stale|excuse|decision record)\):/i;
+
 /** The prompt for one batch: its framing, the rules, the repository's instructions and its diff last. */
 export function buildBatchPrompt(
   ctx: ReviewContext,
@@ -5278,14 +5281,18 @@ export function relativisePaths(output: ReviewOutput, repoDir: string): ReviewOu
  * What the engine verifies of a batch's output beyond the label enums the schema holds: a
  * finding's `confidence` is one of `CONFIDENCE` (anything else is dropped, so the label shows
  * none), and `contracts` have the right shape and cite lines that exist in the head
- * (`contracts.ts`). Problems are warnings; the findings and the rest of the review stand.
+ * (`contracts.ts`). Problems are warnings; the findings and the rest of the review stand. With
+ * `capComments` (the comment rule is on), a comment finding is never above "consider", whatever
+ * the model answered: the rule is advice, never a reason to stop a merge.
  */
 export function checkOutput(
   output: ReviewOutput,
   lines: LineCounter,
   warn: (line: string) => void,
+  capComments = false,
 ): ReviewOutput {
-  const findings = output.findings.map((f) => {
+  const findings = output.findings.map((raw) => {
+    const f = capComments && COMMENT_FINDING_TITLE.test(raw.title) && (raw.severity === "blocker" || raw.severity === "fix") ? { ...raw, severity: "consider" as const } : raw;
     if (f.confidence === undefined || (CONFIDENCE as readonly unknown[]).includes(f.confidence)) return f;
     warn(`Finding "${f.title}" has confidence ${JSON.stringify(f.confidence)}; ignored.`);
     const { confidence: _dropped, ...rest } = f;
@@ -5409,7 +5416,7 @@ async function reviewBatch(
     const result = call.value;
     const raw = !result.isError ? (result.structuredOutput as ReviewOutput | undefined) : undefined;
     const output =
-      raw && checkOutput(relativisePaths(raw, ctx.headDir), deps.lineCounter ?? repoLineCounter(ctx.headDir), deps.warn);
+      raw && checkOutput(relativisePaths(raw, ctx.headDir), deps.lineCounter ?? repoLineCounter(ctx.headDir), deps.warn, ctx.commentsPointToDocs === true);
     const stopped =
       result.terminalReason === "turns" || result.terminalReason === "timeout" ? result.terminalReason : undefined;
     if (stopped === "turns")

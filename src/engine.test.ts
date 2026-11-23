@@ -1764,6 +1764,22 @@ describe("checkOutput", () => {
     expect(warnings).toHaveLength(1);
   });
 
+  test("with the comment rule on, a comment finding is capped at consider, and nothing else is touched", () => {
+    const mixed = output({
+      findings: [
+        found({ severity: "blocker", title: "Comment (excuse): hack: the API lies" }),
+        found({ line: 2, severity: "fix", title: "Comment (stale): says 3, code says 5" }),
+        found({ line: 3, severity: "info", title: "Comment (tautology): repeats the code" }),
+        found({ line: 4, severity: "fix", title: "Null deref" }),
+        found({ line: 5, severity: "fix", title: "Commentary on retries" }),
+      ],
+    });
+    const off = checkOutput(mixed, lines, () => {});
+    expect(off.findings.map((f) => f.severity)).toEqual(["blocker", "fix", "info", "fix", "fix"]);
+    const on = checkOutput(mixed, lines, () => {}, true);
+    expect(on.findings.map((f) => f.severity)).toEqual(["consider", "consider", "info", "fix", "fix"]);
+  });
+
   test("marks the contracts whose citations resolve, and warns for those whose do not", () => {
     const warnings: string[] = [];
     const checked = checkOutput(

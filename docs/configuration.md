@@ -721,7 +721,8 @@ When on, the reviewer reports each comment the diff **adds** that is neither:
 - a tool directive: `@ts-expect-error <reason>`, `eslint-disable ... -- <reason>`, `biome-ignore`,
   `prettier-ignore`, a shebang, a type annotation such as `/** @type {Foo} */`, a license header.
 
-Each finding is `Consider` severity, never higher, so it never blocks a merge. Its title starts with
+Each finding is `Consider` severity: the reviewer is told never to go higher, and the engine lowers a
+comment finding that arrives as `Fix` or `Blocker` to `Consider`. Its title starts with
 the category, and its body names the action:
 
 | Category | Meaning | Action |

@@ -172,6 +172,21 @@ async function github(files: { base?: string; head?: string }) {
   return { provider, warnings };
 }
 
+describe("the cap on a comment finding", () => {
+  test("a model that answers a higher severity for a comment still gets consider", async () => {
+    class Loud extends FakeProvider {
+      override async run(request: ProviderRequest): Promise<ProviderResult> {
+        const result = await super.run(request);
+        const out = result.structuredOutput as ReviewOutput;
+        return { ...result, structuredOutput: { ...out, findings: out.findings.map((f) => ({ ...f, severity: "blocker" as const })) } };
+      }
+    }
+    const result = await reviewChange(input({ commentsPointToDocs: true }), options(), coreDeps(new Loud()));
+    expect(result.findings).toHaveLength(3);
+    expect(result.findings.every((f) => f.severity === "consider")).toBe(true);
+  });
+});
+
 describe("a pull request in Actions", () => {
   test("no .wachiman.yml: the rule is off", async () => {
     const { provider } = await github({});
