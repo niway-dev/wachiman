@@ -31,7 +31,7 @@ requests are skipped by the automatic review too. See [install.md](install.md) a
 ### Where does my code go?
 
 To the model provider you chose. Wachiman has no server that receives your code; the optional
-spend ledger receives spend figures only ([on-your-machine.md](on-your-machine.md#the-spend-ledger)). Concretely:
+spend ledger receives spend figures and one short error string ([on-your-machine.md](on-your-machine.md#the-spend-ledger)). Concretely:
 
 - The job runs in **your** GitHub Actions. The engine and your pull request's head are checked out
   on the runner.
