@@ -107,7 +107,7 @@ appear only in the files that a row, here or in the table above, names for that 
 | `claude.dev` | A link in a comment of the `.wachiman.yml` that `wachiman init` writes | `src/init/settings.ts` |
 | `ledger.example.com` | A help example | `src/help.ts` |
 | `console.anthropic.com` | A link in a comment of the caller workflow that `wachiman init` writes into your repository (host links in `templates/` comments count; those in `src/` comments do not) | `templates/wachiman-review-caller.yml` |
-| `localhost`, `127.0.0.1` | Accepted for `ledger_url` over plain http, for tests | `src/config.ts`, `scripts/verify-package.sh` |
+| `localhost`, `127.0.0.1` | Accepted for `ledger_url` over plain http, for tests (`src/config.ts`). `scripts/verify-package.sh` points npm at `http://127.0.0.1:9`, a registry address nothing listens on, so a package install in that test fails instead of reaching the network | `src/config.ts`, `scripts/verify-package.sh` |
 
 ## The spend ledger
 
