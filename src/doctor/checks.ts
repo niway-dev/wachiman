@@ -18,6 +18,7 @@ import { inspectIsolatedProfile } from "../profiles";
 import { buildChildEnv } from "../providers/claude-code";
 import { effectiveSettings, OLD_SETTINGS_PATH, parseRepoSettings, SETTINGS_PATH } from "../repo-settings";
 import { UsageError } from "../config";
+import { RIPGREP_MIN_MAJOR, RIPGREP_VERSION, resolveRipgrep } from "../ripgrep";
 import { classifyRef, compareVersions, parseTag, scanWorkflows } from "../upgrade/pin";
 
 export type CheckLevel = "required" | "optional";
@@ -27,6 +28,7 @@ export type CheckId =
   | "bun"
   | "git"
   | "tar"
+  | "ripgrep"
   | "config"
   | "profile"
   | "auth"
@@ -169,6 +171,10 @@ const GIT_MIN: [number, number] = [2, 30];
 
 /** Runs `<tool> --version` from a neutral directory with the allowlisted environment. */
 function probe(ctx: DoctorContext, tool: string) {
+  return probeBinary(ctx, tool);
+}
+
+function probeBinary(ctx: DoctorContext, tool: string) {
   return ctx.spawn(tool, ["--version"], {
     cwd: ctx.neutralDir,
     env: buildChildEnv(ctx.env, { auth: "subscription" }),
@@ -246,6 +252,33 @@ export const CHECKS: DoctorCheck[] = [
   },
   { id: "git", level: "required", run: (ctx) => toolRow(ctx, "git", GIT_MIN) },
   { id: "tar", level: "required", run: (ctx) => toolRow(ctx, "tar") },
+  {
+    id: "ripgrep",
+    level: "optional",
+    run: (ctx): DoctorRow => {
+      const found = resolveRipgrep(
+        ctx.env,
+        (binary) => {
+          const run = probeBinary(ctx, binary);
+          return { status: run.status, stdout: run.stdout ?? "", error: run.error };
+        },
+        ctx.fs.exists,
+      );
+      if (found.found) {
+        const where = found.source === "env" ? "WACHIMAN_RIPGREP" : found.source === "installed" ? "installed by Wachiman" : "on PATH";
+        return { id: "ripgrep", level: "optional", status: "ok", evidence: `ripgrep ${found.version} (${where}): ${found.path}`, detail: { version: found.version, source: found.source } };
+      }
+      // Not required: without it the call-site evidence searches with git grep, which is only slower.
+      return {
+        id: "ripgrep",
+        level: "optional",
+        status: "warn",
+        evidence: `no ripgrep ${RIPGREP_MIN_MAJOR} or newer: the call-site evidence uses git grep, which is slow on large repositories`,
+        fix: `wachiman setup (installs ripgrep ${RIPGREP_VERSION} for Wachiman)`,
+        detail: { version: null, tried: found.tried.length },
+      };
+    },
+  },
   {
     id: "config",
     level: "required",

@@ -37,6 +37,10 @@ esac
 `,
   );
   chmodSync(path, 0o755);
+  // `setup` and `doctor` look for ripgrep; one that answers `--version` keeps these tests off the network.
+  const rg = join(bin, "rg");
+  writeFileSync(rg, `#!/bin/sh\necho "ripgrep 15.2.0 (rev test)"\n`);
+  chmodSync(rg, 0o755);
   return bin;
 }
 
@@ -129,6 +133,8 @@ describe("account commands through the CLI", () => {
       "bun",
       "git",
       "tar",
+      "ripgrep",
+  "ripgrep",
       "config",
       "profile",
       "auth",

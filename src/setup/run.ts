@@ -49,6 +49,11 @@ export interface SetupDeps extends AccountDeps {
   spawnAsync?: AsyncSpawnFn;
   /** An open prompt session (shared with `init`); the caller closes it. */
   prompter?: Prompter;
+  /**
+   * Installs ripgrep when no usable one is found (`ensureRipgrep`), printing what it does. Wired by
+   * the CLI; absent (as in most tests) the step is skipped. `ok: false` is a refused download.
+   */
+  ripgrep?: (env: Record<string, string | undefined>, print: (line: string) => void) => Promise<{ ok: boolean }>;
 }
 
 const aliasNote = (again: string) =>
@@ -68,10 +73,12 @@ export async function runSetupCommand(
     const resolved = resolveSetupOptions(flags, { interactive: false });
     if (!resolved.ok) throw new UsageError(resolved.error);
     const { options } = resolved;
-    return runSetup({ repoDir: options.repoDir, profile: options.profile, yes: flags.yes === true, json: options.json }, env, io, {
+    const search = deps.ripgrep ? await deps.ripgrep(env, io.stderr) : { ok: true };
+    const code = await runSetup({ repoDir: options.repoDir, profile: options.profile, yes: flags.yes === true, json: options.json }, env, io, {
       ...deps,
       interactive: false,
     });
+    return code === 0 && !search.ok ? 1 : code;
   }
 
   const repoDir = flags.repoDir ?? ".";
@@ -225,10 +232,13 @@ export async function runSetupCommand(
     if (status.ok) io.stderr(`account: signed in (${status.auth.authMethod}; claude ${status.binary.version})`);
     else if (!explained) io.stderr(`warning: ${status.problem} Fix: ${status.fix}`);
 
+    // Before the checks, so the report below shows the ripgrep row as it now is.
+    const search = deps.ripgrep ? await deps.ripgrep(env, io.stderr) : { ok: true };
     const total = setupStepTotal(deps.fromInit, deps.initMode);
     prompter.step("Checks and next actions", total, total);
     const result: { failedRequired?: number } = {};
-    const code = closeSetup(repoDir, env, io, deps, result);
+    const closed = closeSetup(repoDir, env, io, deps, result);
+    const code = closed === 0 && !search.ok ? 1 : closed;
     if (flags.json) io.stdout(`${JSON.stringify(projectShow(repoDir, env, deps), null, 2)}\n`);
     outcome = code === 0 ? "done" : code === 130 ? "cancelled" : "failed";
     // Everything is saved; the sign-in is what is left. That is a warning to act on, not a stop. The exit code stays as the

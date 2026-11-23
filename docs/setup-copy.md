@@ -69,6 +69,7 @@ What changes when you migrate:
 | Bun version in the workflow | `bun_version` |
 | The `release-please--` branch check in the job `if:` | `skip_branch_prefixes` |
 | Old `CLAUDE_REVIEW_*` variables | Rename to the `WACHIMAN_*` input above ([cli.md](cli.md#deprecated-names)) |
+| `WACHIMAN_RIPGREP` | no input; the reusable workflow installs a pinned ripgrep in its own step ([configuration.md](configuration.md#ripgrep)) |
 | `WACHIMAN_EXCLUDE` | no input |
 | `WACHIMAN_DRY_RUN` | no input |
 | `WACHIMAN_REASONING_EFFORT` | `effort`, new in v1.4.0 (variable `WACHIMAN_EFFORT`, default `high`, both providers); the old name still works but is deprecated and ignored when the new one is set ([configuration.md](configuration.md)). At v1.3.0 there is no input |
