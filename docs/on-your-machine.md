@@ -69,10 +69,10 @@ Everything else goes through a program it starts: `claude`, `codex`, `gh`, `git`
 running `curl`. This is the complete list. How it was found, and how to repeat it, is in
 [How to check it yourself](#how-to-check-it-yourself). `test/egress.test.ts` checks per file, not per
 call: it fails when a source file with a network call site is not cited in the table's last column,
-or when a URL host in the source is not named in this section.
+or when a URL host in the source is not named in this section. The test scans `src`, `bin`,
+`scripts` and `templates`; the rows for `.github/workflows` are kept by hand.
 
-`wachiman local` and `wachiman ask` on your laptop use only the first two rows below, plus the
-`claude` version and sign-in checks. They never call GitHub, `gh` or the ledger.
+`wachiman local` and `wachiman ask` on your laptop use only the first two rows below. They never call GitHub, `gh` or the ledger.
 
 | Destination | When | What is sent | Where in the code |
 | --- | --- | --- | --- |

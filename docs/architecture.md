@@ -650,7 +650,7 @@ answers the client relies on are written down in [ledger-api.md](ledger-api.md).
 - Budgets and batch sizes come from the caller's inputs or the environment, never from the pull
   request.
 - The core (`reviewChange`) has no `gh` in its dependencies and makes no network call of its own;
-  the senders are `defaultGh`, the provider adapter and, outside the core, the optional spend-ledger
+  on the review path the senders are `defaultGh`, the provider adapter and, outside the core, the optional spend-ledger
   client in `src/ledger.ts` (`curl`) and `ledger pull` (`fetch`). The full list is
   [on-your-machine.md](on-your-machine.md).
 - Each batch's run directory is removed after its call.
