@@ -1,6 +1,6 @@
 # ADR 0064: New review behavior is opt-in per repository and off by default
 
-- **Status:** proposed 2026-11-22. Builds on
+- **Status:** accepted by the owner on 2026-11-23. Builds on
   [ADR 0048](0048-a-repository-settings-file-at-the-root-wachiman-yml.md) (the settings file) and
   [ADR 0049](0049-model-and-effort-in-wachiman-yml-read-from-the-base-commit.md) (the base-commit
   rule for keys that change what a review costs or does). No code changes with this ADR; it governs
