@@ -648,7 +648,7 @@ paths:                  # optional: places a person should always look at, see "
   fails the same way a wrong `WACHIMAN_MODEL` would; set a model that fits the provider your
   workflow uses.
 - `paths` is a list of path rules; see [Path rules](#path-rules-paths) below.
-- `review` holds opt-in review behaviors; see [The review key](#the-review-key) below.
+- `review` holds opt-in review behaviors; see "The `review` key" below.
 - `init` does not ask for `model` or `effort`; a new file carries them commented out, and a commented-out
   `paths:` example.
 
@@ -662,42 +662,7 @@ the behavior stays off.
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `review.comments_point_to_docs` | `false` | The [comment rule](#the-comment-rule-reviewcomments_point_to_docs). |
-
-#### The comment rule (`review.comments_point_to_docs`)
-
-Off by default. With nothing set, or `false`, Wachiman says nothing about comments and the prompt
-sent to the model is the one it was before this setting existed.
-
-To turn it on, commit this to `.wachiman.yml` on your default branch:
-
-```yaml
-review:
-  comments_point_to_docs: true
-```
-
-It applies from the next review after the merge, because the file is read at the base commit. A
-pull request that turns it on is not reviewed under it, and one that turns it off still is.
-
-When on, the reviewer reports each comment the diff **adds** that is neither:
-
-- a pointer to a document, such as `// See docs/adr/0053-....md` or a link to a document; nor
-- a tool directive: `@ts-expect-error <reason>`, `eslint-disable ... -- <reason>`, `biome-ignore`,
-  `prettier-ignore`, a shebang, a type annotation such as `/** @type {Foo} */`, a license header.
-
-Each finding is `Consider` severity, never higher, so it never blocks a merge. Its title starts with
-the category, and its body names the action:
-
-| Category | Meaning | Action |
-| --- | --- | --- |
-| `tautology` | The comment repeats what the code says. | Delete it. |
-| `stale` | The comment contradicts the code next to it. | Delete it, or move the true reason to a document and leave a pointer. |
-| `excuse` | The comment justifies a hack or workaround. | Delete it and open an issue for the hack. |
-| `decision record` | A real "why" that a person will need later. | Move it to a document and leave a pointer. |
-
-The reviewer is a language model, so the categories are a judgement, not a lint rule. A repository
-that wants every prose comment rejected mechanically needs a linter; this setting asks for a review
-opinion on new comments only.
+| `review.comments_point_to_docs` | `false` | The [comment rule](#the-comment-rule-reviewcomments_point_to_docs), described after the `memory` key below. |
 
 **The `memory` key ([ADR 0056](adr/0056-repository-memory-lives-in-wachiman-memory-and-changes-only-through-one-draft-pull-request.md)).**
 It sets the line budget of the [repository memory](cli.md#memory), a folder of Markdown files in
@@ -734,6 +699,41 @@ The run says when the file decided: a `settings: model …, effort … from .wac
 job log (Actions) or on stderr (local), and `(from .wachiman.yml)` after the model and the effort in
 the last line of a local terminal or Markdown report. The posted review footer is unchanged.
 `wachiman doctor` shows the file and where the effective model and effort come from.
+
+#### The comment rule (`review.comments_point_to_docs`)
+
+Off by default. With nothing set, or `false`, Wachiman says nothing about comments and the prompt
+sent to the model is the one it was before this setting existed.
+
+To turn it on, commit this to `.wachiman.yml` on your default branch:
+
+```yaml
+review:
+  comments_point_to_docs: true
+```
+
+It applies from the next review after the merge, because the file is read at the base commit. A
+pull request that turns it on is not reviewed under it, and one that turns it off still is.
+
+When on, the reviewer reports each comment the diff **adds** that is neither:
+
+- a pointer to a document, such as `// See docs/adr/0053-....md` or a link to a document; nor
+- a tool directive: `@ts-expect-error <reason>`, `eslint-disable ... -- <reason>`, `biome-ignore`,
+  `prettier-ignore`, a shebang, a type annotation such as `/** @type {Foo} */`, a license header.
+
+Each finding is `Consider` severity, never higher, so it never blocks a merge. Its title starts with
+the category, and its body names the action:
+
+| Category | Meaning | Action |
+| --- | --- | --- |
+| `tautology` | The comment repeats what the code says. | Delete it. |
+| `stale` | The comment contradicts the code next to it. | Delete it, or move the true reason to a document and leave a pointer. |
+| `excuse` | The comment justifies a hack or workaround. | Delete it and open an issue for the hack. |
+| `decision record` | A real "why" that a person will need later. | Move it to a document and leave a pointer. |
+
+The reviewer is a language model, so the categories are a judgement, not a lint rule. A repository
+that wants every prose comment rejected mechanically needs a linter; this setting asks for a review
+opinion on new comments only.
 
 ### Path rules (`paths`)
 

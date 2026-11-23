@@ -5117,7 +5117,7 @@ empty list is normal. Do not state a risk level.`;
  * The comment rule (`review.comments_point_to_docs`, ADR 0064), added to the batch prompt only
  * for a repository that turned it on. A comment is allowed as a pointer to a document or as a
  * tool directive; any other added comment is a "consider" finding that names its category and
- * its action. The wording follows the policy in docs/code-comments.md.
+ * its action.
  */
 export const COMMENT_PARAGRAPH = `## Comments in the added lines
 

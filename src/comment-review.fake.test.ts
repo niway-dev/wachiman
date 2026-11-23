@@ -14,12 +14,27 @@ import { checkGoldenPrompts, recordPrompt } from "../test/support/golden-prompts
 
 const RULE_HEADING = "## Comments in the added lines";
 
-/** What a reviewer that follows the rule would report for the fixture's four added comments. */
-const COMMENT_FINDINGS: ReviewOutput["findings"] = [
-  { path: "src/a.ts", line: 2, severity: "consider", topic: "cleanup", confidence: "high", title: "Comment (tautology): repeats the code", body: "`// increment the counter` restates `counter += 1`. Delete it." },
-  { path: "src/a.ts", line: 4, severity: "consider", topic: "docs", confidence: "high", title: "Comment (stale): says the opposite of the code", body: "The comment says the retry count is 3, the code uses 5. Delete it." },
-  { path: "src/a.ts", line: 6, severity: "consider", topic: "cleanup", confidence: "medium", title: "Comment (excuse): justifies a hack", body: "`// hack: the API lies about dates` excuses the workaround. Delete it and open an issue for the hack." },
-];
+/**
+ * The scripted judgement: how this fake classifies the fixture's added comments. A real model
+ * decides this from the code; here it is a table, so the test checks the wiring (the rule in the
+ * prompt, the findings through the pipeline), not the model's judgement.
+ */
+const CATEGORY: Record<string, { category: string; topic: "cleanup" | "docs"; why: string }> = {
+  "// increment the counter": { category: "tautology", topic: "cleanup", why: "It restates `counter += 1`. Delete it." },
+  "// retries three times": { category: "stale", topic: "docs", why: "The code uses 5 retries. Delete it." },
+  "// hack: the API lies about dates": { category: "excuse", topic: "cleanup", why: "It excuses the workaround. Delete it and open an issue for the hack." },
+};
+
+/** What a reviewer that follows the rule reports: every added comment in the prompt's diff that is not a pointer. */
+function judge(prompt: string): ReviewOutput["findings"] {
+  const diff = prompt.slice(prompt.indexOf("<diff>"));
+  return [...diff.matchAll(/^\s*(\d+) \+(\/\/.*)$/gm)].flatMap(([, line, text]) => {
+    if (text.startsWith("// See docs/")) return [];
+    const verdict = CATEGORY[text];
+    if (!verdict) return [];
+    return [{ path: "src/a.ts", line: Number(line), severity: "consider" as const, topic: verdict.topic, confidence: "high" as const, title: `Comment (${verdict.category}): ${text.slice(3)}`, body: verdict.why }];
+  });
+}
 
 class FakeProvider implements ProviderAdapter {
   readonly name = "fake";
@@ -39,7 +54,7 @@ class FakeProvider implements ProviderAdapter {
     const output: ReviewOutput = {
       files_reviewed: ["src/a.ts"],
       files_skipped: [],
-      findings: asked ? COMMENT_FINDINGS : [],
+      findings: asked ? judge(request.prompt) : [],
       thread_replies: [],
       summary: "Fine.",
     };
@@ -100,17 +115,16 @@ describe("the core, with the comment rule off", () => {
 });
 
 describe("the core, with the comment rule on", () => {
-  test("the rule reaches the provider, and the three findings come out with their category and no pointer finding", async () => {
+  test("the rule reaches the provider, and the three findings come out with their category and nothing for the pointer line", async () => {
     const provider = new FakeProvider();
     const result = await reviewChange(input({ commentsPointToDocs: true }), options(), coreDeps(provider));
     expect(provider.requests[0].prompt).toContain(RULE_HEADING);
-    expect(result.findings.map((f) => f.title)).toEqual([
-      "Comment (tautology): repeats the code",
-      "Comment (stale): says the opposite of the code",
-      "Comment (excuse): justifies a hack",
+    expect(result.findings.map((f) => [f.line, f.title])).toEqual([
+      [2, "Comment (tautology): increment the counter"],
+      [4, "Comment (stale): retries three times"],
+      [6, "Comment (excuse): hack: the API lies about dates"],
     ]);
     expect(result.findings.every((f) => f.severity === "consider")).toBe(true);
-    expect(result.findings.some((f) => f.line === 8)).toBe(false);
   });
 });
 

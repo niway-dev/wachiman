@@ -1309,7 +1309,7 @@ describe("buildBatchPrompt", () => {
     expect(text.trimEnd().endsWith("</diff>")).toBe(true);
   });
 
-  test("without the comment rule the prompt is the same whether the field is absent or the rule never mentioned", () => {
+  test("without the comment rule the prompt does not mention comments or any category", () => {
     expect(prompt()).not.toContain("Comments in the added lines");
     expect(prompt()).not.toContain("tautology");
   });
