@@ -505,6 +505,30 @@ test("working-tree input carries the path rules committed at HEAD, not the worki
   }
 });
 
+test("working-tree input carries the comment rule committed at HEAD, not the working copy's", () => {
+  const on = "review:\n  comments_point_to_docs: true\n";
+  const dir = emptyRepo();
+  commit(dir, { "a.ts": "base\n", ".wachiman.yml": on }, "base");
+  writeFileSync(join(dir, ".wachiman.yml"), "review:\n  comments_point_to_docs: false\n");
+  writeFileSync(join(dir, "a.ts"), "edited\n");
+  const b = capture(dir, "all");
+  try {
+    expect(b.input.commentsPointToDocs).toBe(true);
+  } finally {
+    b.release();
+  }
+  const other = emptyRepo();
+  commit(other, { "a.ts": "base\n" }, "base");
+  writeFileSync(join(other, ".wachiman.yml"), on);
+  writeFileSync(join(other, "a.ts"), "edited\n");
+  const c = capture(other, "all");
+  try {
+    expect(c.input).not.toHaveProperty("commentsPointToDocs");
+  } finally {
+    c.release();
+  }
+});
+
 test("working-tree input has no pathRules field when HEAD's file has no paths", () => {
   const b = capture(fixture(), "all");
   try {
