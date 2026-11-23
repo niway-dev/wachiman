@@ -56,7 +56,7 @@ figures, never code), a `curl` download of the pinned Claude Code binary in the 
 npm registry for `wachiman upgrade`. A search of the source found no analytics or telemetry
 sender, but Claude Code, Codex and Bun may send their own. Every network call, file written and
 program started is on [on-your-machine.md](on-your-machine.md), with the file that shows it, and
-`test/egress.test.ts` fails when the source gains a network call the page does not list.
+`test/egress.test.ts` fails when a source file with a network call site, or a URL host, is not on the page. It checks per file, not per call.
 
 ### Does it learn from my reviews or store anything?
 

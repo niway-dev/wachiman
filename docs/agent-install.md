@@ -36,7 +36,7 @@ subscription (local), as a GitHub Actions workflow billed to an API key or a sub
 | Mode | What it adds | What it costs |
 | --- | --- | --- |
 | Local | A binding from this repository to a Claude account in `~/.wachiman`. No file in the repository, no GitHub request | Uses the person's Claude plan |
-| Actions | One caller workflow in the repository and one repository secret | Billed to the key or token owner |
+| Actions | One caller workflow file in the repository (`init` is run with `--no-agent-pointer` and `--no-pr-template`, so it writes nothing else) and one repository secret the person adds | Billed to the key or token owner |
 | Both | Both of the above | Both |
 
 Do not ask again unless the person changes their mind.
@@ -102,12 +102,14 @@ Skip this section if the mode is Actions only.
 - [ ] **Ask** before writing the binding. Then run, with the person's choice:
 
 ```sh
-wachiman init --mode local --project-kind single --dry-run --json
 wachiman setup --profile <name> --yes --json
 wachiman doctor --json
 ```
 
-(`--project-kind monorepo` if the repository is one; detect it from the workspaces file.)
+Do not run `wachiman init` for local mode. `setup` writes the binding in `~/.wachiman/config.json`
+and nothing in the repository, while `init` would also offer to write `.wachiman.yml`, a pointer
+block in `AGENTS.md` or `CLAUDE.md`, and the PR template. If the person wants those, they are a
+separate **Ask**.
 
 `doctor` makes no model call. Report each required check. Do not run `wachiman local` unless the
 person asks for a first review; it is a real review that uses their Claude plan.
@@ -123,15 +125,16 @@ Skip this section if the mode is local only.
 - [ ] Preview, writing nothing:
 
 ```sh
-wachiman init --mode github --operator <login> --version <tag> --project-kind single --dry-run --json
+wachiman init --mode github --operator <login> --version <tag> --no-agent-pointer --no-pr-template --dry-run --json
 ```
 
-- [ ] Show the plan: each file and its action. **Ask** before the real run.
+- [ ] Show the plan: each file and its action. It should list the workflow file only; if it lists
+      anything else, say so. **Ask** before the real run.
 - [ ] Create the branch, then run the same command without `--dry-run`:
 
 ```sh
 git switch -c wachiman-setup
-wachiman init --mode github --operator <login> --version <tag> --project-kind single --json
+wachiman init --mode github --operator <login> --version <tag> --no-agent-pointer --no-pr-template --json
 ```
 
 - [ ] Check that **exactly one** workflow file calls `niway-dev/wachiman`, and that its `uses:` line

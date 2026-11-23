@@ -185,8 +185,8 @@ you do:
   from your runner.
 - **What it does on your machine is listed.** Every program it starts, file it writes and network
   destination, each with the file that shows it, is on
-  [docs/on-your-machine.md](docs/on-your-machine.md); a test fails when the source gains a network
-  call the page does not list. Ask your own agent to check the code against it.
+  [docs/on-your-machine.md](docs/on-your-machine.md); a test fails when a source file with a network
+  call site, or a URL host, is not on the page (it checks per file, not per call). Ask your own agent to check the code against it.
 - **The version you pin decides what runs with your key.** See
   [docs/install.md](docs/install.md#what-pinning-a-version-does-and-does-not-guarantee).
 

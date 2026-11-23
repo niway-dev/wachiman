@@ -8,9 +8,12 @@ Last checked against the code: 2026-11-23, version 1.19.0. Every statement names
 function that shows it. A statement marked **not verified** is one the code alone cannot prove;
 [What is not verified](#what-is-not-verified) collects them.
 
-Paths are relative to the repository root. `src/`, `bin/`, `skills/`, `templates/` and `bunfig.toml`
-ship in the npm package; `scripts/`, `docs/`, `test/` and `.github/` do not (`files` in
-`package.json`).
+Paths are relative to the repository root. The npm package ships `src/`, `skills/`, `templates/`,
+`bin/wachiman.js`, `bin/launcher-args.js`, `bunfig.toml`, `LICENSE` and `README.md`, and omits every
+`*.test.ts` file and `fixtures/` folder (`files` in `package.json`).
+
+**Not in the npm package:** `scripts/`, `docs/`, `test/`, `.github/`, and the rest of the
+repository. The developer scripts named below run only from a checkout.
 
 ## What installing adds
 
@@ -24,8 +27,8 @@ folder. Its `package.json` declares three runtime dependencies and no `postinsta
 | `@clack/prompts` | 1.9.0 | Terminal prompts |
 
 **The `bun` dependency runs an install script.** The npm package `bun` has a `postinstall`
-(`node install.js`). It is not code from this repository. In the copy of 1.3.4 I read, it first looks
-for the platform package `@oven/bun-<platform>` that npm installs as an optional dependency. If that
+(`node install.js`). It is not code from this repository. According to its `install.js` (read it
+with `npm pack bun@1.3.4`), it first looks for the platform package `@oven/bun-<platform>` that npm installs as an optional dependency. If that
 is missing, it runs `npm install @oven/bun-<platform>@1.3.4` in a temporary folder, and if that fails
 it downloads the same package's tarball from `registry.npmjs.org`. Treat it as install-time tooling
 that contacts the npm registry. With `--ignore-scripts`, npm skips it and Wachiman uses a Bun that
@@ -46,6 +49,7 @@ repository, apart from temporary folders (below):
 | `~/.wachiman/memory/…`, `~/.wachiman/memory-candidates/…`, `~/.wachiman/memory-choice/…` | `wachiman memory` (`src/memory/personal.ts`, `src/memory/candidates.ts`) | Your personal review memory and unproposed memory entries, keyed by your `origin` URL |
 | `~/.agents/skills/` and each `~/.claude*/skills/` | `wachiman skills install` (`src/skills/install.ts`) | Copies of the `wachiman-review`, `wachiman-loop` and `wachiman-audit` skills, marked as Wachiman's. It lists `~/.claude-*` folder names to find them |
 | A path you pass with `--output` or `--out` | `wachiman local`, `ask`, `dashboard` | The report you asked for |
+| Each directory you pass with `--dir` | `wachiman skills install` or `uninstall --dir <path>` (`src/skills/install.ts`) | The skill copies, or their removal, in that directory |
 
 Inside the repository, `wachiman init` writes the caller workflow, `.wachiman.yml`, an agent-pointer
 block in `AGENTS.md` or `CLAUDE.md`, and optionally the PR template (`src/init/`);
@@ -62,9 +66,10 @@ your system temp folder and removes them afterwards (`src/engine.ts`, `src/local
 Wachiman's own code makes two kinds of network request: `curl` calls to the spend ledger
 (`src/ledger.ts`) and `fetch` calls to the ledger for `ledger pull` (`src/ledger-read/pull.ts`).
 Everything else goes through a program it starts: `claude`, `codex`, `gh`, `git`, `npm` or `bash`
-running `curl`. This is the complete list I found. How it was found, and how to repeat it, is in
-[How to check it yourself](#how-to-check-it-yourself); `test/egress.test.ts` fails when a source
-file has a network call site that this table does not cite.
+running `curl`. This is the complete list. How it was found, and how to repeat it, is in
+[How to check it yourself](#how-to-check-it-yourself). `test/egress.test.ts` checks per file, not per
+call: it fails when a source file with a network call site is not cited in the table's last column,
+or when a URL host in the source is not named in this section.
 
 `wachiman local` and `wachiman ask` on your laptop use only the first two rows below, plus the
 `claude` version and sign-in checks. They never call GitHub, `gh` or the ledger.
@@ -76,7 +81,7 @@ file has a network call site that this table does not cite.
 | OpenAI, through the `codex` CLI | Only with `--provider codex` on the command line. The reusable workflow does not use it | The prompt; `OPENAI_API_KEY` is passed to `codex` as `CODEX_API_KEY` | `src/providers/codex.ts` |
 | GitHub, through the `gh` CLI | Actions jobs (the job's own token); `wachiman pr-state` and `--wait`; `wachiman pr-template check --pr` and `risk`; `wachiman init` (one optional `gh api user`); `wachiman reset-confidence`; the accuracy script `src/precision.ts` and the developer script `scripts/questions-firing.ts` | Reads of pull request data (diff, metadata, threads, reviews, check runs). In Actions, posts the review, comments and thread replies | `src/engine.ts` (`defaultGh`, `runGh`), `src/pr-state-wait.ts`, `src/pr-template/gh.ts`, `src/init/github-login.ts`, `src/precision.ts`, `scripts/questions-firing.ts` |
 | Your git remote `origin`, through `git` and `gh` | Only `wachiman memory propose` (without `--personal`) | `git ls-remote` and `git fetch` to learn whether the team has memory; `git push origin HEAD:refs/heads/wachiman/memory` with one commit holding the memory entry, and a draft pull request. Your own git credentials | `src/memory/propose.ts` |
-| The spend ledger at your `ledger_url` | Only in GitHub Actions, only when the workflow input `ledger_url` is set, only through `wachiman-platform.yml` with `id-token: write`. On a laptop the engine skips it and says so | `POST /v1/reserve`, `/v1/settle`, `/v1/record`: amounts, trigger, PR number, per-call token and cost rows, and the job's OIDC token as bearer. Details in the next section | `src/ledger.ts` (`defaultCurl`, `reserve`, `settle`, `record`), `src/engine.ts` (`spendReserve`, `spendSettle`), `src/config.ts` |
+| The spend ledger at your `ledger_url` | Only in GitHub Actions, only when the workflow input `ledger_url` is set, and only through a workflow that grants `id-token: write`: `.github/workflows/review-platform.yml` or its generated copy `.github/workflows/wachiman-platform.yml`. On a laptop the engine skips it and says so | `POST /v1/reserve`, `/v1/settle`, `/v1/record`: amounts, trigger, PR number, per-call token and cost rows, and the job's OIDC token as bearer. Details in the next section | `src/ledger.ts` (`defaultCurl`, `reserve`, `settle`, `record`), `src/engine.ts` (`spendReserve`, `spendSettle`), `src/config.ts` |
 | GitHub's OIDC token service (`ACTIONS_ID_TOKEN_REQUEST_URL`) | Same conditions as the row above, before each ledger call | The job's request token, with the ledger URL as the audience | `src/ledger.ts` (`requestIdToken`) |
 | The ledger you connected, for reading | `wachiman ledger pull`, and `wachiman dashboard --refresh` or `wachiman status --refresh` | `GET /v1/entries?from=…&to=…` with your read token. Redirects are refused, so the token is not sent elsewhere | `src/ledger-read/pull.ts`, `src/ledger-read/credentials.ts`, `src/cli.ts` (`refreshLedger`) |
 | The npm registry, through `npm` or `bun` | `wachiman upgrade` and `wachiman upgrade --check` run `npm view wachiman version`; `upgrade` (not `--check`) then runs `npm install -g wachiman@<version>` or `bun add -g wachiman@<version>` | The package name and version | `src/upgrade/command.ts` |
@@ -85,15 +90,21 @@ file has a network call site that this table does not cite.
 | GitHub, for `actions/checkout`, and the host `oven-sh/setup-bun` downloads Bun from | Only in the Actions workflow | Not verified: both are third-party actions pinned by commit SHA | `.github/workflows/review.yml` |
 | The npm registry, through `npm` | Developer scripts only: `scripts/dev-build.sh`, `scripts/verify-package.sh` (not in the npm package) | Package names | `scripts/dev-build.sh`, `scripts/verify-package.sh` |
 
-Other places a program is started, with no network use that I found: `git` for local reads of your
-repository (`src/connectors/`, `src/evidence.ts`, `src/workspace/`), `tar` to unpack `git archive`
-(`src/connectors/local-git.ts`), and Bun itself (`bin/launcher-args.js`).
+Other places a program is started, with no network use found by the scan: `git` for local reads of
+your repository (`src/connectors/`, `src/evidence.ts`, `src/workspace/`), `tar` to unpack
+`git archive` (`src/connectors/local-git.ts`), and Bun itself (`bin/launcher-args.js`).
 
-Web addresses in the code that Wachiman prints or writes but never requests: `github.com` links in
-review comments and help text, `bun.sh` in an install hint (`bin/launcher-args.js`),
-`code.claude.com` in `wachiman doctor` (`src/doctor/render.ts`), `claude.dev` in a comment of the
-file `wachiman init` writes (`src/init/settings.ts`), `ledger.example.com` in a help example, and
-`localhost` and `127.0.0.1`, which the ledger URL check accepts for tests (`src/config.ts`).
+Web addresses in the code that Wachiman prints or writes but never requests. The test lets a host
+appear only in the files named here, unless the table above names it:
+
+| Address | What it is | Where in the code |
+| --- | --- | --- |
+| `github.com` | Links in review comments, help text and prompts | `src/engine.ts`, `src/help.ts`, `src/init/prompt.ts`, `src/review-format/render.ts` |
+| `bun.sh` | An install hint shown when Bun is missing | `bin/launcher-args.js`, `scripts/verify-package.sh` |
+| `code.claude.com` | A link in the `wachiman doctor` output | `src/doctor/render.ts` |
+| `claude.dev` | A link in a comment of the `.wachiman.yml` that `wachiman init` writes | `src/init/settings.ts` |
+| `ledger.example.com` | A help example | `src/help.ts` |
+| `localhost`, `127.0.0.1` | Accepted for `ledger_url` over plain http, for tests | `src/config.ts`, `scripts/verify-package.sh` |
 
 ## The spend ledger
 
@@ -138,15 +149,24 @@ ledger does with the data it receives is not in this repository: **not verified*
 
 ## What it reads
 
-**Environment variables.** Wachiman reads the `WACHIMAN_*` settings
-([configuration.md](configuration.md); the older `CLAUDE_REVIEW_*` names still work with a warning,
-`src/config.ts`), `HOME`, `PATH`, `TMPDIR`, `TERM`, `LANG` and `LC_*`, and `NO_COLOR`/`FORCE_COLOR`
-for output. For the providers it reads `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`,
-`CLAUDE_CONFIG_DIR`, `OPENAI_API_KEY` and `CODEX_HOME`. In Actions it reads `GITHUB_ACTIONS`,
-`GITHUB_REPOSITORY`, `GH_TOKEN`, `GITHUB_STEP_SUMMARY`, and for the ledger
-`ACTIONS_ID_TOKEN_REQUEST_URL` and `ACTIONS_ID_TOKEN_REQUEST_TOKEN`. It reads `WACHIMAN_LEDGER_URL`
-and `WACHIMAN_LEDGER_TOKEN` for `ledger pull`. The full list of names is the output of the grep
-in [How to check it yourself](#how-to-check-it-yourself).
+**Environment variables.** The list is partial: the grep in
+[How to check it yourself](#how-to-check-it-yourself) prints the names read through `env.NAME`, and
+the `WACHIMAN_*` and older `CLAUDE_REVIEW_*` settings are read by name in `src/config.ts`
+([configuration.md](configuration.md)). Names read in `src/` and `bin/` by that grep:
+
+- **Credentials:** `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `OPENAI_API_KEY`, `GH_TOKEN`,
+  `WACHIMAN_LEDGER_TOKEN` (the ledger read token) and `ACTIONS_ID_TOKEN_REQUEST_TOKEN` (GitHub's
+  token request secret). Which child process gets which one is described under "What the model's
+  child process gets" below.
+- **Provider and ledger settings:** `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `WACHIMAN_LEDGER_URL`,
+  `ACTIONS_ID_TOKEN_REQUEST_URL`.
+- **Where it runs:** `GITHUB_ACTIONS`, `GITHUB_REPOSITORY`, `GITHUB_STEP_SUMMARY`, `CI`.
+- **Wachiman's own:** `WACHIMAN_HOME`, `WACHIMAN_HISTORY`, `WACHIMAN_HISTORY_DAYS`,
+  `WACHIMAN_PROFILE`, `WACHIMAN_COMMENT_AUTHOR`, `WACHIMAN_COMMENT_ID`,
+  `WACHIMAN_COMMENT_IN_REPLY_TO`, `WACHIMAN_COMMENT_PATH`, `WACHIMAN_INTRO_DONE`,
+  `WACHIMAN_NO_ANIMATION`.
+- **System:** `HOME`, `PATH`, `USER`, `TMPDIR`, `TERM`, `COLORTERM`, `LC_ALL`, `LANG`, `NO_COLOR`,
+  `FORCE_COLOR`, `BUN_INSTALL` (to find Bun), `CURL_HOME` (to find a curl config).
 
 **What the model's child process gets.** Claude Code is started with an allowlisted environment
 (`CHILD_ENV_ALLOWLIST` and `buildChildEnv` in `src/providers/claude-code.ts`): `PATH`, `HOME`,
@@ -168,7 +188,7 @@ and a per-user `workspaces.json` when you use sibling repositories
 (`src/workspace/user-file.ts`). From a managed profile folder it reads `settings.json` only to warn
 if it holds hooks or MCP servers (`inspectIsolatedProfile` in `src/profiles.ts`).
 
-**What it does not read.** I found no code in `src/` that reads the macOS Keychain, or the sign-in
+**What it does not read.** No code in `src/` reads the macOS Keychain, or the sign-in
 or token files of Claude Code or `gh`. Claude Code finds its own sign-in through `HOME`, `USER` and
 `CLAUDE_CONFIG_DIR`. `wachiman profile remove` says the Keychain entry is not touched
 (`src/accounts/commands.ts`). The one read inside `~/.claude` is `wachiman doctor` checking whether the
@@ -182,14 +202,14 @@ token you give to `wachiman ledger connect`.
   the repository as a readable directory. For Claude Code, `Bash` is denied in
   `src/providers/claude-code.settings.json`, and the call uses `--restricted`,
   `--strict-mcp-config` and `--tools Read,Glob,Grep` (`buildClaudeArgs` in
-  `src/providers/claude-code.ts`). This is a tested configuration, not a sandbox
-  ([SECURITY.md](../SECURITY.md)). Codex reads through shell commands in its own read-only sandbox
+  `src/providers/claude-code.ts`). `src/providers/claude-code.test.ts` pins these arguments. It is not a
+  sandbox ([SECURITY.md](../SECURITY.md)). Codex reads through shell commands in its own read-only sandbox
   and is not used by the workflow.
 - **`gh`, `git`, `npm`, `bun` and `bash`/`curl`** as listed in the table above, each started when
   its command or mode runs.
 - **No background process.** The launcher (`bin/launcher-args.js`) runs Bun with the package's
-  engine and exits with its code. I found no daemon, scheduled task, login item or file watcher in
-  `src/`, `bin/` or `scripts/`; the only long-running mode is `wachiman pr-state --wait`, which
+  engine and exits with its code. `src/`, `bin/` and `scripts/` contain no daemon, scheduled task, login item or file
+  watcher; the only long-running mode is `wachiman pr-state --wait`, which
   stops at its timeout.
 - **No auto-update.** `wachiman upgrade` changes your install only when you run it, and refuses
   installs it cannot identify (`planCliUpgrade` in `src/upgrade/command.ts`). The Claude Code
@@ -197,9 +217,9 @@ token you give to `wachiman ledger connect`.
 
 ## Telemetry
 
-**Wachiman itself sends no analytics or telemetry.** I searched `src/`, `bin/`, `scripts/` and
-`templates/` for network call sites (the commands below); every one is in the table above, and none
-sends usage data.
+**Wachiman itself sends no analytics or telemetry.** The network call sites in `src/`, `bin/`,
+`scripts/` and `templates/` (the commands below) are all in the table above, and none sends usage
+data.
 
 Claude Code, Codex and Bun may send their own. In local mode Wachiman sets the Claude Code switches
 listed above. They are not verified by a packet capture: a logging proxy on 2026-11-04 saw one
@@ -216,9 +236,9 @@ off.
 - **What Claude Code and Codex send on the wire.** No packet capture of a whole local or Actions
   review has been run ([local-review.md](local-review.md#7-what-is-verified-and-what-is-not)).
 - **Claude Code plugins.** Whether an installed plugin reaches a review is untested.
-- **The code of transitive dependencies.** I did not audit `bun`, `chalk`, `@clack/prompts` or what
-  they pull in. `bun`'s install script is described above from the copy of 1.3.4 in a local cache,
-  not from a fresh install.
+- **The code of transitive dependencies.** `bun`, `chalk`, `@clack/prompts` and what they pull in
+  have not been audited. `bun`'s install script is described above from its `install.js`, not from
+  a recorded fresh install.
 - **The hosted ledger's handling of data.** It is not in this repository. Only the client and the
   contract are.
 - **Third-party actions and GitHub's OIDC token claims.** Not read here.
@@ -255,4 +275,4 @@ diff -r /tmp/wachiman-pack/x/package/src /tmp/wachiman-pack/tag/src
 
 An empty diff for `src/` (and likewise `bin/`, `templates/`, `skills/`) means the package matches the
 tag. Release builds carry provenance (`publishConfig.provenance` in `package.json`), which you can
-check with `npm audit signatures`; I did not verify that for this release.
+check with `npm audit signatures`. That check has not been run for this release.

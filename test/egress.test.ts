@@ -4,14 +4,21 @@
  * scripts (`src/`, `bin/`, `scripts/`, `templates/`; not `*.test.ts`, not fixtures) and applies two
  * rules:
  *
- * 1. A file with a network call site must be named, in backticks, in the table of the page's
- *    "Who it talks to" section. A call site is a line (outside comments) that matches one of
+ * 1. A file with a network call site must be named, in backticks, in the last column of a row of
+ *    the first table (header `Destination`) of the page's "Who it talks to" section. Prose in that
+ *    section does not count. A call site is a line (outside comments) that matches one of
  *    `SITE_RULES`: `fetch(`, a network program (`curl`, `wget`, `ssh`...), a git or package-manager
  *    network verb, a `gh` or provider (`claude`, `codex`) invocation, or a raw socket module. A file
- *    that matches but spawns nothing goes in `NOT_A_CALL`, with the reason. An entry there that no
- *    longer matches fails too, so the list cannot go stale.
- * 2. Every host in an `http(s)://` literal must appear on the page. A host that is only a template
- *    (`https://${...}`) is skipped.
+ *    that matches but spawns nothing goes in `NOT_A_CALL`, with the rule it may match and the
+ *    reason; any other rule matching in that file still needs a table citation. An entry there that
+ *    no longer matches fails too, so the list cannot go stale.
+ * 2. Every host in an `http(s)://` literal must be named in a row of that first table, or be listed
+ *    in a row of the second table (header `Address`, hosts that are printed and never requested)
+ *    that also names the file the host is found in. Prose does not count. A template
+ *    (`https://${...}`) has no host and is skipped.
+ *
+ * The test checks per file, not per call: a new `fetch` in a file the table already cites passes
+ * rule 1. A new URL host in any file fails rule 2 unless the page names it for that file.
  *
  * It also fails when the table cites a path that does not exist.
  *
@@ -29,10 +36,16 @@ const PAGE = readFileSync(join(ROOT, "docs/on-your-machine.md"), "utf8");
 const SCANNED = ["src", "bin", "scripts", "templates"];
 
 /** Files that match a rule without making a network call. Each reason is checked by a person; the match is checked here. */
-const NOT_A_CALL: { file: string; reason: string }[] = [
+const NOT_A_CALL: { file: string; rules: string[]; reason: string }[] = [
   {
     file: "src/install-kind.ts",
+    rules: ["package manager"],
     reason: 'Names the install kind "npm" (found under node_modules); it spawns nothing.',
+  },
+  {
+    file: "bin/launcher-args.js",
+    rules: ["package manager in a script"],
+    reason: 'Prints "npm install -g bun" as a hint when Bun is missing; it only runs `bun --version` and Bun itself.',
   },
 ];
 
@@ -101,12 +114,51 @@ function tableSection(): string {
   return end === -1 ? rest : rest.slice(0, end);
 }
 
-const citedPaths = (): Set<string> =>
-  new Set([...tableSection().matchAll(/`((?:src|bin|scripts|templates)\/[A-Za-z0-9_./-]+)`/g)].map((m) => m[1]));
+const PATH_IN_BACKTICKS = /`((?:src|bin|scripts|templates)\/[A-Za-z0-9_./-]+)`/g;
+const pathsIn = (text: string): string[] => [...text.matchAll(PATH_IN_BACKTICKS)].map((m) => m[1]);
+
+/** The rows of the section's tables whose first header cell is `firstHeader`, as lists of cells. */
+function tableRows(firstHeader: string): string[][] {
+  const lines = tableSection().split("\n");
+  const rows: string[][] = [];
+  let inTable = false;
+  for (const line of lines) {
+    if (!line.startsWith("|")) {
+      inTable = false;
+      continue;
+    }
+    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+    if (cells.every((c) => /^-+$/.test(c))) continue;
+    if (!inTable) {
+      inTable = cells[0] === firstHeader; // the header row: start (or skip) this table
+      continue;
+    }
+    rows.push(cells);
+  }
+  return rows;
+}
+
+/** Files cited in the last column of the requests table. */
+const citedPaths = (): Set<string> => new Set(tableRows("Destination").flatMap((r) => pathsIn(r[r.length - 1])));
+
+/** The requests table as text: a host named here is requested somewhere. */
+const requestRowsText = (): string => tableRows("Destination").map((r) => r.join(" | ")).join("\n");
+
+/** Address table: host -> files where the page says it is only printed. */
+function printedHosts(): Map<string, Set<string>> {
+  const out = new Map<string, Set<string>>();
+  for (const row of tableRows("Address")) {
+    for (const m of row[0].matchAll(/`([^`]+)`/g)) {
+      if (!out.has(m[1])) out.set(m[1], new Set());
+      for (const f of pathsIn(row[row.length - 1])) out.get(m[1])!.add(f);
+    }
+  }
+  return out;
+}
 
 describe("network egress is listed on docs/on-your-machine.md", () => {
   const { sites, hosts } = scan();
-  const ignored = new Set(NOT_A_CALL.map((e) => e.file));
+  const exempt = (file: string, rule: string) => NOT_A_CALL.some((e) => e.file === file && e.rules.includes(rule));
 
   test("the scan finds call sites (guards against a broken scanner)", () => {
     expect(sites.size).toBeGreaterThan(10);
@@ -117,25 +169,33 @@ describe("network egress is listed on docs/on-your-machine.md", () => {
   test("every file with a network call site is cited in the Who it talks to table", () => {
     const cited = citedPaths();
     const missing = [...sites]
-      .filter(([file]) => !ignored.has(file) && !cited.has(file))
-      .map(([file, rules]) => `${file} (${[...rules].join(", ")})`);
+      .map(([file, rules]) => [file, [...rules].filter((r) => !exempt(file, r))] as const)
+      .filter(([file, rules]) => rules.length > 0 && !cited.has(file))
+      .map(([file, rules]) => `${file} (${rules.join(", ")})`);
     expect(missing, `add these files to the table in docs/on-your-machine.md, or explain them in NOT_A_CALL:\n${missing.join("\n")}`).toEqual([]);
   });
 
   test("every NOT_A_CALL entry still matches a rule", () => {
-    const stale = NOT_A_CALL.filter((e) => !sites.has(e.file)).map((e) => e.file);
+    const stale = NOT_A_CALL.filter((e) => !e.rules.every((r) => sites.get(e.file)?.has(r))).map((e) => e.file);
     expect(stale).toEqual([]);
   });
 
-  test("every host in a URL literal is named on the page", () => {
-    const unnamed = [...hosts]
-      .filter(([host]) => !PAGE.includes(host))
-      .map(([host, files]) => `${host} (${[...files].join(", ")})`);
-    expect(unnamed, `name these hosts in docs/on-your-machine.md:\n${unnamed.join("\n")}`).toEqual([]);
+  test("every host in a URL literal is in a table row that covers the file it is found in", () => {
+    const requested = requestRowsText();
+    const printed = printedHosts();
+    const unnamed: string[] = [];
+    for (const [host, files] of hosts) {
+      if (requested.includes(host)) continue;
+      for (const file of files) {
+        if (!printed.get(host)?.has(file)) unnamed.push(`${host} in ${file}`);
+      }
+    }
+    expect(unnamed, `name these in a table row of docs/on-your-machine.md:\n${unnamed.join("\n")}`).toEqual([]);
   });
 
-  test("every source path the table cites exists", () => {
-    const gone = [...citedPaths()].filter((p) => !existsSync(join(ROOT, p)));
+  test("every source path the tables cite exists", () => {
+    const all = new Set([...citedPaths(), ...[...printedHosts().values()].flatMap((f) => [...f])]);
+    const gone = [...all].filter((p) => !existsSync(join(ROOT, p)));
     expect(gone).toEqual([]);
   });
 });
