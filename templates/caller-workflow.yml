@@ -198,6 +198,12 @@ jobs:
           bash scripts/wachiman/install-claude-code.sh
           echo "$CLAUDE_INSTALL_DIR" >> "$GITHUB_PATH"
 
+      - name: Install ripgrep
+        # The fast search behind the call-site evidence: the pinned release, checked against the
+        # SHA-256 in scripts/wachiman/ripgrep.ts. A mismatch fails the job; a download that
+        # cannot be made only warns, and the review searches with `git grep`.
+        run: bun --no-env-file --config=scripts/wachiman/bunfig.toml scripts/wachiman/install-ripgrep.ts
+
       - name: Review the pull request
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
@@ -355,6 +361,10 @@ jobs:
         run: |
           bash .ci-main/scripts/wachiman/install-claude-code.sh
           echo "$CLAUDE_INSTALL_DIR" >> "$GITHUB_PATH"
+
+      - name: Install ripgrep
+        # See the `review` job.
+        run: bun --no-env-file --config=.ci-main/scripts/wachiman/bunfig.toml .ci-main/scripts/wachiman/install-ripgrep.ts
 
       # The comment reaches the CLI through the environment, never interpolated
       # into the shell, so its text cannot run as a command.
