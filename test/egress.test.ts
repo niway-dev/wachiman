@@ -54,7 +54,7 @@ const NOT_A_CALL: { file: string; rules: string[]; reason: string }[] = [
 const SITE_RULES: { name: string; pattern: RegExp }[] = [
   { name: "fetch", pattern: /\bfetch\s*\(/ },
   { name: "network program", pattern: /["'](curl|wget|ssh|scp|nc|ncat|telnet)["']/ },
-  { name: "network program in a script", pattern: /\b(curl|wget)\s+-/ },
+  { name: "network program in a script", pattern: /\b(curl|wget)\s+["$-]/ },
   { name: "git network verb", pattern: /["'](ls-remote|fetch|push|clone)["']/ },
   { name: "gh", pattern: /["']gh["']/ },
   { name: "package manager", pattern: /["'](npm|npx|pnpm|yarn)["']/ },

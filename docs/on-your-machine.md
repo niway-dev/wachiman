@@ -4,7 +4,7 @@ This page lists everything Wachiman installs, runs, reads, writes and sends over
 you can check it against the code. If the code does something that is not on this list, treat that
 as a bug and report it privately ([SECURITY.md](../SECURITY.md#reporting-a-vulnerability)).
 
-Last checked against the code: 2026-11-23, version 1.19.0. Every statement names the file or
+Last checked against the code: 2026-11-23, version 1.20.0. Every statement names the file or
 function that shows it. A statement marked **not verified** is one the code alone cannot prove;
 [What is not verified](#what-is-not-verified) collects them.
 
@@ -66,7 +66,9 @@ your system temp folder and removes them afterwards (`src/engine.ts`, `src/local
 Wachiman's own code makes two kinds of network request: `curl` calls to the spend ledger
 (`src/ledger.ts`) and `fetch` calls to the ledger for `ledger pull` (`src/ledger-read/pull.ts`).
 Everything else goes through a program it starts: `claude`, `codex`, `gh`, `git`, `npm` or `bash`
-running `curl`. This is the complete list. How it was found, and how to repeat it, is in
+running `curl`. This is every one found in the version above; the test below keeps the
+files and hosts honest, not each call, and it does not read workflow YAML (`gh api` and `git push`
+inside `.github/workflows` are listed by hand). How it was found, and how to repeat it, is in
 [How to check it yourself](#how-to-check-it-yourself). `test/egress.test.ts` checks per file, not per
 call: it fails when a source file with a network call site is not cited in the table's last column,
 or when a URL host in the source is not named in this section. The test scans `src`, `bin`,
@@ -80,7 +82,7 @@ or when a URL host in the source is not named in this section. The test scans `s
 | `claude` run for checks, not reviews | `wachiman doctor`, `setup`, `profile create`, `profile login`, `profile add` | `claude --version` and `claude auth status`; `claude auth login` only when you run a sign-in command. What `claude` itself contacts is **not verified** | `src/accounts/confirm.ts`, `src/accounts/commands.ts`, `src/doctor/checks.ts`, `src/doctor/run.ts`, `src/setup/run.ts`, `src/profiles.ts` |
 | OpenAI, through the `codex` CLI | Only with `--provider codex` on the command line. The reusable workflow does not use it | The prompt; `OPENAI_API_KEY` is passed to `codex` as `CODEX_API_KEY` | `src/providers/codex.ts` |
 | GitHub, through the `gh` CLI | Actions jobs (the job's own token); `wachiman pr-state` and `--wait`; `wachiman pr-template check --pr` and `risk`; `wachiman init` (one optional `gh api user`); `wachiman reset-confidence`; the accuracy script `src/precision.ts` and the developer script `scripts/questions-firing.ts` | Reads of pull request data (diff, metadata, threads, reviews, check runs). In Actions, posts the review, comments and thread replies | `src/engine.ts` (`defaultGh`, `runGh`), `src/pr-state-wait.ts`, `src/pr-template/gh.ts`, `src/init/github-login.ts`, `src/precision.ts`, `scripts/questions-firing.ts` |
-| Your git remote `origin`, through `git` and `gh` | Only `wachiman memory propose` (without `--personal`) | `git ls-remote` and `git fetch` to learn whether the team has memory; `git push origin HEAD:refs/heads/wachiman/memory` with one commit holding the memory entry, and a draft pull request. Your own git credentials | `src/memory/propose.ts` |
+| Your git remote `origin`, through `git` and `gh` | Only `wachiman memory propose` (without `--personal`), and `wachiman memory remember`, which the opt-in `wachiman-memory.yml` workflow runs when the operator comments `/wachiman remember <id>` (it uses the same write path and also replies in the thread through `gh`) | `git ls-remote` and `git fetch` to learn whether the team has memory; `git push origin HEAD:refs/heads/wachiman/memory` with one commit holding the memory entry, and a draft pull request. Your own git credentials | `src/memory/propose.ts`, `src/memory/remember.ts` |
 | The spend ledger at your `ledger_url` | Only in GitHub Actions, only when the workflow input `ledger_url` is set, and only through a workflow that grants `id-token: write`: `.github/workflows/review-platform.yml` or its generated copy `.github/workflows/wachiman-platform.yml`. On a laptop the engine skips it and says so | `POST /v1/reserve`, `/v1/settle`, `/v1/record`: amounts, trigger, PR number, per-call token and cost rows, and the job's OIDC token as bearer. Details in the next section | `src/ledger.ts` (`defaultCurl`, `reserve`, `settle`, `record`), `src/engine.ts` (`spendReserve`, `spendSettle`), `src/config.ts` |
 | GitHub's OIDC token service (`ACTIONS_ID_TOKEN_REQUEST_URL`) | Same conditions as the row above, before each ledger call | The job's request token, with the ledger URL as the audience | `src/ledger.ts` (`requestIdToken`) |
 | The ledger you connected, for reading | `wachiman ledger pull`, and `wachiman dashboard --refresh` or `wachiman status --refresh` | `GET /v1/entries?from=…&to=…` with your read token. Redirects are refused, so the token is not sent elsewhere | `src/ledger-read/pull.ts`, `src/ledger-read/credentials.ts`, `src/cli.ts` (`refreshLedger`) |

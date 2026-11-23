@@ -59,7 +59,7 @@ These commands change nothing:
 
 ```sh
 git status --short
-git remote -v
+git remote            # names only; a remote URL can carry a token, so do not print it
 grep -rn "niway-dev/wachiman" .github/workflows 2>/dev/null
 ls .wachiman.yml .github/wachiman.md 2>/dev/null
 wachiman --version 2>/dev/null
