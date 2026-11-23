@@ -95,7 +95,7 @@ your repository (`src/connectors/`, `src/evidence.ts`, `src/workspace/`), `tar` 
 `git archive` (`src/connectors/local-git.ts`), and Bun itself (`bin/launcher-args.js`).
 
 Web addresses in the code that Wachiman prints or writes but never requests. The test lets a host
-appear only in the files named here, unless the table above names it:
+appear only in the files that a row, here or in the table above, names for that host:
 
 | Address | What it is | Where in the code |
 | --- | --- | --- |
@@ -104,6 +104,7 @@ appear only in the files named here, unless the table above names it:
 | `code.claude.com` | A link in the `wachiman doctor` output | `src/doctor/render.ts` |
 | `claude.dev` | A link in a comment of the `.wachiman.yml` that `wachiman init` writes | `src/init/settings.ts` |
 | `ledger.example.com` | A help example | `src/help.ts` |
+| `console.anthropic.com` | A link in a comment of the caller workflow that `wachiman init` writes into your repository (host links in `templates/` comments count; those in `src/` comments do not) | `templates/wachiman-review-caller.yml` |
 | `localhost`, `127.0.0.1` | Accepted for `ledger_url` over plain http, for tests | `src/config.ts`, `scripts/verify-package.sh` |
 
 ## The spend ledger

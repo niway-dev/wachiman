@@ -12,13 +12,15 @@
  *    that matches but spawns nothing goes in `NOT_A_CALL`, with the rule it may match and the
  *    reason; any other rule matching in that file still needs a table citation. An entry there that
  *    no longer matches fails too, so the list cannot go stale.
- * 2. Every host in an `http(s)://` literal must be named in a row of that first table, or be listed
- *    in a row of the second table (header `Address`, hosts that are printed and never requested)
- *    that also names the file the host is found in. Prose does not count. A template
- *    (`https://${...}`) has no host and is skipped.
+ * 2. Every host in an `http(s)://` literal must be named, as an exact backticked token, in a row of
+ *    that first table or of the second table (header `Address`, hosts that are printed and never
+ *    requested), and that row's last column must cite the file the host is found in. Prose does not
+ *    count. A template (`https://${...}`) has no host and is skipped. Hosts are also read from
+ *    comments under `templates/`, because those files are written into the user's repository; a
+ *    comment in `src/` or `scripts/` is not scanned.
  *
  * The test checks per file, not per call: a new `fetch` in a file the table already cites passes
- * rule 1. A new URL host in any file fails rule 2 unless the page names it for that file.
+ * rule 1. A new URL host fails rule 2 unless a row names that host for that file.
  *
  * It also fails when the table cites a path that does not exist.
  *
@@ -87,10 +89,14 @@ function scan(): { sites: Map<string, Set<string>>; hosts: Map<string, Set<strin
   const hosts = new Map<string, Set<string>>();
   for (const path of sourceFiles()) {
     const file = relative(ROOT, path).split("\\").join("/");
+    // Files under templates/ are written into the user's repository, so a URL in their comments counts.
+    const keepComments = file.startsWith("templates/");
     for (const raw of readFileSync(path, "utf8").split("\n")) {
-      if (isComment(raw)) continue;
-      const line = code(raw);
+      const isComm = isComment(raw);
+      if (isComm && !keepComments) continue;
+      const line = isComm ? raw : code(raw);
       for (const { name, pattern } of SITE_RULES) {
+        if (isComm) break; // call-site rules never apply to comments
         if (pattern.test(line)) {
           if (!sites.has(file)) sites.set(file, new Set());
           sites.get(file)!.add(name);
@@ -141,19 +147,22 @@ function tableRows(firstHeader: string): string[][] {
 /** Files cited in the last column of the requests table. */
 const citedPaths = (): Set<string> => new Set(tableRows("Destination").flatMap((r) => pathsIn(r[r.length - 1])));
 
-/** The requests table as text: a host named here is requested somewhere. */
-const requestRowsText = (): string => tableRows("Destination").map((r) => r.join(" | ")).join("\n");
+const HOST_IN_BACKTICKS = /`((?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}|localhost|127\.0\.0\.1|\[::1\])`/g;
 
-/** Address table: host -> files where the page says it is only printed. */
-function printedHosts(): Map<string, Set<string>> {
-  const out = new Map<string, Set<string>>();
-  for (const row of tableRows("Address")) {
-    for (const m of row[0].matchAll(/`([^`]+)`/g)) {
-      if (!out.has(m[1])) out.set(m[1], new Set());
-      for (const f of pathsIn(row[row.length - 1])) out.get(m[1])!.add(f);
+/**
+ * (host, file) pairs the tables name. A row names a host when the host is, alone, between backticks
+ * anywhere in the row (an exact token, not a substring); it covers the files in backticks in the
+ * row's last column. Both tables count: requested hosts and printed-only hosts.
+ */
+function namedPairs(): Set<string> {
+  const pairs = new Set<string>();
+  for (const header of ["Destination", "Address"]) {
+    for (const row of tableRows(header)) {
+      const rowHosts = [...row.join(" | ").matchAll(HOST_IN_BACKTICKS)].map((m) => m[1]);
+      for (const host of rowHosts) for (const file of pathsIn(row[row.length - 1])) pairs.add(`${host} ${file}`);
     }
   }
-  return out;
+  return pairs;
 }
 
 describe("network egress is listed on docs/on-your-machine.md", () => {
@@ -180,21 +189,17 @@ describe("network egress is listed on docs/on-your-machine.md", () => {
     expect(stale).toEqual([]);
   });
 
-  test("every host in a URL literal is in a table row that covers the file it is found in", () => {
-    const requested = requestRowsText();
-    const printed = printedHosts();
+  test("every host in a URL literal is named, exactly, in a table row that cites the file it is found in", () => {
+    const named = namedPairs();
     const unnamed: string[] = [];
     for (const [host, files] of hosts) {
-      if (requested.includes(host)) continue;
-      for (const file of files) {
-        if (!printed.get(host)?.has(file)) unnamed.push(`${host} in ${file}`);
-      }
+      for (const file of files) if (!named.has(`${host} ${file}`)) unnamed.push(`${host} in ${file}`);
     }
     expect(unnamed, `name these in a table row of docs/on-your-machine.md:\n${unnamed.join("\n")}`).toEqual([]);
   });
 
   test("every source path the tables cite exists", () => {
-    const all = new Set([...citedPaths(), ...[...printedHosts().values()].flatMap((f) => [...f])]);
+    const all = new Set([...citedPaths(), ...[...namedPairs()].map((p) => p.split(" ")[1])]);
     const gone = [...all].filter((p) => !existsSync(join(ROOT, p)));
     expect(gone).toEqual([]);
   });
