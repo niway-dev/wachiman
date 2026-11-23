@@ -1,0 +1,810 @@
+import { afterAll, describe, expect, test } from "bun:test";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join } from "node:path";
+import { createHash } from "node:crypto";
+import {
+  collectEvidence,
+  defaultEvidenceIo,
+  extractCalledSymbols,
+  planEvidence,
+  serializeEvidence,
+  type EvidencePlan,
+  type PlannedSymbol,
+} from "./evidence";
+import {
+  EvidenceSearcher,
+  BINARY_PROBE_BYTES,
+  MatchCollector,
+  NameIndex,
+  RowSplitter,
+  holdsWord,
+  looksBinary,
+  parseRipgrepRow,
+  ripgrepArgs,
+  ripgrepMissingLine,
+  runRipgrep,
+  startEvidenceRun,
+  type EvidenceTally,
+} from "./evidence-search";
+import {
+  RIPGREP_ASSETS,
+  RIPGREP_ENV,
+  RIPGREP_VERSION,
+  ensureRipgrep,
+  installRipgrep,
+  parseRipgrepVersion,
+  resolveRipgrep,
+  type RipgrepFound,
+  type VersionProbe,
+} from "./ripgrep";
+
+const scratch: string[] = [];
+const temp = (prefix: string) => {
+  const dir = mkdtempSync(join(tmpdir(), prefix));
+  scratch.push(dir);
+  return dir;
+};
+afterAll(() => scratch.forEach((d) => rmSync(d, { recursive: true, force: true })));
+
+// The real binary, when this machine has a qualifying one: CI installs it; elsewhere these tests skip.
+const real = resolveRipgrep(process.env);
+const withRipgrep = real.found ? test : test.skip;
+
+describe("parseRipgrepRow", () => {
+  test("splits at the NUL, so spaces and colons in a path stay in the path", () => {
+    expect(parseRipgrepRow("./src/with space/c:o.ts\u000012:const a = b:c;")).toEqual({
+      file: "src/with space/c:o.ts",
+      line: 12,
+      text: "const a = b:c;",
+    });
+  });
+
+  test("keeps a hidden directory and strips only the leading ./", () => {
+    expect(parseRipgrepRow("./.hidden/h.ts\u00001:x")?.file).toBe(".hidden/h.ts");
+    expect(parseRipgrepRow("./a/./b.ts\u00001:x")?.file).toBe("a/./b.ts");
+  });
+
+  test("a row that is not path, NUL, line and colon is dropped", () => {
+    expect(parseRipgrepRow("rg: some message")).toBeUndefined();
+    expect(parseRipgrepRow("./a.ts\0no colon")).toBeUndefined();
+    expect(parseRipgrepRow("./a.ts\0x:1")).toBeUndefined();
+    expect(parseRipgrepRow("\u00001:x")).toBeUndefined();
+  });
+
+  test("a line with a CR or a Unicode line separator is dropped, as the git backend's parser drops it", () => {
+    expect(parseRipgrepRow("./a.ts\u00001:x(1);\r")).toBeUndefined();
+    expect(parseRipgrepRow("./a.ts\u00001:x\u2028y")).toBeUndefined();
+    expect(parseRipgrepRow("./a.ts\u00001:x(1);")).toBeDefined();
+  });
+
+  test("a line of text that holds colons and an empty text are kept whole", () => {
+    expect(parseRipgrepRow("./a.ts\u00003:")?.text).toBe("");
+    expect(parseRipgrepRow("./a.ts\u00003:a:1:b")?.text).toBe("a:1:b");
+  });
+
+  test("a very long line is kept whole: the ranking reads all of it", () => {
+    const text = "x".repeat(2_000_000);
+    expect(parseRipgrepRow(`./bundle.ts\u00001:${text}`)!.text).toHaveLength(text.length);
+  });
+});
+
+describe("looksBinary", () => {
+  const file = (bytes: Uint8Array | string) => {
+    const path = join(temp("evidence-bin-"), "f.ts");
+    writeFileSync(path, bytes);
+    return path;
+  };
+
+  test("a NUL in the first 8000 bytes makes a file binary, as for git grep -I", () => {
+    expect(looksBinary(file("a\0b"))).toBe(true);
+    expect(looksBinary(file(Buffer.concat([Buffer.from("x".repeat(BINARY_PROBE_BYTES - 1)), Buffer.from([0])])))).toBe(true);
+  });
+
+  test("a NUL after the first 8000 bytes does not, nor does text, nor an empty file", () => {
+    expect(looksBinary(file(Buffer.concat([Buffer.from("x".repeat(BINARY_PROBE_BYTES)), Buffer.from([0])])))).toBe(false);
+    expect(looksBinary(file("plain text\n"))).toBe(false);
+    expect(looksBinary(file(""))).toBe(false);
+  });
+
+  test("a file that cannot be read counts as binary, so it is never reported", () => {
+    expect(looksBinary("/nonexistent/f.ts")).toBe(true);
+  });
+});
+
+describe("RowSplitter", () => {
+  const collect = (chunks: Uint8Array[]) => {
+    const rows: string[] = [];
+    const splitter = new RowSplitter((r) => rows.push(r));
+    for (const c of chunks) splitter.push(c);
+    splitter.finish();
+    return rows;
+  };
+
+  test("a row cut across chunks, and a multi-byte character cut in the middle, come out whole", () => {
+    const bytes = new TextEncoder().encode("./a.ts\u00001:café(1)\n./b.ts\u00002:naïve\n./c.ts\u00003:last");
+    for (let cut = 1; cut < bytes.length; cut++) {
+      expect(collect([bytes.slice(0, cut), bytes.slice(cut)])).toEqual(["./a.ts\u00001:café(1)", "./b.ts\u00002:naïve", "./c.ts\u00003:last"]);
+    }
+  });
+
+  test("an empty stream gives no row", () => {
+    expect(collect([])).toEqual([]);
+  });
+});
+
+describe("holdsWord", () => {
+  test("a name inside a longer word does not count, a name beside punctuation does", () => {
+    expect(holdsWord("foo(1)", "foo")).toBe(true);
+    expect(holdsWord("xfoo(1)", "foo")).toBe(false);
+    expect(holdsWord("foo_bar(1)", "foo")).toBe(false);
+    expect(holdsWord("a.foo.b", "foo")).toBe(true);
+    expect(holdsWord("foo2", "foo")).toBe(false);
+  });
+
+  test("a later occurrence counts when the first one is inside a word", () => {
+    expect(holdsWord("xfoo foo", "foo")).toBe(true);
+  });
+
+  test("a non-ASCII letter is not a word character, as under git grep with LC_ALL=C", () => {
+    expect(holdsWord("éfoo(1)", "foo")).toBe(true);
+    expect(holdsWord("fooé", "foo")).toBe(true);
+  });
+
+  test("$ is not a word character either, but part of a name that has it", () => {
+    expect(holdsWord("x$foo", "foo")).toBe(true);
+    expect(holdsWord("x$foo", "$foo")).toBe(false);
+    expect(holdsWord("a $foo(1)", "$foo")).toBe(true);
+    expect(holdsWord("$(el)", "$")).toBe(true);
+    expect(holdsWord("a$b", "$")).toBe(false);
+    expect(holdsWord("a $ b", "$")).toBe(true);
+  });
+});
+
+describe("NameIndex", () => {
+  test("a line that holds several names is attributed to each of them", () => {
+    const index = new NameIndex(["startFileDrag", "markCopySeen", "other"]);
+    expect(index.namesIn("startFileDrag(markCopySeen(id));").sort()).toEqual(["markCopySeen", "startFileDrag"]);
+  });
+
+  test("names that overlap are both found: foo inside foo.bar", () => {
+    const index = new NameIndex(["foo", "foo.bar", "bar"]);
+    expect(index.namesIn("x = foo.bar(1)").sort()).toEqual(["bar", "foo", "foo.bar"]);
+  });
+
+  test("channel names with separators are found as whole words", () => {
+    const index = new NameIndex(["recording-ready:show"]);
+    expect(index.namesIn('ipc.send("recording-ready:show", id)')).toEqual(["recording-ready:show"]);
+    expect(index.namesIn('ipc.send("recording-ready:shown", id)')).toEqual([]);
+    expect(index.namesIn('ipc.send("xrecording-ready:show", id)')).toEqual([]);
+    // A hyphen is not a word character, so a longer name that ends the same way still holds it.
+    expect(index.namesIn('ipc.send("x-recording-ready:show", id)')).toEqual(["recording-ready:show"]);
+  });
+
+  test("word boundaries: a name inside a longer identifier is not attributed", () => {
+    const index = new NameIndex(["get", "set"]);
+    expect(index.namesIn("getter(); xset(); get(); a.set(1)").sort()).toEqual(["get", "set"]);
+    expect(index.namesIn("getter(); xset(); target")).toEqual([]);
+  });
+
+  test("a name with $ at either end, and a name with no word character", () => {
+    const index = new NameIndex(["$store", "foo$", "$"]);
+    expect(index.namesIn("$store(1)")).toEqual(["$store"]);
+    expect(index.namesIn("x$store(1)")).toEqual([]);
+    expect(index.namesIn("foo$ = 1")).toEqual(["foo$"]);
+    expect(index.namesIn("foo$bar")).toEqual([]);
+    expect(index.namesIn("$(el)").sort()).toEqual(["$"]);
+  });
+
+  test("a name is listed once however many times the line holds it", () => {
+    expect(new NameIndex(["foo"]).namesIn("foo(foo(foo))")).toEqual(["foo"]);
+  });
+
+  test("agrees with holdsWord on every name and a spread of lines", () => {
+    const names = ["a", "ab", "a_b", "a.b", "$a", "a$", "a-b:c"];
+    const lines = ["a", "ab a", "xa a$", "a.b(1)", "$a $a", "a_b a", "a-b:c", "xa-b:c", "a-b:cx", "é a é", "a$b", "$$a"];
+    const index = new NameIndex(names);
+    for (const line of lines) {
+      expect(index.namesIn(line).sort()).toEqual(names.filter((n) => holdsWord(line, n)).sort());
+    }
+  });
+});
+
+describe("MatchCollector", () => {
+  test("sorts a name's matches by path in byte order, then line, as git grep lists them", () => {
+    const c = new MatchCollector(["f"]);
+    for (const [file, line] of [["a/b.ts", 1], ["a.ts", 2], ["a-b.ts", 1], ["a.ts", 1], ["a.b.ts", 1], ["A.ts", 1], ["a dir/x.ts", 1]] as const) {
+      c.add(`./${file}\0${line}:f(1)`);
+    }
+    expect(c.result().get("f")!.map((m) => `${m.file}:${m.line}`)).toEqual([
+      "A.ts:1",
+      "a dir/x.ts:1",
+      "a-b.ts:1",
+      "a.b.ts:1",
+      "a.ts:1",
+      "a.ts:2",
+      "a/b.ts:1",
+    ]);
+  });
+
+  test("a name far into a very long line is found, with the whole text", () => {
+    const c = new MatchCollector(["late"]);
+    const text = `${"x ".repeat(500_000)}late(1)`;
+    c.add(`./bundle.ts\u00007:${text}`);
+    expect(c.result().get("late")).toEqual([{ file: "bundle.ts", line: 7, text }]);
+  });
+
+  test("a name nothing matched has an empty list, and a line with two names is in both", () => {
+    const c = new MatchCollector(["one", "two", "none"]);
+    c.add("./x.ts\u00001:one(two())");
+    const result = c.result();
+    expect(result.get("one")).toHaveLength(1);
+    expect(result.get("two")![0]).toBe(result.get("one")![0]);
+    expect(result.get("none")).toEqual([]);
+    expect(c.lines).toBe(1);
+  });
+});
+
+describe("ripgrepArgs", () => {
+  const args = ripgrepArgs("/tmp/patterns");
+
+  test("ignores the user's configuration and reads patterns from a file, never the command line", () => {
+    expect(args).toContain("--no-config");
+    expect(args[args.indexOf("--file") + 1]).toBe("/tmp/patterns");
+    expect(args.slice(-1)).toEqual(["."]);
+  });
+
+  test("searches what git grep -n -I -w -F searches", () => {
+    for (const flag of ["--hidden", "--no-ignore", "--null", "--line-number", "--word-regexp", "--fixed-strings", "--no-unicode", "--text"]) {
+      expect(args).toContain(flag);
+    }
+    const globs = args.flatMap((a, i) => (args[i - 1] === "--glob" ? [a] : []));
+    expect(globs).toEqual(
+      expect.arrayContaining(["*.ts", "*.tsx", "*.go", "!node_modules/", "!dist/", "!build/", "!.next/", "!vendor/", "!.git/", "!*.min.js", "!*.d.ts"]),
+    );
+    // The exclusions come after the extensions, because the last matching glob wins.
+    expect(globs.indexOf("!node_modules/")).toBeGreaterThan(globs.indexOf("*.svelte"));
+  });
+});
+
+describe("runRipgrep", () => {
+  function repo() {
+    const dir = temp("evidence-rg-");
+    const write = (path: string, text: string | Uint8Array) => {
+      mkdirSync(dirname(join(dir, path)), { recursive: true });
+      writeFileSync(join(dir, path), text);
+    };
+    write("src/with space/c:o.ts", "formatDuration(1)\n");
+    write(".hidden/h.ts", "formatDuration(2) + parse(3)\n");
+    write("src/a.ts", "formatDuration(4)\n");
+    write("src/a/b.ts", "formatDuration(5)\n");
+    write("node_modules/dep/n.ts", "formatDuration(6)\n");
+    write("vendor/v.ts", "formatDuration(7)\n");
+    write("sub/dist/d.ts", "formatDuration(8)\n");
+    write("x.min.js", "formatDuration(9)\n");
+    write("x.d.ts", "formatDuration(10)\n");
+    write("bin.ts", Buffer.from("formatDuration(11)\0binary"));
+    // A NUL past the first 8000 bytes: `git grep -I` still treats the file as text, both lines count.
+    write("late-nul.ts", `formatDuration(14)\n${"// pad\n".repeat(2000)}\0\nformatDuration(15)\n`);
+    write("notes.md", "formatDuration is documented\n");
+    write("src/words.ts", "xformatDuration(12); formatDuration_2(13);\n");
+    return dir;
+  }
+
+  withRipgrep("finds what git grep would: hidden dirs and odd paths in, exclusions, binary files and other extensions out", async () => {
+    const run = await runRipgrep((real as RipgrepFound).path, ["formatDuration", "parse"], repo());
+    expect(run.ok).toBe(true);
+    if (!run.ok) return;
+    const files = (name: string) => run.byName.get(name)!.map((m) => m.file);
+    expect(files("formatDuration")).toEqual([".hidden/h.ts", "late-nul.ts", "late-nul.ts", "src/a.ts", "src/a/b.ts", "src/with space/c:o.ts"]);
+    expect(files("parse")).toEqual([".hidden/h.ts"]);
+  });
+
+  withRipgrep("a user's ripgrep configuration file changes nothing", async () => {
+    const dir = repo();
+    const config = join(temp("evidence-rgconfig-"), "rc");
+    writeFileSync(config, "--glob=!*.ts\n--max-count=1\n");
+    const before = process.env.RIPGREP_CONFIG_PATH;
+    process.env.RIPGREP_CONFIG_PATH = config;
+    try {
+      const run = await runRipgrep((real as RipgrepFound).path, ["formatDuration"], dir);
+      expect(run.ok && run.byName.get("formatDuration")!.length).toBe(6);
+    } finally {
+      if (before === undefined) delete process.env.RIPGREP_CONFIG_PATH;
+      else process.env.RIPGREP_CONFIG_PATH = before;
+    }
+  });
+
+  test("a binary that cannot run is a failure, never a throw", async () => {
+    const run = await runRipgrep("/nonexistent/rg", ["x"], temp("evidence-rg-"));
+    expect(run).toMatchObject({ ok: false, failed: expect.stringContaining("could not run") });
+  });
+
+  test("a search past its time box is killed and reported as timed out", async () => {
+    const dir = temp("evidence-rg-slow-");
+    const slow = join(dir, "rg");
+    writeFileSync(slow, "#!/bin/sh\nsleep 5\n");
+    chmodSync(slow, 0o755);
+    const started = Date.now();
+    const run = await runRipgrep(slow, ["x"], dir, { timeoutMs: 100 });
+    expect(run).toMatchObject({ ok: false, timedOut: true });
+    expect(Date.now() - started).toBeLessThan(3000);
+  });
+
+  test("an exit status of 2 is not trusted, even with output", async () => {
+    const dir = temp("evidence-rg-fail-");
+    const bad = join(dir, "rg");
+    writeFileSync(bad, "#!/bin/sh\nprintf './a.ts\\0001:x(1)\\n'\necho 'rg: boom' >&2\nexit 2\n");
+    chmodSync(bad, 0o755);
+    const run = await runRipgrep(bad, ["x"], dir);
+    expect(run).toMatchObject({ ok: false, failed: "ripgrep exited with status 2: rg: boom" });
+  });
+});
+
+// -----------------------------------------------------------------------------------------------
+// Backend choice
+// -----------------------------------------------------------------------------------------------
+
+const answers = (table: Record<string, string | null>): VersionProbe => (binary) => {
+  const out = table[binary];
+  if (out === undefined || out === null) return { status: null, stdout: "", error: new Error(`spawn ${binary} ENOENT`) };
+  return { status: 0, stdout: out };
+};
+const RG15 = "ripgrep 15.2.0 (rev e89fff89ac)\n\nfeatures:+pcre2\n";
+
+describe("resolveRipgrep", () => {
+  const home = "/home/u/.wachiman";
+  const env = (extra: Record<string, string> = {}) => ({ WACHIMAN_HOME: home, PATH: "/usr/bin", ...extra });
+  const installed = `${home}/bin/rg`;
+
+  test("the override wins over the installed copy and over PATH", () => {
+    const found = resolveRipgrep(env({ [RIPGREP_ENV]: "/opt/rg" }), answers({ "/opt/rg": RG15, [installed]: RG15, rg: RG15 }), () => true);
+    expect(found).toMatchObject({ found: true, path: "/opt/rg", source: "env", version: "15.2.0" });
+  });
+
+  test("then the copy Wachiman installed, then rg on PATH", () => {
+    expect(resolveRipgrep(env(), answers({ [installed]: RG15, rg: RG15 }), (p) => p === installed)).toMatchObject({ found: true, path: installed, source: "installed" });
+    expect(resolveRipgrep(env(), answers({ rg: RG15 }), () => false)).toMatchObject({ found: true, path: "rg", source: "path" });
+  });
+
+  test("an installed copy that does not exist is not probed", () => {
+    const probed: string[] = [];
+    const probe: VersionProbe = (b) => (probed.push(b), { status: 0, stdout: RG15 });
+    resolveRipgrep(env(), probe, () => false);
+    expect(probed).toEqual(["rg"]);
+  });
+
+  test("a broken override is skipped and the next source is tried", () => {
+    const found = resolveRipgrep(env({ [RIPGREP_ENV]: "/opt/rg" }), answers({ "/opt/rg": null, rg: RG15 }), () => false);
+    expect(found).toMatchObject({ found: true, source: "path" });
+    expect(resolveRipgrep(env({ [RIPGREP_ENV]: "relative/rg" }), answers({}), () => false)).toMatchObject({
+      found: false,
+      tried: expect.arrayContaining([expect.stringContaining("must be an absolute path")]),
+    });
+  });
+
+  test("a version older than the pinned major, an unknown version and a program that is not ripgrep are not used", () => {
+    for (const out of ["ripgrep 14.1.1 (rev abc)\n", "ripgrep unknown\n", "grep (BSD grep) 2.6.0\n", ""]) {
+      const found = resolveRipgrep(env(), answers({ rg: out }), () => false);
+      expect(found.found).toBe(false);
+    }
+    expect(resolveRipgrep(env(), answers({ rg: "ripgrep 16.0.0\n" }), () => false)).toMatchObject({ found: true, version: "16.0.0" });
+  });
+
+  test("nothing found says what was tried", () => {
+    const found = resolveRipgrep(env(), answers({ rg: "ripgrep 14.1.1\n" }), () => false);
+    expect(found).toEqual({ found: false, tried: ["rg is ripgrep 14.1.1; 15 or newer is needed"] });
+  });
+
+  test("parseRipgrepVersion reads the first line only", () => {
+    expect(parseRipgrepVersion(RG15)).toBe("15.2.0");
+    expect(parseRipgrepVersion("not ripgrep 15.2.0")).toBeUndefined();
+  });
+});
+
+describe("startEvidenceRun", () => {
+  const files = [{ filename: "src/new.ts", patch: "@@ -0,0 +1,2 @@\n+const a = markCopySeen(id);\n+startFileDrag(a);\n" }];
+  const base = { repoDir: "/nowhere", batches: [files], log: () => {} };
+  const never = () => {
+    throw new Error("ripgrep must not be resolved");
+  };
+
+  test("with a runner the test injected there is no ripgrep search at all", async () => {
+    const run = await startEvidenceRun({ ...base, customGit: true, ripgrep: never });
+    expect(run.searcher).toBeUndefined();
+    expect(run.tally.backend).toBe("git grep");
+  });
+
+  test("a batch with no symbol to search never resolves ripgrep and says nothing", async () => {
+    const logs: string[] = [];
+    const run = await startEvidenceRun({ ...base, batches: [[{ filename: "README.md", patch: "@@\n+hello\n" }]], customGit: false, ripgrep: never, log: (l) => logs.push(l) });
+    expect(run.searcher).toBeUndefined();
+    expect(logs).toEqual([]);
+  });
+
+  test("without a qualifying ripgrep it falls back to git grep and logs one clear line", async () => {
+    const logs: string[] = [];
+    const run = await startEvidenceRun({ ...base, customGit: false, ripgrep: () => ({ found: false, tried: ["rg did not answer --version (spawn rg ENOENT)"] }), log: (l) => logs.push(l) });
+    expect(run.searcher).toBeUndefined();
+    expect(run.tally.backend).toBe("git grep");
+    expect(logs).toEqual(["evidence: ripgrep not found, using git grep (slower); run `wachiman setup`"]);
+  });
+
+  test("the warning names why an existing candidate was skipped", () => {
+    expect(ripgrepMissingLine(["rg is ripgrep 14.1.1; 15 or newer is needed"])).toBe(
+      "evidence: ripgrep not found, using git grep (slower); run `wachiman setup` (rg is ripgrep 14.1.1; 15 or newer is needed)",
+    );
+  });
+
+  withRipgrep("with ripgrep it searches the names of every batch in one call before any batch runs", async () => {
+    const dir = temp("evidence-run-");
+    writeFileSync(join(dir, "other.ts"), "markCopySeen(1);\nstartFileDrag(2);\n");
+    const logs: string[] = [];
+    const second = [{ filename: "src/two.ts", patch: "@@\n+  window.api.startFileDrag(x);\n+  refreshAll();\n" }];
+    const run = await startEvidenceRun({ ...base, repoDir: dir, batches: [files, second], customGit: false, ripgrep: () => real as RipgrepFound, log: (l) => logs.push(l) });
+    expect(run.tally.searches).toBe(1);
+    expect(run.searcher!.search("startFileDrag")).toMatchObject({ matches: [{ file: "other.ts", line: 2 }] });
+    expect(run.searcher!.search("refreshAll")).toEqual({ matches: [] });
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatch(/^evidence: ripgrep \d+\.\d+\.\d+ searched 3 name\(s\) in \d+ ms \(2 matching lines\)$/);
+    // A later batch that needs a name nobody planned gets one more search; names already known are not searched again.
+    await run.searcher!.ensure(["startFileDrag", "late"]);
+    expect(run.tally.searches).toBe(2);
+    expect(run.searcher!.search("late")).toEqual({ matches: [] });
+    await run.searcher!.ensure(["startFileDrag", "late"]);
+    expect(run.tally.searches).toBe(2);
+  });
+});
+
+describe("EvidenceSearcher", () => {
+  const found: RipgrepFound = { path: "/nonexistent/rg", version: "15.2.0", source: "env" };
+  const tally = (): EvidenceTally => ({ backend: "ripgrep", searches: 0, ms: 0 });
+
+  test("a ripgrep that fails turns the searcher unusable, once, and logs the fallback", async () => {
+    const logs: string[] = [];
+    const searcher = new EvidenceSearcher(found, temp("evidence-s-"), (l) => logs.push(l), tally());
+    await searcher.ensure(["a"]);
+    expect(searcher.usable).toBe(false);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toContain("using git grep (slower)");
+    await searcher.ensure(["b"]);
+    expect(logs).toHaveLength(1);
+  });
+
+  test("a name that was never searched is a failure, not an empty answer", () => {
+    const searcher = new EvidenceSearcher(found, "/x", () => {}, tally());
+    expect(searcher.search("never", 1000)).toEqual({ failed: "never was not searched" });
+  });
+
+  test("concurrent calls are served one at a time and a name is searched once", async () => {
+    const dir = temp("evidence-s-");
+    writeFileSync(join(dir, "a.ts"), "alpha(1);\nbeta(2);\n");
+    if (!real.found) return;
+    const t = tally();
+    const searcher = new EvidenceSearcher(real, dir, () => {}, t);
+    await Promise.all([searcher.ensure(["alpha", "beta"]), searcher.ensure(["alpha"]), searcher.ensure(["beta", "alpha"])]);
+    expect(t.searches).toBe(1);
+  });
+});
+
+// -----------------------------------------------------------------------------------------------
+// The installer
+// -----------------------------------------------------------------------------------------------
+
+describe("the pinned table", () => {
+  test("every platform has an asset of the pinned version and a SHA-256", () => {
+    expect(Object.keys(RIPGREP_ASSETS).sort()).toEqual(["darwin-arm64", "darwin-x64", "linux-arm64", "linux-x64"]);
+    for (const { asset, sha256 } of Object.values(RIPGREP_ASSETS)) {
+      expect(asset).toContain(`ripgrep-${RIPGREP_VERSION}-`);
+      expect(asset.endsWith(".tar.gz")).toBe(true);
+      expect(sha256).toMatch(/^[a-f0-9]{64}$/);
+    }
+    expect(new Set(Object.values(RIPGREP_ASSETS).map((a) => a.sha256)).size).toBe(4);
+  });
+
+  test("the pin is a release the search was tested against, not the newest one", () => {
+    expect(RIPGREP_VERSION).toBe("15.2.0");
+  });
+});
+
+describe("installRipgrep", () => {
+  /** A real .tar.gz with the layout of a ripgrep release: `<name>/rg`. */
+  function archive(script = "#!/bin/sh\necho 'ripgrep 15.2.0 (rev fake)'\n") {
+    const dir = temp("evidence-archive-");
+    const name = "ripgrep-15.2.0-fake-linux";
+    mkdirSync(join(dir, name));
+    writeFileSync(join(dir, name, "rg"), script);
+    chmodSync(join(dir, name, "rg"), 0o755);
+    const made = Bun.spawnSync(["tar", "-czf", `${name}.tar.gz`, name], { cwd: dir });
+    if (made.exitCode !== 0) throw new Error(made.stderr.toString());
+    const bytes = new Uint8Array(readFileSync(join(dir, `${name}.tar.gz`)));
+    return { bytes, asset: `${name}.tar.gz`, sha256: createHash("sha256").update(bytes).digest("hex") };
+  }
+  const homeEnv = () => ({ WACHIMAN_HOME: join(temp("evidence-home-"), ".wachiman"), PATH: "" });
+
+  test("a download whose SHA-256 differs from the pinned one is refused, and nothing is written or made executable", async () => {
+    const good = archive();
+    const tampered = archive("#!/bin/sh\necho 'evil'\n");
+    const env = homeEnv();
+    const result = await installRipgrep(env, {
+      platform: "linux",
+      arch: "x64",
+      assets: { "linux-x64": { asset: good.asset, sha256: good.sha256 } },
+      download: async () => tampered.bytes,
+    });
+    expect(result.status).toBe("refused");
+    expect((result as { reason: string }).reason).toContain(`expected ${good.sha256}`);
+    expect((result as { reason: string }).reason).toContain(`got ${tampered.sha256}`);
+    expect(existsSync(env.WACHIMAN_HOME)).toBe(false);
+  });
+
+  test("a refusal leaves the binary that was already installed untouched", async () => {
+    const good = archive();
+    const env = homeEnv();
+    mkdirSync(join(env.WACHIMAN_HOME, "bin"), { recursive: true });
+    writeFileSync(join(env.WACHIMAN_HOME, "bin", "rg"), "OLD");
+    const result = await installRipgrep(env, {
+      platform: "linux",
+      arch: "x64",
+      assets: { "linux-x64": { asset: good.asset, sha256: good.sha256 } },
+      download: async () => new Uint8Array([1, 2, 3]),
+    });
+    expect(result.status).toBe("refused");
+    expect(readFileSync(join(env.WACHIMAN_HOME, "bin", "rg"), "utf8")).toBe("OLD");
+  });
+
+  test("a matching download is unpacked, made executable and installed under the Wachiman home", async () => {
+    const good = archive();
+    const env = homeEnv();
+    const urls: string[] = [];
+    const result = await installRipgrep(env, {
+      platform: "linux",
+      arch: "x64",
+      assets: { "linux-x64": { asset: good.asset, sha256: good.sha256 } },
+      releaseUrl: "https://example.test/releases/15.2.0",
+      download: async (url) => (urls.push(url), good.bytes),
+    });
+    expect(urls).toEqual([`https://example.test/releases/15.2.0/${good.asset}`]);
+    expect(result).toEqual({ status: "installed", path: join(env.WACHIMAN_HOME, "bin", "rg"), version: RIPGREP_VERSION });
+    const target = join(env.WACHIMAN_HOME, "bin", "rg");
+    expect(statSync(target).mode & 0o111).not.toBe(0);
+    expect(Bun.spawnSync([target, "--version"]).stdout.toString()).toContain("ripgrep 15.2.0");
+    // No staging file is left behind.
+    expect(readdirSync(join(env.WACHIMAN_HOME, "bin"))).toEqual(["rg"]);
+  });
+
+  test("an unsupported platform and a failed download install nothing and say why", async () => {
+    const env = homeEnv();
+    expect(await installRipgrep(env, { platform: "freebsd", arch: "x64" })).toMatchObject({ status: "unsupported" });
+    const down = await installRipgrep(env, {
+      platform: "linux",
+      arch: "x64",
+      download: async () => {
+        throw new Error("offline");
+      },
+    });
+    expect(down).toMatchObject({ status: "unavailable" });
+    expect((down as { reason: string }).reason).toContain("offline");
+    expect(existsSync(env.WACHIMAN_HOME)).toBe(false);
+  });
+
+  test("an archive with no rg inside is unavailable, not installed", async () => {
+    const dir = temp("evidence-archive-");
+    mkdirSync(join(dir, "ripgrep-15.2.0-empty"));
+    writeFileSync(join(dir, "ripgrep-15.2.0-empty", "README"), "x");
+    Bun.spawnSync(["tar", "-czf", "e.tar.gz", "ripgrep-15.2.0-empty"], { cwd: dir });
+    const bytes = new Uint8Array(readFileSync(join(dir, "e.tar.gz")));
+    const result = await installRipgrep(homeEnv(), {
+      platform: "linux",
+      arch: "x64",
+      assets: { "linux-x64": { asset: "ripgrep-15.2.0-empty.tar.gz", sha256: createHash("sha256").update(bytes).digest("hex") } },
+      download: async () => bytes,
+    });
+    expect(result).toMatchObject({ status: "unavailable" });
+  });
+});
+
+describe("ensureRipgrep", () => {
+  const env = { WACHIMAN_HOME: "/h/.wachiman", PATH: "" };
+
+  test("a ripgrep that is already there is reported, and nothing is downloaded", async () => {
+    const lines: string[] = [];
+    const out = await ensureRipgrep(env, (l) => lines.push(l), {
+      probe: answers({ rg: RG15 }),
+      exists: () => false,
+      download: async () => {
+        throw new Error("must not download");
+      },
+    });
+    expect(out.ok).toBe(true);
+    expect(lines).toEqual(["ripgrep 15.2.0 found (on PATH): rg"]);
+  });
+
+  test("a missing one is announced before it is installed, with the pinned version and the directory", async () => {
+    const lines: string[] = [];
+    const out = await ensureRipgrep(env, (l) => lines.push(l), { probe: answers({}), exists: () => false, platform: "freebsd", arch: "x64" });
+    expect(lines[0]).toBe("Installing ripgrep 15.2.0 (fast search for call-site evidence) into /h/.wachiman/bin...");
+    // No build for this platform: not a failure, the review runs on git grep, and the line says so.
+    expect(out.ok).toBe(true);
+    expect(lines[1]).toContain("Reviews still work; the call-site evidence uses git grep");
+  });
+
+  test("a hash mismatch is the one outcome that is not ok", async () => {
+    const lines: string[] = [];
+    const out = await ensureRipgrep(env, (l) => lines.push(l), {
+      probe: answers({}),
+      exists: () => false,
+      platform: "linux",
+      arch: "x64",
+      download: async () => new Uint8Array([9]),
+    });
+    expect(out.ok).toBe(false);
+    expect(lines.at(-1)).toContain("ripgrep was NOT installed: SHA-256 mismatch");
+  });
+});
+
+// -----------------------------------------------------------------------------------------------
+// The differential test: the two backends must produce the same evidence
+// -----------------------------------------------------------------------------------------------
+
+const sym = (name: string, extra: Partial<PlannedSymbol> = {}): PlannedSymbol => ({
+  name,
+  kind: "call",
+  qualified: false,
+  files: ["src/new.ts"],
+  occurrences: 1,
+  ...extra,
+});
+
+/** Evidence of `plan` with `git grep`, and with ripgrep over the union of `allNames`, as the engine does; both serialized. */
+async function bothBackends(repoDir: string, plan: EvidencePlan, batchFiles: string[], allNames: string[]) {
+  const ctx = { repoDir, batchFiles };
+  const viaGit = collectEvidence(plan, ctx, defaultEvidenceIo);
+  const searcher = new EvidenceSearcher(real as RipgrepFound, repoDir, () => {}, { backend: "ripgrep", searches: 0, ms: 0 });
+  await searcher.ensure(allNames);
+  expect(searcher.usable).toBe(true);
+  const viaRg = collectEvidence(plan, ctx, defaultEvidenceIo, undefined, searcher.search);
+  return { git: viaGit, rg: viaRg, gitText: serializeEvidence(viaGit.doc), rgText: serializeEvidence(viaRg.doc) };
+}
+
+describe("differential: ripgrep and git grep give the same evidence", () => {
+  function fixtureRepo() {
+    const repo = temp("evidence-diff-");
+    const write = (path: string, text: string | Uint8Array) => {
+      mkdirSync(dirname(join(repo, path)), { recursive: true });
+      writeFileSync(join(repo, path), text);
+    };
+    const git = (...args: string[]) => {
+      const run = Bun.spawnSync(["git", ...args], { cwd: repo, stderr: "pipe" });
+      if (run.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${run.stderr.toString()}`);
+    };
+    write("src/preload.ts", "export const api = {\n  startFileDrag: (p: string) => ipc.send('drag', p),\n};\nexport function formatDuration(ms: number) {\n  return ms;\n}\n");
+    write("src/export-status-cards.tsx", "export function Card() {\n  const drag = () => {\n    markCopySeen(id);\n    window.electronAPI.startFileDrag(path);\n  };\n}\n");
+    write("src/new.ts", "formatDuration(1);\nstartFileDrag(2);\n");
+    // Path order: byte order of the whole path, which the ranking tie-break follows.
+    for (const p of ["src/a.ts", "src/a/b.ts", "src/a-b.ts", "src/a.b.ts", "src/A.ts", "src/a b.ts", "src/with space/c:o.ts", ".hidden/h.ts", "src/_u.ts"]) {
+      write(p, "const d = formatDuration(7);\n");
+    }
+    // More callers than the cap, tests among them, and mentions that are not calls.
+    for (let i = 0; i < 9; i++) write(`src/pop${i}.ts`, `import { popular } from "./lib";\nconst v = popular(${i});\n`);
+    // The only call of a name far into one very long line (a minified bundle): the ranking must see the whole text.
+    write("src/minified.ts", `${"x ".repeat(60_000)}popular(99);\n`);
+    write("src/popular.test.ts", "popular(1);\n");
+    write("test/popular.ts", "popular(2);\n");
+    write("src/mention.ts", "const ref = popular;\n// popular(3) in a comment\n/* popular(4) */\n * popular(5)\n# popular(6)\n");
+    write("src/lib.ts", "export function popular(n: number) {\n  return n;\n}\n");
+    write("src/both.ts", "markCopySeen(startFileDrag(1));\nconst s = $store(1) + $(el);\n");
+    write("src/channel.ts", "ipc.send('recording-ready:show', id);\nipc.on(\"recording-ready:show\", cb);\n");
+    write("src/words.ts", "xformatDuration(1); formatDuration_2(2); éformatDuration(3); formatDuration(4)é;\n");
+    write("src/long.ts", `formatDuration(${"9".repeat(300)});\n`);
+    write("src/crlf.ts", "line one\r\nformatDuration(1);\r\nline three\r\n");
+    write("src/defs.ts", "class Widget {\n  render(): void {\n  }\n}\nconst helper = () => 1;\nhelper();\n");
+    write("go/main.go", "func formatDuration(ms int) int { return ms }\nfunc run() { formatDuration(2) }\n");
+    // None of these is searched.
+    write("node_modules/dep/index.ts", "formatDuration(1); popular(1);\n");
+    write("vendor/v.ts", "formatDuration(1);\n");
+    write("sub/dist/d.ts", "formatDuration(1);\n");
+    write("build/b.ts", "formatDuration(1);\n");
+    write(".next/n.ts", "formatDuration(1);\n");
+    write("src/x.min.js", "formatDuration(1);\n");
+    write("src/types.d.ts", "declare function formatDuration(): void;\n");
+    write("README.md", "formatDuration is documented\n");
+    write("src/bin.ts", Buffer.from("formatDuration(1)\0binary"));
+    write("src/late-nul.ts", `formatDuration(1)\n${"// pad\n".repeat(2000)}\0\nformatDuration(2)\n`);
+    write("src/utf16.ts", Buffer.from("\xff\xfef\0o\0r\0m\0a\0t\0D\0u\0r\0a\0t\0i\0o\0n\0(\0)\0\n\0", "latin1"));
+    git("init", "-q");
+    git("add", "-A", "-f");
+    return repo;
+  }
+
+  const plans: { name: string; symbols: PlannedSymbol[]; batchFiles: string[] }[] = [
+    { name: "a call and its definition", symbols: [sym("formatDuration"), sym("startFileDrag", { qualified: true, qualifier: "window.electronAPI.startFileDrag" })], batchFiles: ["src/new.ts"] },
+    { name: "more callers than the cap", symbols: [sym("popular")], batchFiles: [] },
+    { name: "names on the same line", symbols: [sym("markCopySeen"), sym("startFileDrag"), sym("$store"), sym("$")], batchFiles: ["src/new.ts"] },
+    { name: "channel names", symbols: [sym("recording-ready:show", { kind: "channel" })], batchFiles: [] },
+    { name: "a name nothing else holds, and one only a definition holds", symbols: [sym("nobodyCallsThis"), sym("Widget"), sym("helper")], batchFiles: [] },
+    { name: "the batch's own files are dropped", symbols: [sym("formatDuration")], batchFiles: ["src/a.ts", "src/a/b.ts", "src/new.ts", "src/preload.ts"] },
+  ];
+
+  withRipgrep("every plan gives byte-identical evidence.json, whatever else the search carries", async () => {
+    const repo = fixtureRepo();
+    // The union holds names no plan below uses, as the union of a whole review does.
+    const union = [...new Set([...plans.flatMap((p) => p.symbols.map((s) => s.name)), "spare", "formatDuration_2"])];
+    for (const plan of plans) {
+      const result = await bothBackends(repo, { symbols: plan.symbols, omitted: [] }, plan.batchFiles, union);
+      expect(result.rgText, plan.name).toBe(result.gitText);
+      expect(result.rg.warnings, plan.name).toEqual(result.git.warnings);
+    }
+  });
+
+  withRipgrep("the fixture exercises what it claims: sites, definitions, truncation, ranking", async () => {
+    const repo = fixtureRepo();
+    const [one] = plans;
+    const { rg } = await bothBackends(repo, { symbols: one.symbols, omitted: [] }, one.batchFiles, ["formatDuration", "startFileDrag", "popular"]);
+    const duration = rg.doc.symbols.find((s) => s.symbol === "formatDuration")!;
+    expect(duration.definition_guess).toMatchObject({ file: "go/main.go" });
+    expect(duration.status).toBe("truncated");
+    expect(duration.call_sites).toHaveLength(6);
+    // The hidden directory is searched, and its file ranks first among equals by path order.
+    expect(duration.call_sites[0].file).toBe(".hidden/h.ts");
+    const popular = (await bothBackends(repo, { symbols: [sym("popular")], omitted: [] }, [], ["popular"])).rg.doc.symbols[0];
+    expect(popular.call_sites.some((c) => c.file.includes("test"))).toBe(false);
+    expect(popular.total_matches).toBeGreaterThan(9);
+    expect(popular.call_sites.map((c) => c.file)).toContain("src/minified.ts");
+    expect(rg.doc.symbols.map((s) => s.symbol)).toContain("startFileDrag");
+  });
+
+  withRipgrep("the time box and a failing search are reported the same way", async () => {
+    const repo = fixtureRepo();
+    const searcher = new EvidenceSearcher(real as RipgrepFound, repo, () => {}, { backend: "ripgrep", searches: 0, ms: 0 });
+    // Never searched: the lookup fails the way a failing git grep does, and the rest is not searched.
+    const plan = { symbols: [sym("formatDuration"), sym("popular")], omitted: [] };
+    const { doc, warnings } = collectEvidence(plan, { repoDir: repo, batchFiles: [] }, defaultEvidenceIo, undefined, searcher.search);
+    expect(warnings).toEqual(["Call-site evidence skipped: formatDuration was not searched"]);
+    expect(doc.not_searched).toEqual(["formatDuration", "popular"]);
+    expect(doc.status).toBe("truncated");
+  });
+
+  // The same comparison over a real code base: this repository at HEAD, extracted so that
+  // uncommitted files (which git grep ignores and ripgrep would read) cannot differ.
+  withRipgrep("every batch of a review of this repository's own sources agrees", async () => {
+    const root = join(import.meta.dir, "..");
+    const archived = Bun.spawnSync(["git", "-c", "core.quotepath=off", "archive", "--format=tar", "HEAD"], { cwd: root, stderr: "pipe" });
+    if (archived.exitCode !== 0) return; // not a git checkout (a packed install): nothing to compare
+    const repo = temp("evidence-self-");
+    const unpacked = Bun.spawnSync(["tar", "-x", "-C", repo], { stdin: archived.stdout });
+    expect(unpacked.exitCode).toBe(0);
+    for (const args of [["init", "-q"], ["add", "-A", "-f"]]) Bun.spawnSync(["git", ...args], { cwd: repo });
+
+    const sources = readdirSync(join(repo, "src"))
+      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+      .sort();
+    // Batches of three files, each planned from the whole text of its files as if every line were added.
+    const batches: { files: string[]; plan: EvidencePlan }[] = [];
+    for (let i = 0; i < sources.length; i += 3) {
+      const files = sources.slice(i, i + 3).map((f) => `src/${f}`);
+      const plan = planEvidence(files.map((filename) => ({ filename, addedLines: readFileSync(join(repo, filename), "utf8").split("\n") })));
+      if (plan.symbols.length > 0) batches.push({ files, plan });
+    }
+    expect(batches.length).toBeGreaterThan(5);
+    const union = [...new Set(batches.flatMap((b) => b.plan.symbols.map((s) => s.name)))];
+    const searcher = new EvidenceSearcher(real as RipgrepFound, repo, () => {}, { backend: "ripgrep", searches: 0, ms: 0 });
+    await searcher.ensure(union);
+    expect(searcher.usable).toBe(true);
+    let compared = 0;
+    let sites = 0;
+    for (const { files, plan } of batches) {
+      const ctx = { repoDir: repo, batchFiles: files };
+      const viaGit = collectEvidence(plan, ctx, defaultEvidenceIo);
+      const viaRg = collectEvidence(plan, ctx, defaultEvidenceIo, undefined, searcher.search);
+      expect(serializeEvidence(viaRg.doc), files.join(",")).toBe(serializeEvidence(viaGit.doc));
+      compared += 1;
+      sites += viaGit.doc.symbols.reduce((n, e) => n + e.call_sites.length, 0);
+    }
+    expect(compared).toBe(batches.length);
+    expect(sites).toBeGreaterThan(20);
+  }, 120_000); // one git grep per name per batch is the slow side of this comparison
+});
+
+// extractCalledSymbols is imported only so a rename in evidence.ts breaks this file loudly.
+void extractCalledSymbols;

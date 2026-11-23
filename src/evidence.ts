@@ -448,20 +448,11 @@ export function readHeadLines(repoDir: string, path: string): string[] | null {
 
 export const defaultEvidenceIo: EvidenceIo = { git: spawnGit, readLines: readHeadLines, now: Date.now };
 
-const EXCLUDED_PATHS = [
-  "node_modules/*",
-  "*/node_modules/*",
-  "dist/*",
-  "*/dist/*",
-  "build/*",
-  "*/build/*",
-  ".next/*",
-  "*/.next/*",
-  "vendor/*",
-  "*/vendor/*",
-  "*.min.js",
-  "*.d.ts",
-];
+/** Directories (at any depth) and file patterns the search skips; both backends read these lists. */
+export const EXCLUDED_DIRS = ["node_modules", "dist", "build", ".next", "vendor"] as const;
+export const EXCLUDED_FILES = ["*.min.js", "*.d.ts"] as const;
+
+const EXCLUDED_PATHS = [...EXCLUDED_DIRS.flatMap((d) => [`${d}/*`, `*/${d}/*`]), ...EXCLUDED_FILES];
 
 const grepArgs = (symbol: string) => [
   "grep",
@@ -477,11 +468,30 @@ const grepArgs = (symbol: string) => [
   ...EXCLUDED_PATHS.map((p) => `:(exclude)${p}`),
 ];
 
-interface Match {
+export interface Match {
   file: string;
   line: number;
   text: string;
 }
+
+/** What a search for one symbol returned: its matches in path order, or why there are none. */
+export type SymbolSearchResult =
+  | { matches: Match[]; /** The backend's output limit cut the list. */ outputCut?: boolean }
+  | { timedOut: true }
+  | { failed: string };
+
+/** Searches the head for one symbol. `timeoutMs` is what is left of the step's time box. */
+export type SymbolSearch = (symbol: string, timeoutMs: number) => SymbolSearchResult;
+
+/** The `git grep` backend: one search per symbol, the fallback when ripgrep is not available. */
+export const gitSymbolSearch = (io: Pick<EvidenceIo, "git">, repoDir: string): SymbolSearch => (symbol, timeoutMs) => {
+  const run = io.git(grepArgs(symbol), { cwd: repoDir, timeoutMs });
+  if (run.timedOut) return { timedOut: true };
+  if (run.status !== 0 && run.status !== 1 && !run.outputCut) {
+    return { failed: run.error ?? `git grep exited with status ${run.status}` };
+  }
+  return { matches: parseMatches(run.stdout), ...(run.outputCut ? { outputCut: true } : {}) };
+};
 
 function parseMatches(stdout: string): Match[] {
   const out: Match[] = [];
@@ -530,6 +540,7 @@ export function collectEvidence(
   ctx: { repoDir: string; batchFiles: string[] },
   io: EvidenceIo = defaultEvidenceIo,
   caps: { wallClockMs?: number; callSites?: number } = {},
+  search: SymbolSearch = gitSymbolSearch(io, ctx.repoDir),
 ): { doc: EvidenceDoc; warnings: string[] } {
   const wallClockMs = caps.wallClockMs ?? EVIDENCE_CAPS.wallClockMs;
   const maxSites = caps.callSites ?? EVIDENCE_CAPS.callSites;
@@ -556,22 +567,22 @@ export function collectEvidence(
       notSearched.push(planned.name);
       continue;
     }
-    const run = io.git(grepArgs(planned.name), { cwd: ctx.repoDir, timeoutMs: Math.max(1, deadline - io.now()) });
-    if (run.timedOut) {
+    const run = search(planned.name, Math.max(1, deadline - io.now()));
+    if ("timedOut" in run) {
       notes.push(`Searching for ${planned.name} timed out; the remaining symbols were not searched.`);
       stopped = true;
       notSearched.push(planned.name);
       continue;
     }
-    if (run.status !== 0 && run.status !== 1 && !run.outputCut) {
-      const why = run.error ?? `git grep exited with status ${run.status}`;
+    if ("failed" in run) {
+      const why = run.failed;
       warnings.push(`Call-site evidence skipped: ${why}`);
       notes.push(`Search failed (${why}); the remaining symbols were not searched.`);
       stopped = true;
       notSearched.push(planned.name);
       continue;
     }
-    const all = parseMatches(run.stdout);
+    const all = run.matches;
     const defPattern = definitionPattern(planned.name);
     const defMatch = planned.kind === "call" ? all.find((m) => defPattern.test(m.text)) : undefined;
     const others = all.filter((m) => !own.has(m.file) && m !== defMatch && !IMPORT_LINE.test(m.text) && !isCommentLine(m.text));

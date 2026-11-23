@@ -115,7 +115,10 @@ import {
   planEvidence,
   renderEvidenceSlice,
   type GitRunner,
+  type SymbolSearch,
 } from "./evidence";
+import { evidenceSummaryLine, startEvidenceRun, type EvidenceRun } from "./evidence-search";
+import { resolveRipgrep, type RipgrepResolution } from "./ripgrep";
 import {
   CONTRACT_SCHEMA,
   checkContracts,
@@ -2020,6 +2023,11 @@ export interface CoreDeps {
   git?: GitRunner;
   /** The clock of the evidence step's time box, in ms. Default: `Date.now`. */
   now?: () => number;
+  /**
+   * The ripgrep the call-site evidence searches with. Default: `resolveRipgrep(process.env)`, and
+   * `git grep` when none qualifies. Ignored when `git` is set: a fake `git` is the whole search.
+   */
+  ripgrep?: RipgrepResolution;
   /** Every model call of this run, in order: `runProvider` appends to it. The CLI writes the job summary from it. */
   costs?: CallCost[];
   /** `readVersion()` from the CLI; "unknown" when absent. */
@@ -3531,7 +3539,17 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const everyFile = kept.map((f) => `- ${f.filename} +${f.additions} −${f.deletions}`).join("\n");
   // The cost log line names a pull request by its number; a change without one has none.
   const number = change.identifier?.match(/^#(\d+)$/)?.[1];
+  // One search for the whole review: the evidence of every batch is planned now and its names are
+  // searched together, so the batches only read their matches.
+  const evidenceRun = await startEvidenceRun({
+    repoDir: input.headDir,
+    batches: batches.map((b) => b.files),
+    customGit: deps.git !== undefined,
+    ripgrep: () => deps.ripgrep ?? resolveRipgrep(process.env),
+    log: core.log,
+  });
   const context: ReviewContext = {
+    evidenceRun,
     describe: change.describe,
     headSha: change.head.sha,
     headDir: input.headDir,
@@ -3775,6 +3793,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     running.add(task);
   }
   await Promise.all(running);
+  if (evidenceRun.tally.searches > 0) core.log(evidenceSummaryLine(evidenceRun.tally));
   // A batch that threw (not a failed call: those are outcomes) ends the review as it always did,
   // after the ones in flight finished and were counted.
   if (fatal) throw fatal.error;
@@ -5196,6 +5215,8 @@ export interface ReviewContext {
   claims?: readonly string[];
   /** How the cost log line names the change; absent for a change with no repository or number. */
   costTags?: Pick<CallCost, "repo" | "pr">;
+  /** The evidence search of the whole review (ripgrep, one call for every batch); absent: each batch runs `git grep`. */
+  evidenceRun?: EvidenceRun;
 }
 
 /** Placed before the evidence slice; the slice itself comes from `renderEvidenceSlice`. */
@@ -5421,7 +5442,7 @@ function safeRealpath(path: string) {
  * the repository uses the symbols the batch's added lines call. Evidence is a help, never a
  * condition: any failure is a warning, the file then holds an empty document, and the review goes on.
  */
-function gatherEvidence(deps: CoreDeps, headDir: string, files: ReviewFile[], dir: string): string {
+async function gatherEvidence(deps: CoreDeps, headDir: string, files: ReviewFile[], dir: string, run?: EvidenceRun): Promise<string> {
   const batchFiles = files.map((f) => f.filename);
   const now = deps.now ?? Date.now;
   const started = now();
@@ -5430,11 +5451,24 @@ function gatherEvidence(deps: CoreDeps, headDir: string, files: ReviewFile[], di
   try {
     plan = planEvidence(files.map((f) => ({ filename: f.filename, addedLines: addedLinesOf(f.patch) })));
     if (plan.symbols.length > 0) {
+      // ripgrep's answer is in memory already; a name it has not searched (a retry batch plans a
+      // different set of files) is searched now. If ripgrep failed, this batch searches with git.
+      const searcher = run?.searcher;
+      if (searcher) await searcher.ensure(plan.symbols.map((s) => s.name));
+      const search: SymbolSearch | undefined = searcher?.usable ? searcher.search : undefined;
+      const searchStarted = now();
       const found = collectEvidence(
         plan,
         { repoDir: headDir, batchFiles },
         { ...defaultEvidenceIo, ...(deps.git ? { git: deps.git } : {}), now },
+        undefined,
+        search,
       );
+      if (run && !search) {
+        run.tally.backend = "git grep";
+        run.tally.searches += plan.symbols.length;
+        run.tally.ms += now() - searchStarted;
+      }
       doc = found.doc;
       for (const w of found.warnings) deps.warn(w);
     }
@@ -5474,7 +5508,7 @@ async function reviewBatch(
   try {
     writeFileSync(join(dir, "pr.json"), JSON.stringify({ title: ctx.meta.title, body: ctx.meta.body, author: ctx.meta.author }, null, 2));
     writeFileSync(join(dir, "threads.json"), JSON.stringify(threads, null, 2));
-    const evidence = gatherEvidence(deps, ctx.headDir, files, dir);
+    const evidence = await gatherEvidence(deps, ctx.headDir, files, dir, ctx.evidenceRun);
     const questions = selectQuestions(files);
     deps.log(`Data-path questions for part ${part.index} of ${part.total}: ${questions.map((q) => q.id).join(", ") || "none"}`);
     // The sibling snapshots and their section, only when a file of this call triggered a contract.
