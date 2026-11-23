@@ -49,6 +49,11 @@ const NOT_A_CALL: { file: string; rules: string[]; reason: string }[] = [
     rules: ["package manager in a script"],
     reason: 'Prints "npm install -g bun" as a hint when Bun is missing; it only runs `bun --version` and Bun itself.',
   },
+  {
+    file: "src/init/run.ts",
+    rules: ["gh or git network command in a script"],
+    reason: 'Prints "git push" as a next step for the person to run; `init` itself runs no git network command.',
+  },
 ];
 
 const SITE_RULES: { name: string; pattern: RegExp }[] = [
@@ -57,6 +62,7 @@ const SITE_RULES: { name: string; pattern: RegExp }[] = [
   { name: "network program in a script", pattern: /\b(curl|wget)\s+["$-]/ },
   { name: "git network verb", pattern: /["'](ls-remote|fetch|push|clone)["']/ },
   { name: "gh", pattern: /["']gh["']/ },
+  { name: "gh or git network command in a script", pattern: /\b(gh|git)\s+(api|push|fetch|clone|ls-remote|pr)\b/ },
   { name: "package manager", pattern: /["'](npm|npx|pnpm|yarn)["']/ },
   { name: "package manager in a script", pattern: /\b(npm|npx)\s+(pack|install|view|exec|publish|i)\b/ },
   { name: "provider CLI", pattern: /["'](claude|codex)["']/ },
@@ -79,7 +85,8 @@ function sourceFiles(): string[] {
   return out.sort();
 }
 
-const isComment = (line: string) => /^\s*(\/\/|\*|\/\*|#)/.test(line);
+const isComment = (line: string, file: string) =>
+  (/\.(ts|js)$/.test(file) ? /^\s*(\/\/|\*|\/\*)/ : /^\s*#/).test(line);
 /** Drops a trailing `// comment`; the whitespace before `//` keeps `https://` intact. */
 const code = (line: string) => line.replace(/(?<!:)\s\/\/\s.*$/, "");
 
@@ -92,7 +99,7 @@ function scan(): { sites: Map<string, Set<string>>; hosts: Map<string, Set<strin
     // Files under templates/ are written into the user's repository, so a URL in their comments counts.
     const keepComments = file.startsWith("templates/");
     for (const raw of readFileSync(path, "utf8").split("\n")) {
-      const isComm = isComment(raw);
+      const isComm = isComment(raw, file);
       if (isComm && !keepComments) continue;
       const line = isComm ? raw : code(raw);
       for (const { name, pattern } of SITE_RULES) {
