@@ -1,0 +1,8 @@
+{
+  "cases": [
+    { "id": "t3code-39445", "repo": "pingdotgg/t3code", "pr": 39445, "sha": "ccabed086ad47294173769c77d2d44e55bb8bd0d", "tier": "pr" },
+    { "id": "trpc-7771", "repo": "trpc/trpc", "pr": 7771, "sha": "cb7660aee96abd13bd1cfd561d381630410466fc", "tier": "pr" },
+    { "id": "calcom-28903", "repo": "calcom/cal.com", "pr": 28903, "sha": "ab21c7f805a089fa3a11ffd61c4a9aecc349c16c", "tier": "pr" },
+    { "id": "t3code-40132", "repo": "pingdotgg/t3code", "pr": 40132, "sha": "e97290a064dac58dcd425752695bae8743a4dc9a", "tier": "extreme" }
+  ]
+}
