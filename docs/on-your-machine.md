@@ -171,7 +171,9 @@ if it holds hooks or MCP servers (`inspectIsolatedProfile` in `src/profiles.ts`)
 **What it does not read.** I found no code in `src/` that reads the macOS Keychain, or the sign-in
 or token files of Claude Code or `gh`. Claude Code finds its own sign-in through `HOME`, `USER` and
 `CLAUDE_CONFIG_DIR`. `wachiman profile remove` says the Keychain entry is not touched
-(`src/accounts/commands.ts`). The one credential Wachiman reads and stores itself is the ledger read
+(`src/accounts/commands.ts`). The one read inside `~/.claude` is `wachiman doctor` checking whether the
+directories `~/.claude/skills/wachiman-review`, `wachiman-loop` and `wachiman-audit` exist
+(`src/doctor/checks.ts`); it opens no file there. The one credential Wachiman reads and stores itself is the ledger read
 token you give to `wachiman ledger connect`.
 
 ## What runs
