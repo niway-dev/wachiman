@@ -19,6 +19,7 @@ import {
   SCHEMA,
   SEVERITY,
   TOPIC,
+  COMMENT_PARAGRAPH,
   buildBatchPrompt,
   type ReviewContext,
   resolveScope,
@@ -1306,6 +1307,23 @@ describe("buildBatchPrompt", () => {
     expect(text).toContain("- a.ts +1 −0");
     expect(text.indexOf("<diff>")).toBeGreaterThan(text.indexOf("Review every file of this part"));
     expect(text.trimEnd().endsWith("</diff>")).toBe(true);
+  });
+
+  test("without the comment rule the prompt is the same whether the field is absent or the rule never mentioned", () => {
+    expect(prompt()).not.toContain("Comments in the added lines");
+    expect(prompt()).not.toContain("tautology");
+  });
+
+  test("with the comment rule on, the paragraph sits between the risk paragraph and the rules, and says what to report", () => {
+    const on = buildBatchPrompt({ ...ctx, commentsPointToDocs: true }, files, false, { index: 1, total: 2 }, "/tmp/d", ctx.instructions);
+    expect(on).toContain(COMMENT_PARAGRAPH);
+    expect(on.indexOf(COMMENT_PARAGRAPH)).toBeGreaterThan(on.indexOf("## Risk facts and judgement"));
+    expect(on.indexOf(COMMENT_PARAGRAPH)).toBeLessThan(on.indexOf("## What the change does to the running product"));
+    for (const word of ["tautology", "stale", "excuse", "decision record", "delete", "open an issue", "pointer", "@ts-expect-error", "biome-ignore", "prettier-ignore", "shebang", "license header", '"consider"']) {
+      expect(COMMENT_PARAGRAPH).toContain(word);
+    }
+    // Only the paragraph is added: take it out and the prompt is the off prompt.
+    expect(on.replace(`\n\n${COMMENT_PARAGRAPH}`, "")).toBe(prompt());
   });
 
   test("tells the model it manages no budget, so it has no reason to ration its reading", () => {
