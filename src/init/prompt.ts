@@ -1,15 +1,31 @@
 import { UsageError } from "../config";
 import type { Prompter } from "../wizard/prompt";
-import { DEFAULT_WORKFLOW_PATH, initModes, normaliseWorkflowPath, operatorProblem, projectKindProblem, tagProblem, type InitMode, type ProjectKind, type RawInitFlags } from "./options";
+import {
+  DEFAULT_WORKFLOW_PATH,
+  initModes,
+  normaliseWorkflowPath,
+  operatorProblem,
+  projectKindProblem,
+  tagProblem,
+  type InitMode,
+  type ProjectKind,
+  type RawInitFlags,
+} from "./options";
 
 /** The values given on the command line are held to the same rules as answers: a bad one is exit 2, never silently asked again. */
 export function checkSupplied(flags: RawInitFlags) {
-  if (flags.mode !== undefined && !initModes.includes(flags.mode as InitMode)) throw new UsageError(`--mode must be github, local or both, got "${flags.mode}".`);
+  if (flags.mode !== undefined && !initModes.includes(flags.mode as InitMode))
+    throw new UsageError(`--mode must be github, local or both, got "${flags.mode}".`);
   const problem =
     (flags.projectKind !== undefined ? projectKindProblem(flags.projectKind) : undefined) ??
     (flags.operator !== undefined ? operatorProblem(flags.operator) : undefined) ??
     (flags.version !== undefined ? tagProblem(flags.version) : undefined) ??
-    (flags.path !== undefined ? (() => { const p = normaliseWorkflowPath(flags.path!); return p.ok ? undefined : p.problem; })() : undefined);
+    (flags.path !== undefined
+      ? (() => {
+          const p = normaliseWorkflowPath(flags.path!);
+          return p.ok ? undefined : p.problem;
+        })()
+      : undefined);
   if (problem) throw new UsageError(problem);
 }
 
@@ -18,7 +34,11 @@ export function checkSupplied(flags: RawInitFlags) {
  * (`null`: the person cancelled). Answers are validated as they are typed; the pure resolver
  * validates everything again.
  */
-export async function promptForInit(flags: RawInitFlags, ctx: { defaultWorkflowRef?: string; githubLogin?: () => string | undefined }, prompter: Prompter): Promise<RawInitFlags | null> {
+export async function promptForInit(
+  flags: RawInitFlags,
+  ctx: { defaultWorkflowRef?: string; githubLogin?: () => string | undefined },
+  prompter: Prompter,
+): Promise<RawInitFlags | null> {
   checkSupplied(flags);
   prompter.step("Project type", 2);
   let projectKind = flags.projectKind as ProjectKind | undefined;
@@ -66,7 +86,11 @@ export async function promptForInit(flags: RawInitFlags, ctx: { defaultWorkflowR
   if (suggested !== undefined) prompter.say(`Signed in to GitHub as https://github.com/${suggested}; press Enter to use it.`, "muted");
   const operator =
     flags.operator ??
-    (await prompter.text("Your GitHub username, as in https://github.com/<username>: only this person's /wachiman comments start a paid run", suggested, (v) => operatorProblem(v)));
+    (await prompter.text(
+      "Your GitHub username, as in https://github.com/<username>: only this person's /wachiman comments start a paid run",
+      suggested,
+      (v) => operatorProblem(v),
+    ));
   if (operator === null) return null;
   // The release this CLI was published as, and the standard workflow path: neither is asked. `--version` and `--path` still override them.
   const version = flags.version ?? ctx.defaultWorkflowRef ?? (await prompter.text("Release tag to pin", undefined, (v) => tagProblem(v)));
@@ -81,5 +105,8 @@ async function askPrTemplate(flags: RawInitFlags, prompter: Prompter): Promise<b
   if (flags.prTemplate !== undefined) return flags.prTemplate;
   // A dry run writes nothing, so it asks nothing about a file.
   if (flags.dryRun) return false;
-  return prompter.confirm("Also install the PR description template? An existing .github/pull_request_template.md is adopted and replaced (a backup is kept); nothing is committed.", true);
+  return prompter.confirm(
+    "Also install the PR description template? An existing .github/pull_request_template.md is adopted and replaced (a backup is kept); nothing is committed.",
+    true,
+  );
 }

@@ -48,7 +48,21 @@ const GENERATED_NAME = [
 const TEST_DIRS = new Set(["test", "tests", "__tests__", "__snapshots__", "spec", "specs"]);
 
 /** Where a change of whitespace can change what the program does, so it is never formatting. */
-const WHITESPACE_SENSITIVE_EXT = new Set(["py", "pyi", "yml", "yaml", "mk", "pug", "haml", "coffee", "nim", "md", "markdown", "mdx", "rst"]);
+const WHITESPACE_SENSITIVE_EXT = new Set([
+  "py",
+  "pyi",
+  "yml",
+  "yaml",
+  "mk",
+  "pug",
+  "haml",
+  "coffee",
+  "nim",
+  "md",
+  "markdown",
+  "mdx",
+  "rst",
+]);
 const MULTILINE_STRING_OPENER = ["`", '"""', "<<"];
 const WHITESPACE_SENSITIVE_NAME = new Set(["Makefile", "makefile", "GNUmakefile"]);
 
@@ -150,10 +164,7 @@ function testsAConfirmedFile(testPath: string, confirmed: ReadonlySet<string>): 
  * a claim covers it. `confirmedPaths` holds the paths a confirmed claim explains; it is what makes a
  * test explained.
  */
-export function explainedByRule(
-  file: ChangedFile,
-  ctx: { confirmedPaths?: ReadonlySet<string> } = {},
-): RuleName | undefined {
+export function explainedByRule(file: ChangedFile, ctx: { confirmedPaths?: ReadonlySet<string> } = {}): RuleName | undefined {
   if (isLockfile(file.path)) return "lockfile";
   if (isGeneratedPath(file.path)) return "generated";
   const name = baseName(file.path);

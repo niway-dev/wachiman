@@ -113,7 +113,9 @@ describe("the workflows let a collaborator's question reach the engine, and noth
     for (const job of ["threads", "on-demand"]) {
       expect(ifBlockOf(text, job), job).toMatch(/'operator' == 'write' &&\s*contains\(fromJSON/);
     }
-    expect(ifBlockOf(text, "threads")).toMatch(/github\.event\.comment\.user\.login == 'your-github-login' && github\.event\.comment\.in_reply_to_id/);
+    expect(ifBlockOf(text, "threads")).toMatch(
+      /github\.event\.comment\.user\.login == 'your-github-login' && github\.event\.comment\.in_reply_to_id/,
+    );
   });
 
   test("review.yml: askers and ask_ceiling_usd are inputs with the defaults operator and 3", () => {
@@ -163,7 +165,13 @@ describe("the workflows let a collaborator's question reach the engine, and noth
   test("review.yml passes the thread reply's place to the thread-only run through env", () => {
     const text = FILES[0].text;
     const threads = text.slice(text.indexOf("\n  threads:\n"), text.indexOf("\n  on-demand:\n"));
-    for (const name of ["WACHIMAN_COMMENT_ID", "WACHIMAN_COMMENT_IN_REPLY_TO", "WACHIMAN_COMMENT_PATH", "WACHIMAN_COMMENT_LINE", "REQUEST"]) {
+    for (const name of [
+      "WACHIMAN_COMMENT_ID",
+      "WACHIMAN_COMMENT_IN_REPLY_TO",
+      "WACHIMAN_COMMENT_PATH",
+      "WACHIMAN_COMMENT_LINE",
+      "REQUEST",
+    ]) {
       expect(threads).toContain(`${name}: \${{ github.event.comment.`);
     }
     expect(threads).toContain("github.event.comment.line || github.event.comment.original_line");

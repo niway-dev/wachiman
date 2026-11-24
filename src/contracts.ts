@@ -129,10 +129,8 @@ function shapeProblem(item: unknown): string | null {
     if (typeof entry[key] !== "string" || (entry[key] as string).trim() === "") return `${key} is missing`;
   if (!(CONTRACT_STATUSES as readonly unknown[]).includes(entry.status))
     return `status is ${JSON.stringify(entry.status)}, not closed or open`;
-  if (!Array.isArray(entry.evidence) || entry.evidence.some((e) => typeof e !== "string"))
-    return "evidence is not a list of strings";
-  for (const key of OPTIONAL_TEXT)
-    if (entry[key] !== undefined && typeof entry[key] !== "string") return `${key} is not text`;
+  if (!Array.isArray(entry.evidence) || entry.evidence.some((e) => typeof e !== "string")) return "evidence is not a list of strings";
+  for (const key of OPTIONAL_TEXT) if (entry[key] !== undefined && typeof entry[key] !== "string") return `${key} is not text`;
   if (entry.candidates !== undefined && !Array.isArray(entry.candidates)) return "candidates is not a list";
   return null;
 }
@@ -215,11 +213,7 @@ export function citationProblem(citation: string, lines: LineCounter): string | 
  * Checks every citation of every entry and sets `evidence_checked`. Each failing entry is one
  * warning naming the problems; nothing else changes: the entry keeps its status and text.
  */
-export function checkContracts(
-  contracts: Contract[],
-  lines: LineCounter,
-  warn: (line: string) => void,
-): Contract[] {
+export function checkContracts(contracts: Contract[], lines: LineCounter, warn: (line: string) => void): Contract[] {
   return contracts.map((c) => {
     const problems = c.evidence.map((e) => citationProblem(e, lines)).filter((p): p is string => p !== null);
     if (c.status === "closed" && c.evidence.length === 0) problems.push("closed without a citation");

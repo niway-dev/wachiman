@@ -3,7 +3,17 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "./config";
-import { GhError, review, reviewChange, reviewOptionsOf, type CoreDeps, type Deps, type GhFn, type ReviewInput, type ReviewOutput } from "./engine";
+import {
+  GhError,
+  review,
+  reviewChange,
+  reviewOptionsOf,
+  type CoreDeps,
+  type Deps,
+  type GhFn,
+  type ReviewInput,
+  type ReviewOutput,
+} from "./engine";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
 import { checkGoldenPrompts, recordPrompt } from "../test/support/golden-prompts";
 
@@ -22,7 +32,11 @@ const RULE_HEADING = "## Comments in the added lines";
 const CATEGORY: Record<string, { category: string; topic: "cleanup" | "docs"; why: string }> = {
   "// increment the counter": { category: "tautology", topic: "cleanup", why: "It restates `counter += 1`. Delete it." },
   "// retries three times": { category: "stale", topic: "docs", why: "The code uses 5 retries. Delete it." },
-  "// hack: the API lies about dates": { category: "excuse", topic: "cleanup", why: "It excuses the workaround. Delete it and open an issue for the hack." },
+  "// hack: the API lies about dates": {
+    category: "excuse",
+    topic: "cleanup",
+    why: "It excuses the workaround. Delete it and open an issue for the hack.",
+  },
 };
 
 /** What a reviewer that follows the rule reports: every added comment in the prompt's diff that is not a pointer. */
@@ -32,7 +46,17 @@ function judge(prompt: string): ReviewOutput["findings"] {
     if (text.startsWith("// See docs/")) return [];
     const verdict = CATEGORY[text];
     if (!verdict) return [];
-    return [{ path: "src/a.ts", line: Number(line), severity: "consider" as const, topic: verdict.topic, confidence: "high" as const, title: `Comment (${verdict.category}): ${text.slice(3)}`, body: verdict.why }];
+    return [
+      {
+        path: "src/a.ts",
+        line: Number(line),
+        severity: "consider" as const,
+        topic: verdict.topic,
+        confidence: "high" as const,
+        title: `Comment (${verdict.category}): ${text.slice(3)}`,
+        body: verdict.why,
+      },
+    ];
   });
 }
 
@@ -78,7 +102,10 @@ const PATCH = [
 function input(over: Partial<ReviewInput> = {}): ReviewInput {
   const headDir = mkdtempSync(join(tmpdir(), "comment-review-head-"));
   mkdirSync(join(headDir, "src"));
-  writeFileSync(join(headDir, "src/a.ts"), "const counter = 0;\n// increment the counter\ncounter += 1;\n// retries three times\nconst retries = 5;\n// hack: the API lies about dates\nconst when = new Date(raw.replace(' ', 'T'));\n// See docs/adr/0053-reviews-are-opt-in.md\n");
+  writeFileSync(
+    join(headDir, "src/a.ts"),
+    "const counter = 0;\n// increment the counter\ncounter += 1;\n// retries three times\nconst retries = 5;\n// hack: the API lies about dates\nconst when = new Date(raw.replace(' ', 'T'));\n// See docs/adr/0053-reviews-are-opt-in.md\n",
+  );
   return {
     format: "wachiman.review-input/1",
     change: {
@@ -205,7 +232,10 @@ describe("a pull request in Actions", () => {
   });
 
   test("the base has it on and the head turns it off: this review still applies it", async () => {
-    const { provider } = await github({ base: "review:\n  comments_point_to_docs: true\n", head: "review:\n  comments_point_to_docs: false\n" });
+    const { provider } = await github({
+      base: "review:\n  comments_point_to_docs: true\n",
+      head: "review:\n  comments_point_to_docs: false\n",
+    });
     expect(provider.requests[0].prompt).toContain(RULE_HEADING);
   });
 

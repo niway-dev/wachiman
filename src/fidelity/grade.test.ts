@@ -57,9 +57,7 @@ const fact = (kind: "money" | "auth" | "concurrency" | "dependency", path = "src
 
 describe("the acceptance fixtures", () => {
   test("two confirmed claims and one file no claim explains give B and name that file", () => {
-    const r = computeGrade(
-      input({ changedFiles: [{ path: "src/Toolbar.tsx" }, { path: "src/export.ts" }, { path: "src/session.ts" }] }),
-    );
+    const r = computeGrade(input({ changedFiles: [{ path: "src/Toolbar.tsx" }, { path: "src/export.ts" }, { path: "src/session.ts" }] }));
     expect(r.grade).toBe("B");
     expect(r.unexplainedFiles).toEqual(["src/session.ts"]);
     expect(r.reasons[0]).toBe("One unexplained change");
@@ -271,12 +269,7 @@ describe("B", () => {
         riskMap: { ...lowMap, level: "high", facts: [fact("money")] },
       }),
     );
-    expect(r.reasons).toEqual([
-      "Claim not verified: Is faster",
-      "One unexplained change",
-      "One open Fix",
-      "The risk level is high: money",
-    ]);
+    expect(r.reasons).toEqual(["Claim not verified: Is faster", "One unexplained change", "One open Fix", "The risk level is high: money"]);
   });
 
   test("B is not a trial grade", () => {
@@ -375,7 +368,7 @@ describe("the places that need attention", () => {
   });
 
   test("an unexplained file has no line and says why it is listed", () => {
-    const r = computeGrade(input({ changedFiles: [{ path: "src/session.ts" }] , assignments: []}));
+    const r = computeGrade(input({ changedFiles: [{ path: "src/session.ts" }], assignments: [] }));
     expect(r.questions).toEqual([
       { kind: "unexplained", path: "src/session.ts", text: "no claim in the pull request explains this change." },
     ]);

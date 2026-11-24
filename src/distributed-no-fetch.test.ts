@@ -128,7 +128,13 @@ function workspace(userVersion: Record<string, unknown>, options: { remoteDefaul
   }
   writeFileSync(join(parent, MANIFEST_FILE), JSON.stringify(MANIFEST));
   const home = temp("wachiman-nofetch-home-");
-  writeFileSync(userFilePath(home), JSON.stringify({ version: 1, workspaces: [{ manifest: join(parent, MANIFEST_FILE), distributedRepo: "on", versions: { "brand-palette": userVersion } }] }));
+  writeFileSync(
+    userFilePath(home),
+    JSON.stringify({
+      version: 1,
+      workspaces: [{ manifest: join(parent, MANIFEST_FILE), distributedRepo: "on", versions: { "brand-palette": userVersion } }],
+    }),
+  );
   return { webSite, home };
 }
 
@@ -151,7 +157,12 @@ const noFetch = (t: ReturnType<typeof tools>) => {
 
 const RULES: [string, Record<string, unknown>, { remoteDefault?: boolean }, RegExp][] = [
   ["pinned, a literal ref", { rule: "pinned", ref: "v1" }, {}, /sibling: desktop-app, commit/],
-  ["pinned, a JSON key path", { rule: "pinned", pin: { file: "package.json", key: ["dependencies", "@acme/desktop.app"], tag: "v{version}" } }, {}, /sibling: desktop-app, commit/],
+  [
+    "pinned, a JSON key path",
+    { rule: "pinned", pin: { file: "package.json", key: ["dependencies", "@acme/desktop.app"], tag: "v{version}" } },
+    {},
+    /sibling: desktop-app, commit/,
+  ],
   ["local", { rule: "local" }, {}, /sibling: desktop-app, commit/],
   ["tip", { rule: "tip" }, { remoteDefault: true }, /sibling: desktop-app, commit/],
   ["pinned that falls back to tip", { rule: "pinned", ref: "no-such-ref" }, { remoteDefault: true }, /read tip instead/],

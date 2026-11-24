@@ -19,7 +19,17 @@
  * comment misread as guidance is visible (and still in the backup).
  */
 import { UsageError } from "../config";
-import { checkCustomName, commentProblem, CUSTOM_NAME_KEY, entryName, fenceProblem, type Catalog, type CatalogEntry, type CustomEntry, type CustomKind } from "./catalog";
+import {
+  checkCustomName,
+  commentProblem,
+  CUSTOM_NAME_KEY,
+  entryName,
+  fenceProblem,
+  type Catalog,
+  type CatalogEntry,
+  type CustomEntry,
+  type CustomKind,
+} from "./catalog";
 import { LEGACY_HEADER_PREFIX, collapseSpace, isLegacyGuide } from "./legacy-guides";
 import { STATUS_GUIDE_LEAD, normalizeForStamp } from "./render";
 
@@ -44,7 +54,8 @@ const WACHIMAN_MARKER = /<!--\s*wachiman:|wachiman:confidence:|wachiman:pr-templ
 const FOOTER = /^<sub>(.*)<\/sub>\s*$/;
 
 /** Whether `line` starts a block of its own, so a text run ends before it. */
-const startsBlock = (line: string) => /^\s*<!--/.test(line) || /^#{1,6}\s/.test(line) || /^\s*<\/?details\b/i.test(line) || /^\s*\|/.test(line) || /^<sub>/.test(line);
+const startsBlock = (line: string) =>
+  /^\s*<!--/.test(line) || /^#{1,6}\s/.test(line) || /^\s*<\/?details\b/i.test(line) || /^\s*\|/.test(line) || /^<sub>/.test(line);
 
 const slug = (name: string) =>
   name
@@ -65,12 +76,18 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
   const result: Adoption = { custom: [], preamble: [], add: [], report: [] };
   const report = (line: string) => result.report.push(line);
 
-  const lockedNames = catalog.sections.filter((e) => e.locked).map((e) => entryName(e)).filter((n): n is string => n !== undefined);
-  const catalogGuides = new Set(catalog.sections.flatMap((e) => (e.guide === undefined ? [] : [collapseSpace(e.guide)])).concat(collapseSpace(catalog.intro)));
+  const lockedNames = catalog.sections
+    .filter((e) => e.locked)
+    .map((e) => entryName(e))
+    .filter((n): n is string => n !== undefined);
+  const catalogGuides = new Set(
+    catalog.sections.flatMap((e) => (e.guide === undefined ? [] : [collapseSpace(e.guide)])).concat(collapseSpace(catalog.intro)),
+  );
   const usedIds = new Set([...catalog.sections.map((e) => e.id), ...existingCustom.map((c) => c.id)]);
   const knownCount = { rows: 0, sections: 0, details: 0 };
 
-  const findKnown = (kind: CatalogEntry["kind"], name: string) => catalog.sections.find((e) => e.kind === kind && entryName(e) !== undefined && same(entryName(e)!, name));
+  const findKnown = (kind: CatalogEntry["kind"], name: string) =>
+    catalog.sections.find((e) => e.kind === kind && entryName(e) !== undefined && same(entryName(e)!, name));
   // A table line is compared as a formatter leaves it equal: the padding of a cell and the width of a separator do not count.
   const canon = (line: string) => normalizeForStamp(line).trim();
   const bodyOf = (e: CatalogEntry): Set<string> => new Set(("body" in e ? e.body : []).map(canon).filter((l) => l !== ""));
@@ -89,7 +106,8 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
     if (e.kind === "status-row") prevRowId = e.id;
     else if (e.kind !== "block" && e.kind !== "footer") prevOtherId = e.id;
     if (!e.default && !result.add.includes(e.id)) {
-      if (existingDrop.includes(e.id)) report(`"${entryName(e)}" is in the old file, but .github/pr-template.json drops it; it stays dropped.`);
+      if (existingDrop.includes(e.id))
+        report(`"${entryName(e)}" is in the old file, but .github/pr-template.json drops it; it stays dropped.`);
       else result.add.push(e.id);
     }
   };
@@ -131,7 +149,9 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
       checkCustomName(name.trim(), CUSTOM_NAME_KEY[kind], kind, "");
     } catch (err) {
       const kindName = kind === "status-row" ? "status row" : kind === "section" ? "section" : "collapsed block";
-      report(`"${clip(name.trim(), 40)}" cannot be a custom ${kindName} (${(err as Error).message.replace(/^:\s*/, "")}); its lines stay in the preamble as they are.`);
+      report(
+        `"${clip(name.trim(), 40)}" cannot be a custom ${kindName} (${(err as Error).message.replace(/^:\s*/, "")}); its lines stay in the preamble as they are.`,
+      );
       return null;
     }
     if (result.custom.some((c) => c.kind === kind && same(c.name, name))) return null;
@@ -151,7 +171,9 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
     result.custom.push(entry);
     if (kind === "status-row") prevRowId = id;
     else prevOtherId = id;
-    report(`kept the ${kind === "status-row" ? "status row" : kind === "section" ? "section" : "collapsed block"} "${entry.name}" as a custom entry${after ? ` after "${after}"` : ""} in .github/pr-template.json.`);
+    report(
+      `kept the ${kind === "status-row" ? "status row" : kind === "section" ? "section" : "collapsed block"} "${entry.name}" as a custom entry${after ? ` after "${after}"` : ""} in .github/pr-template.json.`,
+    );
     return entry;
   };
 
@@ -179,7 +201,8 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
         const inner = collapseSpace(raw.join("\n").trim().replace(/^<!--/, "").replace(/-->$/, ""));
         if (inner === "wachiman:confidence:start") {
           let k = j + 1;
-          while (k < lines.length && collapseSpace(lines[k]!.replace(/^\s*<!--/, "").replace(/-->\s*$/, "")) !== "wachiman:confidence:end") k++;
+          while (k < lines.length && collapseSpace(lines[k]!.replace(/^\s*<!--/, "").replace(/-->\s*$/, "")) !== "wachiman:confidence:end")
+            k++;
           if (k < lines.length) {
             report("replaced the Wachiman block by the catalog's.");
             ctx = null;
@@ -188,7 +211,9 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
             continue;
           }
           // No end marker: nothing says where the block stops, so only the marker line goes (the catalog writes its own) and everything after it is kept.
-          report("a Wachiman start marker has no end marker; the marker line was dropped (the catalog writes its own) and everything after it was kept.");
+          report(
+            "a Wachiman start marker has no end marker; the marker line was dropped (the catalog writes its own) and everything after it was kept.",
+          );
           ctx = null;
           afterKnown = false;
           i = j + 1;
@@ -208,7 +233,9 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
               ctx.custom.guide = inner;
               report(`kept the comment under "${ctx.custom.name}" as its guide: ${clip(inner)}`);
             } else {
-              report(`the comment under "${ctx.custom.name}" was not kept as a guide: the entry is already in .github/pr-template.json and stays as it is (the comment is in the backup): ${clip(inner)}`);
+              report(
+                `the comment under "${ctx.custom.name}" was not kept as a guide: the entry is already in .github/pr-template.json and stays as it is (the comment is in the backup): ${clip(inner)}`,
+              );
             }
           } else {
             report(`treated as a guide comment and replaced: ${clip(inner)}`);
@@ -343,7 +370,9 @@ export function analyzeUnmanaged(fileText: string, { catalog, existingCustom = [
               `The old template has a row of "${entry.name}" on line ${i + 1} with more than one value or markup in its cell: "${clip(trimmed, 60)}". A row keeps one plain value as its guide. Reduce the row to one value (or move the rest out of the table) in the old file and run install again; nothing was written.`,
             );
           } else if (text !== "" && !result.custom.includes(entry)) {
-            report(`the cell of "${entry.name}" was not kept as a guide: the entry is already in .github/pr-template.json and stays as it is (the cell is in the backup).`);
+            report(
+              `the cell of "${entry.name}" was not kept as a guide: the entry is already in .github/pr-template.json and stays as it is (the cell is in the backup).`,
+            );
           } else if (text !== "") {
             entry.guide = text;
             report(`kept the cell of "${entry.name}" as its guide: ${clip(text)}`);
@@ -416,7 +445,14 @@ export function mergeAdoption(base: Record<string, unknown> | null, adoption: Ad
   const nameKey = { "status-row": "label", section: "heading", details: "summary" } as const;
   const serial = (c: CustomEntry) => {
     const { name, kind, ...rest } = c;
-    return { id: rest.id, kind, [nameKey[kind]]: name, required: rest.required, ...(rest.guide !== undefined ? { guide: rest.guide } : {}), ...(rest.after !== undefined ? { after: rest.after } : {}) };
+    return {
+      id: rest.id,
+      kind,
+      [nameKey[kind]]: name,
+      required: rest.required,
+      ...(rest.guide !== undefined ? { guide: rest.guide } : {}),
+      ...(rest.after !== undefined ? { after: rest.after } : {}),
+    };
   };
   for (const c of adoption.custom) custom.push(serial(c) as unknown as CustomEntry);
   if (custom.length > 0) out.custom = custom;

@@ -189,11 +189,15 @@ const parseObject = (body: string): Record<string, unknown> | undefined => {
 };
 
 const post = (ledgerUrl: string, route: string, token: string, payload: unknown, curl: CurlFn) =>
-  call(curl, ["-X", "POST", `${base(ledgerUrl)}${route}`], [
-    ["header", `Authorization: Bearer ${token}`],
-    ["header", "Content-Type: application/json"],
-    ["data", JSON.stringify(payload)],
-  ]);
+  call(
+    curl,
+    ["-X", "POST", `${base(ledgerUrl)}${route}`],
+    [
+      ["header", `Authorization: Bearer ${token}`],
+      ["header", "Content-Type: application/json"],
+      ["data", JSON.stringify(payload)],
+    ],
+  );
 
 /**
  * A GitHub OIDC token for `audience`. Needs `id-token: write` in the job, which only
@@ -317,7 +321,8 @@ function isReceipt(value: unknown): value is Receipt {
   );
 }
 
-export const receiptFooter = (receipt: Receipt, signature: string) => `<!-- wachi:receipt ${b64url(JSON.stringify(receipt))}.${signature} -->`;
+export const receiptFooter = (receipt: Receipt, signature: string) =>
+  `<!-- wachi:receipt ${b64url(JSON.stringify(receipt))}.${signature} -->`;
 
 const RECEIPT_LINE = /<!-- wachi:receipt ([A-Za-z0-9_-]+)\.([A-Za-z0-9_-]+) -->/g;
 

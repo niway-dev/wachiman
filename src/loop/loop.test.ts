@@ -27,7 +27,15 @@ afterAll(() => {
 
 const cli = join(import.meta.dir, "..", "cli.ts");
 const BRANCH_FILES = ["CLAUDE.md", "img.png", "src/a.ts", "src/b.ts", "src/new.ts"];
-const BLOCKER = { path: "src/a.ts", line: 2, severity: "blocker", topic: "bug", confidence: "high", title: "Off by ten", body: "b is 20, not 2." };
+const BLOCKER = {
+  path: "src/a.ts",
+  line: 2,
+  severity: "blocker",
+  topic: "bug",
+  confidence: "high",
+  title: "Off by ten",
+  body: "b is 20, not 2.",
+};
 
 /** The Claude Code answer for one review call. */
 const answer = (files: string[], findings: object[]) =>
@@ -71,7 +79,10 @@ echo 'no answer scripted'; exit 3
   chmodSync(join(bin, "claude"), 0o755);
   const env: Record<string, string> = { PATH: `${bin}:${process.env.PATH ?? ""}`, HOME: home, USER: "dev", WACHIMAN_VERIFY: "0" };
   const run = (args: string[]) => {
-    const out = Bun.spawnSync([process.execPath, cli, ...args, ...(args[0] === "history" || args[0] === "loop" ? ["--repo-dir", repo.dir] : [])], { env, stdin: "ignore" });
+    const out = Bun.spawnSync(
+      [process.execPath, cli, ...args, ...(args[0] === "history" || args[0] === "loop" ? ["--repo-dir", repo.dir] : [])],
+      { env, stdin: "ignore" },
+    );
     return { code: out.exitCode, stdout: out.stdout.toString(), stderr: out.stderr.toString() };
   };
   return {
@@ -116,7 +127,9 @@ describe("wachiman loop", () => {
     expect(r.code).toBe(10);
     const doc = JSON.parse(r.stdout);
     expect(doc).toMatchObject({ format: "wachiman.loop-round/1", round: 1, maxRounds: 3, exitCode: 10, outcome: { status: "open" } });
-    expect(doc.open).toEqual([expect.objectContaining({ id: s.historyIds()[0], path: "src/a.ts", line: 2, severity: "blocker", status: "open" })]);
+    expect(doc.open).toEqual([
+      expect.objectContaining({ id: s.historyIds()[0], path: "src/a.ts", line: 2, severity: "blocker", status: "open" }),
+    ]);
     expect(doc.released).toEqual([]);
   }, 60_000);
 
@@ -477,7 +490,12 @@ describe("runLoop with a fake review", () => {
       calls,
       distributed,
       siblings,
-      review: ((args: { base?: string; distributedRepo?: boolean; siblings?: string[] }, _repo: string, _env: unknown, io: { stdout: (t: string) => void }) => {
+      review: ((
+        args: { base?: string; distributedRepo?: boolean; siblings?: string[] },
+        _repo: string,
+        _env: unknown,
+        io: { stdout: (t: string) => void },
+      ) => {
         const outcome = outcomes[calls.length] ?? "fail";
         const shape = shapes[calls.length];
         calls.push(args.base ?? "");
@@ -503,7 +521,13 @@ describe("runLoop with a fake review", () => {
   const run = async (repo: BranchRepo, fake: ReturnType<typeof fakeReview>, home: string, ...argv: string[]) => {
     let out = "";
     const err: string[] = [];
-    const code = await runLoop(parseLoopArgs(argv), repo.dir, { WACHIMAN_HOME: home, PATH: process.env.PATH }, { stdout: (t) => (out += t), stderr: (l) => err.push(l), engineVersion: "0" }, { review: fake.review });
+    const code = await runLoop(
+      parseLoopArgs(argv),
+      repo.dir,
+      { WACHIMAN_HOME: home, PATH: process.env.PATH },
+      { stdout: (t) => (out += t), stderr: (l) => err.push(l), engineVersion: "0" },
+      { review: fake.review },
+    );
     return { code, out, err };
   };
 
@@ -575,7 +599,13 @@ describe("runLoop with a fake review", () => {
       expect(fake.calls).toHaveLength(2);
       expect(r.code).toBe(10);
       expect(JSON.parse(r.out).privateContext).toBe(LINE);
-      expect(readLoop(historyRoot(wachimanHome({ WACHIMAN_HOME: home })), repositoryKey(repo.dir).key, git(repo.dir, "symbolic-ref", "--short", "HEAD").trim())?.privateContext).toEqual(PRIV);
+      expect(
+        readLoop(
+          historyRoot(wachimanHome({ WACHIMAN_HOME: home })),
+          repositoryKey(repo.dir).key,
+          git(repo.dir, "symbolic-ref", "--short", "HEAD").trim(),
+        )?.privateContext,
+      ).toEqual(PRIV);
     }, 60_000);
 
     test("the round-cap and review-failed stops carry the line", async () => {
@@ -597,7 +627,13 @@ describe("runLoop with a fake review", () => {
       const none = await run(repo, plain, home);
       expect(none.out).not.toContain("private context");
       expect(JSON.parse((await run(repo, plain, home, "--format", "json")).out).privateContext).toBeUndefined();
-      expect(readLoop(historyRoot(wachimanHome({ WACHIMAN_HOME: home })), repositoryKey(repo.dir).key, git(repo.dir, "symbolic-ref", "--short", "HEAD").trim())?.privateContext).toBeUndefined();
+      expect(
+        readLoop(
+          historyRoot(wachimanHome({ WACHIMAN_HOME: home })),
+          repositoryKey(repo.dir).key,
+          git(repo.dir, "symbolic-ref", "--short", "HEAD").trim(),
+        )?.privateContext,
+      ).toBeUndefined();
     }, 60_000);
   });
 
@@ -696,7 +732,13 @@ describe("runLoop with a fake review", () => {
       throw new UsageError("--base nope is not a commit in this clone.");
     }) as never;
     await expect(
-      runLoop(parseLoopArgs(["--base", "nope"]), repo.dir, { WACHIMAN_HOME: temp("wachiman-home-"), PATH: process.env.PATH }, { stdout: () => {}, stderr: () => {}, engineVersion: "0" }, { review }),
+      runLoop(
+        parseLoopArgs(["--base", "nope"]),
+        repo.dir,
+        { WACHIMAN_HOME: temp("wachiman-home-"), PATH: process.env.PATH },
+        { stdout: () => {}, stderr: () => {}, engineVersion: "0" },
+        { review },
+      ),
     ).rejects.toThrow(UsageError);
     expect(calls).toBe(1);
   }, 30_000);
@@ -705,7 +747,9 @@ describe("runLoop with a fake review", () => {
 describe("parseLoopArgs", () => {
   test("the defaults and every flag, in both spellings", () => {
     expect(parseLoopArgs([])).toEqual({ maxRounds: 3, format: "terminal", verify: undefined });
-    expect(parseLoopArgs(["--base", "main", "--max-rounds", "5", "--format=json", "--profile", "isolated:work", "--no-verify", "--max-depth=9"])).toEqual({
+    expect(
+      parseLoopArgs(["--base", "main", "--max-rounds", "5", "--format=json", "--profile", "isolated:work", "--no-verify", "--max-depth=9"]),
+    ).toEqual({
       base: "main",
       maxRounds: 5,
       format: "json",
@@ -735,7 +779,10 @@ describe("parseLoopArgs", () => {
 
 describe("help", () => {
   test("--help lists loop and its exit codes", () => {
-    const out = Bun.spawnSync([process.execPath, cli, "loop", "--help"], { env: { PATH: process.env.PATH ?? "", HOME: temp("h-") }, stdin: "ignore" });
+    const out = Bun.spawnSync([process.execPath, cli, "loop", "--help"], {
+      env: { PATH: process.env.PATH ?? "", HOME: temp("h-") },
+      stdin: "ignore",
+    });
     const text = out.stdout.toString();
     expect(text).toContain("wachiman loop [--base <ref>] [--max-rounds <n>]");
     expect(text).toMatch(/\n\s+0\s+Converged/);
@@ -745,7 +792,20 @@ describe("help", () => {
 });
 
 describe("memory candidates in the round", () => {
-  const ADD = ["memory", "add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "Renames show up in every importer.", "--pr", "709"];
+  const ADD = [
+    "memory",
+    "add",
+    "--kind",
+    "convention",
+    "--scope",
+    "src/**",
+    "--rule",
+    "Prefer named exports.",
+    "--why",
+    "Renames show up in every importer.",
+    "--pr",
+    "709",
+  ];
 
   test("a proposable candidate whose scope matches a finding's file is listed in the JSON and terminal output; with none the output is unchanged", () => {
     const plain = scenario();
@@ -756,7 +816,10 @@ describe("memory candidates in the round", () => {
     const s = scenario();
     s.script(1, BRANCH_FILES, [BLOCKER]);
     s.script(2, BRANCH_FILES, [BLOCKER]);
-    const added = Bun.spawnSync([process.execPath, cli, ...ADD, "--repo-dir", s.repo.dir], { env: { PATH: process.env.PATH ?? "", HOME: s.home }, stdin: "ignore" });
+    const added = Bun.spawnSync([process.execPath, cli, ...ADD, "--repo-dir", s.repo.dir], {
+      env: { PATH: process.env.PATH ?? "", HOME: s.home },
+      stdin: "ignore",
+    });
     expect(added.exitCode).toBe(0);
     const id = added.stdout.toString().match(/candidate ([0-9a-f]{7}) saved/)![1];
     const r = s.loop("--base", "main", "--format", "json");

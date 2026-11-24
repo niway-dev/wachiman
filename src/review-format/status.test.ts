@@ -67,7 +67,9 @@ describe("computeStatus: the first mode that applies is the lead", () => {
   });
 
   test("mode 6, questions: needs-a-person items plus open 'connects to' questions", () => {
-    const status = computeStatus(makeView({ needsPerson: [person(), person()], contracts: { open: [contract("open")], closed: [contract("closed")] } }));
+    const status = computeStatus(
+      makeView({ needsPerson: [person(), person()], contracts: { open: [contract("open")], closed: [contract("closed")] } }),
+    );
     expect(status.mode).toBe(6);
     expect(status.emoji).toBe("🟣");
     expect(status.lead).toBe("3 questions for you");
@@ -106,7 +108,9 @@ describe("computeStatus: the first mode that applies is the lead", () => {
     const status = computeStatus(makeView({ findings: { preExisting: [fix({ origin: "pre-existing" })] } }));
     expect(status.mode).toBe(7);
     expect(status.parts).toEqual(["1 pre-existing issue to fix, not from this PR"]);
-    const blockers = computeStatus(makeView({ findings: { preExisting: [blocker({ origin: "pre-existing" }), fix({ origin: "pre-existing" })] } }));
+    const blockers = computeStatus(
+      makeView({ findings: { preExisting: [blocker({ origin: "pre-existing" }), fix({ origin: "pre-existing" })] } }),
+    );
     expect(blockers.parts).toEqual(["2 pre-existing issues to fix, not from this PR"]);
   });
 
@@ -150,7 +154,9 @@ describe("computeStatus: the first mode that applies is the lead", () => {
   });
 
   test("a partial verifier is named too, with its count when it has one", () => {
-    expect(computeStatus(makeView({ verifier: { status: "partial", stop: "budget", notChecked: 1 } })).parts).toEqual(["verifier did not finish: 1 finding not checked"]);
+    expect(computeStatus(makeView({ verifier: { status: "partial", stop: "budget", notChecked: 1 } })).parts).toEqual([
+      "verifier did not finish: 1 finding not checked",
+    ]);
     expect(computeStatus(makeView({ verifier: { status: "partial", notChecked: 0 } })).parts).toEqual(["verifier did not finish"]);
   });
 
@@ -241,7 +247,9 @@ describe("renderStatusLine", () => {
   });
 
   test("a lead with a long list of parts stays one line", () => {
-    const line = renderStatusLine(computeStatus(makeView({ ...partial(2), findings: { toFix: [blocker(), fix()], consider: [consider()] }, earlierThreads: 2 })));
+    const line = renderStatusLine(
+      computeStatus(makeView({ ...partial(2), findings: { toFix: [blocker(), fix()], consider: [consider()] }, earlierThreads: 2 })),
+    );
     expect(line).not.toContain("\n");
     expect(line.length).toBeLessThan(300);
   });

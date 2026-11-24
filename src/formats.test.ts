@@ -99,7 +99,9 @@ describe("review result /2", () => {
     expect(validate(resultSchemaV2, withMember)).toEqual([]);
     const noSnapshot = clone();
     (noSnapshot.findings[0].verification.checked[0] as { snapshot: string }).snapshot = "tree";
-    expect(validate(resultSchemaV2, noSnapshot)).toEqual(['$.findings[0].verification.checked[0].snapshot: "tree" is not one of ["base","head"]']);
+    expect(validate(resultSchemaV2, noSnapshot)).toEqual([
+      '$.findings[0].verification.checked[0].snapshot: "tree" is not one of ["base","head"]',
+    ]);
     const unreached = clone();
     (unreached.findings[0].verification as { unreached: unknown }).unreached = "yes";
     expect(validate(resultSchemaV2, unreached)).toHaveLength(1);
@@ -209,7 +211,13 @@ describe("review result /2", () => {
       expect(result.privateContext).toEqual({ members: ["desktop-app"] });
       expect(result.siblings![0]!.sourceOfTruthOf).toEqual(["brand-palette"]);
       expect(validate(resultSchemaV2, JSON.parse(JSON.stringify(result)))).toEqual([]);
-      for (const key of ["siblings", "workspaceContractsApplied", "noWorkspaceContractApplied", "privateContext", "removedSiblingReferences"]) {
+      for (const key of [
+        "siblings",
+        "workspaceContractsApplied",
+        "noWorkspaceContractApplied",
+        "privateContext",
+        "removedSiblingReferences",
+      ]) {
         expect(JSON.stringify(fixtures.resultV2), key).not.toContain(`"${key}"`);
       }
       expect(validate(resultSchemaV2, fixtures.resultV2)).toEqual([]);
@@ -264,7 +272,12 @@ describe("review result /2", () => {
   test("a /2 result without verification downgrades with no added notice", () => {
     const off = clone();
     delete off.verification;
-    off.findings = off.findings.map((f) => ({ ...f, origin: "unknown" as const, tier: f.severity === "fix" ? "Important" : "Nit", verification: { status: "unverified" as const, reason: "", checked: [] } }));
+    off.findings = off.findings.map((f) => ({
+      ...f,
+      origin: "unknown" as const,
+      tier: f.severity === "fix" ? "Important" : "Nit",
+      verification: { status: "unverified" as const, reason: "", checked: [] },
+    }));
     const v1 = toResultV1(off);
     expect(v1.execution.notices).toEqual([]);
     expect(validate(resultSchema, JSON.parse(JSON.stringify(v1)))).toEqual([]);

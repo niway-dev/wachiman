@@ -22,13 +22,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { TokenUsage } from "../cost";
 import { locatePrompt as locate } from "./locate";
-import {
-  DEFAULT_CALL_TIMEOUT_S,
-  type NeutralTool,
-  type ProviderAdapter,
-  type ProviderRequest,
-  type ProviderResult,
-} from "./types";
+import { DEFAULT_CALL_TIMEOUT_S, type NeutralTool, type ProviderAdapter, type ProviderRequest, type ProviderResult } from "./types";
 
 const BINARY = "codex";
 /** Any OpenAI key shape: `sk-…`, `sk-proj-…`, `sk-svcacct-…`. Also matches other vendors' `sk-` keys, which is fine. */
@@ -78,7 +72,7 @@ export interface Price {
  * 12-hour one). Nothing in the Codex event stream or this adapter's request says which lifetime Codex
  * uses, so the higher one is assumed: the cost is a budget ceiling, and counting too much is safer.
  */
-export const CACHE_WRITE_MULTIPLIER = 2.5
+export const CACHE_WRITE_MULTIPLIER = 2.5;
 
 /**
  * List prices of the models this adapter has been set up for. A model not listed here needs
@@ -93,9 +87,7 @@ export const PRICES: Record<string, Price> = {
 export function parsePrice(raw: string): Price {
   const parts = raw.split(",").map((p) => Number(p.trim()));
   if (parts.length < 3 || parts.length > 4 || parts.some((n) => !Number.isFinite(n) || n < 0)) {
-    throw new Error(
-      `WACHIMAN_PRICE_PER_MTOK must be "input,cached_input,output[,cache_write]" in USD per million tokens, got "${raw}".`,
-    );
+    throw new Error(`WACHIMAN_PRICE_PER_MTOK must be "input,cached_input,output[,cache_write]" in USD per million tokens, got "${raw}".`);
   }
   return { input: parts[0], cachedInput: parts[1], output: parts[2], ...(parts.length === 4 ? { cacheWrite: parts[3] } : {}) };
 }
@@ -155,10 +147,7 @@ const PASSED_THROUGH = ["PATH", "TMPDIR", "TERM", "LANG", "CI", "GITHUB_ACTIONS"
  * adapter's own directories. The key is passed as `CODEX_API_KEY`, which `codex exec` reads; it
  * is never `OPENAI_BASE_URL`, a proxy or `NODE_OPTIONS`, any of which could send it elsewhere.
  */
-export function buildChildEnv(
-  env: Record<string, string | undefined>,
-  dirs: { home: string; codexHome: string },
-) {
+export function buildChildEnv(env: Record<string, string | undefined>, dirs: { home: string; codexHome: string }) {
   const child: Record<string, string> = {};
   for (const [name, value] of Object.entries(env)) {
     if (value === undefined) continue;
@@ -366,8 +355,7 @@ export class CodexProvider implements ProviderAdapter {
           structuredOutput = undefined;
         }
       }
-      const isError =
-        timedOut || run.status !== 0 || failure !== null || (request.outputSchema !== undefined && !structuredOutput);
+      const isError = timedOut || run.status !== 0 || failure !== null || (request.outputSchema !== undefined && !structuredOutput);
       const costUsd = costOf(usage, this.price ?? { input: 0, cachedInput: 0, output: 0 });
       return {
         structuredOutput,

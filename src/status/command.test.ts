@@ -15,7 +15,14 @@ afterAll(() => {
 });
 
 const NOW = new Date("2026-11-10T12:00:00Z");
-const args = (over: Partial<StatusArgs> = {}): StatusArgs => ({ json: false, allRepos: false, by: "day", source: "all", refresh: false, ...over });
+const args = (over: Partial<StatusArgs> = {}): StatusArgs => ({
+  json: false,
+  allRepos: false,
+  by: "day",
+  source: "all",
+  refresh: false,
+  ...over,
+});
 
 /** Illustrative run: only the fields `status` reads are filled in. */
 function run(repository: ReturnType<typeof repositoryKey>, savedAt: string, cost: number, model: string, profile: string): HistoryRun {
@@ -27,7 +34,13 @@ function run(repository: ReturnType<typeof repositoryKey>, savedAt: string, cost
     result: {
       format: profile === "work" ? "wachiman.review-result/2" : "wachiman.review-result/1",
       change: { head: { sha: "a".repeat(40), ref: "feat/x" }, title: "feat/x" },
-      provider: { label: "L", model, effort: "high", profile: profile === "work" ? "default" : profile, ...(profile === "work" ? { account: { name: "work", kind: "managed", rung: "flag" } } : {}) },
+      provider: {
+        label: "L",
+        model,
+        effort: "high",
+        profile: profile === "work" ? "default" : profile,
+        ...(profile === "work" ? { account: { name: "work", kind: "managed", rung: "flag" } } : {}),
+      },
       execution: { costUsdEstimate: cost, usage: { input: 1, output: 2, cacheRead: 3, cacheWrite: 4 } },
       coverage: { expected: [], reviewed: [], skipped: [] },
       findings: [],
@@ -59,7 +72,9 @@ const capture = () => {
 
 describe("parseStatusArgs", () => {
   test("filters and grouping, in both spellings", () => {
-    expect(parseStatusArgs(["--since=7d", "--model", "sonnet", "--by", "model", "--json"])).toEqual(args({ sinceDays: 7, model: "sonnet", by: "model", json: true }));
+    expect(parseStatusArgs(["--since=7d", "--model", "sonnet", "--by", "model", "--json"])).toEqual(
+      args({ sinceDays: 7, model: "sonnet", by: "model", json: true }),
+    );
   });
   test("rejects a bad value, an unknown option and a conflicting pair", () => {
     expect(() => parseStatusArgs(["--since", "week"])).toThrow(UsageError);
@@ -110,7 +125,14 @@ describe("runStatus", () => {
     const doc = JSON.parse(out.join(""));
     expect(doc.format).toBe("wachiman.status/1");
     expect(doc.totals).toEqual({ runs: 2, costUsdEstimate: 0.75 });
-    expect(doc.runs[0]).toMatchObject({ repository: "alpha", model: "claude-sonnet-5-5", effort: "high", profile: "isolated", change: "feat/x", findings: 0 });
+    expect(doc.runs[0]).toMatchObject({
+      repository: "alpha",
+      model: "claude-sonnet-5-5",
+      effort: "high",
+      profile: "isolated",
+      change: "feat/x",
+      findings: 0,
+    });
   });
   test("no history yet points to --history and doctor; no match says so", () => {
     const home = mkdtempSync(join(tmpdir(), "wachiman-status-empty-"));
@@ -125,19 +147,18 @@ describe("runStatus", () => {
   });
 });
 
-
 describe("status review regressions", () => {
   test("named account wins over execution profile; old results retain their mode", () => {
     const repository = { key: "alpha-123", name: "alpha", keyedBy: "remote", path: "/p" } as const;
     const named = flatten(run(repository, NOW.toISOString(), 1, "sonnet", "work"));
     const old = flatten(run(repository, NOW.toISOString(), 2, "sonnet", "isolated"));
     expect(named.profile).toBe("work");
-    expect(group([named, old], "profile").map(g => g.key)).toEqual(["isolated", "work"]);
+    expect(group([named, old], "profile").map((g) => g.key)).toEqual(["isolated", "work"]);
   });
-  test.each([0, 7, 30])("retention follows the configured %s days", days => {
+  test.each([0, 7, 30])("retention follows the configured %s days", (days) => {
     const seed = seeded();
-    const {out, io} = capture();
-    runStatus(args({json: true}), seed.repo, {...seed.env, WACHIMAN_HISTORY_DAYS: String(days)}, io);
+    const { out, io } = capture();
+    runStatus(args({ json: true }), seed.repo, { ...seed.env, WACHIMAN_HISTORY_DAYS: String(days) }, io);
     expect(JSON.parse(out.join("")).retentionDays).toBe(days);
   });
   test("repository scopes keep identical names separate and reject ambiguous names", () => {
@@ -147,18 +168,21 @@ describe("status review regressions", () => {
     const key = repositoryKey(other);
     writeRun(join(seed.home, "history"), run(key, "2026-11-10T10:00:00.000Z", 2, "sonnet", "isolated"));
     const all = capture();
-    runStatus(args({json: true, allRepos: true, by: "repo"}), seed.repo, seed.env, all.io);
+    runStatus(args({ json: true, allRepos: true, by: "repo" }), seed.repo, seed.env, all.io);
     const doc = JSON.parse(all.out.join(""));
     expect(doc.filters.scope).toBe("all-repos");
     expect(doc.totals.runs).toBe(4);
     expect(doc.groups).toHaveLength(2);
-    expect(doc.groups.map(g => g.key)).toContain(key.key);
+    expect(doc.groups.map((g) => g.key)).toContain(key.key);
     const selected = capture();
-    runStatus(args({json: true, repo: key.key}), other, seed.env, selected.io);
-    expect(JSON.parse(selected.out.join(""))).toMatchObject({filters: {scope: "repo", repo: key.key}, totals: {runs: 1, costUsdEstimate: 2}});
-    expect(() => runStatus(args({repo: "alpha"}), seed.repo, seed.env, capture().io)).toThrow("ambiguous");
+    runStatus(args({ json: true, repo: key.key }), other, seed.env, selected.io);
+    expect(JSON.parse(selected.out.join(""))).toMatchObject({
+      filters: { scope: "repo", repo: key.key },
+      totals: { runs: 1, costUsdEstimate: 2 },
+    });
+    expect(() => runStatus(args({ repo: "alpha" }), seed.repo, seed.env, capture().io)).toThrow("ambiguous");
     const local = capture();
-    runStatus(args({json: true}), seed.repo, seed.env, local.io);
-    expect(JSON.parse(local.out.join(""))).toMatchObject({filters: {scope: "this-repo"}, totals: {runs: 3}});
+    runStatus(args({ json: true }), seed.repo, seed.env, local.io);
+    expect(JSON.parse(local.out.join(""))).toMatchObject({ filters: { scope: "this-repo" }, totals: { runs: 3 } });
   });
 });

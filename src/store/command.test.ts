@@ -43,7 +43,15 @@ describe("parseDashboardArgs", () => {
     expect(parseDashboardArgs(["--out", "a.html"])).toEqual({ json: false, out: "a.html" });
     expect(parseDashboardArgs(["--out=a.html"])).toEqual({ json: false, out: "a.html" });
     expect(parseDashboardArgs(["--help"])).toEqual({ help: true });
-    for (const bad of [["--frobnicate"], ["stray"], ["--json=1"], ["--out"], ["--out", "--json"], ["--out="], ["--json", "--out", "a.html"]]) {
+    for (const bad of [
+      ["--frobnicate"],
+      ["stray"],
+      ["--json=1"],
+      ["--out"],
+      ["--out", "--json"],
+      ["--out="],
+      ["--json", "--out", "a.html"],
+    ]) {
       expect(() => parseDashboardArgs(bad)).toThrow(UsageError);
     }
   });
@@ -62,7 +70,14 @@ describe("wachiman dashboard --json", () => {
     expect(doc.findings).toEqual(EXPECTED.findings);
     expect(doc.loops.totals).toEqual(EXPECTED.loops.totals);
     expect(doc.loops.branches).toHaveLength(2);
-    expect(doc.loops.branches[0]).toMatchObject({ repositoryKey: ALPHA.key, branch: "feat/x", base: "main", outcome: "converged", rounds: 2, exitReason: "not recorded" });
+    expect(doc.loops.branches[0]).toMatchObject({
+      repositoryKey: ALPHA.key,
+      branch: "feat/x",
+      base: "main",
+      outcome: "converged",
+      rounds: 2,
+      exitReason: "not recorded",
+    });
     expect(doc.prConfidence.status).toBe("not recorded");
   });
 
@@ -116,18 +131,26 @@ describe("loadFigures", () => {
     const { wachiman, index } = fixtureHome();
     let reads = 0;
     const lines: string[] = [];
-    const figs = loadFigures(wachiman, (l) => lines.push(l), (path) => {
-      if (reads++ === 0) throw new Error("no such table: runs");
-      return readFigures(path);
-    });
+    const figs = loadFigures(
+      wachiman,
+      (l) => lines.push(l),
+      (path) => {
+        if (reads++ === 0) throw new Error("no such table: runs");
+        return readFigures(path);
+      },
+    );
     expect(reads).toBe(2);
     expect(figs.totals).toEqual(EXPECTED.totals);
     expect(existsSync(index)).toBe(true);
     // A second failure is the caller's error.
     expect(() =>
-      loadFigures(wachiman, () => {}, () => {
-        throw new Error("no such table: runs");
-      }),
+      loadFigures(
+        wachiman,
+        () => {},
+        () => {
+          throw new Error("no such table: runs");
+        },
+      ),
     ).toThrow("no such table");
   });
 });
@@ -185,7 +208,22 @@ describe("wachiman dashboard (HTML)", () => {
     expect(r.stdout).toBe(`${path}\n`);
     expect(statSync(path).mode & 0o777).toBe(0o600);
     const html = readFileSync(path, "utf8");
-    for (const text of ["Spend per day", "2026-11-01", "2026-11-02", "$0.75", "$1.75", "$2.50", "alpha", "beta", "Blocker", "feat/x", "fix/y", "converged", "PR Confidence", "not recorded"]) {
+    for (const text of [
+      "Spend per day",
+      "2026-11-01",
+      "2026-11-02",
+      "$0.75",
+      "$1.75",
+      "$2.50",
+      "alpha",
+      "beta",
+      "Blocker",
+      "feat/x",
+      "fix/y",
+      "converged",
+      "PR Confidence",
+      "not recorded",
+    ]) {
       expect(html).toContain(text);
     }
     expect(html).toContain("<svg");
@@ -230,7 +268,38 @@ describe("wachiman dashboard (HTML)", () => {
     expect(page).toContain(esc(hostile));
     expect(page).toContain("&lt;script&gt;alert(1)&lt;/script&gt;");
     // The only tags are the ones the page itself writes.
-    expect(page.match(/<([a-z][a-z0-9]*)/g)!.map((t) => t.slice(1)).filter((t) => !["html", "head", "meta", "title", "style", "body", "main", "h1", "h2", "p", "div", "b", "table", "thead", "tbody", "tr", "th", "td", "span", "svg", "rect", "code"].includes(t))).toEqual([]);
+    expect(
+      page
+        .match(/<([a-z][a-z0-9]*)/g)!
+        .map((t) => t.slice(1))
+        .filter(
+          (t) =>
+            ![
+              "html",
+              "head",
+              "meta",
+              "title",
+              "style",
+              "body",
+              "main",
+              "h1",
+              "h2",
+              "p",
+              "div",
+              "b",
+              "table",
+              "thead",
+              "tbody",
+              "tr",
+              "th",
+              "td",
+              "span",
+              "svg",
+              "rect",
+              "code",
+            ].includes(t),
+        ),
+    ).toEqual([]);
   });
 
   test("never runs claude or gh, and has no flag that opens a browser", () => {
@@ -252,7 +321,9 @@ describe("wachiman dashboard (HTML)", () => {
     const { home } = fixtureHome();
     const help = wachiman(["--help"], home);
     expect(help.stdout).toMatch(/^ {2}dashboard {3}/m);
-    expect(wachiman(["dashboard", "--help"], home).stdout).toContain("Usage\n  wachiman dashboard [--json] [--out <file>] [--refresh] [--repo-dir <dir>]\n");
+    expect(wachiman(["dashboard", "--help"], home).stdout).toContain(
+      "Usage\n  wachiman dashboard [--json] [--out <file>] [--refresh] [--repo-dir <dir>]\n",
+    );
     const repo = temp("wachiman-dash-cwd-");
     expect(wachiman(["dashboard", "--json", "--repo-dir", repo], home).code).toBe(0);
     expect(wachiman(["dashboard", "--json", "--repo-dir", join(repo, "missing")], home).code).toBe(2);

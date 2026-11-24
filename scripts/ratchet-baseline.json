@@ -1,0 +1,192 @@
+{
+  "lint": {
+    "@typescript-eslint/no-explicit-any": {
+      "src/accounts/config.test.ts": 2,
+      "src/history/command.test.ts": 1,
+      "src/history/index.test.ts": 1,
+      "src/history/match.test.ts": 2,
+      "src/history/store.test.ts": 13,
+      "src/init/json.test.ts": 7,
+      "src/local.ts": 1,
+      "src/loop/state.ts": 4,
+      "src/memory/candidates.ts": 3,
+      "src/memory/hygiene.ts": 1,
+      "src/pr-template/gh.ts": 1,
+      "src/profiles.test.ts": 2,
+      "src/store/index.ts": 2,
+      "test/release-workflow.test.ts": 2
+    },
+    "@typescript-eslint/no-unused-expressions": {
+      "src/history/command.ts": 4,
+      "src/pr-state-wait.ts": 1,
+      "src/pr-state.ts": 3,
+      "src/status/command.ts": 3
+    },
+    "@typescript-eslint/no-unused-vars": {
+      "src/accounts/config.test.ts": 1,
+      "src/cli.ts": 1,
+      "src/distributed.fake.test.ts": 1,
+      "src/loop/command.ts": 1,
+      "src/loop/loop.test.ts": 1,
+      "src/memory/remember.test.ts": 1,
+      "src/pr-state-wait.test.ts": 5,
+      "src/review-format/render.ts": 1,
+      "src/setup/run.test.ts": 1
+    },
+    "bun:test/no-export": {
+      "src/fidelity/summary.test.ts": 1,
+      "src/github-mode-canary.fake.test.ts": 2,
+      "test/version-pins.test.ts": 1
+    },
+    "max-depth": {
+      "src/pr-template/adopt.ts": 5,
+      "src/review-format/paths.ts": 1,
+      "src/upgrade/command.ts": 2,
+      "src/wizard/launcher.ts": 1,
+      "src/workspace/run.ts": 1
+    },
+    "no-control-regex": {
+      "src/pr-template/catalog.ts": 1,
+      "src/sinks/sinks.test.ts": 1,
+      "src/wizard/mascot.test.ts": 2,
+      "src/wizard/style.ts": 1
+    },
+    "no-empty": {
+      "src/connectors/working-tree.test.ts": 1,
+      "src/engine.ts": 1
+    },
+    "no-misleading-character-class": {
+      "src/memory/candidates.ts": 1
+    },
+    "no-regex-spaces": {
+      "src/history/command.test.ts": 2,
+      "src/init/render.test.ts": 1,
+      "src/local.test.ts": 5,
+      "src/repo-settings.test.ts": 1,
+      "src/workflow-askers.test.ts": 4
+    },
+    "no-useless-assignment": {
+      "src/engine.ts": 1,
+      "src/memory/report.ts": 1,
+      "src/pr-template/check-run.ts": 1,
+      "src/profiles.ts": 1
+    },
+    "no-useless-escape": {
+      "src/engine.test.ts": 2,
+      "src/fidelity/block.test.ts": 1,
+      "src/fidelity/summary.test.ts": 1,
+      "src/pr-template/pr-risk.ts": 1,
+      "src/sibling-references.ts": 1
+    },
+    "prefer-const": {
+      "src/pr-state-wait.ts": 1,
+      "src/upgrade/command.ts": 1
+    },
+    "preserve-caught-error": {
+      "src/ledger-read/pull.ts": 3,
+      "src/memory/hygiene.ts": 2
+    }
+  },
+  "check": {
+    "TS1375": {
+      "scripts/prompt-golden.ts": 1
+    },
+    "TS1484": {
+      "src/providers/claude-code.ts": 2
+    },
+    "TS18047": {
+      "src/memory/report.test.ts": 4
+    },
+    "TS18048": {
+      "src/connectors/working-tree.ts": 6,
+      "src/distributed.fake.test.ts": 2,
+      "src/inline-finding.test.ts": 1,
+      "src/pr-template/format.ts": 4,
+      "test/provider-isolation.test.ts": 1
+    },
+    "TS2322": {
+      "src/engine.fake.test.ts": 1,
+      "src/engine.ts": 3,
+      "src/fidelity/block.test.ts": 2,
+      "src/fidelity/grade.test.ts": 13,
+      "src/review-format/fit.test.ts": 1,
+      "src/review-format/fixtures/scenarios.ts": 2,
+      "src/review-format/render.test.ts": 2,
+      "src/review-format/view.test.ts": 7,
+      "src/setup/run.test.ts": 1,
+      "src/sinks/sinks.test.ts": 1,
+      "src/wizard/ui.ts": 4,
+      "src/workspace/versions.test.ts": 1
+    },
+    "TS2339": {
+      "src/connectors/working-tree.test.ts": 1,
+      "src/palette-workspace.e2e.test.ts": 3,
+      "src/setup/run.ts": 1,
+      "src/upgrade/command.ts": 1,
+      "src/wizard/launcher-fancy.test.ts": 3,
+      "src/wizard/prompt-fancy.test.ts": 3,
+      "test/provider-isolation.test.ts": 1
+    },
+    "TS2345": {
+      "src/ask.ts": 1,
+      "src/engine.fake.test.ts": 1,
+      "src/engine.test.ts": 3,
+      "src/engine.ts": 5,
+      "src/pr-state-wait.test.ts": 27,
+      "src/review-format/view.test.ts": 2
+    },
+    "TS2352": {
+      "src/formats.test.ts": 1
+    },
+    "TS2353": {
+      "src/engine.fake.test.ts": 3,
+      "src/engine.test.ts": 1
+    },
+    "TS2365": {
+      "src/pr-template/format.ts": 1
+    },
+    "TS2493": {
+      "src/engine.test.ts": 1
+    },
+    "TS2532": {
+      "src/engine.fake.test.ts": 1
+    },
+    "TS2739": {
+      "src/sinks/sinks.test.ts": 1
+    },
+    "TS2741": {
+      "src/ledger-read/pull.ts": 1,
+      "src/memory/threads.proposal.fake.test.ts": 1,
+      "src/review-format/status.test.ts": 2,
+      "src/skills/install.test.ts": 20
+    },
+    "TS2769": {
+      "src/accounts/config.test.ts": 1,
+      "src/config.test.ts": 1,
+      "src/contracts.test.ts": 1,
+      "src/cost.test.ts": 1,
+      "src/doctor/doctor.test.ts": 1,
+      "src/engine.test.ts": 1,
+      "src/help.test.ts": 5,
+      "src/local.test.ts": 1,
+      "src/memory/remember.test.ts": 1,
+      "src/pr-state-wait.test.ts": 1,
+      "src/pr-template/pr-risk.test.ts": 1,
+      "src/pr-template/run.test.ts": 2,
+      "src/sibling-references.test.ts": 3,
+      "src/spend.fake.test.ts": 1,
+      "src/workspace/user-file.test.ts": 2,
+      "test/memory-workflow.test.ts": 1
+    },
+    "TS7006": {
+      "src/status/command.test.ts": 1,
+      "src/wizard/launcher-fancy.test.ts": 1
+    },
+    "TS7016": {
+      "test/launcher.test.ts": 1
+    },
+    "TS7053": {
+      "src/accounts/resolve.test.ts": 2
+    }
+  }
+}

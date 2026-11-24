@@ -36,10 +36,7 @@ export function readPins(text: string): string[] {
 }
 
 export type PinOutcome =
-  | { kind: "rewritten"; from: string }
-  | { kind: "current" }
-  | { kind: "newer"; from: string }
-  | { kind: "sha" | "other"; from: string };
+  { kind: "rewritten"; from: string } | { kind: "current" } | { kind: "newer"; from: string } | { kind: "sha" | "other"; from: string };
 
 /**
  * Rewrites every release-tag pin older than `target` (`v1.2.3`) and leaves the rest of the text

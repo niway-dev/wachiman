@@ -21,7 +21,12 @@ function safeReal(p: string) {
 }
 
 /** The engine's own checkout: a test that gives no `repoDir` reviews it as the head. */
-const CHECKOUT = new Set([process.cwd(), safeReal(process.cwd()), join(import.meta.dir, "..", ".."), safeReal(join(import.meta.dir, "..", ".."))]);
+const CHECKOUT = new Set([
+  process.cwd(),
+  safeReal(process.cwd()),
+  join(import.meta.dir, "..", ".."),
+  safeReal(join(import.meta.dir, "..", "..")),
+]);
 
 /**
  * Paths that differ per run become placeholders, so a prompt compares across machines. When the
@@ -32,7 +37,10 @@ const CHECKOUT = new Set([process.cwd(), safeReal(process.cwd()), join(import.me
 export function normalisePrompt(request: ProviderRequest) {
   let text = request.prompt;
   if (CHECKOUT.has(request.cwd) || CHECKOUT.has(safeReal(request.cwd))) {
-    text = text.replace(/<evidence [^>]*>\n[\s\S]*?\n<\/evidence>/g, "<evidence>(found in the engine's own checkout: not pinned)</evidence>");
+    text = text.replace(
+      /<evidence [^>]*>\n[\s\S]*?\n<\/evidence>/g,
+      "<evidence>(found in the engine's own checkout: not pinned)</evidence>",
+    );
   }
   const head = new Set([request.cwd, safeReal(request.cwd)]);
   const roots = [request.cwd, ...request.addDirs].flatMap((p) => [p, safeReal(p)]);

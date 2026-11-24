@@ -61,7 +61,8 @@ function isGuide(c: DescriptionComment, parsed: ParsedDescription, texts: Set<st
 function tagEndings(text: string): { tagged: string; crlf: string; cr: string } | null {
   if (!text.includes("\r")) return null;
   const free: string[] = [];
-  for (let code = 0xe000; free.length < 2 && code <= 0xf8ff; code++) if (!text.includes(String.fromCharCode(code))) free.push(String.fromCharCode(code));
+  for (let code = 0xe000; free.length < 2 && code <= 0xf8ff; code++)
+    if (!text.includes(String.fromCharCode(code))) free.push(String.fromCharCode(code));
   if (free.length < 2) return null;
   const [crlf, cr] = free as [string, string];
   return { tagged: text.replace(/\r\n|\r/g, (m) => (m === "\r\n" ? crlf : cr)), crlf, cr };
@@ -151,7 +152,7 @@ function collapseAround(text: string, marks: number[], crlf?: string, cr?: strin
   const keep = (from: number, to: number) => {
     for (let k = from; k <= to; k++) out.push({ line: lines[k]!, end: ends[k]! });
   };
-  for (let i = 0; i < lines.length; ) {
+  for (let i = 0; i < lines.length;) {
     if (!isBlank(lines[i]!)) {
       keep(i, i);
       i += 1;

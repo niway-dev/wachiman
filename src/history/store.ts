@@ -26,13 +26,7 @@ import { UsageError } from "../config";
 import { spawnGit, type GitRunner } from "../evidence";
 import { REVIEW_RESULT_V1, REVIEW_RESULT_V2, type ReviewResultV2 } from "../formats";
 import { annotateUnverified } from "../verify";
-import {
-  HISTORY_RUN_FORMAT,
-  VERDICT_WORDS,
-  type HistoryRepository,
-  type HistoryRun,
-  type VerdictLine,
-} from "./types";
+import { HISTORY_RUN_FORMAT, VERDICT_WORDS, type HistoryRepository, type HistoryRun, type VerdictLine } from "./types";
 
 export { HISTORY_RUN_FORMAT };
 
@@ -87,7 +81,13 @@ export function normaliseRemote(raw: string): { text: string; parsed: boolean } 
     text = url;
     parsed = false;
   }
-  return { text: text.replace(/\/+$/, "").replace(/\.git$/, "").replace(/\/+$/, ""), parsed };
+  return {
+    text: text
+      .replace(/\/+$/, "")
+      .replace(/\.git$/, "")
+      .replace(/\/+$/, ""),
+    parsed,
+  };
 }
 
 const safeName = (name: string) => name.replace(/[^A-Za-z0-9._-]/g, "-").replace(/^[.-]+/, "") || "repo";
@@ -174,10 +174,17 @@ function parseRun(path: string): HistoryRun {
   if (!parsed || typeof parsed !== "object") throw new Error("not an object");
   if (parsed.format !== HISTORY_RUN_FORMAT) {
     const message = `format ${JSON.stringify(parsed.format)}`;
-    throw typeof parsed.format === "string" && parsed.format.startsWith("wachiman.history-run/") ? new ForeignFormat(message) : new Error(message);
+    throw typeof parsed.format === "string" && parsed.format.startsWith("wachiman.history-run/")
+      ? new ForeignFormat(message)
+      : new Error(message);
   }
   const resultFormat = parsed.result?.format;
-  if (typeof resultFormat === "string" && resultFormat.startsWith("wachiman.review-result/") && resultFormat !== REVIEW_RESULT_V1 && resultFormat !== REVIEW_RESULT_V2) {
+  if (
+    typeof resultFormat === "string" &&
+    resultFormat.startsWith("wachiman.review-result/") &&
+    resultFormat !== REVIEW_RESULT_V1 &&
+    resultFormat !== REVIEW_RESULT_V2
+  ) {
     throw new ForeignFormat(`result format ${JSON.stringify(resultFormat)}`);
   }
   if (resultFormat !== REVIEW_RESULT_V1 && resultFormat !== REVIEW_RESULT_V2) throw new Error("result is not a review result");
@@ -341,7 +348,9 @@ export function readLoopFile(root: string, key: string, branch: string): unknown
   try {
     return JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    throw new UsageError(`${path} is not a loop state file (${error instanceof Error ? error.message : error}); remove it to start the loop again.`);
+    throw new UsageError(
+      `${path} is not a loop state file (${error instanceof Error ? error.message : error}); remove it to start the loop again.`,
+    );
   }
 }
 

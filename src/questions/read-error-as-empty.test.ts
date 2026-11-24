@@ -31,14 +31,14 @@ const MACHINE_STORE_AT_2BCD0A99: string[] = [
   "    const store = new MachineSettingsStore(file);",
   "    let text: string;",
   "    try {",
-  "      text = await readFile(file, \"utf-8\");",
+  '      text = await readFile(file, "utf-8");',
   "    } catch {",
   "      return store;",
   "    }",
   "    try {",
   "      const parsed = JSON.parse(text) as { workspaces?: unknown };",
   "      const workspaces = parsed?.workspaces;",
-  "      if (workspaces && typeof workspaces === \"object\") {",
+  '      if (workspaces && typeof workspaces === "object") {',
   "        for (const [id, value] of Object.entries(workspaces)) {",
   "          const entry = sanitizeEntry(value);",
   "          if (Object.keys(entry).length > 0) store.entries.set(id, entry);",
@@ -102,21 +102,21 @@ const FOLDER_FILE_AT_2BCD0A99: string[] = [
   "  try {",
   "    bytes = await readFile(join(root, SETTINGS_FILE));",
   "  } catch (error) {",
-  "    return (error as NodeJS.ErrnoException).code === \"ENOENT\"",
-  "      ? { kind: \"absent\" }",
-  "      : { kind: \"unreadable\" };",
+  '    return (error as NodeJS.ErrnoException).code === "ENOENT"',
+  '      ? { kind: "absent" }',
+  '      : { kind: "unreadable" };',
   "  }",
   "  let parsed: unknown;",
   "  try {",
-  "    parsed = JSON.parse(bytes.toString(\"utf-8\"));",
+  '    parsed = JSON.parse(bytes.toString("utf-8"));',
   "  } catch {",
-  "    return { kind: \"unreadable\" };",
+  '    return { kind: "unreadable" };',
   "  }",
-  "  if (!parsed || typeof parsed !== \"object\") return { kind: \"unreadable\" };",
+  '  if (!parsed || typeof parsed !== "object") return { kind: "unreadable" };',
   "  const record = parsed as Record<string, unknown>;",
-  "  const stored = record[\"overrides\"];",
-  "  if (record[\"version\"] !== 1 || !stored || typeof stored !== \"object\" || Array.isArray(stored)) {",
-  "    return { kind: \"unreadable\" };",
+  '  const stored = record["overrides"];',
+  '  if (record["version"] !== 1 || !stored || typeof stored !== "object" || Array.isArray(stored)) {',
+  '    return { kind: "unreadable" };',
   "  }",
   "  const overrides: Record<string, unknown> = {};",
   "  for (const key of FOLDER_OVERRIDE_KEYS) {",
@@ -124,7 +124,7 @@ const FOLDER_FILE_AT_2BCD0A99: string[] = [
   "    const checked = normalizeOverride(key, (stored as Record<string, unknown>)[key]);",
   "    if (checked.ok) overrides[key] = checked.value;",
   "  }",
-  "  return { kind: \"ok\", overrides: overrides as FolderOverrides, sha256: sha256Of(bytes) };",
+  '  return { kind: "ok", overrides: overrides as FolderOverrides, sha256: sha256Of(bytes) };',
   "}",
   "",
   "async function isDirectory(path: string): Promise<boolean> {",
@@ -140,7 +140,7 @@ const FOLDER_FILE_AT_2BCD0A99: string[] = [
   "    await mkdir(path);",
   "    return true;",
   "  } catch (error) {",
-  "    if ((error as NodeJS.ErrnoException).code === \"EEXIST\") return false;",
+  '    if ((error as NodeJS.ErrnoException).code === "EEXIST") return false;',
   "    throw error;",
   "  }",
   "}",
@@ -148,16 +148,16 @@ const FOLDER_FILE_AT_2BCD0A99: string[] = [
   "/**",
   " * Write the folder's overrides atomically and return the sha256 of the written bytes, which",
   " * the caller records so this Mac's own edit never asks for confirmation. A missing root means",
-  " * \"not connected\" and throws: recreating it would turn an unplugged drive into an empty folder.",
+  ' * "not connected" and throws: recreating it would turn an unplugged drive into an empty folder.',
   " */",
   "export async function writeFolderOverrides(",
   "  root: string,",
   "  overrides: FolderOverrides,",
   "): Promise<string> {",
   "  if (!(await isDirectory(root))) {",
-  "    throw Object.assign(new Error(`workspace folder is missing: ${root}`), { code: \"ENOENT\" });",
+  '    throw Object.assign(new Error(`workspace folder is missing: ${root}`), { code: "ENOENT" });',
   "  }",
-  "  const meta = join(root, \".kaipu\");",
+  '  const meta = join(root, ".kaipu");',
   "  const dir = dirname(join(root, SETTINGS_FILE));",
   "  const createdMeta = await mkdirOne(meta);",
   "  let createdDir = false;",
@@ -180,26 +180,26 @@ const FIX_AT_D9ACCC88: string[] = [
   " *",
   " * `beforeWrite` receives the hash of the bytes about to be written, before the file changes: a",
   " * caller that records the hash there can never end with a new file and a stale record (which",
-  " * would read as \"changed by sync\" and switch this Mac's own overrides off). If recording throws,",
+  ' * would read as "changed by sync" and switch this Mac\'s own overrides off). If recording throws,',
   " * the file is untouched.",
   "  beforeWrite?: (sha256: string) => Promise<void>,",
   "  const text = `${JSON.stringify({ version: 1, overrides }, null, 2)}\\n`;",
   "  const sha256 = sha256Of(text);",
   "  await beforeWrite?.(sha256);",
   "  return sha256;",
-  "  /** The file exists and could not be read (not \"absent\"): it must not be written over. */",
+  '  /** The file exists and could not be read (not "absent"): it must not be written over. */',
   "  private unreadable = false;",
   "    await store.load();",
   "    return store;",
   "  }",
   "",
-  "  /** Read the file into memory. Only a missing file is \"empty\"; any other failure keeps it untouched. */",
+  '  /** Read the file into memory. Only a missing file is "empty"; any other failure keeps it untouched. */',
   "  private async load(): Promise<void> {",
-  "      text = await readFile(this.file, \"utf-8\");",
+  '      text = await readFile(this.file, "utf-8");',
   "    } catch (error) {",
   "      this.entries = new Map();",
   "      this.corrupt = false;",
-  "      this.unreadable = (error as NodeJS.ErrnoException).code !== \"ENOENT\";",
+  '      this.unreadable = (error as NodeJS.ErrnoException).code !== "ENOENT";',
   "      return;",
   "    this.unreadable = false;",
   "    this.corrupt = false;",
@@ -253,9 +253,7 @@ describe("read-error-as-empty: applies (real kaipu-record lines)", () => {
   });
 
   test("does not match the fix that only treats ENOENT as empty (#482, d9accc88), write still in the batch", () => {
-    const write = MACHINE_STORE_AT_2BCD0A99.slice(
-      MACHINE_STORE_AT_2BCD0A99.findIndex((l) => l.includes("private async write")),
-    );
+    const write = MACHINE_STORE_AT_2BCD0A99.slice(MACHINE_STORE_AT_2BCD0A99.findIndex((l) => l.includes("private async write")));
     expect(applies([...FIX_AT_D9ACCC88, ...write])).toBe(false);
   });
 });
@@ -265,7 +263,15 @@ describe("read-error-as-empty: applies (synthetic, illustrative)", () => {
 
   test("matches a try/catch around readFile that assigns an empty default", () => {
     expect(
-      applies(["let cache = new Map();", "try {", "  cache = parse(await readFile(path, 'utf-8'));", "} catch {", "  cache = {};", "}", ...write]),
+      applies([
+        "let cache = new Map();",
+        "try {",
+        "  cache = parse(await readFile(path, 'utf-8'));",
+        "} catch {",
+        "  cache = {};",
+        "}",
+        ...write,
+      ]),
     ).toBe(true);
   });
 
@@ -280,11 +286,22 @@ describe("read-error-as-empty: applies (synthetic, illustrative)", () => {
   });
 
   test("matches a catch that only logs and falls through with the default", () => {
-    expect(applies(["try {", "  state = load(await readFile(p));", "} catch (e) {", "  console.warn('no state', e);", "}", "this.save(state);"])).toBe(true);
+    expect(
+      applies(["try {", "  state = load(await readFile(p));", "} catch (e) {", "  console.warn('no state', e);", "}", "this.save(state);"]),
+    ).toBe(true);
   });
 
   test("matches a catch that returns undefined/null for a localStorage read", () => {
-    expect(applies(["try {", "  return JSON.parse(localStorage.getItem(KEY));", "} catch {", "  return null;", "}", "localStorage.setItem(KEY, next);"])).toBe(true);
+    expect(
+      applies([
+        "try {",
+        "  return JSON.parse(localStorage.getItem(KEY));",
+        "} catch {",
+        "  return null;",
+        "}",
+        "localStorage.setItem(KEY, next);",
+      ]),
+    ).toBe(true);
   });
 
   test("works for .js, .tsx and .mjs files", () => {
@@ -297,21 +314,50 @@ describe("read-error-as-empty: never matches", () => {
   const write = ["await writeFile(path, JSON.stringify(cache));"];
 
   test("a catch that rethrows", () => {
-    expect(applies(["try {", "  cache = await readFile(path, 'utf-8');", "} catch (error) {", "  throw error;", "}", ...write])).toBe(false);
-    expect(applies(["try {", "  cache = await readFile(path, 'utf-8');", "} catch (e) {", "  throw new Error(`cannot read ${path}`, { cause: e });", "}", ...write])).toBe(false);
+    expect(applies(["try {", "  cache = await readFile(path, 'utf-8');", "} catch (error) {", "  throw error;", "}", ...write])).toBe(
+      false,
+    );
+    expect(
+      applies([
+        "try {",
+        "  cache = await readFile(path, 'utf-8');",
+        "} catch (e) {",
+        "  throw new Error(`cannot read ${path}`, { cause: e });",
+        "}",
+        ...write,
+      ]),
+    ).toBe(false);
   });
 
   test("a catch that checks ENOENT or the error code", () => {
     expect(
-      applies(["try {", "  text = await readFile(path, 'utf-8');", "} catch (error) {", "  if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};", "  throw error;", "}", ...write]),
+      applies([
+        "try {",
+        "  text = await readFile(path, 'utf-8');",
+        "} catch (error) {",
+        "  if ((error as NodeJS.ErrnoException).code === 'ENOENT') return {};",
+        "  throw error;",
+        "}",
+        ...write,
+      ]),
     ).toBe(false);
-    expect(applies(["const t = await readFile(p, 'utf-8').catch((e) => {", "  if (e.code === 'ENOENT') return '';", "  throw e;", "});", ...write])).toBe(false);
+    expect(
+      applies([
+        "const t = await readFile(p, 'utf-8').catch((e) => {",
+        "  if (e.code === 'ENOENT') return '';",
+        "  throw e;",
+        "});",
+        ...write,
+      ]),
+    ).toBe(false);
     expect(applies(["try { t = readFileSync(p); } catch (e) { return e.code === 'ENOENT' ? {} : null; }", ...write])).toBe(false);
   });
 
   test("a catch that reports the failure as an error result", () => {
     expect(applies(["try {", "  b = await readFile(p);", "} catch {", "  return { kind: 'unreadable' };", "}", ...write])).toBe(false);
-    expect(applies(["try {", "  b = await readFile(p);", "} catch (e) {", "  return { ok: false, error: String(e) };", "}", ...write])).toBe(false);
+    expect(
+      applies(["try {", "  b = await readFile(p);", "} catch (e) {", "  return { ok: false, error: String(e) };", "}", ...write]),
+    ).toBe(false);
   });
 
   test("a catch around a read when nothing in the batch writes", () => {
@@ -330,12 +376,22 @@ describe("read-error-as-empty: never matches", () => {
   });
 
   test("commented-out code and prose", () => {
-    expect(applies(["// } catch { return {}; }  after readFile(p)", " * try { readFile(p) } catch { x = [] } then writeFile(p)"])).toBe(false);
+    expect(applies(["// } catch { return {}; }  after readFile(p)", " * try { readFile(p) } catch { x = [] } then writeFile(p)"])).toBe(
+      false,
+    );
   });
 
   test("UI, CSS, docs and config files, even with matching text", () => {
     const text = ["try { x = readFileSync(f); } catch { x = []; }", "writeFile(f, x);"];
-    for (const f of ["styles/app.css", "README.md", "docs/adr/0002.md", "package.json", "ui/index.html", "tailwind.config.ts.snap", "notes.txt"]) {
+    for (const f of [
+      "styles/app.css",
+      "README.md",
+      "docs/adr/0002.md",
+      "package.json",
+      "ui/index.html",
+      "tailwind.config.ts.snap",
+      "notes.txt",
+    ]) {
       expect(applies(text, f)).toBe(false);
     }
   });
@@ -355,16 +411,19 @@ describe("read-error-as-empty: never matches", () => {
 
   test("UI lines without a file read", () => {
     expect(
-      applies([
-        "const [open, setOpen] = useState(false);",
-        "try {",
-        "  await navigator.clipboard.writeText(link);",
-        "} catch {",
-        "  setCopied(false);",
-        "}",
-        ".panel { color: red; }",
-        "<button onClick={() => save()}>Save</button>",
-      ], "src/Panel.tsx"),
+      applies(
+        [
+          "const [open, setOpen] = useState(false);",
+          "try {",
+          "  await navigator.clipboard.writeText(link);",
+          "} catch {",
+          "  setCopied(false);",
+          "}",
+          ".panel { color: red; }",
+          "<button onClick={() => save()}>Save</button>",
+        ],
+        "src/Panel.tsx",
+      ),
     ).toBe(false);
   });
 

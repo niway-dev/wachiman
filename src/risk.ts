@@ -124,8 +124,7 @@ export function buildRiskMap(input: {
   pathRules?: readonly PathRule[];
 }): RiskMap {
   const paths = new Set(input.files.map((f) => f.path));
-  const anchored = (item: { path: string; line: number }) =>
-    paths.has(item.path) && input.lineExists(item.path, item.line);
+  const anchored = (item: { path: string; line: number }) => paths.has(item.path) && input.lineExists(item.path, item.line);
 
   let droppedFacts = 0;
   const seen = new Set<string>();
@@ -244,17 +243,10 @@ const notReviewed = (n: number) => (n === 1 ? "1 file was not reviewed." : `${n}
  * facts has none. `pushOnly` puts "This push only." in front of the level line, for a review that
  * covers one push of a pull request (ADR 0011).
  */
-export function renderRiskMap(
-  map: RiskMap,
-  heading: string,
-  opts: { pushOnly?: boolean; style?: RiskMapStyle } = {},
-): string {
+export function renderRiskMap(map: RiskMap, heading: string, opts: { pushOnly?: boolean; style?: RiskMapStyle } = {}): string {
   const { strong, code } = opts.style ?? MARKDOWN_STYLE;
   const lead = opts.pushOnly ? "This push only. " : "";
-  const readFirst =
-    map.readFirst.length > 0
-      ? `${strong("Read first:")} ${map.readFirst.map(code).join(", ")}.`
-      : undefined;
+  const readFirst = map.readFirst.length > 0 ? `${strong("Read first:")} ${map.readFirst.map(code).join(", ")}.` : undefined;
 
   if (map.facts.length === 0 && map.judgement.length === 0 && map.pathReasons.length === 0) {
     const summary = map.floor
@@ -283,9 +275,7 @@ export function renderRiskMap(
   const blocks = [heading, level];
   if (bullets.length > 0) blocks.push(bullets.join("\n"));
   if (map.judgement.length > 0) {
-    const items = map.judgement.map(
-      (j) => `- ${code(`${j.path}:${j.line}`)} (${code(j.kind)}) — ${neutralise(j.why)}`,
-    );
+    const items = map.judgement.map((j) => `- ${code(`${j.path}:${j.line}`)} (${code(j.kind)}) — ${neutralise(j.why)}`);
     blocks.push(`${strong("Needs a person:")}\n\n${items.join("\n")}`);
   }
   if (readFirst !== undefined) blocks.push(readFirst);

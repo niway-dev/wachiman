@@ -16,10 +16,7 @@ const digest = "ab".repeat(32);
 
 function input(over: Partial<GradeInput> = {}): GradeInput {
   return {
-    claims: [
-      confirmed("Export button", "src/Toolbar.tsx", 52, 78),
-      confirmed("Export function", "src/export.ts", 10, 46),
-    ],
+    claims: [confirmed("Export button", "src/Toolbar.tsx", 52, 78), confirmed("Export function", "src/export.ts", 10, 46)],
     assignments: [
       { path: "src/Toolbar.tsx", claim: 0 },
       { path: "src/export.ts", claim: 1 },
@@ -46,8 +43,7 @@ const opts = {
   permalinkBase: "https://github.com/o/r",
 };
 
-const unexplainedB = (): Fidelity =>
-  buildFidelity(input({ changedFiles: [...input().changedFiles, { path: "src/session.ts" }] }));
+const unexplainedB = (): Fidelity => buildFidelity(input({ changedFiles: [...input().changedFiles, { path: "src/session.ts" }] }));
 
 describe("renderBlock", () => {
   test("a B with one unexplained change is laid out as the spec shows", () => {
@@ -89,9 +85,7 @@ describe("renderBlock", () => {
   });
 
   test("a line in the attention list links to that line at the reviewed commit", () => {
-    const f = buildFidelity(
-      input({ openFindings: [{ severity: "fix", path: "src/session.ts", line: 40, title: "Timeout dropped" }] }),
-    );
+    const f = buildFidelity(input({ openFindings: [{ severity: "fix", path: "src/session.ts", line: 40, title: "Timeout dropped" }] }));
     const out = renderBlock(f, opts);
     expect(out).toContain("- [`src/session.ts` L40](<https://github.com/o/r/blob/abc1234/src/session.ts#L40>) — 🟠 Fix: Timeout dropped");
     expect(out).toContain("> Both claims verified. Look at `src/session.ts` line 40.");
@@ -110,7 +104,9 @@ describe("renderBlock", () => {
     const out = renderBlock(f, opts);
     expect(out).toContain("> Both claims verified. Look at `src/session.ts` line 40.");
     expect(out).toContain("- [`src/other.ts` L3](<https://github.com/o/r/blob/abc1234/src/other.ts#L3>) — 🟡 Consider: Three");
-    expect(out).toContain("- [`src/session.ts`](<https://github.com/o/r/blob/abc1234/src/session.ts>)\n  - [L40](<https://github.com/o/r/blob/abc1234/src/session.ts#L40>) — 🟠 Fix: One\n  - [L90](<https://github.com/o/r/blob/abc1234/src/session.ts#L90>) — 🟡 Consider: Two");
+    expect(out).toContain(
+      "- [`src/session.ts`](<https://github.com/o/r/blob/abc1234/src/session.ts>)\n  - [L40](<https://github.com/o/r/blob/abc1234/src/session.ts#L40>) — 🟠 Fix: One\n  - [L90](<https://github.com/o/r/blob/abc1234/src/session.ts#L90>) — 🟡 Consider: Two",
+    );
   });
 
   test("every place is listed: nothing is capped", () => {
@@ -209,7 +205,7 @@ describe("renderBlock", () => {
   });
 
   test("a path with parentheses or spaces is kept inside the link", () => {
-    const f = buildFidelity(input({ changedFiles: [{ path: "src/a (copy) b.ts" }] , assignments: [] }));
+    const f = buildFidelity(input({ changedFiles: [{ path: "src/a (copy) b.ts" }], assignments: [] }));
     expect(renderBlock(f, opts)).toContain("](<https://github.com/o/r/blob/abc1234/src/a%20%28copy%29%20b.ts>)");
   });
 
@@ -338,7 +334,7 @@ describe("upsertBlock", () => {
 
 describe("cannotSayBlock", () => {
   test("shows cannot say for the new commit and no letter or commit from the earlier one", () => {
-    const previous = renderBlock(buildFidelity(input({ changedFiles: [{ path: "src/session.ts" }] , assignments: []})), {
+    const previous = renderBlock(buildFidelity(input({ changedFiles: [{ path: "src/session.ts" }], assignments: [] })), {
       ...opts,
       reviewedCommit: "old1111",
     });

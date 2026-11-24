@@ -36,8 +36,7 @@ export interface LoopBranch {
 }
 
 export type PrConfidence =
-  | { status: typeof NOT_RECORDED; note: string }
-  | { status: "recorded"; gradedRuns: number; byGrade: Record<Grade, number> };
+  { status: typeof NOT_RECORDED; note: string } | { status: "recorded"; gradedRuns: number; byGrade: Record<Grade, number> };
 
 export interface Figures {
   totals: { repositories: number; runs: number; costUsdEstimate: number };
@@ -62,12 +61,15 @@ export function readFigures(indexPath: string): Figures {
   try {
     const all = <T>(sql: string, ...params: string[]) => db.query(sql).all(...params) as T[];
 
-    const totals = db.query("SELECT COUNT(*) AS runs, COALESCE(SUM(cost_usd), 0) AS cost FROM runs").get() as { runs: number; cost: number };
+    const totals = db.query("SELECT COUNT(*) AS runs, COALESCE(SUM(cost_usd), 0) AS cost FROM runs").get() as {
+      runs: number;
+      cost: number;
+    };
     const repositories = (db.query("SELECT COUNT(*) AS n FROM repositories").get() as { n: number }).n;
 
-    const byDay = all<{ day: string; runs: number; cost: number }>("SELECT day, COUNT(*) AS runs, SUM(cost_usd) AS cost FROM runs GROUP BY day ORDER BY day").map(
-      (r): SpendDay => ({ day: r.day, runs: r.runs, costUsdEstimate: money(r.cost) }),
-    );
+    const byDay = all<{ day: string; runs: number; cost: number }>(
+      "SELECT day, COUNT(*) AS runs, SUM(cost_usd) AS cost FROM runs GROUP BY day ORDER BY day",
+    ).map((r): SpendDay => ({ day: r.day, runs: r.runs, costUsdEstimate: money(r.cost) }));
     const byRepository = all<{ key: string; name: string; runs: number; cost: number }>(
       `SELECT r.key AS key, r.name AS name, COUNT(u.repo_key) AS runs, COALESCE(SUM(u.cost_usd), 0) AS cost
        FROM repositories r LEFT JOIN runs u ON u.repo_key = r.key GROUP BY r.key ORDER BY cost DESC, r.key`,
@@ -81,11 +83,14 @@ export function readFigures(indexPath: string): Figures {
     for (const r of all<{ verdict: string | null; n: number }>("SELECT verdict, COUNT(*) AS n FROM findings GROUP BY verdict")) {
       const word = r.verdict ?? "unjudged";
       if (word === "unjudged") byVerdict.unjudged += r.n;
-      else if ((VERDICT_WORDS as readonly string[]).includes(word)) byVerdict[word === "not-important" ? "notImportant" : (word as Exclude<VerdictWord, "not-important">)] += r.n;
+      else if ((VERDICT_WORDS as readonly string[]).includes(word))
+        byVerdict[word === "not-important" ? "notImportant" : (word as Exclude<VerdictWord, "not-important">)] += r.n;
     }
     const findingsTotal = (db.query("SELECT COUNT(*) AS n FROM findings").get() as { n: number }).n;
 
-    const ledgerRows = all<{ repo_key: string; branch: string; status: string; count: number }>("SELECT repo_key, branch, status, count FROM loop_ledger");
+    const ledgerRows = all<{ repo_key: string; branch: string; status: string; count: number }>(
+      "SELECT repo_key, branch, status, count FROM loop_ledger",
+    );
     const branches = all<{
       repo_key: string;
       name: string;

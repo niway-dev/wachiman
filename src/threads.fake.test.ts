@@ -52,7 +52,8 @@ const node = (login: string, assoc: string, body: string, databaseId = 1): Node 
 });
 const FINDING = (id: number) => node("github-actions", "NONE", `🟠🐛 **Fix · bug: X**\n\nbody\n\n${SIGNATURE.finding}`, id);
 const OWNER_REPLY = (text = "Fixed in 1bcab52", id = 900) => node("owner", "OWNER", text, id);
-const WACHI_REPLY = (id = 800) => node("github-actions", "NONE", `👮 **Wachiman** · **Still applies** at \`abc1234\`: no.\n\n${SIGNATURE.reply}`, id);
+const WACHI_REPLY = (id = 800) =>
+  node("github-actions", "NONE", `👮 **Wachiman** · **Still applies** at \`abc1234\`: no.\n\n${SIGNATURE.reply}`, id);
 const thread = (nodes: Node[], over: Partial<RawThread> = {}): RawThread => ({
   isResolved: false,
   path: "src/a.ts",
@@ -142,7 +143,9 @@ describe("threadReplies (cli.ts threads)", () => {
 
   function setup(opts: Opts = {}) {
     const dir = mkdtempSync(join(tmpdir(), "head-"));
-    for (const [path, text] of Object.entries(opts.files ?? { "src/a.ts": Array.from({ length: 20 }, (_, i) => `row ${i + 1}`).join("\n") })) {
+    for (const [path, text] of Object.entries(
+      opts.files ?? { "src/a.ts": Array.from({ length: 20 }, (_, i) => `row ${i + 1}`).join("\n") },
+    )) {
       mkdirSync(join(dir, path, ".."), { recursive: true });
       writeFileSync(join(dir, path), text);
     }
@@ -254,7 +257,7 @@ describe("threadReplies (cli.ts threads)", () => {
     expect(request.maxBudgetUsd).toBe(0.25);
     expect(request.prompt).toContain("threads.json");
     expect(request.prompt).toContain("do not report new findings");
-    expect(request.prompt).toContain("never \"tested\"");
+    expect(request.prompt).toContain('never "tested"');
   });
 
   test("threads.json holds the finding, the replies, the reply count and the head's code at the lines", async () => {
@@ -403,7 +406,12 @@ describe("threadReplies (cli.ts threads)", () => {
           costUsd: 0.2,
           structuredOutput: {
             thread_replies: [
-              { comment_id: 7, status: "still_open", reply: `x\n\n<sub>m · $0.00</sub>\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`, cites: [] },
+              {
+                comment_id: 7,
+                status: "still_open",
+                reply: `x\n\n<sub>m · $0.00</sub>\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`,
+                cites: [],
+              },
             ],
           },
         }),
@@ -418,7 +426,12 @@ describe("threadReplies (cli.ts threads)", () => {
 
   test("text the provider flags as a credential is not posted", async () => {
     const t = setup({
-      script: [() => ({ costUsd: 0.05, structuredOutput: { thread_replies: [{ comment_id: 7, status: "still_open", reply: "SECRET", cites: [] }] } })],
+      script: [
+        () => ({
+          costUsd: 0.05,
+          structuredOutput: { thread_replies: [{ comment_id: 7, status: "still_open", reply: "SECRET", cites: [] }] },
+        }),
+      ],
     });
     await expect(threadReplies(t.deps, "o/r", 7)).rejects.toThrow("credential");
     expect(t.replies).toEqual([]);

@@ -22,12 +22,9 @@ describe("parseProfile", () => {
     for (const value of ["default", "isolated", "isolated:work", "work-a"]) expect(parseProfile(value)).toBe(value);
   });
 
-  test.each(["Work", "isolated:", "isolated:../x", "isolated:Work", "isolated:-x", ""])(
-    "%p is a usage error",
-    (value) => {
-      expect(() => parseProfile(value)).toThrow(UsageError);
-    },
-  );
+  test.each(["Work", "isolated:", "isolated:../x", "isolated:Work", "isolated:-x", ""])("%p is a usage error", (value) => {
+    expect(() => parseProfile(value)).toThrow(UsageError);
+  });
 });
 
 describe("profileDir", () => {
@@ -171,7 +168,9 @@ describe("setupProfile", () => {
 
   test("an invalid name is a usage error", () => {
     const home = temp("profile-home-");
-    expect(() => setupProfile({ name: "../x", home, env: parentEnv(home), print: () => {}, spawn: () => ({ status: 0 }) })).toThrow(UsageError);
+    expect(() => setupProfile({ name: "../x", home, env: parentEnv(home), print: () => {}, spawn: () => ({ status: 0 }) })).toThrow(
+      UsageError,
+    );
   });
 
   const readOk = (home: string) => {
@@ -183,11 +182,15 @@ describe("setupProfile", () => {
 
   test("registers the managed profile in the config, keeps every other entry, and is idempotent", () => {
     const home = temp("profile-home-");
-    updateConfig({ home }, (c) => ({
-      ...c,
-      profiles: { "work-a": { kind: "external", configDir: "/Users/me/.claude-work-a", createdAt: "t" } },
-      future: { keep: true },
-    } as typeof c));
+    updateConfig(
+      { home },
+      (c) =>
+        ({
+          ...c,
+          profiles: { "work-a": { kind: "external", configDir: "/Users/me/.claude-work-a", createdAt: "t" } },
+          future: { keep: true },
+        }) as typeof c,
+    );
     setupProfile({ name: "work", home, env: parentEnv(home), print: () => {}, spawn: noSpawn });
     setupProfile({ name: "work", home, env: parentEnv(home), print: () => {}, spawn: noSpawn });
     const config = readOk(home);
@@ -199,7 +202,10 @@ describe("setupProfile", () => {
 
   test("a name that an external profile already holds is refused before anything is created or launched", () => {
     const home = temp("profile-home-");
-    updateConfig({ home }, (c) => ({ ...c, profiles: { work: { kind: "external", configDir: "/Users/me/.claude-work", createdAt: "t" } } }));
+    updateConfig({ home }, (c) => ({
+      ...c,
+      profiles: { work: { kind: "external", configDir: "/Users/me/.claude-work", createdAt: "t" } },
+    }));
     let launched = false;
     expect(() =>
       setupProfile({ name: "work", home, env: parentEnv(home), print: () => {}, spawn: () => ((launched = true), { status: 0 }) }),
@@ -224,7 +230,12 @@ describe("claimManagedProfile", () => {
   const config = (profiles: Record<string, any>): any => ({ version: 1, profiles, projects: {} });
 
   test("refuses when an external entry appeared under the name after the pre-check, and changes nothing", () => {
-    const external = { kind: "external", configDir: "/Users/me/.claude-work", binary: "/opt/claude/claude", createdAt: "2026-11-09T10:00:00Z" };
+    const external = {
+      kind: "external",
+      configDir: "/Users/me/.claude-work",
+      binary: "/opt/claude/claude",
+      createdAt: "2026-11-09T10:00:00Z",
+    };
     const current = config({ work: external });
     expect(() => claimManagedProfile(current, "work", "/wh/claude-work")).toThrow('"work" is already registered as an external profile');
     expect(current.profiles.work).toBe(external);

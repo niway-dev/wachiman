@@ -45,7 +45,9 @@ function indexRawSnapshot(dir: string, entries: string[], exec: (args: string[],
     const tab = entry.indexOf("\t");
     const mode = entry.slice(0, tab).split(" ")[0];
     const path = entry.slice(tab + 1);
-    const sha = exec(["hash-object", "-w", "--stdin", "--no-filters"], readFileSync(join(dir, path))).toString().trim();
+    const sha = exec(["hash-object", "-w", "--stdin", "--no-filters"], readFileSync(join(dir, path)))
+      .toString()
+      .trim();
     // Links are materialized as regular text for evidence, never as live links.
     exec(["update-index", "--add", "--cacheinfo", mode === "100755" ? mode : "100644", sha, path]);
   }

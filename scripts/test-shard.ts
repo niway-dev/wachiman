@@ -131,7 +131,8 @@ function main(args: string[]): number {
     const problems = checkSplit(files, assign(files, timings, total));
     for (const f of missedByDiscovery(files)) problems.push(`tracked test file the shards cannot see: ${f}`);
     const untimed = files.filter((f) => !(f in timings));
-    if (untimed.length > 0) console.error(`warning: no recorded time for ${untimed.length} file(s), weighed as the median: ${untimed.join(", ")}`);
+    if (untimed.length > 0)
+      console.error(`warning: no recorded time for ${untimed.length} file(s), weighed as the median: ${untimed.join(", ")}`);
     for (const p of problems) console.error(p);
     if (problems.length === 0) console.error(`ok: ${files.length} test files in ${total} shards, each exactly once`);
     return problems.length === 0 ? 0 : 1;

@@ -76,9 +76,7 @@ const file = (filename: string, additions: number, deletions = 0, patch = ""): R
 // `gh api` with a jq filter prints one JSON string per line: here, the bodies of the bot's reviews.
 /** `reviews` as `gh` prints them: a body alone is dated before the legacy cutoff. */
 const fakeReviews = (reviews: (string | { body: string; submitted_at: string })[]) => () =>
-  reviews
-    .map((r) => JSON.stringify(typeof r === "string" ? { body: r, submitted_at: "2026-09-01T00:00:00Z" } : r))
-    .join("\n");
+  reviews.map((r) => JSON.stringify(typeof r === "string" ? { body: r, submitted_at: "2026-09-01T00:00:00Z" } : r)).join("\n");
 
 const output = (over: Partial<ReviewOutput> = {}): ReviewOutput => ({
   files_reviewed: [],
@@ -160,11 +158,7 @@ describe("instructionsFrom", () => {
 
   test("reads .github/wachiman.md and ignores the old names when it exists", () => {
     const warnings: string[] = [];
-    const found = instructionsFrom(
-      "sha",
-      at([".github/wachiman.md", ".github/claude-review.md"]),
-      (w) => warnings.push(w),
-    );
+    const found = instructionsFrom("sha", at([".github/wachiman.md", ".github/claude-review.md"]), (w) => warnings.push(w));
     expect(found.files.map((f) => f.path)).toEqual([".github/wachiman.md"]);
     expect(warnings).toEqual([]);
   });
@@ -187,10 +181,7 @@ describe("filterFiles", () => {
 
   test("drops lockfiles and build output by default", () => {
     const { kept, dropped } = filterFiles(files, ["bun.lock", "**/dist/**"], []);
-    expect(kept.map((f) => f.filename)).toEqual([
-      "apps/api/src/main/index.ts",
-      "docs/adr/0066-x.md",
-    ]);
+    expect(kept.map((f) => f.filename)).toEqual(["apps/api/src/main/index.ts", "docs/adr/0066-x.md"]);
     expect(dropped.map((f) => f.filename)).toEqual(["bun.lock", "apps/web/dist/index.js"]);
   });
 
@@ -218,13 +209,7 @@ describe("resolveScope", () => {
 describe("annotateDiff", () => {
   test("prefixes each line with its line number at the head, blank for removed lines", () => {
     const text = annotateDiff([file("src/a.ts", 2, 1, "@@ -10,2 +10,2 @@\n keep\n-gone\n+new")]);
-    expect(text.split("\n")).toEqual([
-      "### src/a.ts",
-      "@@ -10,2 +10,2 @@",
-      "   10  keep",
-      "      -gone",
-      "   11 +new",
-    ]);
+    expect(text.split("\n")).toEqual(["### src/a.ts", "@@ -10,2 +10,2 @@", "   10  keep", "      -gone", "   11 +new"]);
   });
 
   test("says when GitHub gave no diff for a file", () => {
@@ -237,9 +222,7 @@ describe("fileKind", () => {
     expect(fileKind("apps/api/src/main/session/session-manager.ts")).toBe("code");
     expect(fileKind("apps/api/src/main/session/session-manager.test.ts")).toBe("test");
     expect(fileKind("apps/api/src/renderer/src/test/fake-api.ts")).toBe("test");
-    expect(fileKind("apps/api/src/renderer/src/features/thread/test-thread-render.tsx")).toBe(
-      "test",
-    );
+    expect(fileKind("apps/api/src/renderer/src/features/thread/test-thread-render.tsx")).toBe("test");
     expect(fileKind("docs/adr/0081-export-format.md")).toBe("docs");
     expect(fileKind("apps/documentation/src/content/docs/api/flow/home.mdx")).toBe("docs");
     expect(fileKind("apps/api/src/renderer/src/features/home/home.module.css")).toBe("docs");
@@ -264,12 +247,7 @@ describe("riskScore", () => {
 
   test("ranks scripts, shell, infrastructure and database code above ordinary code", () => {
     const ordinary = riskScore("src/features/widget.ts");
-    for (const path of [
-      "scripts/wachiman.ts",
-      "tools/deploy.sh",
-      "infra/stack.ts",
-      "services/api/db/client.ts",
-    ]) {
+    for (const path of ["scripts/wachiman.ts", "tools/deploy.sh", "infra/stack.ts", "services/api/db/client.ts"]) {
       expect(riskScore(path)).toBeGreaterThan(ordinary);
     }
     // A test under scripts/ is still a test, whatever its path.
@@ -281,16 +259,9 @@ describe("planBatches", () => {
   const limits = { maxLines: 1000, maxChars: 1_000_000 };
 
   test("keeps a small pull request in one batch, code before tests before docs", () => {
-    const batches = planBatches(
-      [file("apps/x/src/a/a.test.ts", 10), file("docs/a.md", 5), file("apps/x/src/a/a.ts", 20)],
-      limits,
-    );
+    const batches = planBatches([file("apps/x/src/a/a.test.ts", 10), file("docs/a.md", 5), file("apps/x/src/a/a.ts", 20)], limits);
     expect(batches).toHaveLength(1);
-    expect(batches[0].files.map((f) => f.filename)).toEqual([
-      "apps/x/src/a/a.ts",
-      "apps/x/src/a/a.test.ts",
-      "docs/a.md",
-    ]);
+    expect(batches[0].files.map((f) => f.filename)).toEqual(["apps/x/src/a/a.ts", "apps/x/src/a/a.test.ts", "docs/a.md"]);
     expect(batches[0].lines).toBe(35);
   });
 
@@ -372,8 +343,16 @@ describe("path rules in riskScore and planBatches", () => {
   test("inside one batch a matched document leads, ahead of the code of its module", () => {
     const files = [file("src/billing/notes.md", 5), file("src/billing/charge.ts", 10), file("src/billing/charge.test.ts", 10)];
     const only: PathRule[] = [{ match: "src/billing/notes.md", severity: "medium", reason: "prices" }];
-    expect(planBatches(files, limits)[0].files.map((f) => f.filename)).toEqual(["src/billing/charge.ts", "src/billing/charge.test.ts", "src/billing/notes.md"]);
-    expect(planBatches(files, limits, only)[0].files.map((f) => f.filename)).toEqual(["src/billing/notes.md", "src/billing/charge.ts", "src/billing/charge.test.ts"]);
+    expect(planBatches(files, limits)[0].files.map((f) => f.filename)).toEqual([
+      "src/billing/charge.ts",
+      "src/billing/charge.test.ts",
+      "src/billing/notes.md",
+    ]);
+    expect(planBatches(files, limits, only)[0].files.map((f) => f.filename)).toEqual([
+      "src/billing/notes.md",
+      "src/billing/charge.ts",
+      "src/billing/charge.test.ts",
+    ]);
   });
 
   test("rule-matched files pack before every other file across modules", () => {
@@ -413,41 +392,24 @@ describe("batchGaps", () => {
   });
 
   test("rejects a skip whose reason is not one of the closed list", () => {
-    const gaps = batchGaps(
-      [file("img.png", 0)],
-      output({ files_skipped: [{ path: "img.png", reason: "only CSS" }] }),
-    );
+    const gaps = batchGaps([file("img.png", 0)], output({ files_skipped: [{ path: "img.png", reason: "only CSS" }] }));
     expect(gaps).toHaveLength(1);
   });
 });
 
 describe("assignThreads", () => {
   test("sends each thread to the batch holding its file, others to the first", () => {
-    const batches = planBatches(
-      [file("apps/x/src/main/ipc/a.ts", 900), file("apps/x/src/renderer/b.tsx", 900)],
-      { maxLines: 1000, maxChars: 1_000_000 },
-    );
-    const out = assignThreads(
-      [
-        { path: "apps/x/src/renderer/b.tsx" },
-        { path: "gone.ts" },
-        { path: "apps/x/src/main/ipc/a.ts" },
-      ],
-      batches,
-    );
-    expect(out.map((t) => t.map((x) => x.path))).toEqual([
-      ["gone.ts", "apps/x/src/main/ipc/a.ts"],
-      ["apps/x/src/renderer/b.tsx"],
-    ]);
+    const batches = planBatches([file("apps/x/src/main/ipc/a.ts", 900), file("apps/x/src/renderer/b.tsx", 900)], {
+      maxLines: 1000,
+      maxChars: 1_000_000,
+    });
+    const out = assignThreads([{ path: "apps/x/src/renderer/b.tsx" }, { path: "gone.ts" }, { path: "apps/x/src/main/ipc/a.ts" }], batches);
+    expect(out.map((t) => t.map((x) => x.path))).toEqual([["gone.ts", "apps/x/src/main/ipc/a.ts"], ["apps/x/src/renderer/b.tsx"]]);
   });
 });
 
 describe("mergeOutputs", () => {
-  const finding = (
-    severity: Finding["severity"],
-    title: string,
-    topic: Finding["topic"] = "bug",
-  ): Finding => ({
+  const finding = (severity: Finding["severity"], title: string, topic: Finding["topic"] = "bug"): Finding => ({
     path: "src/a.ts",
     line: 3,
     severity,
@@ -488,10 +450,7 @@ describe("mergeOutputs", () => {
         label: "Batch 1 of 1",
         output: output({
           files_reviewed: ["src/a.ts"],
-          findings: [
-            finding("fix", "Off by one"),
-            finding("consider", "Native tooltip", "rules"),
-          ],
+          findings: [finding("fix", "Off by one"), finding("consider", "Native tooltip", "rules")],
         }),
       },
     ]);
@@ -551,8 +510,7 @@ describe("dedupeFindings", () => {
   });
 
   test("keeps the higher severity, in the order blocker > fix > consider > info", () => {
-    const pick = (a: Finding["severity"], b: Finding["severity"]) =>
-      dedupeFindings([at3(a, a), at3(b, b)]).map((f) => f.title);
+    const pick = (a: Finding["severity"], b: Finding["severity"]) => dedupeFindings([at3(a, a), at3(b, b)]).map((f) => f.title);
     expect(pick("info", "consider")).toEqual(["consider"]);
     expect(pick("consider", "fix")).toEqual(["fix"]);
     expect(pick("blocker", "fix")).toEqual(["blocker"]);
@@ -560,9 +518,7 @@ describe("dedupeFindings", () => {
   });
 
   test("keeps the first of two at the same severity", () => {
-    expect(dedupeFindings([at3("fix", "First"), at3("fix", "Second")]).map((f) => f.title)).toEqual([
-      "First",
-    ]);
+    expect(dedupeFindings([at3("fix", "First"), at3("fix", "Second")]).map((f) => f.title)).toEqual(["First"]);
   });
 });
 
@@ -667,15 +623,9 @@ describe("label", () => {
   });
 
   test("puts both emojis first, then the severity, topic and title in words", () => {
-    expect(label(f("fix", "docs", "stale 'Read by' cell"))).toBe(
-      "Should · 🟠📝 **Fix · docs: stale 'Read by' cell**",
-    );
-    expect(label(f("blocker", "security", "DATABASE_URL printed"))).toBe(
-      "Must · 🔴🔐 **Blocker · security: DATABASE_URL printed**",
-    );
-    expect(label(f("consider", "cleanup", "Duplicate schema"))).toBe(
-      "Could · 🟡🧹 **Consider · cleanup: Duplicate schema**",
-    );
+    expect(label(f("fix", "docs", "stale 'Read by' cell"))).toBe("Should · 🟠📝 **Fix · docs: stale 'Read by' cell**");
+    expect(label(f("blocker", "security", "DATABASE_URL printed"))).toBe("Must · 🔴🔐 **Blocker · security: DATABASE_URL printed**");
+    expect(label(f("consider", "cleanup", "Duplicate schema"))).toBe("Could · 🟡🧹 **Consider · cleanup: Duplicate schema**");
     expect(label(f("info", "adr", "Edits a record"))).toBe("FYI · ⚪🏛️ **Info · adr: Edits a record**");
   });
 
@@ -712,9 +662,7 @@ describe("countLine", () => {
     }));
 
   test("names every group that has findings", () => {
-    expect(countLine(of("blocker", "fix", "fix", "consider"))).toBe(
-      "4 finding(s): 1 blocker(s), 2 to fix, 1 to consider",
-    );
+    expect(countLine(of("blocker", "fix", "fix", "consider"))).toBe("4 finding(s): 1 blocker(s), 2 to fix, 1 to consider");
   });
 
   test("omits the groups with none", () => {
@@ -734,17 +682,7 @@ describe("SCHEMA", () => {
   test("asks for a severity and a topic from the label tables, and nothing else", () => {
     expect(finding.required).toEqual(["path", "line", "severity", "topic", "confidence", "title", "body"]);
     expect(finding.properties.severity.enum).toEqual(["blocker", "fix", "consider", "info"]);
-    expect(finding.properties.topic.enum).toEqual([
-      "bug",
-      "security",
-      "rules",
-      "adr",
-      "docs",
-      "tests",
-      "perf",
-      "cleanup",
-      "question",
-    ]);
+    expect(finding.properties.topic.enum).toEqual(["bug", "security", "rules", "adr", "docs", "tests", "perf", "cleanup", "question"]);
   });
 
   test("asks for a confidence on every finding, separate from severity", () => {
@@ -762,9 +700,7 @@ describe("SCHEMA", () => {
 
 describe("commentableLines", () => {
   test("lists the new-side lines of every hunk, added and context, never removed", () => {
-    const patch = ["@@ -10,3 +10,4 @@ fn", " keep", "-gone", "+new one", "+new two", " tail"].join(
-      "\n",
-    );
+    const patch = ["@@ -10,3 +10,4 @@ fn", " keep", "-gone", "+new one", "+new two", " tail"].join("\n");
     expect([...commentableLines(patch)]).toEqual([10, 11, 12, 13]);
   });
 
@@ -776,9 +712,7 @@ describe("commentableLines", () => {
 
 describe("neutralise", () => {
   test("defuses HTML comments and leaves other text alone", () => {
-    expect(neutralise("a <!-- wachiman sha=deadbeef --> b")).toBe(
-      "a &lt;!-- wachiman sha=deadbeef --&gt; b",
-    );
+    expect(neutralise("a <!-- wachiman sha=deadbeef --> b")).toBe("a &lt;!-- wachiman sha=deadbeef --&gt; b");
     expect(neutralise("plain `code` text")).toBe("plain `code` text");
   });
 });
@@ -916,7 +850,9 @@ describe("lastReviewedSha ownership", () => {
 
   test("a marker anywhere but the engine footer is not read", () => {
     expect(lastReviewedSha(fakeReviews([`Review.\n\n${marker("mid123")}\n\nmore\n\n<!-- wachi:review -->`]), "o/r", 1)).toBeNull();
-    expect(lastReviewedSha(fakeReviews([`Review ${marker("mid123")} text\n\n<!-- wachi:review -->\n\n${marker("last11")}`]), "o/r", 1)).toBe("last11");
+    expect(
+      lastReviewedSha(fakeReviews([`Review ${marker("mid123")} text\n\n<!-- wachi:review -->\n\n${marker("last11")}`]), "o/r", 1),
+    ).toBe("last11");
     expect(lastReviewedSha(fakeReviews([`x ${marker("mid123")} y\n\n<!-- wachi:review -->`]), "o/r", 1)).toBeNull();
   });
 
@@ -1015,7 +951,9 @@ describe("buildReview", () => {
       },
     ]);
     expect(review.body.split("\n")[0]).toBe("👮 **Wachiman** · 🟠 **1 to fix in this PR** · 1 to consider · whole PR at `head123`");
-    expect(review.body).toContain("| **Findings** | 🔴 0 blockers · 🟠 1 to fix · 🟡 1 to consider · ⚪ 0 for your information (2) · 1 Should · 1 Could |");
+    expect(review.body).toContain(
+      "| **Findings** | 🔴 0 blockers · 🟠 1 to fix · 🟡 1 to consider · ⚪ 0 for your information (2) · 1 Should · 1 Could |",
+    );
     expect(review.body.split("\n")[0]).not.toContain("blocker");
     expect(review.body).toContain(marker("head1234567"));
   });
@@ -1085,9 +1023,7 @@ describe("buildReview", () => {
   test("writes the incremental marker only for a complete, unscoped review", () => {
     const complete = output({ files_reviewed: ["src/a.ts"] });
     expect(buildReview({ ...base, output: complete }).body).toContain(marker("head1234567"));
-    expect(buildReview({ ...base, scoped: true, output: complete }).body).not.toContain(
-      "wachiman sha=",
-    );
+    expect(buildReview({ ...base, scoped: true, output: complete }).body).not.toContain("wachiman sha=");
     expect(buildReview({ ...base, output: output() }).body).not.toContain("wachiman sha=");
   });
 
@@ -1167,12 +1103,22 @@ describe("moveCommentsToBody", () => {
   });
 
   test("a review with no inline comment is returned as it is", () => {
-    const none = buildReview({ files, headSha: "head1234567", since: null, scoped: false, costUsd: 0, modelLabel: "m", output: output({ files_reviewed: ["a.ts"] }) });
+    const none = buildReview({
+      files,
+      headSha: "head1234567",
+      since: null,
+      scoped: false,
+      costUsd: 0,
+      modelLabel: "m",
+      output: output({ files_reviewed: ["a.ts"] }),
+    });
     expect(moveCommentsToBody(none)).toBe(none);
   });
 
   test("a review that does not carry its view cannot be moved: there is nothing to render from", () => {
-    expect(() => moveCommentsToBody({ body: "x", comments: [{ path: "a.ts", line: 3, side: "RIGHT", body: "c" }] })).toThrow("without its view");
+    expect(() => moveCommentsToBody({ body: "x", comments: [{ path: "a.ts", line: 3, side: "RIGHT", body: "c" }] })).toThrow(
+      "without its view",
+    );
   });
 });
 
@@ -1191,10 +1137,7 @@ describe("openBotThreads", () => {
         path: "a.ts",
         line: 3,
         comments: {
-          nodes: [
-            comment("github-actions", "NONE", "Should fix\n\n<!-- wachi:finding -->", 7),
-            comment("owner", "OWNER", "Fixed"),
-          ],
+          nodes: [comment("github-actions", "NONE", "Should fix\n\n<!-- wachi:finding -->", 7), comment("owner", "OWNER", "Fixed")],
         },
       },
       {
@@ -1296,10 +1239,8 @@ describe("buildBatchPrompt", () => {
     instructions: "",
   };
   const files = [file("a.ts", 1, 0, "@@ -1 +1 @@\n+x")];
-  const prompt = (
-    hasThreads = false,
-    part: { index: number; total: number; retry?: boolean } = { index: 1, total: 2 },
-  ) => buildBatchPrompt(ctx, files, hasThreads, part, "/tmp/d", ctx.instructions);
+  const prompt = (hasThreads = false, part: { index: number; total: number; retry?: boolean } = { index: 1, total: 2 }) =>
+    buildBatchPrompt(ctx, files, hasThreads, part, "/tmp/d", ctx.instructions);
 
   test("frames the part, lists its files and puts the annotated diff last", () => {
     const text = prompt();
@@ -1319,7 +1260,21 @@ describe("buildBatchPrompt", () => {
     expect(on).toContain(COMMENT_PARAGRAPH);
     expect(on.indexOf(COMMENT_PARAGRAPH)).toBeGreaterThan(on.indexOf("## Risk facts and judgement"));
     expect(on.indexOf(COMMENT_PARAGRAPH)).toBeLessThan(on.indexOf("## What the change does to the running product"));
-    for (const word of ["tautology", "stale", "excuse", "decision record", "delete", "open an issue", "pointer", "@ts-expect-error", "biome-ignore", "prettier-ignore", "shebang", "license header", '"consider"']) {
+    for (const word of [
+      "tautology",
+      "stale",
+      "excuse",
+      "decision record",
+      "delete",
+      "open an issue",
+      "pointer",
+      "@ts-expect-error",
+      "biome-ignore",
+      "prettier-ignore",
+      "shebang",
+      "license header",
+      '"consider"',
+    ]) {
       expect(COMMENT_PARAGRAPH).toContain(word);
     }
     // Only the paragraph is added: take it out and the prompt is the off prompt.
@@ -1341,8 +1296,7 @@ describe("buildBatchPrompt", () => {
   test("teaches both label axes and leaves the ADR-edited notice to the engine", () => {
     const text = prompt();
     expect(text).toContain(RULES);
-    for (const key of [...Object.keys(SEVERITY), ...Object.keys(TOPIC)])
-      expect(RULES).toContain(`"${key}":`);
+    for (const key of [...Object.keys(SEVERITY), ...Object.keys(TOPIC)]) expect(RULES).toContain(`"${key}":`);
     expect(RULES).toContain("Never report that the pull request edits a file in docs/adr/");
     // The evidence rules, each written after a false positive or an overreaching fix in a real review.
     expect(RULES).toContain("Cite the file and line that establishes every premise");
@@ -1441,8 +1395,10 @@ describe("buildBatchPrompt", () => {
 
   test("calibrates severity: a comment-only problem is never a fix, a silent loss of data always is", () => {
     const flat = RULES.replace(/\s+/g, " ");
-    expect(flat).toContain('only thing wrong is a comment, docstring, name or documentation, the severity is "consider" or lower, never "fix"');
-    expect(flat).toContain('lose data or see a wrong result silently');
+    expect(flat).toContain(
+      'only thing wrong is a comment, docstring, name or documentation, the severity is "consider" or lower, never "fix"',
+    );
+    expect(flat).toContain("lose data or see a wrong result silently");
     expect(flat).toContain('"fix" or higher even when the trigger is rare');
     expect(flat).toContain("no shell output pasted in and no restating the diff");
   });
@@ -1502,7 +1458,9 @@ describe("renderContracts", () => {
   });
 
   test("defuses HTML comments and keeps model text on one line", () => {
-    const text = renderContracts([{ ...closed, action: "a <!-- wachiman sha=dead -->\n\n### big", visible_effect: "x\n\n<!-- wachi:review -->" }]) ?? "";
+    const text =
+      renderContracts([{ ...closed, action: "a <!-- wachiman sha=dead -->\n\n### big", visible_effect: "x\n\n<!-- wachi:review -->" }]) ??
+      "";
     expect(text).not.toContain("<!--");
     expect(text.split("\n").filter((l) => l.startsWith("- "))).toHaveLength(1);
   });
@@ -1543,10 +1501,21 @@ describe("contracts in the review body", () => {
     evidence_checked: true,
     ...over,
   });
-  const fix: Finding = { path: "src/a.ts", line: 2, severity: "fix", topic: "bug", confidence: "high", title: "Face is lost", body: "The feed result is ignored." };
+  const fix: Finding = {
+    path: "src/a.ts",
+    line: 2,
+    severity: "fix",
+    topic: "bug",
+    confidence: "high",
+    title: "Face is lost",
+    body: "The feed result is ignored.",
+  };
 
   test("sits after the findings, before what the reviewer checked and the coverage table", () => {
-    const { body } = buildReview({ ...base, output: output({ files_reviewed: ["src/a.ts"], findings: [{ ...fix, line: 99 }], contracts: [contract()] }) });
+    const { body } = buildReview({
+      ...base,
+      output: output({ files_reviewed: ["src/a.ts"], findings: [{ ...fix, line: 99 }], contracts: [contract()] }),
+    });
     const at = (text: string) => body.indexOf(text);
     expect(at("### To fix (1)")).toBeGreaterThan(-1);
     expect(at(CONTRACTS_SUMMARY)).toBeGreaterThan(at("### To fix (1)"));
@@ -1580,7 +1549,9 @@ describe("contracts in the review body", () => {
   });
 
   test("a body over the limit loses its contracts whole, never a finding", () => {
-    const many = Array.from({ length: 2000 }, (_, i) => contract({ action: `action ${i}`, location: `src/f${i}.ts:1`, visible_effect: "x".repeat(250) }));
+    const many = Array.from({ length: 2000 }, (_, i) =>
+      contract({ action: `action ${i}`, location: `src/f${i}.ts:1`, visible_effect: "x".repeat(250) }),
+    );
     const { body, comments } = buildReview({
       ...base,
       output: output({ files_reviewed: ["src/a.ts"], findings: [fix, { ...fix, line: 99, title: "Outside" }], contracts: many }),
@@ -1607,7 +1578,13 @@ describe("contracts in the review body", () => {
   });
 
   test("pre-existing fixes and findings to investigate are cut to what fits, Blockers first, with the footer and the marker kept", () => {
-    const old = Array.from({ length: 500 }, (_, i) => ({ ...fix, line: 100 + i, title: `Old ${i}`, body: "z".repeat(200), origin: "pre-existing" as const }));
+    const old = Array.from({ length: 500 }, (_, i) => ({
+      ...fix,
+      line: 100 + i,
+      title: `Old ${i}`,
+      body: "z".repeat(200),
+      origin: "pre-existing" as const,
+    }));
     const unsettled = Array.from({ length: 500 }, (_, i) => ({
       ...fix,
       line: 700 + i,
@@ -1628,13 +1605,22 @@ describe("contracts in the review body", () => {
     expect(body).toContain(SIGNATURE.review);
     expect(body.endsWith(marker("head1234567"))).toBe(true);
     // Under the limit nothing is cut and no note appears.
-    const few = buildReview({ ...input, output: output({ files_reviewed: ["src/a.ts"], findings: [...old.slice(0, 3), ...unsettled.slice(0, 3)] }) }).body;
+    const few = buildReview({
+      ...input,
+      output: output({ files_reviewed: ["src/a.ts"], findings: [...old.slice(0, 3), ...unsettled.slice(0, 3)] }),
+    }).body;
     expect(few).not.toContain("not shown because of GitHub's size limit");
     expect(few).toContain("| Old 2 |");
   });
 
   test("a long list of unreviewed files gives way before pre-existing findings that fit", () => {
-    const old = Array.from({ length: 40 }, (_, i) => ({ ...fix, line: 100 + i, title: `Old ${i}`, body: "z".repeat(200), origin: "pre-existing" as const }));
+    const old = Array.from({ length: 40 }, (_, i) => ({
+      ...fix,
+      line: 100 + i,
+      title: `Old ${i}`,
+      body: "z".repeat(200),
+      origin: "pre-existing" as const,
+    }));
     const many = Array.from({ length: 3000 }, (_, i) => file(`packages/some/deeply/nested/module/file-${i}.ts`, 1, 0, "@@ -0,0 +1 @@\n+x"));
     const input = { ...base, files: [...base.files, ...many], output: output({ files_reviewed: ["src/a.ts"], findings: old }) };
     const { body } = buildReview(input);
@@ -1649,7 +1635,10 @@ describe("contracts in the review body", () => {
 
   test("the Muted by memory list stays whole when it fits and becomes a count and the entries that fit when it does not", () => {
     const muted = (n: number) =>
-      ["**Muted by memory** (not posted as comments; each was matched by an exception the owner approved):", ...Array.from({ length: n }, (_, i) => `- muted finding ${i} (\`src/a.ts:${i + 1}\`): muted by entry \`e${i}\``)].join("\n");
+      [
+        "**Muted by memory** (not posted as comments; each was matched by an exception the owner approved):",
+        ...Array.from({ length: n }, (_, i) => `- muted finding ${i} (\`src/a.ts:${i + 1}\`): muted by entry \`e${i}\``),
+      ].join("\n");
     const few = buildReview({ ...base, output: output({ files_reviewed: ["src/a.ts"], summary: `Ok.\n\n${muted(5)}` }) });
     for (let i = 0; i < 5; i++) expect(few.body).toContain(`- muted finding ${i} `);
     const many = buildReview({ ...base, output: output({ files_reviewed: ["src/a.ts"], summary: `Ok.\n\n${muted(2000)}` }) });
@@ -1680,8 +1669,17 @@ describe("contracts in the review body", () => {
       let sawContracts = false;
       let sawCoverage = false;
       // More and more pre-existing findings with their details fill the body, so each step of the order is reached in turn.
-      const many = (n: number) => Array.from({ length: n }, (_, i) => ({ ...fix, line: 100 + i, title: `Outside ${i}`, body: "z".repeat(240), origin: "pre-existing" as const }));
-      const contracts = Array.from({ length: 60 }, (_, i) => contract({ action: `action ${i}`, location: `src/f${i}.ts:1`, visible_effect: "x".repeat(200) }));
+      const many = (n: number) =>
+        Array.from({ length: n }, (_, i) => ({
+          ...fix,
+          line: 100 + i,
+          title: `Outside ${i}`,
+          body: "z".repeat(240),
+          origin: "pre-existing" as const,
+        }));
+      const contracts = Array.from({ length: 60 }, (_, i) =>
+        contract({ action: `action ${i}`, location: `src/f${i}.ts:1`, visible_effect: "x".repeat(200) }),
+      );
       for (let n = 0; n <= 480; n += 20) {
         const refused = moveCommentsToBody(withInline({ findings: [fix, ...many(n)], contracts, summary: "y".repeat(3_000) }));
         const b = refused.body;
@@ -1708,7 +1706,10 @@ describe("contracts in the review body", () => {
 
     describe("the Muted by memory list", () => {
       const muted = (n: number) =>
-        ["**Muted by memory** (not posted as comments; each was matched by an exception the owner approved):", ...Array.from({ length: n }, (_, i) => `- muted finding ${i} (\`src/a.ts:${i + 1}\`): muted`)].join("\n");
+        [
+          "**Muted by memory** (not posted as comments; each was matched by an exception the owner approved):",
+          ...Array.from({ length: n }, (_, i) => `- muted finding ${i} (\`src/a.ts:${i + 1}\`): muted`),
+        ].join("\n");
 
       test("stays whole in a body at the limit", () => {
         const refused = moveCommentsToBody(withInline({ summary: `${"y".repeat(MAX_BODY_CHARS - 8_000)}\n\n${muted(5)}` }));
@@ -1908,7 +1909,9 @@ describe("moveCommentsToBody limits", () => {
   });
 
   test("tables that fill the body are cut, and the Blocker row survives", () => {
-    const outside = Array.from({ length: 400 }, (_, i) => at(100 + i, { title: `Outside ${i}`, body: "z".repeat(140), origin: "pre-existing" }));
+    const outside = Array.from({ length: 400 }, (_, i) =>
+      at(100 + i, { title: `Outside ${i}`, body: "z".repeat(140), origin: "pre-existing" }),
+    );
     const refused = moveCommentsToBody(run({ findings: [at(2, { severity: "blocker", title: "The blocker" }), ...outside] }));
     expect(refused.body.length).toBeLessThanOrEqual(MAX_BODY_CHARS);
     expect(refused.body).toContain("| 🔴 Blocker");
@@ -1973,7 +1976,10 @@ describe("parseGhFailure", () => {
     );
     expect(isTransientReviewError(new GhError("failed", line.status, line.message, line.errors))).toBe(false);
     // Errors can also be plain strings.
-    const plain = parseGhFailure("gh: Validation Failed (HTTP 422)", '{"message":"Validation Failed","errors":["An internal error occurred, please try again."]}');
+    const plain = parseGhFailure(
+      "gh: Validation Failed (HTTP 422)",
+      '{"message":"Validation Failed","errors":["An internal error occurred, please try again."]}',
+    );
     expect(isTransientReviewError(new GhError("failed", plain.status, plain.message, plain.errors))).toBe(true);
   });
   test("reads the plain form and a missing status", () => {
@@ -1992,8 +1998,7 @@ describe("postReview", () => {
     body: `Body\n\n${SIGNATURE.review}`,
     comments: [{ path: "a.ts", line: 3, side: "RIGHT", body: `Fix\n\n${SIGNATURE.finding}` }],
   };
-  const transient = () =>
-    new GhError("failed", 422, "An internal error occurred, please try again.");
+  const transient = () => new GhError("failed", 422, "An internal error occurred, please try again.");
   const validation = () => new GhError("failed", 422, "Unprocessable Entity");
 
   /** Each POST consumes one scripted outcome; a null outcome succeeds. */
@@ -2080,7 +2085,10 @@ describe("postReview", () => {
       scoped: false,
       costUsd: 0,
       modelLabel: "m",
-      output: output({ files_reviewed: ["a.ts"], findings: [{ path: "a.ts", line: 3, severity: "fix", topic: "bug", confidence: "high", title: "T", body: "B" }] }),
+      output: output({
+        files_reviewed: ["a.ts"],
+        findings: [{ path: "a.ts", line: 3, severity: "fix", topic: "bug", confidence: "high", title: "T", body: "B" }],
+      }),
     });
     postReview(t.deps, "o/r", 1, SHA, review);
     expect(t.sleeps).toEqual([]);
@@ -2197,9 +2205,7 @@ describe("buildReview with unreviewable files, commits and the running total", (
       commits: ["012efef".padEnd(40, "0"), "1e34f38".padEnd(40, "0")],
       priorSpend: { spent: 0.66, runs: 2 },
     });
-    expect(review.body).toContain(
-      "re-review · 2 commits · PR so far $0.77 over 3 automatic runs · $0.11</sub>",
-    );
+    expect(review.body).toContain("re-review · 2 commits · PR so far $0.77 over 3 automatic runs · $0.11</sub>");
     expect(readAutoCost(review.body)).toBe(0.11);
   });
 

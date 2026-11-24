@@ -39,7 +39,10 @@ export function checkKeywords(schema: Schema, path = "$"): void {
     if (!CHECKED.has(key) && !ANNOTATIONS.has(key)) throw new Error(`${path}: the validator does not check "${key}"`);
   }
   const children: [string, Schema][] = [
-    ...Object.entries((schema.properties ?? {}) as Record<string, Schema>).map(([k, v]): [string, Schema] => [`${path}.properties.${k}`, v]),
+    ...Object.entries((schema.properties ?? {}) as Record<string, Schema>).map(([k, v]): [string, Schema] => [
+      `${path}.properties.${k}`,
+      v,
+    ]),
     ...Object.entries((schema.$defs ?? {}) as Record<string, Schema>).map(([k, v]): [string, Schema] => [`${path}.$defs.${k}`, v]),
     ...((schema.oneOf ?? []) as Schema[]).map((v, i): [string, Schema] => [`${path}.oneOf[${i}]`, v]),
     ...(schema.items ? [[`${path}.items`, schema.items as Schema] as [string, Schema]] : []),

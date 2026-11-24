@@ -85,10 +85,26 @@ function sourceFiles(): string[] {
   return out.sort();
 }
 
-const isComment = (line: string, file: string) =>
-  (/\.(ts|js)$/.test(file) ? /^\s*(\/\/|\*|\/\*)/ : /^\s*#/).test(line);
+const isComment = (line: string, file: string) => (/\.(ts|js)$/.test(file) ? /^\s*(\/\/|\*|\/\*)/ : /^\s*#/).test(line);
 /** Drops a trailing `// comment`; the whitespace before `//` keeps `https://` intact. */
 const code = (line: string) => line.replace(/(?<!:)\s\/\/\s.*$/, "");
+
+/** Adds the call-site rules `line` matches to `sites` for `file`; never called for a comment. */
+function addSites(file: string, line: string, sites: Map<string, Set<string>>): void {
+  for (const { name, pattern } of SITE_RULES) {
+    if (!pattern.test(line)) continue;
+    if (!sites.has(file)) sites.set(file, new Set());
+    sites.get(file)!.add(name);
+  }
+}
+
+/** Adds every URL host in `line` to `hosts` for `file`. */
+function addHosts(file: string, line: string, hosts: Map<string, Set<string>>): void {
+  for (const m of line.matchAll(/https?:\/\/(\[::1\]|[A-Za-z0-9][A-Za-z0-9.-]*)/g)) {
+    if (!hosts.has(m[1])) hosts.set(m[1], new Set());
+    hosts.get(m[1])!.add(file);
+  }
+}
 
 /** Network call sites by file (rule names) and URL hosts by host (files), for the current source. */
 function scan(): { sites: Map<string, Set<string>>; hosts: Map<string, Set<string>> } {
@@ -102,17 +118,8 @@ function scan(): { sites: Map<string, Set<string>>; hosts: Map<string, Set<strin
       const isComm = isComment(raw, file);
       if (isComm && !keepComments) continue;
       const line = isComm ? raw : code(raw);
-      for (const { name, pattern } of SITE_RULES) {
-        if (isComm) break; // call-site rules never apply to comments
-        if (pattern.test(line)) {
-          if (!sites.has(file)) sites.set(file, new Set());
-          sites.get(file)!.add(name);
-        }
-      }
-      for (const m of line.matchAll(/https?:\/\/(\[::1\]|[A-Za-z0-9][A-Za-z0-9.-]*)/g)) {
-        if (!hosts.has(m[1])) hosts.set(m[1], new Set());
-        hosts.get(m[1])!.add(file);
-      }
+      if (!isComm) addSites(file, line, sites); // call-site rules never apply to comments
+      addHosts(file, line, hosts);
     }
   }
   return { sites, hosts };
@@ -140,7 +147,10 @@ function tableRows(firstHeader: string): string[][] {
       inTable = false;
       continue;
     }
-    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+    const cells = line
+      .split("|")
+      .slice(1, -1)
+      .map((c) => c.trim());
     if (cells.every((c) => /^-+$/.test(c))) continue;
     if (!inTable) {
       inTable = cells[0] === firstHeader; // the header row: start (or skip) this table
@@ -188,7 +198,10 @@ describe("network egress is listed on docs/on-your-machine.md", () => {
       .map(([file, rules]) => [file, [...rules].filter((r) => !exempt(file, r))] as const)
       .filter(([file, rules]) => rules.length > 0 && !cited.has(file))
       .map(([file, rules]) => `${file} (${rules.join(", ")})`);
-    expect(missing, `add these files to the table in docs/on-your-machine.md, or explain them in NOT_A_CALL:\n${missing.join("\n")}`).toEqual([]);
+    expect(
+      missing,
+      `add these files to the table in docs/on-your-machine.md, or explain them in NOT_A_CALL:\n${missing.join("\n")}`,
+    ).toEqual([]);
   });
 
   test("every NOT_A_CALL entry still matches a rule", () => {

@@ -132,42 +132,24 @@ describe("bounded-wait question", () => {
 
   describe("applies to the real kaipu-record patterns", () => {
     test("#482: availability awaited outside the 2 s read race", () => {
-      expect(
-        QUESTION.applies(
-          KAIPU_482_ADDED,
-          "apps/kaipu-record/src/main/workspaces/workspace-settings.ts",
-        ),
-      ).toBe(true);
+      expect(QUESTION.applies(KAIPU_482_ADDED, "apps/kaipu-record/src/main/workspaces/workspace-settings.ts")).toBe(true);
     });
     test("#483: per-batch stat timeout over sequential batches with an lstat fallback", () => {
-      expect(
-        QUESTION.applies(KAIPU_483_ADDED, "apps/kaipu-record/src/main/library/dataless.ts"),
-      ).toBe(true);
+      expect(QUESTION.applies(KAIPU_483_ADDED, "apps/kaipu-record/src/main/library/dataless.ts")).toBe(true);
     });
     test("#449: the 120 s prepare wait", () => {
-      expect(
-        QUESTION.applies(KAIPU_449_ADDED, "apps/kaipu-record/src/main/workspaces/index.ts"),
-      ).toBe(true);
+      expect(QUESTION.applies(KAIPU_449_ADDED, "apps/kaipu-record/src/main/workspaces/index.ts")).toBe(true);
     });
   });
 
   describe("applies to other timeout, deadline, race, probe, poll and retry code", () => {
     const cases: [string, string[]][] = [
-      [
-        "AbortSignal.timeout",
-        ["const res = await fetch(url, { signal: AbortSignal.timeout(5000) });"],
-      ],
-      [
-        "deadline variable",
-        ["const deadline = Date.now() + 10_000;", "if (Date.now() >= deadline) break;"],
-      ],
+      ["AbortSignal.timeout", ["const res = await fetch(url, { signal: AbortSignal.timeout(5000) });"]],
+      ["deadline variable", ["const deadline = Date.now() + 10_000;", "if (Date.now() >= deadline) break;"]],
       ["timeout option", ["execFile(bin, args, { timeout: 5_000 }, cb);"]],
       ["Promise.race", ["await Promise.race([work(), gaveUp]);"]],
       ["poll loop", ["while (!(await isReady())) await poll();"]],
-      [
-        "retry with backoff",
-        ["for (let n = 0; n < retries; n++) {", "  await sleep(backoff * 2 ** n);"],
-      ],
+      ["retry with backoff", ["for (let n = 0; n < retries; n++) {", "  await sleep(backoff * 2 ** n);"]],
       ["probe", ["const evicted = await probeDataless(paths);"]],
     ];
     for (const [name, lines] of cases) {
@@ -177,10 +159,7 @@ describe("bounded-wait question", () => {
 
   describe("never applies to the near misses", () => {
     test("a UI debounce setTimeout", () => {
-      const lines = [
-        "const timer = setTimeout(() => setQuery(value), 300);",
-        "return () => clearTimeout(timer);",
-      ];
+      const lines = ["const timer = setTimeout(() => setQuery(value), 300);", "return () => clearTimeout(timer);"];
       expect(QUESTION.applies(lines, "src/lib/use-debounce.ts")).toBe(false);
       expect(QUESTION.applies(lines, "src/components/search.tsx")).toBe(false);
     });
@@ -193,10 +172,7 @@ describe("bounded-wait question", () => {
       expect(QUESTION.applies(lines, "src/lib/save.ts")).toBe(false);
     });
     test("a bare setTimeout and a sleep helper in source", () => {
-      const lines = [
-        "const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));",
-        "setTimeout(() => el.focus(), 0);",
-      ];
+      const lines = ["const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));", "setTimeout(() => el.focus(), 0);"];
       expect(QUESTION.applies(lines, "src/lib/sleep.ts")).toBe(false);
     });
     test("a CSS transition", () => {
@@ -206,10 +182,7 @@ describe("bounded-wait question", () => {
       expect(QUESTION.applies(inJs, "src/lib/fade.ts")).toBe(false);
     });
     test("an await sleep in a test", () => {
-      const lines = [
-        "await sleep(50);",
-        "const result = await Promise.race([run(), timeout(100)]);",
-      ];
+      const lines = ["await sleep(50);", "const result = await Promise.race([run(), timeout(100)]);"];
       for (const file of [
         "src/sync.test.ts",
         "src/sync.spec.js",
@@ -229,41 +202,23 @@ describe("bounded-wait question", () => {
         "The probe has a 2 s timeout and a deadline of 10 s; retry with backoff.",
         "Poll every second until Promise.race settles.",
       ];
-      for (const file of [
-        "docs/adr/0034-probe.md",
-        "README.mdx",
-        "docs/spec.txt",
-        "config.yaml",
-        "package.json",
-      ]) {
+      for (const file of ["docs/adr/0034-probe.md", "README.mdx", "docs/spec.txt", "config.yaml", "package.json"]) {
         expect(QUESTION.applies(lines, file)).toBe(false);
       }
     });
     test("comment-only lines in source", () => {
-      const lines = [
-        "// retry with a timeout and a deadline",
-        " * The probe polls until the deadline.",
-        "# retry",
-      ];
+      const lines = ["// retry with a timeout and a deadline", " * The probe polls until the deadline.", "# retry"];
       expect(QUESTION.applies(lines, "src/main/sync.ts")).toBe(false);
     });
     test("ordinary code without a wait", () => {
-      const lines = [
-        "export const add = (a: number, b: number) => a + b;",
-        "const names = users.map((u) => u.name);",
-        "",
-      ];
+      const lines = ["export const add = (a: number, b: number) => a + b;", "const names = users.map((u) => u.name);", ""];
       expect(QUESTION.applies(lines, "src/util.ts")).toBe(false);
       expect(QUESTION.applies([], "src/util.ts")).toBe(false);
     });
   });
 
   test("a batch pays only when one of its lines shows the pattern", () => {
-    const mixed = [
-      "const a = 1;",
-      "const t = setTimeout(() => x(), 100);",
-      "const READ_TIMEOUT_MS = 2000;",
-    ];
+    const mixed = ["const a = 1;", "const t = setTimeout(() => x(), 100);", "const READ_TIMEOUT_MS = 2000;"];
     expect(QUESTION.applies(mixed, "src/main/a.ts")).toBe(true);
     expect(QUESTION.applies(mixed.slice(0, 2), "src/main/a.ts")).toBe(false);
   });

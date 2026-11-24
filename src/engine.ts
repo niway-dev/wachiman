@@ -27,7 +27,18 @@
  * best-effort, not a sandbox: it relies on the consumer repository's trust assumption (only trusted people push).
  * The command-line entry point is `src/cli.ts`.
  */
-import { ESTIMATE_NOTE, NO_USAGE, addUsage, costLine, costLogLine, isEstimate, ledgerCall, type CallCost, type Operation, type TokenUsage } from "./cost";
+import {
+  ESTIMATE_NOTE,
+  NO_USAGE,
+  addUsage,
+  costLine,
+  costLogLine,
+  isEstimate,
+  ledgerCall,
+  type CallCost,
+  type Operation,
+  type TokenUsage,
+} from "./cost";
 import { spawnSync } from "node:child_process";
 import { closeSync, mkdtempSync, openSync, readFileSync, readSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -46,11 +57,38 @@ import {
 } from "./review-state";
 import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
-import { SETTINGS_PATH, applyRepoSettings, fileSettingsNote, ignoredSettingsNote, matchPathRule, parseRepoSettings, pathsEdited, reviewPolicyOf, touchesSettingsFile, wantsRepoSettings, withPolicyEditRule, type PathRule, type PathSeverity, type RepoSettings, type ReviewPolicy } from "./repo-settings";
+import {
+  SETTINGS_PATH,
+  applyRepoSettings,
+  fileSettingsNote,
+  ignoredSettingsNote,
+  matchPathRule,
+  parseRepoSettings,
+  pathsEdited,
+  reviewPolicyOf,
+  touchesSettingsFile,
+  wantsRepoSettings,
+  withPolicyEditRule,
+  type PathRule,
+  type PathSeverity,
+  type RepoSettings,
+  type ReviewPolicy,
+} from "./repo-settings";
 import { newCandidate, proposability, renderEntry, today, type Candidate } from "./memory/candidates";
 import { renderProposal } from "./memory/proposal";
 import { MEMORY_DIR, cutMemoryNote, loadMemory, memoryNotice, memoryRecord, type MemoryLoad, type MemorySource } from "./memory/load";
-import { MATCH_SCHEMA, applyMatches, buildMatchPrompt, matchRequest, parseMatches, planExceptions, renderConventions, renderMuting, type ExceptionPlan, type MutedFinding } from "./memory/mute";
+import {
+  MATCH_SCHEMA,
+  applyMatches,
+  buildMatchPrompt,
+  matchRequest,
+  parseMatches,
+  planExceptions,
+  renderConventions,
+  renderMuting,
+  type ExceptionPlan,
+  type MutedFinding,
+} from "./memory/mute";
 import {
   LedgerBadAnswer,
   LedgerNotPermitted,
@@ -353,7 +391,11 @@ export const confidenceMeter = (level: Confidence) => {
 };
 
 /** A table cell of text Wachiman did not write: `|`, a backtick and a newline would break the row. */
-const cell = (text: string) => text.replace(/\r?\n|\r/g, " ").replaceAll("|", "\\|").replaceAll("`", "\\`");
+const cell = (text: string) =>
+  text
+    .replace(/\r?\n|\r/g, " ")
+    .replaceAll("|", "\\|")
+    .replaceAll("`", "\\`");
 const uncell = (text: string) => text.replaceAll("\\|", "|").replaceAll("\\`", "`");
 
 /** The Track record row. Layer 1 counts no outcomes, so every finding says so (spec decision 19). */
@@ -374,7 +416,10 @@ export const inlineFindingBody = (f: Finding & { origin?: Origin; priority?: Pri
     `| ${BRAND} | ${cell(neutralise(f.title))} |`,
     "|:--|:--|",
     ...(arm === "priority"
-      ? [`| **Priority** | **${PRIORITY_WORD[word]}** · ${PRIORITY_GLOSS[word]}${f.origin === "pre-existing" ? " · Pre-existing" : ""} |`, `| **Severity** | ${severity} |`]
+      ? [
+          `| **Priority** | **${PRIORITY_WORD[word]}** · ${PRIORITY_GLOSS[word]}${f.origin === "pre-existing" ? " · Pre-existing" : ""} |`,
+          `| **Severity** | ${severity} |`,
+        ]
       : [`| **Severity** | ${severity} · ${tierWord(f)} |`]),
     `| **Area** | ${TOPIC[f.topic].emoji} ${TOPIC[f.topic].word} |`,
     ...(f.confidence ? [`| **Confidence** | ${confidenceMeter(f.confidence)} |`] : []),
@@ -396,18 +441,30 @@ export function parseInlineTable(body: string) {
   const rows = body.split("\n");
   const end = rows.findIndex((r) => !r.startsWith("|"));
   const table = rows.slice(0, end === -1 ? rows.length : end);
-  const value = (name: string) => table.find((r) => r.startsWith(`| **${name}** | `))?.slice(`| **${name}** | `.length).replace(/ \|$/, "");
+  const value = (name: string) =>
+    table
+      .find((r) => r.startsWith(`| **${name}** | `))
+      ?.slice(`| **${name}** | `.length)
+      .replace(/ \|$/, "");
   const severity = value("Severity")?.match(/^(\S+) (Blocker|Fix|Consider|Info)(?: · (Important|Nit))?$/);
   const area = value("Area")?.match(/^(\S+) ([a-z]+)$/);
   if (!severity || !area || !table[0].endsWith(" |")) return null;
-  const confidence = value("Confidence")?.match(/^\S+ (High|Medium|Low)$/)?.[1].toLowerCase();
+  const confidence = value("Confidence")
+    ?.match(/^\S+ (High|Medium|Low)$/)?.[1]
+    .toLowerCase();
   const priority = value("Priority")?.match(/^\*\*(Must|Should|Could|FYI)\*\*/)?.[1];
   const preExisting = value("Priority")?.endsWith(" · Pre-existing") ?? false;
   return {
     rows: table.length,
     title: uncell(table[0].slice(TABLE_HEAD.length, -2)),
     // The tier word of the one-line label: the cell's own, or, in the priority arm, the one `tierWord` derives.
-    severity: { emoji: severity[1], word: severity[2], tier: severity[3] ?? tierWord({ severity: severity[2].toLowerCase() as Severity, ...(preExisting ? { origin: "pre-existing" as const } : {}) }) },
+    severity: {
+      emoji: severity[1],
+      word: severity[2],
+      tier:
+        severity[3] ??
+        tierWord({ severity: severity[2].toLowerCase() as Severity, ...(preExisting ? { origin: "pre-existing" as const } : {}) }),
+    },
     topic: { emoji: area[1], word: area[2] },
     ...(priority ? { priority: { word: priority, preExisting } } : {}),
     ...(confidence ? { confidence } : {}),
@@ -422,9 +479,7 @@ function findingLine(body: string, lead: (t: NonNullable<ReturnType<typeof parse
   const t = parseInlineTable(body);
   if (!t) return body;
   const detail = t.confidence ? ` (confidence ${t.confidence})` : "";
-  const line = branded(
-    `${lead(t)} · ${t.severity.emoji}${t.topic.emoji} **${t.severity.word} · ${t.topic.word}: ${t.title}${detail}**`,
-  );
+  const line = branded(`${lead(t)} · ${t.severity.emoji}${t.topic.emoji} **${t.severity.word} · ${t.topic.word}: ${t.title}${detail}**`);
   return [line, ...body.split("\n").slice(t.rows)].join("\n");
 }
 
@@ -447,8 +502,7 @@ export const MENTION_ALIASES = ["/wachiman", "/wachi", "@claude"];
 const escapeRegExp = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** The keyword or an alias, as a word of its own: "docs/wachi" or "me@claude" is not a mention. */
-const mentionSource = (keyword: string) =>
-  `(?<![\\w./@-])(?:${[keyword, ...MENTION_ALIASES].map(escapeRegExp).join("|")})(?![\\w-])`;
+const mentionSource = (keyword: string) => `(?<![\\w./@-])(?:${[keyword, ...MENTION_ALIASES].map(escapeRegExp).join("|")})(?![\\w-])`;
 
 export function parseCommand(body: string, keyword = DEFAULT_MENTION): Command | null {
   // Only the rest of the first line: "/wachiman review\n\nthanks" asks for a review, not a path.
@@ -480,8 +534,7 @@ export function asksForWalkthrough(request: string, keyword = DEFAULT_MENTION) {
   return rest === "" || rest.toLowerCase() === "explain";
 }
 
-const underPath = (name: string, path: string) =>
-  name === path || name.startsWith(path.endsWith("/") ? path : `${path}/`);
+const underPath = (name: string, path: string) => name === path || name.startsWith(path.endsWith("/") ? path : `${path}/`);
 
 /** Words after `review` in a request that name no changed file ("again", "please") are not paths. */
 export function resolveScope(words: string[], filenames: string[]) {
@@ -558,16 +611,8 @@ export function splitUnreviewable(files: ReviewFile[], headDir: string) {
 
 export type FileKind = "code" | "test" | "docs";
 
-const TEST_PATH = [
-  /(^|\/)(__tests__|tests?|fixtures)\//,
-  /\.(test|spec)\.[cm]?[jt]sx?$/,
-  /(^|\/)test-[^/]*$/,
-];
-const DOCS_PATH = [
-  /\.(md|mdx|txt|css|scss)$/,
-  /^docs\//,
-  /(^|\/)(messages|locales|i18n)\/[^/]*\.json$/,
-];
+const TEST_PATH = [/(^|\/)(__tests__|tests?|fixtures)\//, /\.(test|spec)\.[cm]?[jt]sx?$/, /(^|\/)test-[^/]*$/];
+const DOCS_PATH = [/\.(md|mdx|txt|css|scss)$/, /^docs\//, /(^|\/)(messages|locales|i18n)\/[^/]*\.json$/];
 
 /** Production code first, then tests, then documentation, styles and messages. */
 export function fileKind(path: string): FileKind {
@@ -632,10 +677,8 @@ export function riskScore(path: string, rules?: readonly PathRule[], previous?: 
 /** The module a file belongs to, so a batch keeps a module's code, tests and docs together. */
 export function moduleKey(path: string): string {
   const parts = path.split("/");
-  if (parts[0] === "apps" && parts[2] === "src" && parts.length > 4)
-    return parts.slice(0, 4).join("/");
-  if ((parts[0] === "apps" || parts[0] === "packages") && parts.length > 2)
-    return parts.slice(0, 2).join("/");
+  if (parts[0] === "apps" && parts[2] === "src" && parts.length > 4) return parts.slice(0, 4).join("/");
+  if ((parts[0] === "apps" || parts[0] === "packages") && parts.length > 2) return parts.slice(0, 2).join("/");
   return parts.length > 1 ? parts[0] : "(root)";
 }
 
@@ -654,11 +697,7 @@ const sizeOf = (f: ReviewFile) => f.additions + f.deletions;
  * inside a batch, production code comes before tests and documentation. A file larger than
  * either limit is a batch of its own.
  */
-export function planBatches(
-  files: ReviewFile[],
-  limits: { maxLines: number; maxChars: number },
-  rules?: readonly PathRule[],
-): Batch[] {
+export function planBatches(files: ReviewFile[], limits: { maxLines: number; maxChars: number }, rules?: readonly PathRule[]): Batch[] {
   const previousOf = new Map(files.flatMap((f) => (f.previous_filename ? [[f.filename, f.previous_filename] as const] : [])));
   const score = (path: string) => riskScore(path, rules, previousOf.get(path));
   /** The rule's score for a matched file, 0 for any other. */
@@ -666,8 +705,7 @@ export function planBatches(
     const rule = matchPathRule(path, rules, previousOf.get(path));
     return rule ? PATH_RULE_SCORE[rule.severity] : 0;
   };
-  const byScore = (a: ReviewFile, b: ReviewFile) =>
-    score(b.filename) - score(a.filename) || a.filename.localeCompare(b.filename);
+  const byScore = (a: ReviewFile, b: ReviewFile) => score(b.filename) - score(a.filename) || a.filename.localeCompare(b.filename);
   // A file a path rule matched leaves its module and packs first, most severe first: the maintainer
   // named the path, so a spent budget never leaves it unread behind a heuristic-ranked file.
   const matched = files.filter((f) => ruled(f.filename) > 0).sort((a, b) => ruled(b.filename) - ruled(a.filename) || byScore(a, b));
@@ -693,10 +731,7 @@ export function planBatches(
   for (const f of ordered) {
     const size = sizeOf(f);
     const length = f.patch?.length ?? 0;
-    if (
-      current.length > 0 &&
-      (lines + size > limits.maxLines || chars + length > limits.maxChars)
-    ) {
+    if (current.length > 0 && (lines + size > limits.maxLines || chars + length > limits.maxChars)) {
       batches.push(current);
       current = [];
       lines = 0;
@@ -727,11 +762,7 @@ export function planBatches(
 export function batchGaps(files: ReviewFile[], output: ReviewOutput | undefined): ReviewFile[] {
   if (!output) return files;
   const reviewed = new Set(output.files_reviewed);
-  const skipped = new Set(
-    output.files_skipped
-      .filter((s) => (SKIP_REASONS as readonly string[]).includes(s.reason))
-      .map((s) => s.path),
-  );
+  const skipped = new Set(output.files_skipped.filter((s) => (SKIP_REASONS as readonly string[]).includes(s.reason)).map((s) => s.path));
   return files.filter((f) => !reviewed.has(f.filename) && !(skipped.has(f.filename) && !f.patch));
 }
 
@@ -808,9 +839,7 @@ export function adrNotices(filenames: string[]): Finding[] {
 export function mergeOutputs(parts: { label: string; output: ReviewOutput }[]): ReviewOutput {
   const reviewed = new Set(parts.flatMap((p) => p.output.files_reviewed));
   const skipped = new Map<string, string>();
-  for (const p of parts)
-    for (const s of p.output.files_skipped)
-      if (!reviewed.has(s.path)) skipped.set(s.path, s.reason);
+  for (const p of parts) for (const s of p.output.files_skipped) if (!reviewed.has(s.path)) skipped.set(s.path, s.reason);
   const replies = new Map<number, ReviewOutput["thread_replies"][number]>();
   for (const p of parts) for (const r of p.output.thread_replies) replies.set(r.comment_id, r);
   const summaries = parts.filter((p) => p.output.summary.trim() !== "");
@@ -821,9 +850,7 @@ export function mergeOutputs(parts: { label: string; output: ReviewOutput }[]): 
     contracts: mergeContracts(parts.flatMap((p) => p.output.contracts ?? [])),
     thread_replies: [...replies.values()],
     summary:
-      summaries.length === 1
-        ? summaries[0].output.summary
-        : summaries.map((p) => `**${p.label}.** ${p.output.summary}`).join("\n\n"),
+      summaries.length === 1 ? summaries[0].output.summary : summaries.map((p) => `**${p.label}.** ${p.output.summary}`).join("\n\n"),
   };
 }
 
@@ -1019,17 +1046,13 @@ export const limitFooter = (reason: string, on: string) => `<!-- wachi:limit rea
  */
 const CEILING_SOURCE = "<!-- wachi:ceiling usd=(\\d+\\.\\d{2}) -->";
 export const ceilingFooter = (usd: number) => `<!-- wachi:ceiling usd=${usd.toFixed(2)} -->`;
-const CEILING_NOTICE = new RegExp(
-  `\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n${CEILING_SOURCE}${STATE_LINE}${ATTEMPT_LINE}$`,
-);
+const CEILING_NOTICE = new RegExp(`\\n\\n${SIGNATURE_REVIEW_SOURCE}\\n\\n${CEILING_SOURCE}${STATE_LINE}${ATTEMPT_LINE}$`);
 
 /**
  * The footer of an answer to someone but the operator: its cost line, the ask signature, then the
  * answer signature, at the end of the body. Anchored, so text a model wrote earlier is never read.
  */
-const ASK_FOOTER = new RegExp(
-  `\\n\\n<sub>[^\\n]*\\$(\\d+(?:\\.\\d+)?)</sub>\\n\\n${ASK_SOURCE}\\n\\n${ANSWER_SOURCE}$`,
-);
+const ASK_FOOTER = new RegExp(`\\n\\n<sub>[^\\n]*\\$(\\d+(?:\\.\\d+)?)</sub>\\n\\n${ASK_SOURCE}\\n\\n${ANSWER_SOURCE}$`);
 
 /** The dollars an answer to someone but the operator cost, or null when the body records none. */
 export function readAskCost(body: string) {
@@ -1126,8 +1149,7 @@ export function beforeLegacyCutoff(createdAt: string | null | undefined) {
 }
 
 /** The first line of a finding comment written before signatures existed (see `isWachiFinding`). */
-const LEGACY_LABEL =
-  /^(?:\S+ )?(?:\S+ )?\*\*(?:(?:Blocker|Fix|Consider|Info) · [a-z]+:|(?:Should fix|Note) \([a-z]+\):)/;
+const LEGACY_LABEL = /^(?:\S+ )?(?:\S+ )?\*\*(?:(?:Blocker|Fix|Consider|Info) · [a-z]+:|(?:Should fix|Note) \([a-z]+\):)/;
 
 /**
  * Whether the first comment of a thread is this engine's finding. Needs the finding signature.
@@ -1137,11 +1159,7 @@ const LEGACY_LABEL =
  */
 export function isWachiFinding(body: string, createdAt?: string | null) {
   if (body.includes(SIGNATURE.finding)) return true;
-  return (
-    beforeLegacyCutoff(createdAt) &&
-    !ANY_SIGNATURE.test(body) &&
-    LEGACY_LABEL.test(body.split("\n", 1)[0])
-  );
+  return beforeLegacyCutoff(createdAt) && !ANY_SIGNATURE.test(body) && LEGACY_LABEL.test(body.split("\n", 1)[0]);
 }
 
 export function coverageGaps(expected: string[], reviewed: string[], skipped: string[]) {
@@ -1225,8 +1243,7 @@ export function renderContracts(contracts: Contract[], room = Number.POSITIVE_IN
   if (open.length > 0) sections.push({ heading: "**Open: the reviewer could not close these**", lines: open.map(openLine) });
   if (closed.length > 0) sections.push({ heading: "**Closed, with the lines they rest on**", lines: closed.map(closedLine) });
 
-  const wrap = (inner: string) =>
-    `<details><summary>${CONTRACTS_SUMMARY} (${counts})</summary>\n\n${intro}${inner}\n\n</details>`;
+  const wrap = (inner: string) => `<details><summary>${CONTRACTS_SUMMARY} (${counts})</summary>\n\n${intro}${inner}\n\n</details>`;
   const render = (kept: number) => {
     let left = kept;
     const inner = sections
@@ -1263,7 +1280,9 @@ const estimateTail = (estimate: boolean) => (estimate ? ` · ${ESTIMATE_NOTE}` :
 
 export function buildReview(input: {
   /** A finding's `anchor`, when given (a `ReviewResult`'s), decides inline or body; else its file's patch does. */
-  output: Omit<ReviewOutput, "findings"> & { findings: (Finding & Partial<Pick<ResultFinding, "anchor" | "origin" | "verification" | "priority" | "rank">>)[] };
+  output: Omit<ReviewOutput, "findings"> & {
+    findings: (Finding & Partial<Pick<ResultFinding, "anchor" | "origin" | "verification" | "priority" | "rank">>)[];
+  };
   files: ReviewFile[];
   headSha: string;
   since: string | null;
@@ -1686,7 +1705,10 @@ function fileAtBase(gh: GhFn, repo: string, path: string, sha: string): Instruct
 export function instructionFileOf(path: string, bytes: Buffer): InstructionFile {
   if (bytes.length <= MAX_INSTRUCTION_BYTES) return { path, content: bytes.toString("utf8"), truncated: false };
   // A cut inside a multi-byte character leaves a replacement character at the end: drop it.
-  const content = bytes.subarray(0, MAX_INSTRUCTION_BYTES).toString("utf8").replace(/\uFFFD+$/, "");
+  const content = bytes
+    .subarray(0, MAX_INSTRUCTION_BYTES)
+    .toString("utf8")
+    .replace(/\uFFFD+$/, "");
   return { path, content, truncated: true };
 }
 
@@ -1695,12 +1717,7 @@ export function instructionFileOf(path: string, bytes: Buffer): InstructionFile 
  * are at the pull request's base commit. A pull request cannot change what it is reviewed under,
  * so the head's copy is never used, not even when the base has none.
  */
-export function readBaseInstructions(
-  gh: GhFn,
-  repo: string,
-  sha: string,
-  warn: (line: string) => void,
-): BaseInstructions {
+export function readBaseInstructions(gh: GhFn, repo: string, sha: string, warn: (line: string) => void): BaseInstructions {
   return instructionsFrom(sha, (path) => fileAtBase(gh, repo, path, sha), warn);
 }
 
@@ -1714,7 +1731,8 @@ export function readBaseInstructions(
 export function readBaseSettings(gh: GhFn, repo: string, sha: string): RepoSettings | undefined {
   const file = fileAtBase(gh, repo, SETTINGS_PATH, sha);
   if (!file) return undefined;
-  if (file.truncated) throw new UsageError(`${SETTINGS_PATH} at the base commit is over ${MAX_INSTRUCTION_BYTES / 1024} KB, too large for a settings file.`);
+  if (file.truncated)
+    throw new UsageError(`${SETTINGS_PATH} at the base commit is over ${MAX_INSTRUCTION_BYTES / 1024} KB, too large for a settings file.`);
   return parseRepoSettings(file.content);
 }
 
@@ -1770,7 +1788,12 @@ export function githubMemorySource(gh: GhFn, repo: string, sha: string, warn: (l
     read: (name) => {
       const file = fileAtBase(gh, repo, `${MEMORY_DIR}/${name}`, sha);
       if (!file) return null;
-      if (file.truncated) warn(file.content === "" ? `${MEMORY_DIR}/${name} is over 1 MB, which GitHub does not return; it is not loaded. Split it into area files.` : cutMemoryNote(name, MAX_INSTRUCTION_BYTES / 1024));
+      if (file.truncated)
+        warn(
+          file.content === ""
+            ? `${MEMORY_DIR}/${name} is over 1 MB, which GitHub does not return; it is not loaded. Split it into area files.`
+            : cutMemoryNote(name, MAX_INSTRUCTION_BYTES / 1024),
+        );
       return file.truncated && file.content === "" ? null : file.content;
     },
     settings: () => readBaseSettings(gh, repo, sha),
@@ -1778,7 +1801,13 @@ export function githubMemorySource(gh: GhFn, repo: string, sha: string, warn: (l
 }
 
 /** The memory a review of `changedPaths` loads at the base commit `sha`; undefined without a memory folder. */
-export function readBaseMemory(gh: GhFn, repo: string, sha: string, changedPaths: string[], warn: (line: string) => void): MemoryLoad | undefined {
+export function readBaseMemory(
+  gh: GhFn,
+  repo: string,
+  sha: string,
+  changedPaths: string[],
+  warn: (line: string) => void,
+): MemoryLoad | undefined {
   return loadMemory(githubMemorySource(gh, repo, sha, warn), sha, changedPaths, warn);
 }
 
@@ -1839,8 +1868,7 @@ export function instructionsFrom(
     }
     if (found) files.push(found);
   }
-  for (const f of files)
-    if (f.truncated) warn(`${f.path} at the base commit is over ${MAX_INSTRUCTION_BYTES / 1024} KB: cut.`);
+  for (const f of files) if (f.truncated) warn(`${f.path} at the base commit is over ${MAX_INSTRUCTION_BYTES / 1024} KB: cut.`);
   return { baseSha: sha, files };
 }
 
@@ -1910,10 +1938,7 @@ export function errorMessages(errors: readonly unknown[]) {
  * setup) has no status. The top-level message can be generic ("Validation Failed") while the real
  * reason is only in `errors[].message`, so the array is kept.
  */
-export function parseGhFailure(
-  stderr: string,
-  stdout = "",
-): { status: number | null; message: string; errors: unknown[] } {
+export function parseGhFailure(stderr: string, stdout = ""): { status: number | null; message: string; errors: unknown[] } {
   let message = "";
   let errors: unknown[] = [];
   try {
@@ -1939,7 +1964,13 @@ export class GhTimeoutError extends GhError {
 function runGh(args: string[], input: string | undefined, timeoutMs?: number, bin: readonly string[] = ["gh"]): string {
   // `env: process.env` is explicit on purpose: on Linux, Bun looks the executable up in the PATH the
   // process started with unless an env is passed, so a PATH changed at runtime is ignored.
-  const run = spawnSync(bin[0], [...bin.slice(1), ...args], { env: process.env, input, encoding: "utf8", maxBuffer: 256 * 1024 * 1024, ...(timeoutMs === undefined ? {} : { timeout: Math.max(1, Math.ceil(timeoutMs)), killSignal: "SIGKILL" as const }) });
+  const run = spawnSync(bin[0], [...bin.slice(1), ...args], {
+    env: process.env,
+    input,
+    encoding: "utf8",
+    maxBuffer: 256 * 1024 * 1024,
+    ...(timeoutMs === undefined ? {} : { timeout: Math.max(1, Math.ceil(timeoutMs)), killSignal: "SIGKILL" as const }),
+  });
   if ((run.error as NodeJS.ErrnoException | undefined)?.code === "ETIMEDOUT") throw new GhTimeoutError(args);
   if (run.status !== 0) {
     const { status, message, errors } = parseGhFailure(run.stderr ?? "", run.stdout ?? "");
@@ -1955,11 +1986,13 @@ export const defaultGh: GhFn = (args, input) => runGh(args, input);
  * starting once it is zero or less. A call that is killed throws `GhTimeoutError`. `bin` replaces the
  * command (and its leading arguments); it exists so a test can run a process that really hangs.
  */
-export const ghWithin = (remainingMs: () => number, bin?: readonly string[]): GhFn => (args, input) => {
-  const left = remainingMs();
-  if (left <= 0) throw new GhTimeoutError(args);
-  return runGh(args, input, left, bin);
-};
+export const ghWithin =
+  (remainingMs: () => number, bin?: readonly string[]): GhFn =>
+  (args, input) => {
+    const left = remainingMs();
+    if (left <= 0) throw new GhTimeoutError(args);
+    return runGh(args, input, left, bin);
+  };
 
 /** What the review core needs from outside: the agent and the engine's own I/O. No GitHub. */
 export interface CoreDeps {
@@ -2022,9 +2055,7 @@ export const jsonLines = <T>(text: string) =>
 // JSON, and `@json` of a string prints the quoted string. One JSON value per line either way.
 export function listFiles(gh: GhFn, repo: string, pr: number): ReviewFile[] {
   const jq = ".[] | {filename, additions, deletions, patch, sha, previous_filename} | @json";
-  return jsonLines<ReviewFile>(
-    gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/files`, "--jq", jq]),
-  );
+  return jsonLines<ReviewFile>(gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/files`, "--jq", jq]));
 }
 
 /**
@@ -2049,9 +2080,7 @@ export function lastReviewedSha(gh: GhFn, repo: string, pr: number) {
  * a run that only answers threads. The push path reads the files too (`review`).
  */
 export function lastReviewState(gh: GhFn, repo: string, pr: number) {
-  return lastEngineState(
-    botReviews(gh, repo, pr).map((r) => ({ body: r.body, created_at: r.submitted_at })),
-  );
+  return lastEngineState(botReviews(gh, repo, pr).map((r) => ({ body: r.body, created_at: r.submitted_at })));
 }
 
 /** The reviews `github-actions[bot]` wrote on the pull request, oldest first. */
@@ -2090,7 +2119,9 @@ export function baseUpdateState(gh: GhFn, repo: string, pr: number, from: string
   try {
     reviews = botReviews(gh, repo, pr);
   } catch (error) {
-    warn?.(`Could not read the earlier reviews for the state block; the base-update line posts without one. ${String(error).slice(0, 200)}`);
+    warn?.(
+      `Could not read the earlier reviews for the state block; the base-update line posts without one. ${String(error).slice(0, 200)}`,
+    );
     return null;
   }
   const earlier = reviews
@@ -2172,13 +2203,7 @@ export type RebaseDelta =
  * different or unknown blob, a new file and a file whose lines differ are "changed". Any doubt (the old commit is gone, the
  * list may be cut short) is "unknown", and the caller reviews the whole pull request.
  */
-export function rebaseDelta(
-  gh: GhFn,
-  repo: string,
-  base: string,
-  last: string,
-  current: ReviewFile[],
-): RebaseDelta {
+export function rebaseDelta(gh: GhFn, repo: string, base: string, last: string, current: ReviewFile[]): RebaseDelta {
   let old: { files: ReviewFile[] };
   try {
     old = compareFiles(gh, repo, base, last);
@@ -2319,7 +2344,7 @@ export function ownChangeSince(since: string | undefined, now: string | undefine
     rows.forEach((r, i) => {
       if (r.kind === "\\") keep[i] = i > 0 && keep[i - 1];
     });
-    for (let i = 0; i < rows.length; ) {
+    for (let i = 0; i < rows.length;) {
       if (!keep[i]) {
         i++;
         continue;
@@ -2341,15 +2366,9 @@ export function ownChangeSince(since: string | undefined, now: string | undefine
  * change it then; undefined means that cannot be told (any doubt about a rename), and every
  * removed row is kept.
  */
-export function patchAtReview(
-  before: Map<string, ReviewFile> | null,
-  file: ReviewFile,
-  inPr: ReviewFile | undefined,
-): string | undefined {
+export function patchAtReview(before: Map<string, ReviewFile> | null, file: ReviewFile, inPr: ReviewFile | undefined): string | undefined {
   if (!before) return undefined;
-  const earlier = [file.previous_filename, inPr?.previous_filename].filter(
-    (n): n is string => !!n && n !== file.filename,
-  );
+  const earlier = [file.previous_filename, inPr?.previous_filename].filter((n): n is string => !!n && n !== file.filename);
   const same = before.get(file.filename);
   if (earlier.length === 0) return same ? same.patch : "";
   const found = [...new Set(earlier)].flatMap((n) => (before.has(n) ? [before.get(n)!] : []));
@@ -2392,8 +2411,7 @@ const TRUSTED = new Set(["OWNER", "MEMBER", "COLLABORATOR"]);
 
 /** A thread that opens with one of the engine's findings (open or resolved). */
 const isBotFinding = (t: RawThread) =>
-  t.comments.nodes[0]?.author?.login === "github-actions" &&
-  isWachiFinding(t.comments.nodes[0].body, t.comments.nodes[0].createdAt);
+  t.comments.nodes[0]?.author?.login === "github-actions" && isWachiFinding(t.comments.nodes[0].body, t.comments.nodes[0].createdAt);
 
 /**
  * The tool's own unresolved threads, with the replies the agent may read. On a public repository
@@ -2450,7 +2468,7 @@ export function fetchThreadPages(gh: GhFn, repo: string, pr: number): ThreadPage
         comments(first: 30) { nodes { databaseId author { login } authorAssociation body createdAt } } } } } } }`;
   const threads: RawThread[] = [];
   let after: string | null = null;
-  for (let pages = 0; pages < MAX_THREAD_PAGES; ) {
+  for (let pages = 0; pages < MAX_THREAD_PAGES;) {
     try {
       const raw: string = gh([
         "api",
@@ -2481,7 +2499,12 @@ export function fetchThreadPages(gh: GhFn, repo: string, pr: number): ThreadPage
       return { threads, complete: false, pages, error };
     }
   }
-  return { threads, complete: false, pages: MAX_THREAD_PAGES, error: new GhError(`More than ${MAX_THREAD_PAGES * 100} review threads on ${repo}#${pr}.`, null, "") };
+  return {
+    threads,
+    complete: false,
+    pages: MAX_THREAD_PAGES,
+    error: new GhError(`More than ${MAX_THREAD_PAGES * 100} review threads on ${repo}#${pr}.`, null, ""),
+  };
 }
 
 /** Every review thread of the pull request. A page that fails throws, so a partial list is never mistaken for the whole one. */
@@ -2509,9 +2532,7 @@ export function openThreads(gh: GhFn, repo: string, pr: number) {
 export function latestEngineReview(gh: GhFn, repo: string, pr: number): string | null {
   // The same test as `lastEngineMarker`: a signed review, or an unsigned one from before the cutoff.
   const own = botReviews(gh, repo, pr).filter(
-    (r) =>
-      r.body.includes(SIGNATURE.review) ||
-      (beforeLegacyCutoff(r.submitted_at) && readLegacyMarker(r.body) !== null),
+    (r) => r.body.includes(SIGNATURE.review) || (beforeLegacyCutoff(r.submitted_at) && readLegacyMarker(r.body) !== null),
   );
   return own.at(-1)?.body ?? null;
 }
@@ -2529,11 +2550,7 @@ export interface FindingThread {
  * threads, open or resolved. Null when the pull request has no review by the engine. Two GitHub
  * calls: the reviews, and the review threads only when a review exists.
  */
-export function reviewMaterial(
-  gh: GhFn,
-  repo: string,
-  pr: number,
-): { review: string; threads: FindingThread[] } | null {
+export function reviewMaterial(gh: GhFn, repo: string, pr: number): { review: string; threads: FindingThread[] } | null {
   const review = latestEngineReview(gh, repo, pr);
   if (review === null) return null;
   const threads = fetchThreads(gh, repo, pr).filter(isBotFinding).map(askFindingThread);
@@ -2620,9 +2637,7 @@ export const BATCH_CONCURRENCY = 4;
 export function automaticSpend(gh: GhFn, repo: string, pr: number) {
   const jq = '.[] | select(.user.login == "github-actions[bot]") | {body} | @json';
   const bodies = (path: string) =>
-    jsonLines<{ body: string | null }>(gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/${path}`, "--jq", jq])).map(
-      (r) => r.body ?? "",
-    );
+    jsonLines<{ body: string | null }>(gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/${path}`, "--jq", jq])).map((r) => r.body ?? "");
   const all = [...bodies("reviews"), ...bodies("comments")];
   let spent = 0;
   let runs = 0;
@@ -2643,21 +2658,14 @@ export function automaticSpend(gh: GhFn, repo: string, pr: number) {
  * one cost, for the footer's running total. When less than a batch's minimum is left, it posts the
  * one notice for this ceiling (never twice) and returns null: the caller does not start a model call.
  */
-export function ceilingRoom(
-  deps: Deps,
-  repo: string,
-  pr: number,
-  headSha: string,
-): { room: number; spent: number; runs: number } | null {
+export function ceilingRoom(deps: Deps, repo: string, pr: number, headSha: string): { room: number; spent: number; runs: number } | null {
   const { config } = deps;
   if (!isAutomatic(config.trigger)) return { room: Number.POSITIVE_INFINITY, spent: 0, runs: 0 };
   const { spent, runs, notified } = automaticSpend(deps.gh, repo, pr);
   const left = config.autoBudgetUsd - spent;
   if (left >= MIN_BATCH_USD) return { room: left, spent, runs };
   const ceiling = config.autoBudgetUsd;
-  deps.log(
-    `Automatic runs on this pull request have spent $${spent.toFixed(2)} of the $${ceiling.toFixed(2)} ceiling; not starting one.`,
-  );
+  deps.log(`Automatic runs on this pull request have spent $${spent.toFixed(2)} of the $${ceiling.toFixed(2)} ceiling; not starting one.`);
   if (notified.has(ceiling.toFixed(2))) return null;
   postReview(deps, repo, pr, headSha, {
     body: [
@@ -2740,10 +2748,12 @@ const usd = (value: number) => `$${value.toFixed(2)}`;
 const DAY_MS = 86_400_000;
 
 /** The Monday (`YYYY-MM-DD`, UTC) of the week `ms` falls in. */
-const mondayOf = (ms: number) => new Date(Math.floor(ms / DAY_MS) * DAY_MS - ((new Date(ms).getUTCDay() + 6) % 7) * DAY_MS).toISOString().slice(0, 10);
+const mondayOf = (ms: number) =>
+  new Date(Math.floor(ms / DAY_MS) * DAY_MS - ((new Date(ms).getUTCDay() + 6) % 7) * DAY_MS).toISOString().slice(0, 10);
 
 /** The period a refusal is about: the weekly limit is a week, the account's daily limit a day, the repository's follows `period`. */
-const periodOf = (refusal: Refusal) => (refusal.reason === "weekly_limit" ? "week" : refusal.reason === "limit" ? "day" : (refusal.period ?? "day"));
+const periodOf = (refusal: Refusal) =>
+  refusal.reason === "weekly_limit" ? "week" : refusal.reason === "limit" ? "day" : (refusal.period ?? "day");
 
 /** `00:00 UTC (in 5 h 12 min)`, or with the date and days for a week: the reset the ledger named, relative to now. */
 function resetText(deps: Deps, refusal: Refusal) {
@@ -2777,9 +2787,7 @@ function limitSentence(deps: Deps, refusal: Refusal) {
     return `This repository reached its own ${own} limit (\`${period === "week" ? "weekly_budget_usd" : "daily_budget_usd"}\` in the workflow, or the cap the account sets for this repository).${estimate}`;
   }
   const name = refusal.reason === "weekly_limit" ? "weekly" : "daily";
-  return against
-    ? `The ${name} spend limit is reached: ${against}.${estimate}`
-    : `The ${name} spend limit is reached.${estimate}`;
+  return against ? `The ${name} spend limit is reached: ${against}.${estimate}` : `The ${name} spend limit is reached.${estimate}`;
 }
 
 function postLimitNotice(deps: Deps, repo: string, pr: number, headSha: string, refusal: Refusal) {
@@ -2830,7 +2838,13 @@ const skippedLedger = new WeakSet<Deps>();
  */
 export function spendReserve(deps: Deps, repo: string, pr: number, headSha: string, wantedUsd: number, forced: boolean): SpendGrant {
   const { config } = deps;
-  const open = { reservationId: null, roomUsd: Number.POSITIVE_INFINITY, costsFrom: deps.costs?.length ?? 0, trigger: config.trigger ?? "cli", pr };
+  const open = {
+    reservationId: null,
+    roomUsd: Number.POSITIVE_INFINITY,
+    costsFrom: deps.costs?.length ?? 0,
+    trigger: config.trigger ?? "cli",
+    pr,
+  };
   if (!config.ledgerUrl) return { kind: "none", ...open };
   // Laptop runs are not counted against the limit: `WACHIMAN_LEDGER_URL` there is the read side's
   // setting (`wachiman ledger`), not a request to reserve. Only a GitHub Actions job reserves.
@@ -2862,7 +2876,14 @@ export function spendReserve(deps: Deps, repo: string, pr: number, headSha: stri
       },
       curl,
     );
-    return { kind: "reserved", ...open, reservationId: granted.reservationId, roomUsd: granted.grantedUsd, reservedUsd: granted.grantedUsd, ...(forced ? { forced: true } : {}) };
+    return {
+      kind: "reserved",
+      ...open,
+      reservationId: granted.reservationId,
+      roomUsd: granted.grantedUsd,
+      reservedUsd: granted.grantedUsd,
+      ...(forced ? { forced: true } : {}),
+    };
   } catch (error) {
     if (error instanceof LedgerRefused) {
       const { reason } = error.refusal;
@@ -2919,11 +2940,22 @@ export function spendSettle(deps: Deps, grant: SpendGrant, spentUsd: number): st
   const calls = (deps.costs ?? []).slice(grant.costsFrom).map(ledgerCall);
   if (grant.kind === "unreached") {
     try {
-      ledgerRecord(ledgerUrl, requestIdToken(deps.ledgerEnv ?? process.env, ledgerUrl, curl), { spentUsd, calls, trigger: grant.trigger, pr: grant.pr }, curl);
-      ledgerNote(deps, "This run was not counted against the spend limit because the ledger could not be reached when it started. It was recorded afterwards, apart from reserved runs.");
+      ledgerRecord(
+        ledgerUrl,
+        requestIdToken(deps.ledgerEnv ?? process.env, ledgerUrl, curl),
+        { spentUsd, calls, trigger: grant.trigger, pr: grant.pr },
+        curl,
+      );
+      ledgerNote(
+        deps,
+        "This run was not counted against the spend limit because the ledger could not be reached when it started. It was recorded afterwards, apart from reserved runs.",
+      );
     } catch (error) {
       deps.warn(`Could not record the run with the ledger: ${short200(error)}`);
-      ledgerNote(deps, "This run was not counted against the spend limit because the ledger could not be reached, and it was not recorded: the ledger has no entry for it.");
+      ledgerNote(
+        deps,
+        "This run was not counted against the spend limit because the ledger could not be reached, and it was not recorded: the ledger has no entry for it.",
+      );
     }
     return LEDGER_NOT_COUNTED_NOTE;
   }
@@ -2935,7 +2967,10 @@ export function spendSettle(deps: Deps, grant: SpendGrant, spentUsd: number): st
     return grant.forced ? `${line}\n\n${LEDGER_FORCED_FOOTER}` : line;
   } catch (error) {
     deps.warn(`Could not settle with the ledger; the reservation stays counted: ${short200(error)}`);
-    ledgerNote(deps, `The settlement was not delivered: the ledger could not be reached after the run, so its reservation of ${usd(grant.reservedUsd ?? 0)} stays counted instead of the ${usd(spentUsd)} spent.${onSubscription(deps) ? ` ${ESTIMATE_NOTE}.` : ""} The review is posted.`);
+    ledgerNote(
+      deps,
+      `The settlement was not delivered: the ledger could not be reached after the run, so its reservation of ${usd(grant.reservedUsd ?? 0)} stays counted instead of the ${usd(spentUsd)} spent.${onSubscription(deps) ? ` ${ESTIMATE_NOTE}.` : ""} The review is posted.`,
+    );
     return grant.forced ? LEDGER_FORCED_FOOTER : null;
   }
 }
@@ -2993,7 +3028,10 @@ export const touchedPathsOf = (files: readonly { filename: string; previous_file
 ];
 
 /** The changed files a `critical` rule of `rules` matches, in the order given. Never lifts the gate: it only names. */
-export function criticalPathsOf(files: readonly { filename: string; previous_filename?: string | null }[], rules: readonly PathRule[] | undefined): CriticalPath[] {
+export function criticalPathsOf(
+  files: readonly { filename: string; previous_filename?: string | null }[],
+  rules: readonly PathRule[] | undefined,
+): CriticalPath[] {
   return files.flatMap((f) => {
     const rule = matchPathRule(f.filename, rules, f.previous_filename);
     return rule?.severity === "critical" ? [{ path: f.filename, reason: rule.reason }] : [];
@@ -3105,9 +3143,7 @@ export const attemptFooter = (id: string) => `<!-- wachi:attempt id=${id} -->`;
  */
 function reviewLanded(deps: Deps, repo: string, pr: number, attemptId: string) {
   const jq = '.[] | select(.user.login == "github-actions[bot]") | {body} | @json';
-  const reviews = jsonLines<{ body: string | null }>(
-    deps.gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/reviews`, "--jq", jq]),
-  );
+  const reviews = jsonLines<{ body: string | null }>(deps.gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/reviews`, "--jq", jq]));
   return reviews.some((r) => (r.body ?? "").trimEnd().endsWith(attemptFooter(attemptId)));
 }
 
@@ -3148,7 +3184,11 @@ export function baseUpdateNotice(o: { base?: string; from: string; to: string; v
 function withStateBlock(deps: Deps, headSha: string, attemptId: string, r: Review): string {
   if (!r.state) return r.body;
   try {
-    const block = buildStateBlock(r.state, { engine: deps.engineVersion ?? "unknown", head: headSha, attempt: attemptId }, r.comments.length);
+    const block = buildStateBlock(
+      r.state,
+      { engine: deps.engineVersion ?? "unknown", head: headSha, attempt: attemptId },
+      r.comments.length,
+    );
     return `${r.body}\n\n${encodeStateBlock(block)}`;
   } catch (error) {
     deps.warn(`Could not write the review state block; posting the review without it. ${error}`);
@@ -3272,16 +3312,8 @@ export function refusalNotice(o: {
             owner("ANTHROPIC_API_KEY"),
             `Add credit to that Anthropic account, then re-run ${RERUN}`,
           ],
-          auth: [
-            "the API key was rejected",
-            owner("ANTHROPIC_API_KEY"),
-            `Check the \`ANTHROPIC_API_KEY\` secret, then re-run ${RERUN}`,
-          ],
-          rate_limit: [
-            "the Anthropic API kept rate-limiting the reviewer",
-            "Anyone who can re-run workflows",
-            `Re-run later: ${RERUN}`,
-          ],
+          auth: ["the API key was rejected", owner("ANTHROPIC_API_KEY"), `Check the \`ANTHROPIC_API_KEY\` secret, then re-run ${RERUN}`],
+          rate_limit: ["the Anthropic API kept rate-limiting the reviewer", "Anyone who can re-run workflows", `Re-run later: ${RERUN}`],
         }
   )[o.kind];
   const thisRun = o.spentUsd === 0 ? "Nothing this run" : `$${o.spentUsd.toFixed(2)} this run`;
@@ -3474,7 +3506,11 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const reserve = options.verify ? Math.min(options.verify.budgetUsd, totalBudget / 2) : 0;
   // The memory exceptions that may act on this diff (ADR 0057). When there are any, the matching
   // call's money is reserved too, so the batches cannot spend it; no exception, no reserve.
-  const exceptionPlan = planExceptions(options.memory, options.changedPaths ?? touchedPathsOf(input.files), kept.map((f) => f.filename));
+  const exceptionPlan = planExceptions(
+    options.memory,
+    options.changedPaths ?? touchedPathsOf(input.files),
+    kept.map((f) => f.filename),
+  );
   const matchReserve = exceptionPlan.active.length > 0 ? Math.min(MEMORY_MATCH_BUDGET_USD, (totalBudget - reserve) / 4) : 0;
   const batchTotal = totalBudget - reserve - matchReserve;
   const batchBudget = options.batchBudgetUsd;
@@ -3522,9 +3558,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   // comes first so that every batch can say which claim each of its files serves; what it spends
   // is spent before the batches, so they cannot overspend the pull request's budget.
   const confidence = change.kind === "pull-request" ? options.confidence : undefined;
-  const claimsStep = confidence
-    ? await listClaims(core, options, context, Math.min(confidence.budgetUsd, batchTotal / 4))
-    : undefined;
+  const claimsStep = confidence ? await listClaims(core, options, context, Math.min(confidence.budgetUsd, batchTotal / 4)) : undefined;
   if (claimsStep) {
     spent += claimsStep.costUsd;
     usage = addUsage(usage, claimsStep.usage);
@@ -3611,7 +3645,9 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       anyLimit: false,
       rejections: [],
     };
-    core.log(`batch ${i + 1}/${batches.length}: started (${inFlight} of ${BATCH_CONCURRENCY} running, $${firstBudget.toFixed(2)} reserved)`);
+    core.log(
+      `batch ${i + 1}/${batches.length}: started (${inFlight} of ${BATCH_CONCURRENCY} running, $${firstBudget.toFixed(2)} reserved)`,
+    );
     const first = await reviewBatchBackingOff(
       core,
       options,
@@ -3642,9 +3678,9 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
             ? "timed out"
             : first.rejection
               ? "the provider rejected the call"
-            : first.failed
-              ? "the call failed"
-              : "returned no review";
+              : first.failed
+                ? "the call failed"
+                : "returned no review";
     let turns = first.turns;
     let cost = first.costUsd;
 
@@ -3679,14 +3715,11 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       const left = batchGaps(gaps, retry.output);
       if (retry.rejection && retry.rejection.kind !== "other") out.rejectedFiles.push(...left.map((f) => f.filename));
       else if (retry.budget) out.budgetCut.push(...left.map((f) => f.filename));
-      status =
-        left.length === 0 ? "reviewed after a retry" : `${left.length} file(s) left after a retry`;
+      status = left.length === 0 ? "reviewed after a retry" : `${left.length} file(s) left after a retry`;
     } else if (gaps.length > 0) {
       // The files are blamed on a refusal when this batch's own call was refused, or when another
       // batch's refusal stopped the retry of a call that had no cause of its own (a budget or a limit).
-      const refused =
-        ownRefusal ||
-        (grant !== undefined && "why" in grant && grant.why === "rejected" && !first.budget && !first.stopped);
+      const refused = ownRefusal || (grant !== undefined && "why" in grant && grant.why === "rejected" && !first.budget && !first.stopped);
       status = refused
         ? `${gaps.length} file(s) left: the provider rejected the call`
         : first.stopped === "timeout"
@@ -3719,9 +3752,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       if (granted.why === "failed") break;
       const files = batch.files.map((f) => f.filename);
       outcomes[i] =
-        granted.why === "rejected"
-          ? skipped("not run: provider rejected the call", files)
-          : skipped("not run: budget spent", files);
+        granted.why === "rejected" ? skipped("not run: provider rejected the call", files) : skipped("not run: budget spent", files);
       continue;
     }
     // A batch that threw while this one waited for its slot: give the money back and start nothing.
@@ -3777,22 +3808,25 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   if (parts.length > 0) {
     const ruled = enforceConfidenceRule(merged.findings);
     if (ruled.rewritten > 0)
-      core.log(
-        `Confidence rule: ${ruled.rewritten} finding(s) with low confidence at severity fix or above posted as questions.`,
-      );
+      core.log(`Confidence rule: ${ruled.rewritten} finding(s) with low confidence at severity fix or above posted as questions.`);
     // The engine's notices come first so that, on a tie with the model's own, its wording is kept.
     // The rule runs before this pass so that a rewritten question and another question on its line collapse.
-    merged.findings = dedupeFindings([
-      ...adrNotices(kept.map((f) => f.filename)),
-      ...ruled.findings,
-    ]);
+    merged.findings = dedupeFindings([...adrNotices(kept.map((f) => f.filename)), ...ruled.findings]);
   }
   // After dedupe, so a finding two batches repeated is verified once; before the anchors. With the
   // verifier off, every finding is still annotated: unverified, origin unknown.
   let verification: ResultVerificationV2 | undefined;
   let checked: VerifiedFinding[];
   if (options.verify && parts.length > 0) {
-    const verified = await verifyFindings(core, options, context, merged.findings, kept, Math.max(totalBudget - spent - matchReserve, 0), refused?.text);
+    const verified = await verifyFindings(
+      core,
+      options,
+      context,
+      merged.findings,
+      kept,
+      Math.max(totalBudget - spent - matchReserve, 0),
+      refused?.text,
+    );
     spent += verified.record.costUsd;
     usage = addUsage(usage, verified.usage);
     checked = verified.findings;
@@ -3804,8 +3838,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   spent += memoryStep.costUsd;
   usage = addUsage(usage, memoryStep.usage);
   checked = memoryStep.findings;
-  for (const path of notRun)
-    merged.files_skipped.push({ path, reason: "not reached: the pull request's budget was spent" });
+  for (const path of notRun) merged.files_skipped.push({ path, reason: "not reached: the pull request's budget was spent" });
   // A file the model listed itself, with a reason of its own, is replaced: the run's own cause comes first.
   for (const [paths, reason] of [
     [budgetCut, "not reached: the call ran out of its budget"],
@@ -3839,7 +3872,9 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       })
     : undefined;
   if (settled && settled.removed > 0)
-    core.log(`Sibling references: ${settled.removed} removed: the member was not read, the commit is not its snapshot's, or the line does not exist there.`);
+    core.log(
+      `Sibling references: ${settled.removed} removed: the member was not read, the commit is not its snapshot's, or the line does not exist there.`,
+    );
   const findings: ResultFinding[] = (settled?.findings ?? checked).map((f) => ({
     ...f,
     anchor: commentable.get(f.path)?.has(f.line) ? "diff" : "outside",
@@ -3869,7 +3904,11 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const lineCount = deps.lineCounter ?? repoLineCounter(input.headDir);
   const riskMap = buildRiskMap({
     ...(input.pathRules?.length ? { pathRules: input.pathRules } : {}),
-    files: kept.map((f) => ({ path: f.filename, changedLines: f.additions + f.deletions, ...(f.previous_filename ? { previousPath: f.previous_filename } : {}) })),
+    files: kept.map((f) => ({
+      path: f.filename,
+      changedLines: f.additions + f.deletions,
+      ...(f.previous_filename ? { previousPath: f.previous_filename } : {}),
+    })),
     facts: settled?.riskFacts ?? riskFacts,
     judgement: settled?.judgement ?? judgement,
     unreadFiles: expected.filter((f) => !reviewedSet.has(f)).length,
@@ -3918,7 +3957,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     });
   }
   // The trial arm: a pull request only, by its number; a change without one has none.
-  const arm = options.priorityTrial && change.kind === "pull-request" && number ? armFor(change.repository.name, Number(number)) : undefined;
+  const arm =
+    options.priorityTrial && change.kind === "pull-request" && number ? armFor(change.repository.name, Number(number)) : undefined;
   return {
     format: REVIEW_RESULT_V2,
     change,
@@ -3983,7 +4023,17 @@ async function listClaims(
   }
   const prompt = buildClaimsPrompt(input);
   const call = await attempt(
-    () => runProvider(deps, options, ctx.headDir, { operation: "review", label: "claims", ...ctx.costTags }, prompt, ctx.headDir, budgetUsd, CLAIMS_SCHEMA),
+    () =>
+      runProvider(
+        deps,
+        options,
+        ctx.headDir,
+        { operation: "review", label: "claims", ...ctx.costTags },
+        prompt,
+        ctx.headDir,
+        budgetUsd,
+        CLAIMS_SCHEMA,
+      ),
     budgetUsd,
   );
   if (!call.ok) {
@@ -4001,9 +4051,15 @@ async function listClaims(
 }
 
 /** Why a verifier call ended without answering everything, from how it ended; undefined for a clean finish. */
-function stopOf(result: { terminalReason: string; isError: boolean; providerError?: ProviderErrorClass; errorText?: string }): VerifierStop | undefined {
+function stopOf(result: {
+  terminalReason: string;
+  isError: boolean;
+  providerError?: ProviderErrorClass;
+  errorText?: string;
+}): VerifierStop | undefined {
   const { terminalReason: reason } = result;
-  if (reason === "budget" || reason === "turns" || reason === "timeout") return { kind: reason, detail: `the verifier call ended on its ${reason} limit` };
+  if (reason === "budget" || reason === "turns" || reason === "timeout")
+    return { kind: reason, detail: `the verifier call ended on its ${reason} limit` };
   if (!result.isError) return undefined;
   const quota = result.providerError === "billing" || result.providerError === "rate_limit";
   return { kind: quota ? "quota" : "error", detail: oneLine(result.errorText ?? reason, 200) };
@@ -4069,14 +4125,18 @@ async function verifyFindings(
     try {
       baseSnap = deps.baseSnapshot();
     } catch (error) {
-      deps.warn(`The base snapshot could not be made (${oneLine(String(error), 160)}); the verifier cannot cite the base, so no finding is marked pre-existing.`);
+      deps.warn(
+        `The base snapshot could not be made (${oneLine(String(error), 160)}); the verifier cannot cite the base, so no finding is marked pre-existing.`,
+      );
     }
   }
   let dir: string | undefined;
   try {
     // Every sibling snapshot of a distributed-repo run, whichever batch it came from: the premise of a finding may be in one.
     const siblings = verifierDistributed(options.distributed);
-    const prompt = buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, baseDir: baseSnap?.dir, candidates, files }) + siblings.section;
+    const prompt =
+      buildVerifyPrompt({ describe: ctx.describe, headSha: ctx.headSha, headDir: ctx.headDir, baseDir: baseSnap?.dir, candidates, files }) +
+      siblings.section;
     dir = mkdtempSync(join(tmpdir(), "agent-verify-"));
     const runDir = dir;
     const call = await attempt(
@@ -4100,7 +4160,8 @@ async function verifyFindings(
     const stop = stopOf(result);
     // A complete, well-formed answer is used even when the call also reports a stop; anything else is not salvaged.
     const verdicts = verdictsOf(result.structuredOutput, verifySchema(siblings.snapshots.length > 0));
-    if (!verdicts) return unanswered("failed", stop ?? { kind: "error", detail: result.terminalReason || "no answer" }, result.costUsd, usage);
+    if (!verdicts)
+      return unanswered("failed", stop ?? { kind: "error", detail: result.terminalReason || "no answer" }, result.costUsd, usage);
     const snapshots: Snapshots = {
       ...(baseSnap ? { ...headOnly, baseDir: baseSnap.dir, base: repoLineCounter(baseSnap.dir) } : headOnly),
       // A distributed-repo run: a citation may name a sibling snapshot of the run (ADR 0043 decision 4).
@@ -4151,8 +4212,15 @@ async function matchExceptions<F extends Finding>(
 ): Promise<{ findings: F[]; muted: MutedFinding[]; costUsd: number; usage: TokenUsage; text?: string }> {
   const request = matchRequest(plan.active, findings);
   // `failure` is a generic reason and goes to the public summary; `detail` (provider text) goes to the local log only.
-  const finish = (rest: { findings: F[]; muted: MutedFinding[]; costUsd: number; usage: TokenUsage }, failure?: string, detail?: string) => {
-    if (failure) deps.warn(`Memory exceptions were not applied: matching did not run (${oneLine(failure, 200)}${detail ? `: ${oneLine(detail, 300)}` : ""}); every finding is posted.`);
+  const finish = (
+    rest: { findings: F[]; muted: MutedFinding[]; costUsd: number; usage: TokenUsage },
+    failure?: string,
+    detail?: string,
+  ) => {
+    if (failure)
+      deps.warn(
+        `Memory exceptions were not applied: matching did not run (${oneLine(failure, 200)}${detail ? `: ${oneLine(detail, 300)}` : ""}); every finding is posted.`,
+      );
     const text = renderMuting({ muted: rest.muted, stale: plan.stale, ...(failure ? { failure } : {}) });
     return { ...rest, ...(text ? { text } : {}) };
   };
@@ -4165,7 +4233,17 @@ async function matchExceptions<F extends Finding>(
   const dir = mkdtempSync(join(tmpdir(), "agent-memory-"));
   try {
     const call = await attempt(
-      () => runProvider(deps, options, ctx.headDir, { operation: "review", label: "memory match", ...ctx.costTags }, buildMatchPrompt({ describe: ctx.describe, request }), dir, cap, MATCH_SCHEMA),
+      () =>
+        runProvider(
+          deps,
+          options,
+          ctx.headDir,
+          { operation: "review", label: "memory match", ...ctx.costTags },
+          buildMatchPrompt({ describe: ctx.describe, request }),
+          dir,
+          cap,
+          MATCH_SCHEMA,
+        ),
       cap,
     );
     if (!call.ok) {
@@ -4177,13 +4255,16 @@ async function matchExceptions<F extends Finding>(
     const spend = { costUsd: result.costUsd, usage: result.usage ?? NO_USAGE };
     if (result.isError || result.terminalReason === "budget" || result.terminalReason === "turns" || result.terminalReason === "timeout") {
       // The provider's text is for the local log only; the public summary gets the generic reason.
-      if (result.isError && result.errorText) deps.warn(`Memory matching call failed (${result.providerError ?? "other"}): ${oneLine(result.errorText, 300)}`);
+      if (result.isError && result.errorText)
+        deps.warn(`Memory matching call failed (${result.providerError ?? "other"}): ${oneLine(result.errorText, 300)}`);
       return finish({ ...none, ...spend }, `the call ended on ${result.isError ? "an error" : `its ${result.terminalReason} limit`}`);
     }
     const matches = parseMatches(result.structuredOutput);
     if (!matches) return finish({ ...none, ...spend }, "the answer was not usable");
     const applied = applyMatches(findings, plan.active, matches);
-    deps.log(`Memory: ${applied.muted.length} finding(s) muted by an exception, ${applied.protectedBy.length} posted although an exception matched them.`);
+    deps.log(
+      `Memory: ${applied.muted.length} finding(s) muted by an exception, ${applied.protectedBy.length} posted although an exception matched them.`,
+    );
     return finish({ findings: applied.posted, muted: applied.muted, ...spend });
   } finally {
     rmSync(dir, { recursive: true, force: true });
@@ -4267,7 +4348,9 @@ function refuseDistributed(result: ReviewResult): void {
     );
   }
   if (result.siblings !== undefined || result.workspaceContractsApplied !== undefined || result.noWorkspaceContractApplied !== undefined) {
-    throw new Error("Refusing to post a distributed-repo review: its siblings were read for the laptop, not for a pull request (ADR 0042).");
+    throw new Error(
+      "Refusing to post a distributed-repo review: its siblings were read for the laptop, not for a pull request (ADR 0042).",
+    );
   }
 }
 
@@ -4352,20 +4435,16 @@ export function githubReview(
 /** `force` (`--force`) counts only for the operator's own run, never an automatic trigger. */
 export async function review(deps: Deps, repo: string, pr: number, words: string[], force = false) {
   const { gh, config } = deps;
-  const meta = JSON.parse(
-    gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid,baseRefName,title,body,author"]),
-  );
+  const meta = JSON.parse(gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid,baseRefName,title,body,author"]));
   const headSha: string = meta.headRefOid;
-  const bodyOnly = (body: string) =>
-    postReview(deps, repo, pr, headSha, { body: branded(body), comments: [] });
+  const bodyOnly = (body: string) => postReview(deps, repo, pr, headSha, { body: branded(body), comments: [] });
 
   const prFiles = listFiles(gh, repo, pr);
   const { paths, ignored } = resolveScope(
     words,
     prFiles.map((f) => f.filename),
   );
-  if (ignored.length > 0)
-    deps.log(`Not paths in this pull request, ignored: ${ignored.join(" ")}`);
+  if (ignored.length > 0) deps.log(`Not paths in this pull request, ignored: ${ignored.join(" ")}`);
   // A dry run may ask for the whole pull request again (WACHIMAN_FULL_REVIEW): no marker read.
   const state = config.fullReview ? null : lastReviewState(gh, repo, pr);
   const last = state?.sha ?? null;
@@ -4377,11 +4456,13 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const carried: ReviewFile[] =
     unread.size === 0
       ? []
-      : filterFiles(prFiles.filter((f) => unread.has(f.filename)), [...DEFAULT_EXCLUDE, ...config.exclude], []).kept;
+      : filterFiles(
+          prFiles.filter((f) => unread.has(f.filename)),
+          [...DEFAULT_EXCLUDE, ...config.exclude],
+          [],
+        ).kept;
   if (last === headSha && paths.length === 0 && carried.length === 0) {
-    bodyOnly(
-      `Already reviewed at \`${short(headSha)}\`. Push changes, or ask \`${config.mention} review <paths>\`.`,
-    );
+    bodyOnly(`Already reviewed at \`${short(headSha)}\`. Push changes, or ask \`${config.mention} review <paths>\`.`);
     return;
   }
   let since: string | null = null;
@@ -4391,7 +4472,9 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   let files = prFiles;
   // The head did not move but files were never reached: only those are reviewed.
   if (last === headSha && paths.length === 0) {
-    deps.log(`Resuming at ${short(headSha)}: ${carried.length} file(s) the previous review did not reach: ${carried.map((f) => f.filename).join(", ")}.`);
+    deps.log(
+      `Resuming at ${short(headSha)}: ${carried.length} file(s) the previous review did not reach: ${carried.map((f) => f.filename).join(", ")}.`,
+    );
     since = last;
     files = [];
   } else if (last && paths.length === 0) {
@@ -4419,7 +4502,13 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
       const delta =
         own.length === 0
           ? ({ kind: "unchanged", removed: [] } as RebaseDelta)
-          : rebaseDelta(gh, repo, baseSha(gh, repo, pr), last, own.map((f) => inPr.get(f.filename)!));
+          : rebaseDelta(
+              gh,
+              repo,
+              baseSha(gh, repo, pr),
+              last,
+              own.map((f) => inPr.get(f.filename)!),
+            );
       const upToDate = (why: string) => {
         deps.log(why);
         // The marker moves so that the next push is compared with this head, not with the old one.
@@ -4446,9 +4535,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
       // there are none, so every row is the author's; a list that cannot say is treated as a merge
       // may be there, and then the rows are narrowed with the rules that fail open.
       const noMerge = mergeCommits(cmp) === "none";
-      const narrowed = noMerge
-        ? candidates
-        : candidates.map((f) => withOwnChange(f, inPr.get(f.filename), thenOf(f)));
+      const narrowed = noMerge ? candidates : candidates.map((f) => withOwnChange(f, inPr.get(f.filename), thenOf(f)));
       files = narrowed.filter((f) => f.patch !== "");
       const trimmed = narrowed.filter((f, i) => f.patch !== "" && f !== candidates[i]).map((f) => f.filename);
       const foreignOnly = narrowed.filter((f) => f.patch === "").map((f) => f.filename);
@@ -4521,7 +4608,9 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     // the engine decided on purpose has nothing to review. The marker moves unless the request was scoped.
     postReview(deps, repo, pr, headSha, {
       body: [
-        branded(`Nothing to review at \`${short(headSha)}\`: the ${dropped.length} changed file(s) are all lockfiles, build output or generated, or outside the requested paths.`),
+        branded(
+          `Nothing to review at \`${short(headSha)}\`: the ${dropped.length} changed file(s) are all lockfiles, build output or generated, or outside the requested paths.`,
+        ),
         SIGNATURE.review,
         ...(paths.length === 0 ? [marker(headSha)] : []),
       ].join("\n\n"),
@@ -4576,7 +4665,13 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const instructions = readBaseInstructions(gh, repo, base, deps.warn);
   // The memory of the base commit, selected by the files this run reviews (ADR 0056): not the
   // excluded, out-of-scope or binary ones that `files` still holds.
-  const memory = readBaseMemory(gh, repo, base, allBinary.reviewable.map((f) => f.filename), deps.warn);
+  const memory = readBaseMemory(
+    gh,
+    repo,
+    base,
+    allBinary.reviewable.map((f) => f.filename),
+    deps.warn,
+  );
   const batchBudget = config.batchBudgetUsd;
   // Only threads that wait for an answer (the owner wrote last, Wachiman has replies left): a
   // thread Wachiman already answered is not read again, so it is not answered twice (ADR 0008).
@@ -4645,7 +4740,11 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
       // Only a body signed as a review (an automatic run's) can carry a block the readers trust.
       const draft: ReviewStateDraft | undefined =
         reason && isAutomatic(config.trigger) ? { status: "not-reviewed", reason, findings: noFindings() } : undefined;
-      return (replaceable ? postRefusalReview : postReview)(deps, repo, pr, headSha, { body, comments: [], ...(draft ? { state: draft } : {}) });
+      return (replaceable ? postRefusalReview : postReview)(deps, repo, pr, headSha, {
+        body,
+        comments: [],
+        ...(draft ? { state: draft } : {}),
+      });
     };
     const spentNotice = (text: string, reason: NotReviewedReason) => sendNotice([branded(text)], false, reason);
     const { rejection, stop } = result.execution;
@@ -4714,11 +4813,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     },
     estimate: onSubscription(deps),
   });
-  refuseLeak(deps, [
-    built.body,
-    ...built.comments.map((c) => c.body),
-    ...result.threadReplies.map((r) => r.reply),
-  ]);
+  refuseLeak(deps, [built.body, ...built.comments.map((c) => c.body), ...result.threadReplies.map((r) => r.reply)]);
   const reviewUrl = postReview(deps, repo, pr, headSha, built);
   // After the review, best-effort: the review is the record and is already posted.
   if (config.confidence) {
@@ -4732,7 +4827,9 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   }
   // This run's cost and the pull request's total, under each reply. Not flagged automatic: the
   // review body above carries the flagged line, so the ceiling would count the run twice.
-  const replyCost = prior ? `\n\n<sub>this run $${spent.toFixed(2)} · ${prSoFar(prior, spent)}${estimateTail(onSubscription(deps))}</sub>` : "";
+  const replyCost = prior
+    ? `\n\n<sub>this run $${spent.toFixed(2)} · ${prSoFar(prior, spent)}${estimateTail(onSubscription(deps))}</sub>`
+    : "";
   for (const r of result.threadReplies) {
     const label = r.status === "addressed" ? "Looks addressed" : "Still open";
     if (config.dryRun) {
@@ -4911,8 +5008,7 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
     deps.warn(`Reply by ${author}, not the operator ${config.operator}; nothing to do.`);
     return;
   }
-  const headOf = () =>
-    String(JSON.parse(gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid"])).headRefOid);
+  const headOf = () => String(JSON.parse(gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid"])).headRefOid);
   const headSha = headOf();
   const last = lastReviewedSha(gh, repo, pr);
   if (last !== headSha) {
@@ -4934,13 +5030,14 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
   const meta = JSON.parse(gh(["pr", "view", String(pr), "-R", repo, "--json", "title,body,author"]));
   const repoDir = deps.repoDir ?? process.cwd();
   const dir = mkdtempSync(join(tmpdir(), "agent-threads-"));
-  writeFileSync(
-    join(dir, "pr.json"),
-    JSON.stringify({ title: meta.title, body: meta.body, author: meta.author?.login }, null, 2),
-  );
+  writeFileSync(join(dir, "pr.json"), JSON.stringify({ title: meta.title, body: meta.body, author: meta.author?.login }, null, 2));
   writeFileSync(
     join(dir, "threads.json"),
-    JSON.stringify(pending.map((t) => ({ ...t, code: codeAround(repoDir, t.path, t.line) })), null, 2),
+    JSON.stringify(
+      pending.map((t) => ({ ...t, code: codeAround(repoDir, t.path, t.line) })),
+      null,
+      2,
+    ),
   );
   // The ledger is asked last, after every read and write above, so a failing one leaves no reservation unsettled.
   const grant = spendReserve(deps, repo, pr, headSha, Math.min(config.threadsBudgetUsd, ceiling.room), false);
@@ -5010,7 +5107,17 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
       try {
         const text = (v: unknown) => (typeof v === "string" ? v : "");
         const holds = typeof fields.holds_while === "string" && fields.holds_while.trim() !== "" ? fields.holds_while : undefined;
-        const candidate = newCandidate({ kind: text(fields.kind), scope: text(fields.scope), rule: text(fields.rule), why: text(fields.why), ...(holds ? { holdsWhile: holds } : {}) }, { date, source: "instruction", pr, agent: false }, date);
+        const candidate = newCandidate(
+          {
+            kind: text(fields.kind),
+            scope: text(fields.scope),
+            rule: text(fields.rule),
+            why: text(fields.why),
+            ...(holds ? { holdsWhile: holds } : {}),
+          },
+          { date, source: "instruction", pr, agent: false },
+          date,
+        );
         const shown = renderEntry(candidate);
         if (neutralise(shown) !== shown) throw new UsageError("the entry contains an HTML comment marker");
         if (proposability(candidate, 1).proposable === false) throw new UsageError("the entry is not proposable");
@@ -5027,7 +5134,9 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
   // ADR 0008: recheck the head and each thread before posting. A push since the start means its
   // review answers; a thread someone answered meanwhile is not answered twice.
   const stillPending = new Set<number>();
-  if (headOf() === headSha) for (const t of pendingThreads(fetchThreads(gh, repo, pr), config.mention, config.memoryProposals, config.operator)) stillPending.add(t.comment_id);
+  if (headOf() === headSha)
+    for (const t of pendingThreads(fetchThreads(gh, repo, pr), config.mention, config.memoryProposals, config.operator))
+      stillPending.add(t.comment_id);
   const toPost = replies.filter((r) => stillPending.has(r.reply.comment_id));
   if (toPost.length < replies.length)
     deps.log(`${replies.length - toPost.length} reply(ies) not posted: the head moved or the thread changed meanwhile.`);
@@ -5046,7 +5155,11 @@ export async function threadReplies(deps: Deps, repo: string, pr: number, author
         : `\n\n<sub>this run $${call.costUsd.toFixed(2)} · ${prSoFar(prior, call.costUsd)}${estimateTail(onSubscription(deps))}</sub>`;
     const proposal = proposals.get(reply.comment_id);
     const why = dropped.get(reply.comment_id);
-    const proposed = proposal ? `\n\n${renderProposal(proposal, config.mention)}` : why ? `\n\nNo memory entry was proposed: ${why}, so there is nothing to approve.` : "";
+    const proposed = proposal
+      ? `\n\n${renderProposal(proposal, config.mention)}`
+      : why
+        ? `\n\nNo memory entry was proposed: ${why}, so there is nothing to approve.`
+        : "";
     const body = `${branded(`**${label}**`)} at \`${short(headSha)}\`: ${neutralise(reply.reply)}${proposed}${cost}\n\n${SIGNATURE.reply}`;
     if (config.dryRun) {
       deps.log(`--- reply to ${reply.comment_id}: ${label} ---\n${body}`);
@@ -5201,8 +5314,8 @@ goes in files_reviewed.
 files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
 binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
 ${evidence ? `\n${EVIDENCE_PARAGRAPH}\n${evidence}\n` : ""}${
-  hasThreads
-    ? `
+    hasThreads
+      ? `
 ${dir}/threads.json lists the review threads on this part's files that wait for an answer: the
 owner wrote last. wachi_replies is how many replies Wachiman already wrote in a thread; when it is
 1, this is the last reply allowed there, so end it with what Wachiman waits for from the owner. For
@@ -5210,8 +5323,8 @@ each thread listed, decide whether the current code addresses it and add a threa
 with a short reply to the owner. Answer no thread that is not in that file. Do not repeat a
 finding that already has an open thread.
 `
-    : ""
-}
+      : ""
+  }
 ${RISK_PARAGRAPH}${ctx.claims ? `\n\n${claimsParagraph(ctx.claims)}` : ""}${ctx.commentsPointToDocs ? `\n\n${COMMENT_PARAGRAPH}` : ""}
 
 ${FLOW_QUESTIONS}${renderDataPathQuestions(questions)}
@@ -5264,12 +5377,8 @@ export function relativisePaths(output: ReviewOutput, repoDir: string): ReviewOu
             ? {
                 ...c,
                 location: typeof c.location === "string" ? strip(c.location) : c.location,
-                evidence: Array.isArray(c.evidence)
-                  ? c.evidence.map((e) => (typeof e === "string" ? strip(e) : e))
-                  : c.evidence,
-                candidates: Array.isArray(c.candidates)
-                  ? c.candidates.map((e) => (typeof e === "string" ? strip(e) : e))
-                  : c.candidates,
+                evidence: Array.isArray(c.evidence) ? c.evidence.map((e) => (typeof e === "string" ? strip(e) : e)) : c.evidence,
+                candidates: Array.isArray(c.candidates) ? c.candidates.map((e) => (typeof e === "string" ? strip(e) : e)) : c.candidates,
               }
             : c,
         )
@@ -5285,14 +5394,12 @@ export function relativisePaths(output: ReviewOutput, repoDir: string): ReviewOu
  * `capComments` (the comment rule is on), a comment finding is never above "consider", whatever
  * the model answered: the rule is advice, never a reason to stop a merge.
  */
-export function checkOutput(
-  output: ReviewOutput,
-  lines: LineCounter,
-  warn: (line: string) => void,
-  capComments = false,
-): ReviewOutput {
+export function checkOutput(output: ReviewOutput, lines: LineCounter, warn: (line: string) => void, capComments = false): ReviewOutput {
   const findings = output.findings.map((raw) => {
-    const f = capComments && COMMENT_FINDING_TITLE.test(raw.title) && (raw.severity === "blocker" || raw.severity === "fix") ? { ...raw, severity: "consider" as const } : raw;
+    const f =
+      capComments && COMMENT_FINDING_TITLE.test(raw.title) && (raw.severity === "blocker" || raw.severity === "fix")
+        ? { ...raw, severity: "consider" as const }
+        : raw;
     if (f.confidence === undefined || (CONFIDENCE as readonly unknown[]).includes(f.confidence)) return f;
     warn(`Finding "${f.title}" has confidence ${JSON.stringify(f.confidence)}; ignored.`);
     const { confidence: _dropped, ...rest } = f;
@@ -5365,33 +5472,14 @@ async function reviewBatch(
   // The run dir holds the change's text (title, body, threads, evidence): removed once the call
   // is over, whatever happened. Nothing reads it after the provider returns.
   try {
-    writeFileSync(
-      join(dir, "pr.json"),
-      JSON.stringify(
-        { title: ctx.meta.title, body: ctx.meta.body, author: ctx.meta.author },
-        null,
-        2,
-      ),
-    );
+    writeFileSync(join(dir, "pr.json"), JSON.stringify({ title: ctx.meta.title, body: ctx.meta.body, author: ctx.meta.author }, null, 2));
     writeFileSync(join(dir, "threads.json"), JSON.stringify(threads, null, 2));
     const evidence = gatherEvidence(deps, ctx.headDir, files, dir);
     const questions = selectQuestions(files);
-    deps.log(
-      `Data-path questions for part ${part.index} of ${part.total}: ${questions.map((q) => q.id).join(", ") || "none"}`,
-    );
+    deps.log(`Data-path questions for part ${part.index} of ${part.total}: ${questions.map((q) => q.id).join(", ") || "none"}`);
     // The sibling snapshots and their section, only when a file of this call triggered a contract.
     const siblings = batchDistributed(limits.distributed, files);
-    const prompt =
-      buildBatchPrompt(
-        ctx,
-        files,
-        threads.length > 0,
-        part,
-        dir,
-        ctx.instructions,
-        evidence,
-        questions,
-      ) + siblings.section;
+    const prompt = buildBatchPrompt(ctx, files, threads.length > 0, part, dir, ctx.instructions, evidence, questions) + siblings.section;
 
     const label = `batch ${part.index}/${part.total}${part.retry ? " retry" : ""}`;
     const call = await attempt(
@@ -5411,14 +5499,28 @@ async function reviewBatch(
     );
     if (!call.ok) {
       deps.warn(`A batch call failed: ${call.error}`);
-      return { output: undefined, budget: false, stopped: undefined, turns: 0, costUsd: call.costUsd, usage: NO_USAGE, failed: true, rejection: undefined };
+      return {
+        output: undefined,
+        budget: false,
+        stopped: undefined,
+        turns: 0,
+        costUsd: call.costUsd,
+        usage: NO_USAGE,
+        failed: true,
+        rejection: undefined,
+      };
     }
     const result = call.value;
     const raw = !result.isError ? (result.structuredOutput as ReviewOutput | undefined) : undefined;
     const output =
-      raw && checkOutput(relativisePaths(raw, ctx.headDir), deps.lineCounter ?? repoLineCounter(ctx.headDir), deps.warn, ctx.commentsPointToDocs === true);
-    const stopped =
-      result.terminalReason === "turns" || result.terminalReason === "timeout" ? result.terminalReason : undefined;
+      raw &&
+      checkOutput(
+        relativisePaths(raw, ctx.headDir),
+        deps.lineCounter ?? repoLineCounter(ctx.headDir),
+        deps.warn,
+        ctx.commentsPointToDocs === true,
+      );
+    const stopped = result.terminalReason === "turns" || result.terminalReason === "timeout" ? result.terminalReason : undefined;
     if (stopped === "turns")
       deps.warn(`Batch ${part.index} of ${part.total} hit the ${limits.maxTurns}-turn limit after ${result.turns} turns.`);
     if (stopped === "timeout")
@@ -5453,7 +5555,10 @@ type BatchResult = Awaited<ReturnType<typeof reviewBatch>>;
  * unless the line already does (the call summary and the cost line carry the label themselves).
  */
 function attributed(core: CoreDeps, part: { index: number; total: number }): CoreDeps {
-  const mentions = new RegExp(`\\b(batch ${part.index}/${part.total}|batch ${part.index} of ${part.total}|part ${part.index} of ${part.total})\\b`, "i");
+  const mentions = new RegExp(
+    `\\b(batch ${part.index}/${part.total}|batch ${part.index} of ${part.total}|part ${part.index} of ${part.total})\\b`,
+    "i",
+  );
   const tag = (line: string) => (mentions.test(line) ? line : `batch ${part.index}/${part.total}: ${line}`);
   return { ...core, log: (line) => core.log(tag(line)), warn: (line) => core.warn(tag(line)) };
 }
@@ -5653,9 +5758,7 @@ export function earlierThreadText(
   lineId: number,
 ): string | undefined {
   const earlier = nodes.filter((n) => n.databaseId < lineId).slice(-10);
-  const text = earlier
-    .map((n) => `@${n.author?.login ?? "ghost"}: ${neutralise(legacyFindingComment(n.body))}`)
-    .join("\n\n");
+  const text = earlier.map((n) => `@${n.author?.login ?? "ghost"}: ${neutralise(legacyFindingComment(n.body))}`).join("\n\n");
   if (text === "") return undefined;
   return text.length > 4000 ? `…${text.slice(-4000)}` : text;
 }
@@ -5691,9 +5794,7 @@ export async function answer(deps: Deps, repo: string, pr: number, question: str
   const meta = deps.gh(["pr", "view", String(pr), "-R", repo, "--json", "title,body,files,headRefOid"]);
   writeFileSync(join(dir, "pr.json"), meta);
   const headSha: string = JSON.parse(meta).headRefOid;
-  const instructions = renderInstructions(
-    readBaseInstructions(deps.gh, repo, baseSha(deps.gh, repo, pr), deps.warn),
-  );
+  const instructions = renderInstructions(readBaseInstructions(deps.gh, repo, baseSha(deps.gh, repo, pr), deps.warn));
   writeFileSync(join(dir, "pr.diff"), deps.gh(["pr", "diff", String(pr), "-R", repo]));
   const material = reviewMaterial(deps.gh, repo, pr);
   if (material) writeFileSync(join(dir, "review.md"), renderReviewMaterial(material));
@@ -5832,7 +5933,10 @@ export async function comment(deps: Deps, repo: string, pr: number, request: str
   // the operator's own reply in a thread, with `memory_proposals` on, is left to the job and costs no model call.
   // Anything else (the flag off, a top-level comment, anyone but the operator) is an ordinary comment, so a
   // collaborator's `remember <id>` is answered or refused like any other comment, never dropped silently.
-  const command = parsed?.kind === "remember" && !(deps.config.memoryProposals && line?.replyTo && operatorAsked) ? ({ kind: "answer" } as const) : parsed;
+  const command =
+    parsed?.kind === "remember" && !(deps.config.memoryProposals && line?.replyTo && operatorAsked)
+      ? ({ kind: "answer" } as const)
+      : parsed;
   // With the write job wired it is neither a review nor a question, so no model call.
   if (command?.kind === "remember") {
     deps.log("A `remember` command is handled by the memory write job; nothing to do here.");
@@ -5843,8 +5947,7 @@ export async function comment(deps: Deps, repo: string, pr: number, request: str
       // With no ledger `--force` means nothing: it stays a word that names no file, as it always did.
       const words = deps.config.ledgerUrl ? command.paths.filter((w) => w !== "--force") : command.paths;
       await review(deps, repo, pr, words, command.force);
-    }
-    else if (command) await answer(deps, repo, pr, request, { line });
+    } else if (command) await answer(deps, repo, pr, request, { line });
     return;
   }
   if (askers !== "write") {

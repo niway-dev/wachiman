@@ -148,7 +148,13 @@ export interface Replayed {
   counts: VerdictCounts;
 }
 
-const COUNT_KEY = { correct: "correct", partial: "partial", wrong: "wrong", intentional: "intentional", "not-important": "notImportant" } as const;
+const COUNT_KEY = {
+  correct: "correct",
+  partial: "partial",
+  wrong: "wrong",
+  intentional: "intentional",
+  "not-important": "notImportant",
+} as const;
 
 /** Counts the findings' verdicts; the same rule for the whole listing and for a `--since` slice. */
 export function countVerdicts(findings: ReplayedFinding[]): VerdictCounts {

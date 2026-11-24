@@ -32,10 +32,7 @@ export interface ReviewEstimate {
  * the number `planBatches` made of those files. It is passed in rather than computed here because
  * engine.ts imports this module, and importing engine back would be a cycle.
  */
-export function estimateReview(
-  files: ReviewFile[],
-  opts: { batches: number; batchBudgetUsd: number; model: string },
-): ReviewEstimate {
+export function estimateReview(files: ReviewFile[], opts: { batches: number; batchBudgetUsd: number; model: string }): ReviewEstimate {
   const perBatchUsd = perBatchFor(opts.model, opts.batchBudgetUsd);
   return {
     files: files.length,
@@ -53,10 +50,7 @@ export function estimateReview(
  * when both are raised. A gate below the run's budget would skip pull requests the run could pay
  * for in full.
  */
-export function sizeGate(
-  config: Pick<EngineConfig, "sizeGateUsd" | "budgetUsd" | "autoBudgetUsd">,
-  automatic: boolean,
-): number {
+export function sizeGate(config: Pick<EngineConfig, "sizeGateUsd" | "budgetUsd" | "autoBudgetUsd">, automatic: boolean): number {
   return Math.max(config.sizeGateUsd, automatic ? Math.min(config.budgetUsd, config.autoBudgetUsd) : config.budgetUsd);
 }
 

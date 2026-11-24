@@ -11,7 +11,20 @@ import { wachimanHome } from "../accounts/config";
 import { historySettings, historyRoot, listKeys, readRuns, repositoryKey } from "../history/store";
 import type { HistoryRun } from "../history/types";
 import { readLedgerFromFiles } from "../ledger-read/rows";
-import { buildReport, deriveCoverage, group as groupRows, limitUse, SOURCES, weekStart, type GroupBy, type LimitUse, type Report, type Source, type Split, type SpendRow } from "../spend/report";
+import {
+  buildReport,
+  deriveCoverage,
+  group as groupRows,
+  limitUse,
+  SOURCES,
+  weekStart,
+  type GroupBy,
+  type LimitUse,
+  type Report,
+  type Source,
+  type Split,
+  type SpendRow,
+} from "../spend/report";
 
 export const STATUS_FORMAT = "wachiman.status/1";
 
@@ -57,10 +70,10 @@ export function parseStatusArgs(argv: string[]): StatusArgs | { help: true } {
     else if (name === "--refresh") (flag(), (args.refresh = true));
     else if (name === "--source") {
       const v = value();
-      if (v !== "all" && !(SOURCES as readonly string[]).includes(v)) throw new UsageError(`--source is one of laptop, actions, all; got "${v}".`);
+      if (v !== "all" && !(SOURCES as readonly string[]).includes(v))
+        throw new UsageError(`--source is one of laptop, actions, all; got "${v}".`);
       args.source = v as Source | "all";
-    }
-    else if (name === "--repo") args.repo = value();
+    } else if (name === "--repo") args.repo = value();
     else if (name === "--model") args.model = value();
     else if (name === "--profile") args.profile = value();
     else if (name === "--since") {
@@ -73,7 +86,8 @@ export function parseStatusArgs(argv: string[]): StatusArgs | { help: true } {
       args.by = v as Group;
     } else throw new UsageError(`Unknown option ${name} for status.`);
   }
-  if (args.repo !== undefined && args.allRepos) throw new UsageError("--repo and --all-repos cannot be used together: --repo already names the repository.");
+  if (args.repo !== undefined && args.allRepos)
+    throw new UsageError("--repo and --all-repos cannot be used together: --repo already names the repository.");
   return args;
 }
 
@@ -139,7 +153,11 @@ export function toRow(r: StatusRun): SpendRow {
 
 /** Groups laptop runs through the spend report; kept for the callers that group `StatusRun`s. */
 export function group(runs: StatusRun[], by: Group): StatusGroup[] {
-  return groupRows(runs.map(toRow), by as GroupBy).map((g) => ({ key: g.key, runs: g.split.total.runs, costUsdEstimate: g.split.total.usd }));
+  return groupRows(runs.map(toRow), by as GroupBy).map((g) => ({
+    key: g.key,
+    runs: g.split.total.runs,
+    costUsdEstimate: g.split.total.usd,
+  }));
 }
 
 export function filterRuns(runs: StatusRun[], args: StatusArgs, now: Date): StatusRun[] {
@@ -154,7 +172,8 @@ export function filterRuns(runs: StatusRun[], args: StatusArgs, now: Date): Stat
 }
 
 export const LOCAL_ONLY = "Local runs only: those kept by `wachiman local --history`. Runs by the GitHub Actions workflow are not counted.";
-export const WITH_LEDGER = "Laptop runs kept by `wachiman local --history` and GitHub Actions runs downloaded from the ledger. The ledger limit is best-effort and counts Actions runs only.";
+export const WITH_LEDGER =
+  "Laptop runs kept by `wachiman local --history` and GitHub Actions runs downloaded from the ledger. The ledger limit is best-effort and counts Actions runs only.";
 
 export interface StatusIo {
   stdout: (text: string) => void;
@@ -174,7 +193,12 @@ function filterLedgerRows(rows: SpendRow[], args: StatusArgs, now: Date, slug: s
   const tail = (r: SpendRow) => r.repository.split("/").at(-1)?.toLowerCase();
   const wanted = args.repo?.toLowerCase();
   const repoMatches = (r: SpendRow) => {
-    if (args.repo !== undefined) return r.repository.toLowerCase() === args.repo.toLowerCase() || tail(r) === wanted || all.some((l) => l.repositoryKey === args.repo && l.repository.toLowerCase() === tail(r));
+    if (args.repo !== undefined)
+      return (
+        r.repository.toLowerCase() === args.repo.toLowerCase() ||
+        tail(r) === wanted ||
+        all.some((l) => l.repositoryKey === args.repo && l.repository.toLowerCase() === tail(r))
+      );
     return args.allRepos || (slug !== undefined && r.repository.toLowerCase() === slug);
   };
   return rows.filter(
@@ -207,16 +231,27 @@ function creditLine(report: Report): string {
 function limitLines(use: { day: LimitUse | null; week: LimitUse | null }, now: Date): string[] {
   const today = now.toISOString().slice(0, 10);
   const one = (label: string, u: LimitUse | null) =>
-    u ? [`${label}: ${u.usedUsd === null ? "no data" : `${usd(u.usedUsd)} of ${usd(u.limitUsd)}`} counted against the ledger limit (Actions runs only, whole account, all repositories, best-effort)`] : [];
+    u
+      ? [
+          `${label}: ${u.usedUsd === null ? "no data" : `${usd(u.usedUsd)} of ${usd(u.limitUsd)}`} counted against the ledger limit (Actions runs only, whole account, all repositories, best-effort)`,
+        ]
+      : [];
   return [...one(`Today (${today} UTC)`, use.day), ...one(`This week (Monday ${weekStart(today)} UTC)`, use.week)];
 }
 
 function asideLine(report: Report): string[] {
   const a = report.aside;
   const parts: string[] = [];
-  if (a.unreserved.runs) parts.push(`${a.unreserved.runs} run${a.unreserved.runs === 1 ? "" : "s"} not reserved (${usd(a.unreserved.usd)} recorded after the fact)`);
-  if (a.unsettled.runs) parts.push(`${a.unsettled.runs} reservation${a.unsettled.runs === 1 ? "" : "s"} never settled (${usd(a.unsettled.reservedUsd)} held, not spent)`);
-  if (a.reserved.runs) parts.push(`${a.reserved.runs} run${a.reserved.runs === 1 ? "" : "s"} still reserved (${usd(a.reserved.reservedUsd)} held)`);
+  if (a.unreserved.runs)
+    parts.push(
+      `${a.unreserved.runs} run${a.unreserved.runs === 1 ? "" : "s"} not reserved (${usd(a.unreserved.usd)} recorded after the fact)`,
+    );
+  if (a.unsettled.runs)
+    parts.push(
+      `${a.unsettled.runs} reservation${a.unsettled.runs === 1 ? "" : "s"} never settled (${usd(a.unsettled.reservedUsd)} held, not spent)`,
+    );
+  if (a.reserved.runs)
+    parts.push(`${a.reserved.runs} run${a.reserved.runs === 1 ? "" : "s"} still reserved (${usd(a.reserved.reservedUsd)} held)`);
   return parts.length ? [`Not counted as spend: ${parts.join("; ")}.`] : [];
 }
 
@@ -228,18 +263,19 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
   const keys = args.allRepos || args.repo !== undefined ? listKeys(root) : [repo!.key];
   const all = keys.flatMap((key) => readRuns(root, key, io.stderr)).map(flatten);
   const retentionDays = historySettings(env, true).days;
-  if (args.repo !== undefined && !all.some(r => r.repositoryKey === args.repo)) {
-    const matches = [...new Set(all.filter(r => r.repository === args.repo).map(r => r.repositoryKey))];
+  if (args.repo !== undefined && !all.some((r) => r.repositoryKey === args.repo)) {
+    const matches = [...new Set(all.filter((r) => r.repository === args.repo).map((r) => r.repositoryKey))];
     if (matches.length > 1) throw new UsageError(`Repository name "${args.repo}" is ambiguous; use a key: ${matches.join(", ")}.`);
   }
-  const effectiveArgs = args.repo !== undefined && all.some(r => r.repositoryKey === args.repo) ? { ...args, repo: undefined } : args;
-  const scoped = effectiveArgs !== args ? all.filter(r => r.repositoryKey === args.repo) : all;
+  const effectiveArgs = args.repo !== undefined && all.some((r) => r.repositoryKey === args.repo) ? { ...args, repo: undefined } : args;
+  const scoped = effectiveArgs !== args ? all.filter((r) => r.repositoryKey === args.repo) : all;
   const laptopRuns = filterRuns(scoped, effectiveArgs, now).sort((a, b) => a.at.localeCompare(b.at));
 
   // The ledger is read only from files the user pulled; with none, everything below is the local-only status.
   const ledger = readLedgerFromFiles(home, io.stderr);
   const hasLedger = ledger.pulledAt !== null;
-  if (!hasLedger && args.source === "actions") throw new UsageError("--source actions needs a pulled ledger: run `wachiman ledger connect`, then `wachiman ledger pull`.");
+  if (!hasLedger && args.source === "actions")
+    throw new UsageError("--source actions needs a pulled ledger: run `wachiman ledger connect`, then `wachiman ledger pull`.");
   const actionsRows = hasLedger ? filterLedgerRows(ledger.rows, args, now, remoteSlug(repo?.remote), all) : [];
   const sources: Source[] = args.source === "all" ? [...SOURCES] : [args.source];
   const useLaptop = sources.includes("laptop");
@@ -253,7 +289,14 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
     now,
   });
   // The limit figures come from every ledger row of the account, whatever the filters say.
-  const limitReport = buildReport({ rows: ledger.rows, sources: ["actions"], coverage: { laptop: [], actions: ledger.ranges }, limits: ledger.limits, pulledAt: ledger.pulledAt, now });
+  const limitReport = buildReport({
+    rows: ledger.rows,
+    sources: ["actions"],
+    coverage: { laptop: [], actions: ledger.ranges },
+    limits: ledger.limits,
+    pulledAt: ledger.pulledAt,
+    now,
+  });
   const limits = limitUse(limitReport, now);
   const groups = groupRows(rows, args.by as GroupBy);
   const settled = rows.filter((r) => r.state === "settled");
@@ -288,12 +331,20 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
 
   const lines = [`Wachiman ${io.version}  (home ${home})`, hasLedger ? WITH_LEDGER : LOCAL_ONLY, ""];
   if (settled.length === 0 && !hasLedger) {
-    lines.push(all.length === 0 ? "No local runs kept yet: run `wachiman local --history` to start. Run `wachiman doctor` to check this machine." : `No run matches the filters (${all.length} kept before filtering).`);
+    lines.push(
+      all.length === 0
+        ? "No local runs kept yet: run `wachiman local --history` to start. Run `wachiman doctor` to check this machine."
+        : `No run matches the filters (${all.length} kept before filtering).`,
+    );
     io.stdout(`${lines.join("\n")}\n`);
     return 0;
   }
   if (settled.length === 0) {
-    lines.push(all.length === 0 && actionsRows.length === 0 ? "No run to show: no local run is kept and no ledger entry matches. Run `wachiman ledger pull` to refresh the ledger." : "No run matches the filters.");
+    lines.push(
+      all.length === 0 && actionsRows.length === 0
+        ? "No run to show: no local run is kept and no ledger entry matches. Run `wachiman ledger pull` to refresh the ledger."
+        : "No run matches the filters.",
+    );
     lines.push(...asideLine(report), ...limitLines(limits, now));
     io.stdout(`${lines.join("\n")}\n`);
     return 0;
@@ -304,13 +355,24 @@ export function runStatus(args: StatusArgs, repoDir: string, env: Record<string,
     lines.push(`${settled.length} run${settled.length === 1 ? "" : "s"}, ${creditLine(report)}, ${days[0]} → ${days.at(-1)}`);
     lines.push(...limitLines(limits, now), ...asideLine(report), "");
     lines.push(`  ${pad(args.by, w)}  runs  calls  billed  estimated`);
-    for (const g of groups) lines.push(`  ${pad(g.key, w)}  ${pad(String(g.split.total.runs), 4)}  ${pad(String(g.split.total.calls), 5)}  ${pad(usd(g.split.byCredential.billed.usd), 6)}  ${estimatedWithUnknown(g.split)}`);
+    for (const g of groups)
+      lines.push(
+        `  ${pad(g.key, w)}  ${pad(String(g.split.total.runs), 4)}  ${pad(String(g.split.total.calls), 5)}  ${pad(usd(g.split.byCredential.billed.usd), 6)}  ${estimatedWithUnknown(g.split)}`,
+      );
   } else {
-    lines.push(`${settled.length} run${settled.length === 1 ? "" : "s"}, ${usd(total)} estimated (API-equivalent, not a bill), ${laptopRuns[0].at.slice(0, 10)} → ${laptopRuns.at(-1)!.at.slice(0, 10)}`, "");
+    lines.push(
+      `${settled.length} run${settled.length === 1 ? "" : "s"}, ${usd(total)} estimated (API-equivalent, not a bill), ${laptopRuns[0].at.slice(0, 10)} → ${laptopRuns.at(-1)!.at.slice(0, 10)}`,
+      "",
+    );
     lines.push(`  ${pad(args.by, w)}  runs  cost`);
     for (const g of legacyGroups) lines.push(`  ${pad(g.key, w)}  ${pad(String(g.runs), 4)}  ${usd(g.costUsdEstimate)}`);
   }
-  lines.push("", retentionDays === 0 ? "New `--history` runs keep all runs (WACHIMAN_HISTORY_DAYS=0). `--json` lists every run with its attributes." : `A new \`--history\` run deletes runs older than ${retentionDays} days (WACHIMAN_HISTORY_DAYS changes that). \`--json\` lists every run with its attributes.`);
+  lines.push(
+    "",
+    retentionDays === 0
+      ? "New `--history` runs keep all runs (WACHIMAN_HISTORY_DAYS=0). `--json` lists every run with its attributes."
+      : `A new \`--history\` run deletes runs older than ${retentionDays} days (WACHIMAN_HISTORY_DAYS changes that). \`--json\` lists every run with its attributes.`,
+  );
   io.stdout(`${lines.join("\n")}\n`);
   return 0;
 }
