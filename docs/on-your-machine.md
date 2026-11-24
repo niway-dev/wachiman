@@ -26,6 +26,15 @@ folder. Its `package.json` declares three runtime dependencies and no `postinsta
 | `chalk` | 5.6.2 | Terminal colors |
 | `@clack/prompts` | 1.9.0 | Terminal prompts |
 
+**Dependency versions: no published shrinkwrap.** Wachiman deliberately does not publish
+`npm-shrinkwrap.json`. The three direct dependencies above are pinned to exact versions in
+`package.json`; their transitive dependencies are resolved by the package manager and can differ
+between installations of the same Wachiman release. The decision is to keep this packaging model,
+not to treat a published lockfile as a security requirement. A shrinkwrap would fix more of the
+dependency tree, but would also make Wachiman releases responsible for updating those locked
+versions. It would not establish that the dependencies are safe. Reconsider this choice if
+transitive version drift causes a reproducible installation or compatibility problem.
+
 **The `bun` dependency runs an install script.** The npm package `bun` has a `postinstall`
 (`node install.js`). It is not code from this repository. According to its `install.js` (read it
 with `npm pack bun@1.3.4`), it first looks for the platform package `@oven/bun-<platform>` that npm installs as an optional dependency. If that
