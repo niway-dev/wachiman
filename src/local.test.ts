@@ -325,6 +325,15 @@ describe("readInputFile", () => {
     );
     expect(() => readInputFile(file({ ...fixture(), pathRules: "src/**" }))).toThrow(UsageError);
   });
+
+  test("commentsPointToDocs is optional and must be true when present", () => {
+    expect(readInputFile(file(fixture())).commentsPointToDocs).toBeUndefined();
+    expect(readInputFile(file({ ...fixture(), commentsPointToDocs: true })).commentsPointToDocs).toBe(true);
+    expect(() => readInputFile(file({ ...fixture(), commentsPointToDocs: false }))).toThrow(
+      "commentsPointToDocs must be true when present",
+    );
+    expect(() => readInputFile(file({ ...fixture(), commentsPointToDocs: "yes" }))).toThrow(UsageError);
+  });
 });
 
 describe("wachiman local with WACHIMAN_LEDGER_URL set (the laptop read side's setting)", () => {

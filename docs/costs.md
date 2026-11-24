@@ -33,7 +33,7 @@ the agent. See [Dry runs](#dry-runs).
 
 Reviewing every push and answering thread replies means a pull request pays for many runs. All
 **automatic** runs on one pull request (the first review, push reviews and thread-reply runs) share
-`auto_budget_usd`, default **$6**, which leaves room for one full review (`budget_usd`, $3) and several push reviews. There is no server: before each automatic run the engine adds up
+`auto_budget_usd`, default **$6**, which leaves room for one full review (`budget_usd`, $3) and several push reviews. There is no server unless you set a spend ledger: before each automatic run the engine adds up
 the cost lines of its own signed review footers that carry the automatic flag
 (`<!-- wachi:auto -->`), and the run gets at most what is left. The `this run · PR so far` line under
 an inline reply carries no flag, so it is neither summed nor counted: the review body of the same run

@@ -29,11 +29,13 @@ import {
   ignoredSettingsNote,
   parseRepoSettings,
   pathsEdited,
+  reviewPolicyOf,
   SETTINGS_PATH,
   touchesSettingsFile,
   withPolicyEditRule,
   type PathRule,
   type RepoSettings,
+  type ReviewPolicy,
 } from "../repo-settings";
 import { MEMORY_DIR, cutMemoryNote, loadMemory, type MemoryLoad, type MemorySource } from "../memory/load";
 
@@ -413,24 +415,24 @@ export function localRepoSettings(repoDir: string, sha: string, git: GitRunner =
 }
 
 /**
- * The `paths` rules of the `.wachiman.yml` at `sha` (ADR 0058), or undefined when it has none. Read
- * at the commit the instruction files are read at, never at the head. A broken file is ignored with
- * one warning naming `where`, like the model and effort read: the change that fixes it must be
- * reviewable.
+ * The review policy of the `.wachiman.yml` at `sha`: the `paths` rules (ADR 0058) and the opt-in
+ * `review` behaviors (ADR 0064); empty when the file has none. Read at the commit the instruction
+ * files are read at, never at the head. A broken file is ignored with one warning naming `where`,
+ * like the model and effort read: the change that fixes it must be reviewable.
  */
-export function localPathRules(
+export function localReviewPolicy(
   repoDir: string,
   sha: string,
   where: string,
   warn: (line: string) => void,
   git: GitRunner = spawnGit,
-): PathRule[] | undefined {
+): ReviewPolicy {
   try {
-    return localRepoSettings(repoDir, sha, git)?.paths;
+    return reviewPolicyOf(localRepoSettings(repoDir, sha, git), warn);
   } catch (error) {
     if (!(error instanceof UsageError)) throw error;
     warn(ignoredSettingsNote(error.message, `${where} ${short(sha)}`));
-    return undefined;
+    return {};
   }
 }
 
@@ -710,10 +712,11 @@ export function buildLocalInput(p: {
   );
   if (ignored.length > 0) p.log(`Not paths in this change, ignored: ${ignored.join(" ")}`);
   const instructions = localInstructions(p.repoDir, refs.mergeBase, p.warn, git);
+  const policy = localReviewPolicy(p.repoDir, refs.mergeBase, "the merge-base", p.warn, git);
   const { pathRules, pathPolicyChanged } = localPathPolicy(
     () => blobAt(p.repoDir, refs.headSha, SETTINGS_PATH, git),
     files,
-    localPathRules(p.repoDir, refs.mergeBase, "the merge-base", p.warn, git),
+    policy.pathRules,
   );
   const top = run(git, p.repoDir, ["rev-parse", "--show-toplevel"]).trim();
   const name = basename(top);
@@ -739,6 +742,7 @@ export function buildLocalInput(p: {
     scope: paths,
     ...(pathRules?.length ? { pathRules } : {}),
     ...(pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
+    ...(policy.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
   };
   return { input, snapshotDir: snapshot.dir, refs };
 }

@@ -9,6 +9,7 @@ import {
   parsePathRules,
   parseRepoSettings,
   resolveMemorySettings,
+  reviewPolicyOf,
   wantsRepoSettings,
   type PathRule,
 } from "./repo-settings";
@@ -383,6 +384,67 @@ describe("the Actions read: the base commit, never the head", () => {
   test("a file too large for the contents API is a usage error", () => {
     const gh: GhFn = () => JSON.stringify({ type: "file", encoding: "none", content: "" });
     expect(() => readBaseSettings(gh, "o/r", BASE)).toThrow(/too large/);
+  });
+});
+
+describe("the review key (ADR 0064)", () => {
+  const parse = (yaml: string) => parseRepoSettings(yaml);
+
+  test("absent: nothing is set, and the policy has no comment rule", () => {
+    expect(parse("effort: low\n").review).toBeUndefined();
+    expect(reviewPolicyOf(parse("effort: low\n"), () => {})).toEqual({});
+    expect(reviewPolicyOf(undefined, () => {})).toEqual({});
+    expect(reviewPolicyOf(parse(""), () => {})).toEqual({});
+  });
+
+  test("true turns the comment rule on", () => {
+    const settings = parse("review:\n  comments_point_to_docs: true\n");
+    expect(settings.review).toEqual({ commentsPointToDocs: true });
+    expect(reviewPolicyOf(settings, () => {})).toEqual({ commentsPointToDocs: true });
+  });
+
+  test("false is the same as absent for the policy", () => {
+    const settings = parse("review:\n  comments_point_to_docs: false\n");
+    expect(settings.review).toEqual({ commentsPointToDocs: false });
+    expect(reviewPolicyOf(settings, () => {})).toEqual({});
+  });
+
+  test("an empty value counts as not set", () => {
+    expect(parse("review:\n  comments_point_to_docs:\n").review).toBeUndefined();
+    expect(parse("review:\n").review).toBeUndefined();
+  });
+
+  test("a value that is not a boolean is ignored with a notice, never an error, and the rule stays off", () => {
+    for (const value of ['"true"', "1", "yes please", "[true]"]) {
+      const settings = parse(`effort: low\nreview:\n  comments_point_to_docs: ${value}\n`);
+      expect(settings.effort).toBe("low");
+      expect(settings.review).toBeUndefined();
+      expect(settings.reviewNotices).toHaveLength(1);
+      expect(settings.reviewNotices![0]).toContain(".wachiman.yml: review.comments_point_to_docs must be true or false, got ");
+      const warnings: string[] = [];
+      expect(reviewPolicyOf(settings, (l) => warnings.push(l))).toEqual({});
+      expect(warnings).toEqual(settings.reviewNotices!);
+    }
+  });
+
+  test("a review that is not a mapping is ignored with a notice", () => {
+    for (const yaml of ["review: true\n", "review: [a]\n"]) {
+      const settings = parse(yaml);
+      expect(settings.review).toBeUndefined();
+      expect(settings.reviewNotices).toEqual([".wachiman.yml: review must be a mapping of settings; ignored"]);
+    }
+  });
+
+  test("unknown keys inside review are ignored", () => {
+    expect(parse("review:\n  something_else: true\n").review).toBeUndefined();
+  });
+
+  test("the paths and the comment rule travel together in one policy", () => {
+    const settings = parse('paths:\n  - match: "a/**"\n    severity: high\n    reason: r\nreview:\n  comments_point_to_docs: true\n');
+    expect(reviewPolicyOf(settings, () => {})).toEqual({
+      pathRules: [{ match: "a/**", severity: "high", reason: "r" }],
+      commentsPointToDocs: true,
+    });
   });
 });
 

@@ -79,6 +79,12 @@ export interface ReviewInput {
    * its policy changed (ADR 0058 decision 5). Set by the connector; absent otherwise.
    */
   pathPolicyChanged?: true;
+  /**
+   * `review.comments_point_to_docs` is on in `.wachiman.yml` at `change.base.sha`, never the
+   * head (ADR 0064): the review also reports added comments that are not a pointer to a document
+   * or a tool directive. Set by the connector; absent when the setting is off or unset.
+   */
+  commentsPointToDocs?: true;
 }
 
 /** Which Claude Code profile ran the review; every GitHub-mode run is "ci". */
