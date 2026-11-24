@@ -5,6 +5,13 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.20.1](https://github.com/niway-dev/wachiman/compare/v1.20.0...v1.20.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **docs:** make installation data flow auditable before setup ([f7b8762](https://github.com/niway-dev/wachiman/commit/f7b87628e35303925d254cffb08ca89431746736))
+
 ## [1.20.0](https://github.com/niway-dev/wachiman/compare/v1.19.0...v1.20.0) (2026-11-23)
 
 
