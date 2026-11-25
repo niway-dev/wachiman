@@ -58,6 +58,7 @@ jobs:
           cp head/scripts/bench.ts base/scripts/bench.ts
           cp head/test/support/temp-repo.ts base/test/support/temp-repo.ts
       - name: Measure, interleaved
+        id: measure
         run: |
           mkdir -p "$RUNNER_TEMP/bench"
           for round in $(seq 1 "$BENCH_ROUNDS"); do
@@ -82,10 +83,21 @@ jobs:
           set -e
           cat "$RUNNER_TEMP/bench/comment.md" >> "$GITHUB_STEP_SUMMARY"
           echo "status=$status" >> "$GITHUB_OUTPUT"
+      # When an earlier step failed (install or measurement), the comment of the previous head would
+      # stay and read as if it described this one: replace it with a note that names this head.
+      - name: Note a failed measurement
+        if: failure()
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/bench"
+          printf '%s\n### Wachiman benchmark: base vs head\n\nThe measurement failed for head %s, so there is no comparison for it. The table of an earlier head, if any, was replaced by this note. See the job log.\n' \
+            "<!-- wachiman-bench -->" "${HEAD_SHA::7}" > "$RUNNER_TEMP/bench/comment.md"
+          cat "$RUNNER_TEMP/bench/comment.md" >> "$GITHUB_STEP_SUMMARY"
       # One sticky comment, found by the hidden marker on its first line and by its author, so a comment someone else quotes is never patched. A pull request from a
       # fork, and one opened by Dependabot, gets a read-only token, so it only gets the job summary above.
       - name: Post or update the comment
-        if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+        if: ${{ !cancelled() && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]' }}
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
@@ -114,30 +126,62 @@ jobs:
   # branch (an orphan branch holding only that file). A branch needs no service and no secret,
   # is plain text that diffs and clones, and survives the 90-day expiry of workflow artifacts.
   # The same JSON is also kept as an artifact for download. Only this job can write contents.
-  # Two merges close together may push at once: the loop below fetches and tries again.
+  #
+  # Each line is a controlled measurement, like a PR's: the job measures the pushed commit AND its
+  # first parent on the same runner, interleaved, and stores per case the parent median, the commit
+  # median and the change in percent, plus the runner identity (OS, architecture, CPU model).
+  # Absolute medians from different runners differ by up to 2.5x, so they are comparable only
+  # within one line; the trend to read is the per-commit change (scripts/bench-history.ts).
   history:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    # One history job at a time, so two merges close together do not append at once. A queued run
+    # is not cancelled by a running one (cancel-in-progress: false), but GitHub keeps only one
+    # pending run per group, so a third merge can replace a pending second one and leave a gap.
+    # A gap is harmless: every line carries its own parent measurement. The append below also
+    # retries when the push is rejected, which covers a push that still races.
+    concurrency:
+      group: bench-history
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
+      # Two commits deep, so the first parent is there to be measured.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          path: head
+          fetch-depth: 2
           persist-credentials: false
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.3.4
-      - name: Install dependencies
+      - name: Check out the first parent
         run: |
-          if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; else bun install; fi
-      - name: Measure
-        run: bun scripts/bench.ts --json --runs 15 > "$RUNNER_TEMP/bench.json"
+          parent=$(git -C head rev-parse --verify --quiet HEAD^1) || { echo "the pushed commit has no parent to compare with" >&2; exit 1; }
+          git -C head worktree add --detach "$PWD/base" "$parent"
+      - name: Install both sides
+        run: |
+          for side in base head; do
+            (cd "$side" && if [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; else bun install; fi)
+          done
+          # The same harness measures both sides, as in the compare job.
+          cp head/scripts/bench.ts base/scripts/bench.ts
+          cp head/test/support/temp-repo.ts base/test/support/temp-repo.ts
+      - name: Measure, interleaved
+        run: |
+          mkdir -p "$RUNNER_TEMP/bench"
+          for round in $(seq 1 "$BENCH_ROUNDS"); do
+            for side in base head; do
+              (cd "$side" && bun scripts/bench.ts --json --runs "$BENCH_RUNS") > "$RUNNER_TEMP/bench/$side-$round.json"
+            done
+          done
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
         with:
           name: bench-main
           overwrite: true
-          path: ${{ runner.temp }}/bench.json
+          path: ${{ runner.temp }}/bench
       - name: Append to the bench-history branch
         env:
           GH_TOKEN: ${{ github.token }}
@@ -158,7 +202,8 @@ jobs:
           git -C "$hist" config user.name "github-actions[bot]"
           git -C "$hist" config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for _ in 1 2 3; do
-            bun scripts/bench-history.ts --append "$RUNNER_TEMP/bench.json" "$hist/bench-history.jsonl"
+            (cd head && bun scripts/bench-history.ts --append "$hist/bench-history.jsonl" \
+              --parent "$RUNNER_TEMP"/bench/base-*.json --commit "$RUNNER_TEMP"/bench/head-*.json)
             git -C "$hist" add bench-history.jsonl
             if git -C "$hist" diff --cached --quiet; then echo "commit already recorded"; exit 0; fi
             git -C "$hist" commit --quiet -m "bench: ${GITHUB_SHA::7}"

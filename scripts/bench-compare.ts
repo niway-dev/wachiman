@@ -30,7 +30,8 @@ export function median(xs: number[]): number {
   return s.length % 2 === 0 ? (s[mid - 1] + s[mid]) / 2 : s[Math.floor(mid)];
 }
 
-function side(runs: BenchRun[]): Map<string, number> {
+/** Per case, the median of the per-round medians of one side. */
+export function side(runs: BenchRun[]): Map<string, number> {
   const perCase = new Map<string, number[]>();
   for (const r of runs) for (const x of r.results) perCase.set(x.case, [...(perCase.get(x.case) ?? []), x.median_ms]);
   return new Map([...perCase].map(([name, xs]) => [name, median(xs)]));

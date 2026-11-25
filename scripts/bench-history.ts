@@ -2,27 +2,62 @@
 /**
  * The history of `bun run bench` on `main`: one JSON object per line (JSONL), one line per commit.
  *
- *   bun scripts/bench-history.ts --append bench.json history.jsonl   add a line for the bench's commit
- *                                                                     (nothing when that commit is already there)
- *   bun scripts/bench-history.ts history.jsonl [--last N]            Markdown table of the trend, oldest first
+ *   bun scripts/bench-history.ts --append history.jsonl --parent p1.json p2.json --commit c1.json c2.json
+ *       add a line for the commit (nothing when that commit is already there)
+ *   bun scripts/bench-history.ts history.jsonl [--last N]
+ *       Markdown table of the change per commit, oldest first
  *
- * CI keeps the file on the `bench-history` branch (see .github/workflows/bench.yml). A line holds
- * the commit, the time of the run, the Bun version, the platform and the median in ms per case.
- * Medians from different runner types or Bun versions are not comparable, so the platform and Bun
- * version are stored with every line.
+ * CI keeps the file on the `bench-history` branch (see .github/workflows/bench.yml). Each line is a
+ * controlled measurement: the job measured the commit AND its first parent on the same runner,
+ * interleaved, the way a pull request compares base and head. A line holds, per case, the parent
+ * median, the commit median and the change in percent, plus the runner identity (OS, architecture,
+ * CPU model) and the Bun version. Absolute medians are only comparable within one line, never
+ * across lines (runners differ by up to 2.5x): the trend to read is the per-commit change.
+ * Lines written before this format hold only `medians` (one uncontrolled run); they are still
+ * read, and the table shows `n/a` for their change.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { side, type BenchRun } from "./bench-compare";
 
-export type Entry = { commit: string; date: string; bun: string; platform: string; medians: Record<string, number> };
-type Bench = { commit?: string; bun?: string; platform?: string; results: { case: string; median_ms: number }[] };
+export type CaseRow = { parent_ms: number; commit_ms: number; change_pct: number };
+export type Runner = { os: string; arch: string; cpu: string };
+export type Entry = {
+  commit: string;
+  date: string;
+  bun: string;
+  platform: string;
+  /** Controlled rows only. */
+  parent?: string;
+  runner?: Runner;
+  cases?: Record<string, CaseRow>;
+  /** Legacy rows only: absolute medians of one uncontrolled run. */
+  medians?: Record<string, number>;
+};
+type Meta = { commit?: string; bun?: string; platform?: string; cpu?: string };
+type Run = BenchRun & Meta;
 
-export function toEntry(b: Bench, date: string): Entry {
+const clean = (c?: string) => (c ?? "unknown").replace(/-dirty$/, "");
+
+/** Builds a controlled row from the interleaved rounds of the parent and of the commit. */
+export function toEntry(parent: Run[], commit: Run[], date: string, runner: { os?: string; arch?: string } = {}): Entry {
+  const p = side(parent);
+  const c = side(commit);
+  const cases: Record<string, CaseRow> = {};
+  for (const [name, commitMs] of c) {
+    const parentMs = p.get(name);
+    if (parentMs === undefined) continue;
+    cases[name] = { parent_ms: parentMs, commit_ms: commitMs, change_pct: parentMs === 0 ? 0 : ((commitMs - parentMs) / parentMs) * 100 };
+  }
+  const first = commit[0] ?? {};
+  const [platOs, platArch] = (first.platform ?? "unknown-unknown").split("-");
   return {
-    commit: b.commit ?? "unknown",
+    commit: clean(first.commit),
+    parent: clean(parent[0]?.commit),
     date,
-    bun: b.bun ?? "unknown",
-    platform: b.platform ?? "unknown",
-    medians: Object.fromEntries(b.results.map((r) => [r.case, r.median_ms])),
+    bun: first.bun ?? "unknown",
+    platform: first.platform ?? "unknown",
+    runner: { os: runner.os || platOs, arch: runner.arch || platArch, cpu: first.cpu ?? "unknown" },
+    cases,
   };
 }
 
@@ -46,26 +81,38 @@ export function appendEntry(text: string, entry: Entry): string {
 }
 
 export function renderTable(entries: Entry[]): string {
-  const cases = [...new Set(entries.flatMap((e) => Object.keys(e.medians)))];
-  const cell = (n: number | undefined) => (n === undefined ? "n/a" : n.toFixed(1));
+  const cases = [...new Set(entries.flatMap((e) => Object.keys(e.cases ?? {})))];
+  const cell = (e: Entry, c: string) => {
+    const r = e.cases?.[c];
+    return r === undefined ? "n/a" : `${r.change_pct >= 0 ? "+" : ""}${r.change_pct.toFixed(1)}%`;
+  };
   const lines = [
-    `| date | commit | ${cases.join(" | ")} |`,
-    `| --- | --- | ${cases.map(() => "---:").join(" | ")} |`,
-    ...entries.map((e) => `| ${e.date.slice(0, 10)} | ${e.commit} | ${cases.map((c) => cell(e.medians[c])).join(" | ")} |`),
+    `| date | commit | runner | ${cases.join(" | ")} |`,
+    `| --- | --- | --- | ${cases.map(() => "---:").join(" | ")} |`,
+    ...entries.map(
+      (e) =>
+        `| ${e.date.slice(0, 10)} | ${e.commit} | ${e.runner ? `${e.runner.os}-${e.runner.arch}` : e.platform} | ${cases.map((c) => cell(e, c)).join(" | ")} |`,
+    ),
   ];
-  if (entries.length > 1) {
-    const first = entries[0];
-    const last = entries[entries.length - 1];
-    const drift = cases.map((c) => {
-      const a = first.medians[c];
-      const b = last.medians[c];
-      if (a === undefined || b === undefined || a === 0) return "n/a";
-      const p = ((b - a) / a) * 100;
-      return `${p >= 0 ? "+" : ""}${p.toFixed(1)}%`;
-    });
-    lines.push(`| change over these rows |  | ${drift.join(" | ")} |`);
-  }
   return lines.join("\n") + "\n";
+}
+
+/** Parses `<history.jsonl> --parent <json...> --commit <json...>`: the file, then the rounds of each side. */
+export function parseAppendArgs(argv: string[]): { parent: string[]; commit: string[]; file: string } {
+  const out = { parent: [] as string[], commit: [] as string[] };
+  let target: "parent" | "commit" | null = null;
+  let file: string | undefined;
+  for (const a of argv) {
+    if (a === "--parent" || a === "--commit") target = a === "--parent" ? "parent" : "commit";
+    else if (a.startsWith("--")) throw new Error(`Unknown argument ${a}`);
+    else if (target) out[target].push(a);
+    else if (file === undefined) file = a;
+    else throw new Error(`Unexpected argument ${a}`);
+  }
+  if (out.parent.length === 0 || out.commit.length === 0 || !file) {
+    throw new Error("usage: --append <history.jsonl> --parent <json...> --commit <json...>");
+  }
+  return { ...out, file };
 }
 
 /** Parses the arguments of the table mode: `<history.jsonl> [--last N | --last=N]`. */
@@ -90,10 +137,13 @@ if (import.meta.main) {
   const read = (f: string) => (existsSync(f) ? readFileSync(f, "utf8") : "");
   try {
     if (argv[0] === "--append") {
-      const [, benchFile, historyFile] = argv;
-      if (!benchFile || !historyFile) throw new Error("usage: --append <bench.json> <history.jsonl>");
-      const entry = toEntry(JSON.parse(readFileSync(benchFile, "utf8")), new Date().toISOString());
-      writeFileSync(historyFile, appendEntry(read(historyFile), entry));
+      const { parent, commit, file } = parseAppendArgs(argv.slice(1));
+      const readRun = (f: string) => JSON.parse(readFileSync(f, "utf8")) as Run;
+      const entry = toEntry(parent.map(readRun), commit.map(readRun), new Date().toISOString(), {
+        os: process.env.RUNNER_OS,
+        arch: process.env.RUNNER_ARCH,
+      });
+      writeFileSync(file, appendEntry(read(file), entry));
     } else {
       const { file, last } = parseTableArgs(argv);
       const entries = parseHistory(read(file));
