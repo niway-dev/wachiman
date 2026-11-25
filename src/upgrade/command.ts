@@ -78,19 +78,26 @@ export function makeRun(platform: NodeJS.Platform = process.platform, spawn: Spa
 const defaultRun = makeRun();
 
 /** What `npm view wachiman version wachimanDataCollection --json` printed: an object, or a bare version string when the field is absent. */
-export function parseRegistryView(stdout: string): { version?: string; dataCollection?: unknown } {
+export interface RegistryView {
+  version?: string;
+  dataCollection?: unknown;
+  /** The request itself failed (non-zero exit, timeout, unparseable output), as opposed to the field being absent. */
+  lookupFailed?: true;
+}
+
+export function parseRegistryView(stdout: string): RegistryView {
   try {
     const body: unknown = JSON.parse(stdout);
     const object = typeof body === "object" && body !== null && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
     const version = typeof body === "string" ? body : object.version;
     return { ...(typeof version === "string" && parseTag(version) ? { version } : {}), dataCollection: object.wachimanDataCollection };
   } catch {
-    return {};
+    return { lookupFailed: true };
   }
 }
 
 /** The one registry request: `npm view wachiman[@spec] version wachimanDataCollection --json`, asked once per spec. */
-const viewed = new Map<string, { version?: string; dataCollection?: unknown }>();
+const viewed = new Map<string, RegistryView>();
 const registryView = (spec: string) => {
   const cached = viewed.get(spec);
   if (cached) return cached;
@@ -100,13 +107,18 @@ const registryView = (spec: string) => {
     timeout: 30_000,
     ...spawnShell(process.platform),
   });
-  const result = run.status === 0 ? parseRegistryView(String(run.stdout)) : {};
+  const result = run.status === 0 ? parseRegistryView(String(run.stdout)) : { lookupFailed: true as const };
   viewed.set(spec, result);
   return result;
 };
 
 const defaultLatest = () => registryView("latest").version;
-const defaultDataCollection = (spec: string) => registryView(spec).dataCollection;
+/** Throws when the request failed, so `noticesFor` can tell a failed lookup from an absent field. */
+const defaultDataCollection = (spec: string) => {
+  const view = registryView(spec);
+  if (view.lookupFailed) throw new Error("the registry request failed");
+  return view.dataCollection;
+};
 
 /**
  * The notices of every release after `installed` up to `target`, oldest first. `field` maps a release version to a
@@ -119,7 +131,13 @@ export function dataNotices(field: unknown, installed: string, target: string): 
   const found: { version: SemVer; text: string }[] = [];
   for (const [key, text] of Object.entries(field)) {
     const version = parseTag(key);
-    if (version && typeof text === "string" && text.trim() !== "" && compareVersions(version, from) > 0 && compareVersions(version, to) <= 0) {
+    if (
+      version &&
+      typeof text === "string" &&
+      text.trim() !== "" &&
+      compareVersions(version, from) > 0 &&
+      compareVersions(version, to) <= 0
+    ) {
       found.push({ version, text: text.trim() });
     }
   }
@@ -127,17 +145,23 @@ export function dataNotices(field: unknown, installed: string, target: string): 
   return found.map((n) => `  v${n.version.join(".")}: ${n.text}`);
 }
 
-/** The notices for the step from `installed` to `target`; a failing lookup gives none and never fails the upgrade. */
-function noticesFor(deps: UpgradeDeps, spec: string, installed: string, target: string): string[] {
+const NOTICES_URL = "https://github.com/niway-dev/wachiman/blob/main/docs/on-your-machine.md";
+
+/**
+ * The notice text for the step from `installed` to `target`. An absent or empty field gives nothing; a failed lookup
+ * gives one line on stderr. Neither fails the upgrade.
+ */
+function noticesFor(deps: UpgradeDeps, io: { stderr: (text: string) => void }, spec: string, installed: string, target: string): string {
   try {
-    return dataNotices((deps.dataCollection ?? defaultDataCollection)(spec), installed, target);
+    return noticeText(dataNotices((deps.dataCollection ?? defaultDataCollection)(spec), installed, target));
   } catch {
-    return [];
+    io.stderr(`wachiman: could not check the release for data collection changes; see ${NOTICES_URL}`);
+    return "";
   }
 }
 
 const noticeText = (lines: string[]) =>
-  lines.length === 0 ? "" : `Data collection changes in this upgrade:\n${lines.join("\n")}\nSee https://github.com/niway-dev/wachiman/blob/main/docs/on-your-machine.md\n`;
+  lines.length === 0 ? "" : `Data collection changes in this upgrade:\n${lines.join("\n")}\nSee ${NOTICES_URL}\n`;
 
 /** `npm prefix -g`: the directory whose `lib/node_modules` (`node_modules` on Windows) holds npm's global packages. */
 const defaultNpmPrefix = () => {
@@ -230,7 +254,7 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
     }
     const newer = compareVersions(parseTag(found)!, current) > 0;
     io.stdout(`Latest:    v${found}\n${newer ? "Run `wachiman upgrade` to update.\n" : "You are up to date.\n"}`);
-    if (newer) io.stdout(noticeText(noticesFor(deps, "latest", deps.version, found)));
+    if (newer) io.stdout(noticesFor(deps, io, "latest", deps.version, found));
     return 0;
   }
 
@@ -267,7 +291,7 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
         io.stdout(`The CLI is already on v${deps.version}${opts.to ? ` (newer than or equal to ${opts.to})` : ""}; nothing to install.\n`);
         target ??= `v${found}`;
       } else {
-        io.stdout(noticeText(noticesFor(deps, opts.to === undefined ? "latest" : found, deps.version, found)));
+        io.stdout(noticesFor(deps, io, opts.to === undefined ? "latest" : found, deps.version, found));
         const shown = [plan.command, ...plan.args].join(" ");
         io.stdout(`Installing v${found} with ${plan.manager}: ${shown}\n`);
         const status = (deps.run ?? defaultRun)(plan.command, plan.args);

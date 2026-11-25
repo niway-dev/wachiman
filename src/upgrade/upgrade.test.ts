@@ -5,7 +5,16 @@ import { join } from "node:path";
 import { UsageError } from "../config";
 import type { GitRunner } from "../evidence";
 import type { InstallKind } from "../install-kind";
-import { dataNotices, makeRun, parseRegistryView, parseUpgradeArgs, planCliUpgrade, runUpgrade, type UpgradeDeps, type UpgradeOptions } from "./command";
+import {
+  dataNotices,
+  makeRun,
+  parseRegistryView,
+  parseUpgradeArgs,
+  planCliUpgrade,
+  runUpgrade,
+  type UpgradeDeps,
+  type UpgradeOptions,
+} from "./command";
 import { classifyRef, rewritePins } from "./pin";
 
 const scratch: string[] = [];
@@ -405,7 +414,7 @@ describe("data collection notices", () => {
 
   test("dataNotices ignores a missing or malformed field and bad entries", () => {
     for (const bad of [undefined, null, "text", 3, ["1.3.0"], {}]) expect(dataNotices(bad, "1.2.0", "1.3.0")).toEqual([]);
-    expect(dataNotices({ "1.3.0": 5, "nope": "x", "1.2.5": "  " }, "1.2.0", "1.3.0")).toEqual([]);
+    expect(dataNotices({ "1.3.0": 5, nope: "x", "1.2.5": "  " }, "1.2.0", "1.3.0")).toEqual([]);
     expect(dataNotices(field, "not-a-version", "1.3.0")).toEqual([]);
   });
 
@@ -430,7 +439,7 @@ describe("data collection notices", () => {
   });
 
   test("nothing is printed when no notice applies, and a throwing field is not a failure", () => {
-    for (const dataCollection of [() => undefined, () => ({}), () => "junk", () => { throw new Error("boom"); }]) {
+    for (const dataCollection of [() => undefined, () => ({}), () => "junk"]) {
       const r = rig({});
       expect(r.go({}, { dataCollection })).toBe(0);
       expect(r.out.join("")).not.toContain("Data collection");
@@ -439,6 +448,24 @@ describe("data collection notices", () => {
       expect(c.out.join("")).toContain("Latest:    v1.3.0");
       expect(c.out.join("")).not.toContain("Data collection");
     }
+  });
+
+  test("a failed lookup prints one stderr line and the upgrade continues; an absent field prints none", () => {
+    const boom = () => {
+      throw new Error("boom");
+    };
+    const r = rig({});
+    expect(r.go({}, { dataCollection: boom })).toBe(0);
+    expect(r.err.filter((l) => l.includes("could not check the release for data collection changes"))).toHaveLength(1);
+    expect(r.err.join("")).toContain("docs/on-your-machine.md");
+    expect(r.out.join("")).toContain("The CLI is now v1.3.0");
+    const c = rig({});
+    expect(c.go({ check: true }, { dataCollection: boom })).toBe(0);
+    expect(c.out.join("")).toContain("Latest:    v1.3.0");
+    expect(c.err.join("")).toContain("could not check the release");
+    const absent = rig({});
+    absent.go({}, { dataCollection: () => undefined });
+    expect(absent.err.join("")).not.toContain("could not check");
   });
 
   test("the notices come before the install, so a failed install still shows them", () => {
@@ -462,8 +489,8 @@ describe("parseRegistryView", () => {
     expect(parseRegistryView('{"version":"1.3.0"}')).toEqual({ version: "1.3.0", dataCollection: undefined });
   });
   test("malformed JSON and non-release versions give no version", () => {
-    expect(parseRegistryView("not json")).toEqual({});
-    expect(parseRegistryView("")).toEqual({});
+    expect(parseRegistryView("not json")).toEqual({ lookupFailed: true });
+    expect(parseRegistryView("")).toEqual({ lookupFailed: true });
     expect(parseRegistryView('{"version":"1.3.0-beta.1"}').version).toBeUndefined();
     expect(parseRegistryView('"latest"').version).toBeUndefined();
   });

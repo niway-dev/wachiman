@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { doNotTrack, usageDataAllowed } from "./tracking";
+import { doNotTrack, usageDataAllowed, usageGate } from "./tracking";
 
 describe("doNotTrack", () => {
   test("is on for 1, true and any other non-empty value except 0 and false", () => {
@@ -18,8 +18,8 @@ describe("usageDataAllowed", () => {
   });
 
   test("when collection exists, DO_NOT_TRACK still wins", () => {
-    expect(usageDataAllowed({ DO_NOT_TRACK: "1" }, true)).toBe(false);
-    expect(usageDataAllowed({}, true)).toBe(true);
-    expect(usageDataAllowed({ DO_NOT_TRACK: "0" }, true)).toBe(true);
+    expect(usageGate(true, { DO_NOT_TRACK: "1" })).toBe(false);
+    expect(usageGate(true, {})).toBe(true);
+    expect(usageGate(true, { DO_NOT_TRACK: "0" })).toBe(true);
   });
 });
