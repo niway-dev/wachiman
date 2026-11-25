@@ -73,6 +73,21 @@ describe("resolveRefs", () => {
     expect(calls.filter((c) => c[0] === "rev-parse").length).toBe(2);
   });
 
+  test("--commit reads its revision with one git process and still refuses a non-commit", () => {
+    const r = branchRepo();
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const refs = resolveRefs(r.dir, undefined, counting, undefined, { commit: r.head });
+    expect(refs).toEqual(resolveRefs(r.dir, undefined, undefined, undefined, { commit: r.head }));
+    expect(calls.filter((c) => c.includes(`${r.head}^{commit}`))).toEqual([["rev-parse", "--verify", "-q", `${r.head}^{commit}`]]);
+    expect(() => resolveRefs(r.dir, undefined, undefined, undefined, { commit: "nope" })).toThrow(
+      "--commit nope is not a commit in this clone.",
+    );
+  });
+
   test("a missing commit or base is still refused, in the same order", () => {
     const dir = emptyRepo();
     expect(() => resolveRefs(dir, "main")).toThrow("has no commit yet");

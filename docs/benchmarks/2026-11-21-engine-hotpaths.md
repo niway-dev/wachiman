@@ -144,8 +144,8 @@ figure.
 
 Main moved on (the review settings read at the merge-base, one ripgrep call per evidence batch, the
 formatting commit). The branch was merged with main, not rebased, so the hashes above still resolve
-on it. The bench ran again on the Mac mini, `bun scripts/bench.ts --runs=5` (the bench script is part
-of this branch, so the base tree ran it copied in), two rounds alternating base (`c6edcdd`, main) and
+on it. The bench ran again on the Mac mini, `bun scripts/bench.ts --runs=5` (the bench script was not on
+main yet, so the base tree ran it copied in), two rounds alternating base (`c6edcdd`, main) and
 head, from fresh clones:
 
 | Case | Base, run 1 / run 2 | Head, run 1 / run 2 |

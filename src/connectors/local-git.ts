@@ -163,10 +163,12 @@ export function resolveRefs(
 
 /** The commit `rev` names, as a sha; a usage error when it is not a commit of this clone. */
 function commitOf(git: GitRunner, repoDir: string, flag: string, rev: string) {
-  if (rev === "" || rev.startsWith("-") || !ok(git, repoDir, ["rev-parse", "--verify", "-q", `${rev}^{commit}`])) {
-    throw new UsageError(`${flag} ${rev} is not a commit in this clone.`);
-  }
-  return run(git, repoDir, ["rev-parse", "--verify", `${rev}^{commit}`]).trim();
+  const notACommit = new UsageError(`${flag} ${rev} is not a commit in this clone.`);
+  if (rev === "" || rev.startsWith("-")) throw notACommit;
+  // One run probes and reads, as in `resolveRefs`.
+  const probe = git(["rev-parse", "--verify", "-q", `${rev}^{commit}`], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+  if (probe.status !== 0) throw notACommit;
+  return probe.stdout.trim();
 }
 
 /** Where a commit's review starts: its first parent, or the empty tree for a root commit. */
