@@ -103,11 +103,13 @@ Two facts shape the decision:
 - One formatting commit rewrites about 300 files (11,400 lines added, 4,160 removed). `git blame`
   skips it through `.git-blame-ignore-revs`; GitHub honours that file, and locally
   `git config blame.ignoreRevsFile .git-blame-ignore-revs` turns it on.
-- The baseline started at 116 lint diagnostics (before the comment rule, which adds its own count, kept in
-  `scripts/ratchet-baseline.json` under `local/comments-point-to-docs`; see [code comments](../code-comments.md)) in 50 files and 155 type errors in 46 files. They
+- The baseline started at 116 lint diagnostics in 50 files and 155 type errors in 46 files. They
   are real findings, not noise, and each fix lowers the baseline in the same pull request.
   Renaming or moving a file with a baseline entry looks like a rise in the new path; update the
   baseline in that pull request.
+- The comment rule adds its own count to the baseline, about 4,500 comments, kept in
+  `scripts/ratchet-baseline.json` under `local/comments-point-to-docs`. Those are policy debt, not findings
+  (see [code comments](../code-comments.md)); each comment removed or turned into a pointer lowers it.
 - A fall is reported but does not fail the run. Until the baseline is updated, the same count can
   come back without a rise being seen. The rule is that the pull request that fixes something
   runs `bun run ratchet:update` and commits the lower baseline; a reviewer who sees a fix

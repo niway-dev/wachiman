@@ -18,10 +18,11 @@ a pointer to it.
    A pointer to a file that does not exist is reported with its own message. The anchor is not checked.
 2. **A tool directive:**
    - `@ts-expect-error <reason>`, `@ts-ignore <reason>` and `@ts-nocheck <reason>` (a reason is required);
-   - `@ts-check`;
+   - `@ts-check`, alone (`@ts-check` followed by text is prose);
    - `eslint-disable`, `eslint-disable-next-line`, `eslint-disable-line` and the `oxlint-` equivalents, with a
      reason after ` -- `, as in `// eslint-disable-next-line no-empty -- the probe may throw`;
-   - `eslint-enable` and `oxlint-enable`;
+   - `eslint-enable` and `oxlint-enable`, bare or followed only by rule names separated by commas (any other
+     text after them is prose);
    - the shebang (`#!/usr/bin/env bun`);
    - `/// <reference ... />`.
 
