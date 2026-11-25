@@ -44,6 +44,7 @@ const source = [
   "// @ts-check because the types matter here",
   "// eslint-enable the rule again, see the discussion",
   "// oxlint-enable bun:test/no-export, no-empty",
+  "// See ..cache/x.md",
   "",
 ].join("\n");
 
@@ -58,6 +59,8 @@ beforeAll(() => {
   dir = mkdtempSync(join(tmpdir(), "wachiman-comment-rule-"));
   mkdirSync(join(dir, "docs"));
   writeFileSync(join(dir, "docs", "real.md"), "# real\n");
+  mkdirSync(join(dir, "..cache"));
+  writeFileSync(join(dir, "..cache", "x.md"), "# x\n");
   writeFileSync(join(dir, "bunfig.toml"), `[lint]\nplugins = [${JSON.stringify(plugin)}]\n\n[lint.rules]\n"${RULE}" = "error"\n`);
   writeFileSync(join(dir, "sample.ts"), source);
   const run = spawnSync("bunx", [`bun@${LINT_BUN}`, "lint", "--format", "json", "--no-script"], { cwd: dir, encoding: "utf8" });
@@ -93,6 +96,10 @@ describe.skipIf(!available)(
     test("a pointer to a directory, outside the repository or to an absolute path is reported as a missing target", () => {
       for (const line of [27, 28, 29])
         expect(reported(line).map((m) => m.message)).toEqual([expect.stringContaining("which is not a file in the repository")]);
+    });
+
+    test("a file inside the repository whose name starts with two dots is inside", () => {
+      expect(reported(33)).toHaveLength(0);
     });
 
     test("reports a pointer to a missing file with its own message naming the target", () => {
