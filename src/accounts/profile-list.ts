@@ -89,6 +89,9 @@ export function buildProfileList(home: string, config: WachimanConfigV1 | undefi
   for (const name of names) {
     profiles.push({ name, kind: "managed", configDir: managedDir(home, name), registered: false, usedBy: usedBy(config, name) });
   }
-  return { format: "wachiman.profiles/1", ...(config?.defaultProfile !== undefined ? { defaultProfile: config.defaultProfile } : {}), profiles };
+  return {
+    format: "wachiman.profiles/1",
+    ...(config?.defaultProfile !== undefined ? { defaultProfile: config.defaultProfile } : {}),
+    profiles,
+  };
 }
-

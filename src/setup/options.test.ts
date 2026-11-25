@@ -7,7 +7,12 @@ const resolve = (flags: RawSetupFlags, interactive = false) => resolveSetupOptio
 
 describe("parseSetupFlags", () => {
   test("every flag, in both spellings, with the repository directory", () => {
-    expect(parseSetupFlags(["--profile", "work-a", "--yes", "--json"], "/repo")).toEqual({ profile: "work-a", yes: true, json: true, repoDir: "/repo" });
+    expect(parseSetupFlags(["--profile", "work-a", "--yes", "--json"], "/repo")).toEqual({
+      profile: "work-a",
+      yes: true,
+      json: true,
+      repoDir: "/repo",
+    });
     expect(parseSetupFlags(["--profile=work-a"], "/repo")).toEqual({ profile: "work-a", repoDir: "/repo" });
     expect(parseSetupFlags([], "/repo")).toEqual({ repoDir: "/repo" });
   });

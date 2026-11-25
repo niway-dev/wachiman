@@ -73,7 +73,8 @@ export function evaluate(findings: LoopFinding[]): Decision {
       notes.push(f);
     } else if (reason) released.push({ finding: f, why: "judged wrong", reason });
     else if (f.refuted) released.push({ finding: f, why: "refuted" });
-    else if (f.status === "probably-fixed" || (f.status === "not-repeated" && f.linesChanged)) released.push({ finding: f, why: "probably-fixed" });
+    else if (f.status === "probably-fixed" || (f.status === "not-repeated" && f.linesChanged))
+      released.push({ finding: f, why: "probably-fixed" });
     else open.push(f.verdict?.verdict === "wrong" ? { ...f, unreasonedWrong: true } : f);
   }
   return { open, released, notes, converged: open.length === 0 };

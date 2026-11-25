@@ -27,7 +27,10 @@ const ANSWER = JSON.stringify({
   num_turns: 1,
   total_cost_usd: 0.01,
   duration_ms: 5,
-  structured_output: { sections: [{ title: "What the change does", body: "It edits src/a.ts.", refs: [{ path: "src/a.ts", line: 1 }] }], not_answered: "" },
+  structured_output: {
+    sections: [{ title: "What the change does", body: "It edits src/a.ts.", refs: [{ path: "src/a.ts", line: 1 }] }],
+    not_answered: "",
+  },
 });
 const RESULT = JSON.stringify({
   is_error: false,
@@ -84,7 +87,13 @@ const cli = join(import.meta.dir, "cli.ts");
 function local(repo: string, env: Record<string, string> = {}, args: string[] = []) {
   const claude = fakeClaude();
   const out = Bun.spawnSync([process.execPath, cli, "local", "--repo-dir", repo, ...args], {
-    env: { PATH: `${claude.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-settings-home-"), USER: "dev", WACHIMAN_VERIFY: "0", ...env },
+    env: {
+      PATH: `${claude.bin}:${process.env.PATH ?? ""}`,
+      HOME: temp("wachiman-settings-home-"),
+      USER: "dev",
+      WACHIMAN_VERIFY: "0",
+      ...env,
+    },
     stdin: "ignore",
   });
   return { code: out.exitCode, stdout: out.stdout.toString(), stderr: out.stderr.toString(), claude };
@@ -203,7 +212,9 @@ describe("wachiman local reads .wachiman.yml at the merge-base", () => {
       const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
       fixture.change.base.sha = h.c0;
       fixture.change.head.sha = h.c2;
-      fixture.files = [{ filename: "src/a.ts", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-export const a = 1;\n+export const a = 3;" }];
+      fixture.files = [
+        { filename: "src/a.ts", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-export const a = 1;\n+export const a = 3;" },
+      ];
       const file = join(temp("wachiman-settings-input-"), "input.json");
       writeFileSync(file, JSON.stringify(fixture));
       const r = local(h.dir, {}, ["--input", file]);

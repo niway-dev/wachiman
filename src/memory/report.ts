@@ -87,7 +87,13 @@ export interface ReportInput {
 }
 
 const zero = (): Outcomes => ({ fixed: 0, wrong: 0, intentional: 0, notImportant: 0, unjudged: 0 });
-const blank = (period: string): ReportPeriod => ({ period, comments: 0, outcomes: zero(), muted: { count: 0, byEntry: {} }, memoryLoadedLines: null });
+const blank = (period: string): ReportPeriod => ({
+  period,
+  comments: 0,
+  outcomes: zero(),
+  muted: { count: 0, byEntry: {} },
+  memoryLoadedLines: null,
+});
 
 /**
  * `neverUsed` reads the layer 6 record of use, not the runs: an entry is used when the record has a
@@ -120,7 +126,16 @@ export function buildReport(input: ReportInput): MemoryReport {
       if (!p) return;
       const found = stateOf.get(t.firstId);
       const word = found?.verdict?.verdict;
-      const key: keyof Outcomes = word === "wrong" ? "wrong" : word === "intentional" ? "intentional" : word === "not-important" ? "notImportant" : found?.status === "probably-fixed" ? "fixed" : "unjudged";
+      const key: keyof Outcomes =
+        word === "wrong"
+          ? "wrong"
+          : word === "intentional"
+            ? "intentional"
+            : word === "not-important"
+              ? "notImportant"
+              : found?.status === "probably-fixed"
+                ? "fixed"
+                : "unjudged";
       for (const target of [p, total]) {
         target.comments++;
         target.outcomes[key]++;
@@ -141,9 +156,7 @@ export function buildReport(input: ReportInput): MemoryReport {
 
   // archive.md is never loaded into a review, so it is not live memory: it is left out of the size and the never-used list.
   const names = Object.keys(input.files ?? {}).filter((name) => name !== ARCHIVE_FILE);
-  const entries = [...names]
-    .sort()
-    .flatMap((name) => parseMemoryFile(name, input.files![name]).entries);
+  const entries = [...names].sort().flatMap((name) => parseMemoryFile(name, input.files![name]).entries);
   // A missing or unreadable record means use is unknown: that is not "no entry was used".
   const unknown = !input.use.known;
   const lastUse = input.use.known ? input.use.used : {};
@@ -168,7 +181,12 @@ export function buildReport(input: ReportInput): MemoryReport {
     empty: runs.length === 0,
     periods: [...periods.values()].sort((a, b) => (a.period < b.period ? -1 : 1)),
     total,
-    memory: { present: input.files !== undefined, files: names.length, entries: entries.length, lines: names.reduce((n, name) => n + lineCount(input.files![name]), 0) },
+    memory: {
+      present: input.files !== undefined,
+      files: names.length,
+      entries: entries.length,
+      lines: names.reduce((n, name) => n + lineCount(input.files![name]), 0),
+    },
     personal,
     neverUsed: runs.length === 0 ? [] : unknown ? null : neverUsed,
     neverUsedReason: runs.length > 0 && unknown ? "no-use-recorded" : null,
@@ -181,7 +199,10 @@ const pad = (text: string, width: number) => text.padEnd(width);
 const personalLines = (report: MemoryReport) =>
   report.personal.length === 0
     ? []
-    : [`Personal memory (outside the repository, not counted above) (${report.personal.length}):`, ...report.personal.map((e) => `  ${e.id}  ${e.kind}  ${e.scope}  ${e.title}`)];
+    : [
+        `Personal memory (outside the repository, not counted above) (${report.personal.length}):`,
+        ...report.personal.map((e) => `  ${e.id}  ${e.kind}  ${e.scope}  ${e.title}`),
+      ];
 
 export function renderReport(report: MemoryReport): string {
   if (report.empty) {
@@ -189,21 +210,47 @@ export function renderReport(report: MemoryReport): string {
     return `No review history${window} for this repository: run \`wachiman local --history\` to start one.\n${personalLines(report).join("\n")}${report.personal.length > 0 ? "\n" : ""}`;
   }
   const head = ["period", "comments", "fixed", "wrong", "intentional", "not important", "unjudged", "muted", "memory lines"];
-  const row = (p: ReportPeriod) => [p.period, p.comments, p.outcomes.fixed, p.outcomes.wrong, p.outcomes.intentional, p.outcomes.notImportant, p.outcomes.unjudged, p.muted.count, p.memoryLoadedLines ?? "-"].map(String);
+  const row = (p: ReportPeriod) =>
+    [
+      p.period,
+      p.comments,
+      p.outcomes.fixed,
+      p.outcomes.wrong,
+      p.outcomes.intentional,
+      p.outcomes.notImportant,
+      p.outcomes.unjudged,
+      p.muted.count,
+      p.memoryLoadedLines ?? "-",
+    ].map(String);
   const rows = [...report.periods, report.total].map(row);
   const widths = head.map((h, i) => Math.max(h.length, ...rows.map((r) => r[i].length)));
-  const line = (cells: string[]) => cells.map((c, i) => (i === 0 ? pad(c, widths[i]) : c.padStart(widths[i]))).join("  ").trimEnd();
+  const line = (cells: string[]) =>
+    cells
+      .map((c, i) => (i === 0 ? pad(c, widths[i]) : c.padStart(widths[i])))
+      .join("  ")
+      .trimEnd();
   const out = [line(head), ...rows.map(line), ""];
 
   const muters = Object.entries(report.total.muted.byEntry).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-  out.push(muters.length === 0 ? "Muted by memory: nothing." : `Muted by memory, by entry: ${muters.map(([id, n]) => `${id}: ${n}`).join(", ")}`);
+  out.push(
+    muters.length === 0 ? "Muted by memory: nothing." : `Muted by memory, by entry: ${muters.map(([id, n]) => `${id}: ${n}`).join(", ")}`,
+  );
   const m = report.memory;
-  out.push(m.present ? `Memory now (${MEMORY_DIR}/ in the working tree): ${m.files} files, ${m.entries} entries, ${m.lines} lines.` : `Memory now: no ${MEMORY_DIR}/ folder in the working tree.`);
+  out.push(
+    m.present
+      ? `Memory now (${MEMORY_DIR}/ in the working tree): ${m.files} files, ${m.entries} entries, ${m.lines} lines.`
+      : `Memory now: no ${MEMORY_DIR}/ folder in the working tree.`,
+  );
   out.push(...personalLines(report));
-  if (report.neverUsed === null) out.push("Entries never used: unknown, this laptop has no readable record of use (run `wachiman local --history` to start recording it).");
+  if (report.neverUsed === null)
+    out.push(
+      "Entries never used: unknown, this laptop has no readable record of use (run `wachiman local --history` to start recording it).",
+    );
   else if (report.neverUsed.length === 0) out.push("Entries never used: none.");
   else {
-    out.push(`Entries never used (${report.neverUsed.length})${report.useRecordedSince ? `, counting only from ${report.useRecordedSince}, when this laptop began recording use` : ""}:`);
+    out.push(
+      `Entries never used (${report.neverUsed.length})${report.useRecordedSince ? `, counting only from ${report.useRecordedSince}, when this laptop began recording use` : ""}:`,
+    );
     for (const e of report.neverUsed) out.push(`  ${e.id}  ${e.kind}  ${e.scope}  ${e.title}  (${e.file})`);
   }
   out.push("memory lines = lines of memory the period's last review loaded; a - means no review in it recorded memory.");

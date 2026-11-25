@@ -43,11 +43,24 @@ function seeded(daysAgo = 2, name = "listed") {
   const repository = repositoryKey(repo);
   const at = (days: number) => new Date(Date.now() - days * 86_400_000).toISOString();
   const base = { format: HISTORY_RUN_FORMAT, engine: { version: "0" }, repository } as const;
-  const tr = (id: string, status: "new" | "open", runs: number, firstHead: string) => ({ id, status, firstId: id, firstHead, runs, reopened: 0, titleKey: id });
+  const tr = (id: string, status: "new" | "open", runs: number, firstHead: string) => ({
+    id,
+    status,
+    firstId: id,
+    firstHead,
+    runs,
+    reopened: 0,
+    titleKey: id,
+  });
   const run1 = {
     ...base,
     savedAt: at(daysAgo + 10),
-    result: { format: "wachiman.review-result/1", change: { head: { sha: FIRST } }, coverage: { reviewed: [], expected: [], skipped: [] }, findings: [finding("src/a.ts", 12, "Off-by-one in the loop"), finding("src/b.ts", 40, "Unchecked cast")] },
+    result: {
+      format: "wachiman.review-result/1",
+      change: { head: { sha: FIRST } },
+      coverage: { reviewed: [], expected: [], skipped: [] },
+      findings: [finding("src/a.ts", 12, "Off-by-one in the loop"), finding("src/b.ts", 40, "Unchecked cast")],
+    },
     tracking: [tr("a1a1a1a1a1", "new", 1, FIRST), tr("b2b2b2b2b2", "new", 1, FIRST)],
     settled: [],
     unknown: 0,
@@ -56,7 +69,12 @@ function seeded(daysAgo = 2, name = "listed") {
   const run2 = {
     ...base,
     savedAt: at(daysAgo),
-    result: { format: "wachiman.review-result/1", change: { head: { sha: SECOND } }, coverage: { reviewed: [], expected: [], skipped: [] }, findings: [finding("src/a.ts", 12, "Off-by-one in the loop")] },
+    result: {
+      format: "wachiman.review-result/1",
+      change: { head: { sha: SECOND } },
+      coverage: { reviewed: [], expected: [], skipped: [] },
+      findings: [finding("src/a.ts", 12, "Off-by-one in the loop")],
+    },
     tracking: [tr("c3c3c3c3c3", "open", 2, FIRST)].map((t) => ({ ...t, firstId: "a1a1a1a1a1" })),
     settled: [{ firstId: "b2b2b2b2b2", status: "probably-fixed", path: "src/b.ts", line: 40, title: "Unchecked cast", lastHead: FIRST }],
     unknown: 0,
@@ -70,10 +88,30 @@ function seeded(daysAgo = 2, name = "listed") {
 
 describe("parseHistoryArgs", () => {
   test("every option, and the usage errors", () => {
-    expect(parseHistoryArgs(["--since", "7d", "--all-repos", "--json"])).toEqual({ sinceDays: 7, allRepos: true, json: true, forget: false, all: false });
+    expect(parseHistoryArgs(["--since", "7d", "--all-repos", "--json"])).toEqual({
+      sinceDays: 7,
+      allRepos: true,
+      json: true,
+      forget: false,
+      all: false,
+    });
     expect(parseHistoryArgs(["--verdict", "abc", "wrong", "--reason", "x"]).verdict).toEqual({ id: "abc", word: "wrong" });
     expect(parseHistoryArgs(["--forget", "--all"])).toMatchObject({ forget: true, all: true });
-    for (const bad of [["--frobnicate"], ["--all"], ["--since", "7"], ["--since=1w"], ["--reason", "x"], ["--verdict", "abc", "maybe"], ["--verdict", "abc"], ["stray"], ["--json=1"], ["--forget", "--json"], ["--forget", "--all-repos"], ["--forget", "--all", "--all-repos"], ["--forget", "--since", "7d"]]) {
+    for (const bad of [
+      ["--frobnicate"],
+      ["--all"],
+      ["--since", "7"],
+      ["--since=1w"],
+      ["--reason", "x"],
+      ["--verdict", "abc", "maybe"],
+      ["--verdict", "abc"],
+      ["stray"],
+      ["--json=1"],
+      ["--forget", "--json"],
+      ["--forget", "--all-repos"],
+      ["--forget", "--all", "--all-repos"],
+      ["--forget", "--since", "7d"],
+    ]) {
       expect(() => parseHistoryArgs(bad)).toThrow(UsageError);
     }
   });
@@ -101,12 +139,23 @@ describe("wachiman history", () => {
     expect(listing[2]).toEndWith("Off-by-one in the loop   verdict: intentional");
     expect(listing[3]).toEndWith("Unchecked cast   verdict: not-important");
     expect(listing[4]).toBe("verdicts: 0 correct, 0 partial, 0 wrong, 0 unjudged, 1 intentional, 1 not-important");
-    expect(JSON.parse(history(["--json", "--repo-dir", repo], home).stdout).repositories[0].counts).toEqual({ correct: 0, partial: 0, wrong: 0, unjudged: 0, intentional: 1, notImportant: 1 });
+    expect(JSON.parse(history(["--json", "--repo-dir", repo], home).stdout).repositories[0].counts).toEqual({
+      correct: 0,
+      partial: 0,
+      wrong: 0,
+      unjudged: 0,
+      intentional: 1,
+      notImportant: 1,
+    });
   });
 
   test("a verdicts file written before the new words is still read", () => {
     const { home, repo, root, key } = seeded();
-    writeFileSync(join(root, key, "verdicts.jsonl"), `${JSON.stringify({ at: "2026-01-01T00:00:00.000Z", firstId: "a1a1a1a1a1", verdict: "partial" })}\n`, { mode: 0o600 });
+    writeFileSync(
+      join(root, key, "verdicts.jsonl"),
+      `${JSON.stringify({ at: "2026-01-01T00:00:00.000Z", firstId: "a1a1a1a1a1", verdict: "partial" })}\n`,
+      { mode: 0o600 },
+    );
     expect(history(["--repo-dir", repo], home).stdout).toContain("verdicts: 0 correct, 1 partial, 0 wrong, 1 unjudged\n");
   });
 
@@ -144,7 +193,10 @@ describe("wachiman history", () => {
     expect(state.format).toBe("wachiman.history-state/1");
     expect(state.repositories).toHaveLength(1);
     expect(state.repositories[0]).toMatchObject({ key, runs: 2 });
-    expect(state.repositories[0].findings.map((f: any) => [f.id, f.status])).toEqual([["a1a1a1a1a1", "open"], ["b2b2b2b2b2", "probably-fixed"]]);
+    expect(state.repositories[0].findings.map((f: any) => [f.id, f.status])).toEqual([
+      ["a1a1a1a1a1", "open"],
+      ["b2b2b2b2b2", "probably-fixed"],
+    ]);
   });
 
   test("no history prints one line and exits 0", () => {

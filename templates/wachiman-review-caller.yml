@@ -33,7 +33,7 @@ jobs:
     # `permissions:` line at the top, and add `ledger_url` (and optionally `daily_budget_usd`) to `with:`
     # next to `operator`. `wachiman-platform.yml` exists from v1.17.0 on,
     # so pin that release or later. Leave all of this out and nothing changes.
-    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.18.0 # x-release-please-version
+    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.20.1 # x-release-please-version
     with:
       operator: EDIT-THIS-github-login
       # review_on_push: false   # review only on open, ready for review and `/wachiman review`

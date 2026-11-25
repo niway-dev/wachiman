@@ -124,12 +124,30 @@ describe("parseManifest", () => {
 
   test("a version object needs a known rule; pin must be complete", () => {
     expect(() => parse((m) => (m.contracts[0].version = { rule: "latest" }))).toThrow(/rule/);
-    expect(() => parse((m) => (m.contracts[0].version = { rule: "pinned", pin: { file: "package.json", key: "a.b", tag: "v{version}" } } as never))).toThrow(/key/);
-    expect(() => parse((m) => (m.contracts[0].version = { rule: "pinned", pin: { file: "../package.json", key: ["a"], tag: "v{version}" } } as never))).toThrow(/\.\./);
-    const ok = parse((m) => (m.contracts[0].version = { rule: "pinned", pin: { file: "package.json", key: ["dependencies", "chart.js"], tag: "v{version}" } } as never));
-    expect(ok.contracts[0].version).toEqual({ rule: "pinned", pin: { file: "package.json", key: ["dependencies", "chart.js"], tag: "v{version}" } });
-    expect(parse((m) => ((m.members[0] as Record<string, unknown>).version = { rule: "local" })).members[0].version).toEqual({ rule: "local" });
-    expect(parse((m) => (m.contracts[0].version = { rule: "pinned", ref: "v1.2.0" } as never)).contracts[0].version).toEqual({ rule: "pinned", ref: "v1.2.0" });
+    expect(() =>
+      parse((m) => (m.contracts[0].version = { rule: "pinned", pin: { file: "package.json", key: "a.b", tag: "v{version}" } } as never)),
+    ).toThrow(/key/);
+    expect(() =>
+      parse((m) => (m.contracts[0].version = { rule: "pinned", pin: { file: "../package.json", key: ["a"], tag: "v{version}" } } as never)),
+    ).toThrow(/\.\./);
+    const ok = parse(
+      (m) =>
+        (m.contracts[0].version = {
+          rule: "pinned",
+          pin: { file: "package.json", key: ["dependencies", "chart.js"], tag: "v{version}" },
+        } as never),
+    );
+    expect(ok.contracts[0].version).toEqual({
+      rule: "pinned",
+      pin: { file: "package.json", key: ["dependencies", "chart.js"], tag: "v{version}" },
+    });
+    expect(parse((m) => ((m.members[0] as Record<string, unknown>).version = { rule: "local" })).members[0].version).toEqual({
+      rule: "local",
+    });
+    expect(parse((m) => (m.contracts[0].version = { rule: "pinned", ref: "v1.2.0" } as never)).contracts[0].version).toEqual({
+      rule: "pinned",
+      ref: "v1.2.0",
+    });
   });
 
   describe("path safety", () => {
@@ -148,7 +166,16 @@ describe("parseManifest", () => {
     });
 
     test("brace expansion cannot hide a .. segment or an absolute path", () => {
-      for (const glob of ["src/{.,x}./secret", "src/{a,{.,b}.}/x", "{src,{.,x}.}/y", "a/{b,..}/c", "{/etc,src}/x", "src/{.}./x", "src/{a,b}/{..,c}", "{a,b}{/..,c}"]) {
+      for (const glob of [
+        "src/{.,x}./secret",
+        "src/{a,{.,b}.}/x",
+        "{src,{.,x}.}/y",
+        "a/{b,..}/c",
+        "{/etc,src}/x",
+        "src/{.}./x",
+        "src/{a,b}/{..,c}",
+        "{a,b}{/..,c}",
+      ]) {
         expect(refusal((m) => (m.contracts[0].sides[0].paths = [glob])).code).toBe("path-escape");
       }
     });

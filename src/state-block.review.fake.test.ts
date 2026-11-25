@@ -3,16 +3,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig as loadConfigWithDefaults } from "./config";
-import {
-  GhError,
-  lastEngineMarker,
-  readAutoCost,
-  readSignedStateBlock,
-  review,
-  type Deps,
-  type GhFn,
-  type ReviewOutput,
-} from "./engine";
+import { GhError, lastEngineMarker, readAutoCost, readSignedStateBlock, review, type Deps, type GhFn, type ReviewOutput } from "./engine";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
 
 // ADR 0060, through the whole engine: `review()` posts one review and its signed footer ends with
@@ -116,8 +107,7 @@ function world(
         ? JSON.stringify({ id: 1, user: { login: "github-actions[bot]" }, body: opts.prior, submitted_at: "2026-10-30T00:00:00Z" })
         : "";
     }
-    if (line.startsWith("api graphql"))
-      return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } });
+    if (line.startsWith("api graphql")) return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } });
     const compare = line.match(/compare\/(\S+?)\.\.\.(\S+)/);
     if (compare) {
       // `base...last` is what the earlier review saw; `last...head` is what changed since.
@@ -201,7 +191,14 @@ describe("a full review through the engine (AC1, AC2)", () => {
 
   test("when GitHub refuses the inline comments, the review posted second counts them under body (AC16)", async () => {
     const w = world(
-      [() => ({ structuredOutput: out({ files_reviewed: [MANAGER, STORE], findings: [finding(2, "blocker"), finding(3, "fix"), finding(4, "info")] }) })],
+      [
+        () => ({
+          structuredOutput: out({
+            files_reviewed: [MANAGER, STORE],
+            findings: [finding(2, "blocker"), finding(3, "fix"), finding(4, "info")],
+          }),
+        }),
+      ],
       { refuseFirst: true },
     );
     await review(w.deps, "o/r", 7, []);
@@ -308,7 +305,7 @@ describe("a push after a review whose footer carries a block (AC5)", () => {
     expect(w.provider.requests[0]!.prompt).toContain(`- ${STORE} +4 −0`);
     expect(w.provider.requests[0]!.prompt).not.toContain(`- ${MANAGER} +6`);
     const body = w.posts[0]!.body;
-    expect(body.split("\n")[0]).toContain("review of the changes since `old1111`");
+    expect(body.split("\n")[0]).toContain("changes since `old1111` at `head123`");
     // Its own block describes this review, at the new head, not the earlier one.
     const state = readSignedStateBlock(body);
     expect(state).toMatchObject({ head: HEAD, status: "complete", findings: { total: 1, by_severity: { consider: 1 } } });

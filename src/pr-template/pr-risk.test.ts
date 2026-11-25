@@ -3,7 +3,17 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { changesFromGit, commitMessagesFromGit, defaultRunner, gitFileAt, ToolError } from "./gh";
-import { computeRisk, formatRisk, HIGH, LOW, MEDIUM, parsePatch, parseRiskExtension, type ChangedFile, type RiskExtension } from "./pr-risk";
+import {
+  computeRisk,
+  formatRisk,
+  HIGH,
+  LOW,
+  MEDIUM,
+  parsePatch,
+  parseRiskExtension,
+  type ChangedFile,
+  type RiskExtension,
+} from "./pr-risk";
 import { BREAKING_TEXT, fixture } from "./fixtures/check/load";
 
 const change = (path: string, patch = "", status = "M"): ChangedFile => ({ path, status, patch });
@@ -263,7 +273,12 @@ describe("ParsePatchTest", () => {
   });
 
   test("a rename takes the new path, quoted or not", () => {
-    const plain = ["diff --git a/old name.py b/new name.py", "similarity index 100%", "rename from old name.py", "rename to new name.py"].join("\n");
+    const plain = [
+      "diff --git a/old name.py b/new name.py",
+      "similarity index 100%",
+      "rename from old name.py",
+      "rename to new name.py",
+    ].join("\n");
     expect(paths(plain)).toEqual([["new name.py", "R", false]]);
     const quoted = [
       String.raw`diff --git "a/old.py" "b/new \"q\".py"`,
@@ -278,28 +293,61 @@ describe("ParsePatchTest", () => {
   });
 
   test("a rename into a protected folder is still seen as that folder", () => {
-    const diff = ["diff --git a/tools/x.ts b/db/migrations/x.ts", "similarity index 100%", "rename from tools/x.ts", "rename to db/migrations/x.ts"].join("\n");
+    const diff = [
+      "diff --git a/tools/x.ts b/db/migrations/x.ts",
+      "similarity index 100%",
+      "rename from tools/x.ts",
+      "rename to db/migrations/x.ts",
+    ].join("\n");
     expect(computeRisk(parsePatch(diff)).level).toBe(HIGH);
   });
 
   test("a rename out of a protected folder is still seen as that folder", () => {
-    const diff = ["diff --git a/auth/session.ts b/src/ordinary.ts", "similarity index 100%", "rename from auth/session.ts", "rename to src/ordinary.ts"].join("\n");
+    const diff = [
+      "diff --git a/auth/session.ts b/src/ordinary.ts",
+      "similarity index 100%",
+      "rename from auth/session.ts",
+      "rename to src/ordinary.ts",
+    ].join("\n");
     const [file] = parsePatch(diff);
     expect(file).toMatchObject({ path: "src/ordinary.ts", from: "auth/session.ts", status: "R" });
     expect(formatRisk(computeRisk([file!]))).toBe("🔴 High: authentication, sessions or permissions (auth/session.ts)");
   });
 
   test("a copy from a protected folder, and a quoted source, are seen too", () => {
-    const copy = ["diff --git a/auth/session.ts b/src/ordinary.ts", "similarity index 100%", "copy from auth/session.ts", "copy to src/ordinary.ts"].join("\n");
+    const copy = [
+      "diff --git a/auth/session.ts b/src/ordinary.ts",
+      "similarity index 100%",
+      "copy from auth/session.ts",
+      "copy to src/ordinary.ts",
+    ].join("\n");
     expect(computeRisk(parsePatch(copy)).level).toBe(HIGH);
-    const quoted = ["diff --git a/x b/src/ordinary.ts", "similarity index 100%", String.raw`rename from "auth/s\"x.ts"`, "rename to src/ordinary.ts"].join("\n");
+    const quoted = [
+      "diff --git a/x b/src/ordinary.ts",
+      "similarity index 100%",
+      String.raw`rename from "auth/s\"x.ts"`,
+      "rename to src/ordinary.ts",
+    ].join("\n");
     expect(parsePatch(quoted)[0]!.from).toBe('auth/s"x.ts');
-    const broken = ["diff --git a/x b/src/ordinary.ts", "similarity index 100%", String.raw`rename from "auth/s\q.ts"`, "rename to src/ordinary.ts"].join("\n");
+    const broken = [
+      "diff --git a/x b/src/ordinary.ts",
+      "similarity index 100%",
+      String.raw`rename from "auth/s\q.ts"`,
+      "rename to src/ordinary.ts",
+    ].join("\n");
     expect(computeRisk(parsePatch(broken)).level).toBe(HIGH);
   });
 
   test("a deleted protected file still counts its path", () => {
-    const diff = ["diff --git a/auth/session.ts b/auth/session.ts", "deleted file mode 100644", "index 1111111..0000000", "--- a/auth/session.ts", "+++ /dev/null", "@@ -1 +0,0 @@", "-x"].join("\n");
+    const diff = [
+      "diff --git a/auth/session.ts b/auth/session.ts",
+      "deleted file mode 100644",
+      "index 1111111..0000000",
+      "--- a/auth/session.ts",
+      "+++ /dev/null",
+      "@@ -1 +0,0 @@",
+      "-x",
+    ].join("\n");
     expect(computeRisk(parsePatch(diff)).path).toBe("auth/session.ts");
   });
 
@@ -317,9 +365,18 @@ describe("ParsePatchTest", () => {
   });
 
   test("a binary file has no --- and +++ lines: the header gives the path", () => {
-    const diff = ["diff --git a/img/logo file.png b/img/logo file.png", "new file mode 100644", "index 0000000..1111111", "Binary files /dev/null and b/img/logo file.png differ"].join("\n");
+    const diff = [
+      "diff --git a/img/logo file.png b/img/logo file.png",
+      "new file mode 100644",
+      "index 0000000..1111111",
+      "Binary files /dev/null and b/img/logo file.png differ",
+    ].join("\n");
     expect(paths(diff)).toEqual([["img/logo file.png", "A", false]]);
-    const quoted = [String.raw`diff --git "a/img/\"x\".png" "b/img/\"x\".png"`, "index 1111111..2222222 100644", String.raw`Binary files "a/img/\"x\".png" and "b/img/\"x\".png" differ`].join("\n");
+    const quoted = [
+      String.raw`diff --git "a/img/\"x\".png" "b/img/\"x\".png"`,
+      "index 1111111..2222222 100644",
+      String.raw`Binary files "a/img/\"x\".png" and "b/img/\"x\".png" differ`,
+    ].join("\n");
     expect(paths(quoted)).toEqual([['img/"x".png', "M", false]]);
   });
 

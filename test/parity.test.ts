@@ -60,11 +60,30 @@ class AllReviewed implements ProviderAdapter {
         terminalReason: "success",
         isError: false,
         raw: {},
-        structuredOutput: { verdicts: [{ id: "c1", verdict: "supported", reason: "the code shows it", checked: [{ snapshot: "head", path: this.filenames[0], line: 1 }] }] },
+        structuredOutput: {
+          verdicts: [
+            {
+              id: "c1",
+              verdict: "supported",
+              reason: "the code shows it",
+              checked: [{ snapshot: "head", path: this.filenames[0], line: 1 }],
+            },
+          ],
+        },
       };
     }
     const findings = this.findOne
-      ? [{ path: this.filenames[0], line: 1, severity: "fix", topic: "bug", confidence: "high", title: "A finding to verify", body: "Because." }]
+      ? [
+          {
+            path: this.filenames[0],
+            line: 1,
+            severity: "fix",
+            topic: "bug",
+            confidence: "high",
+            title: "A finding to verify",
+            body: "Because.",
+          },
+        ]
       : [];
     return {
       costUsd: 0.01,
@@ -80,9 +99,22 @@ class AllReviewed implements ProviderAdapter {
 
 /** The prompts of one core run, with the per-batch run directory as a placeholder. */
 async function prompts(input: ReviewInput, verify = false, baseSnapshot?: () => { dir: string; release(): void }) {
-  const provider = new AllReviewed(input.files.map((f) => f.filename), verify);
-  const options = reviewOptionsOf(loadConfig(verify ? { WACHIMAN_VERIFY: "1" } : {}, () => {}), 3);
-  await reviewChange(input, options, { provider, ...(baseSnapshot ? { baseSnapshot } : {}), log: () => {}, warn: () => {}, sleep: () => {}, rateLimitBackoffMs: 0 });
+  const provider = new AllReviewed(
+    input.files.map((f) => f.filename),
+    verify,
+  );
+  const options = reviewOptionsOf(
+    loadConfig(verify ? { WACHIMAN_VERIFY: "1" } : {}, () => {}),
+    3,
+  );
+  await reviewChange(input, options, {
+    provider,
+    ...(baseSnapshot ? { baseSnapshot } : {}),
+    log: () => {},
+    warn: () => {},
+    sleep: () => {},
+    rateLimitBackoffMs: 0,
+  });
   return provider.requests.map((r) => r.prompt.replaceAll(r.addDirs[0], "<RUN_DIR>"));
 }
 
@@ -150,7 +182,7 @@ describe("prompt parity between the github and local-git connectors", () => {
       const verifiedGithub = await prompts(github, true);
       const verifiedLocal = await prompts(local, true);
       expect(verifiedLocal.length).toBe(fromLocal.length + 1);
-      expect(verifiedLocal.at(-1)).toContain("<candidate id=\"c1\"");
+      expect(verifiedLocal.at(-1)).toContain('<candidate id="c1"');
       expect(verifiedLocal.length).toBe(verifiedGithub.length);
       verifiedLocal.forEach((prompt, i) => expect(prompt, `#${fx.pr} verified call ${i + 1}`).toBe(verifiedGithub[i]));
     });
@@ -206,48 +238,48 @@ function patchDiff(a: string, b: string, lines = 40) {
 }
 
 describe.skipIf(process.env.WACHI_PARITY !== "1")("files parity with GitHub on merged pull requests (WACHI_PARITY=1)", () => {
-  test(
-    "equal filename, additions, deletions and patch wherever GitHub sent a patch",
-    () => {
-      const repo = "niway-dev/wachiman";
-      const merged = JSON.parse(defaultGh(["pr", "list", "-R", repo, "--state", "merged", "--limit", "20", "--json", "number"])) as {
-        number: number;
-      }[];
-      const rows: { pr: number; files: number; equal: number; localOnly: number; differing: number }[] = [];
-      const failures: string[] = [];
-      for (const { number } of merged) {
-        if (rows.length >= 10) break;
-        const fx = recordPrFixture(defaultGh, repo, number);
-        if (!hasCommit(fx.headSha) || !hasCommit(fx.mergeBase)) continue;
-        const local = new Map(localFiles(ROOT, fx.mergeBase, fx.headSha).map((f) => [f.filename, f]));
-        let equal = 0;
-        let localOnly = 0;
-        let differing = 0;
-        for (const gf of fx.files) {
-          const lf = local.get(gf.filename);
-          if (!gf.patch) {
-            if (lf?.patch) localOnly++;
-            continue;
-          }
-          const same = lf && JSON.stringify(comparable(lf)) === JSON.stringify(comparable(gf));
-          if (same) equal++;
-          else {
-            differing++;
-            failures.push(
-              `#${number} ${gf.filename}: github +${gf.additions} −${gf.deletions}, local ${lf ? `+${lf.additions} −${lf.deletions}` : "missing"}\n${patchDiff(gf.patch, lf?.patch ?? "")}`,
-            );
-          }
+  test("equal filename, additions, deletions and patch wherever GitHub sent a patch", () => {
+    const repo = "niway-dev/wachiman";
+    const merged = JSON.parse(defaultGh(["pr", "list", "-R", repo, "--state", "merged", "--limit", "20", "--json", "number"])) as {
+      number: number;
+    }[];
+    const rows: { pr: number; files: number; equal: number; localOnly: number; differing: number }[] = [];
+    const failures: string[] = [];
+    for (const { number } of merged) {
+      if (rows.length >= 10) break;
+      const fx = recordPrFixture(defaultGh, repo, number);
+      if (!hasCommit(fx.headSha) || !hasCommit(fx.mergeBase)) continue;
+      const local = new Map(localFiles(ROOT, fx.mergeBase, fx.headSha).map((f) => [f.filename, f]));
+      let equal = 0;
+      let localOnly = 0;
+      let differing = 0;
+      for (const gf of fx.files) {
+        const lf = local.get(gf.filename);
+        if (!gf.patch) {
+          if (lf?.patch) localOnly++;
+          continue;
         }
-        const missing = [...local.keys()].filter((name) => !fx.files.some((f) => f.filename === name));
-        if (missing.length > 0) failures.push(`#${number}: local-only files ${missing.join(", ")}`);
-        rows.push({ pr: number, files: fx.files.length, equal, localOnly, differing });
+        const same = lf && JSON.stringify(comparable(lf)) === JSON.stringify(comparable(gf));
+        if (same) equal++;
+        else {
+          differing++;
+          failures.push(
+            `#${number} ${gf.filename}: github +${gf.additions} −${gf.deletions}, local ${lf ? `+${lf.additions} −${lf.deletions}` : "missing"}\n${patchDiff(gf.patch, lf?.patch ?? "")}`,
+          );
+        }
       }
-      console.log(
-        ["| PR | files | equal | local-only patch | differing |", "| --- | --- | --- | --- | --- |", ...rows.map((r) => `| #${r.pr} | ${r.files} | ${r.equal} | ${r.localOnly} | ${r.differing} |`)].join("\n"),
-      );
-      expect(rows.length).toBeGreaterThanOrEqual(10);
-      expect(failures, failures.join("\n\n")).toEqual([]);
-    },
-    300_000,
-  );
+      const missing = [...local.keys()].filter((name) => !fx.files.some((f) => f.filename === name));
+      if (missing.length > 0) failures.push(`#${number}: local-only files ${missing.join(", ")}`);
+      rows.push({ pr: number, files: fx.files.length, equal, localOnly, differing });
+    }
+    console.log(
+      [
+        "| PR | files | equal | local-only patch | differing |",
+        "| --- | --- | --- | --- | --- |",
+        ...rows.map((r) => `| #${r.pr} | ${r.files} | ${r.equal} | ${r.localOnly} | ${r.differing} |`),
+      ].join("\n"),
+    );
+    expect(rows.length).toBeGreaterThanOrEqual(10);
+    expect(failures, failures.join("\n\n")).toEqual([]);
+  }, 300_000);
 });

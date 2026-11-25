@@ -161,7 +161,13 @@ function fetchedAt(git: GitRunner, dir: string): string {
  */
 export function resolveVersion(ctx: VersionContext, git: GitRunner = workspaceGit): ResolvedVersion {
   const { spec, source } = chooseRule(ctx.contract, ctx.member, ctx.user);
-  const result: ResolvedVersion = { contract: ctx.contract.name, member: ctx.member.dir, rule: spec.rule, ruleSource: source, readAs: spec.rule };
+  const result: ResolvedVersion = {
+    contract: ctx.contract.name,
+    member: ctx.member.dir,
+    rule: spec.rule,
+    ruleSource: source,
+    readAs: spec.rule,
+  };
   const reasons: string[] = [];
 
   if (spec.rule === "pinned") {
@@ -172,7 +178,13 @@ export function resolveVersion(ctx: VersionContext, git: GitRunner = workspaceGi
   }
   if (result.readAs === "tip") {
     const sha = commitOf(git, ctx.siblingDir, "refs/remotes/origin/HEAD");
-    if (sha) return { ...result, sha, fetchedAt: fetchedAt(git, ctx.siblingDir), ...(reasons.length ? { fallback: `${reasons.join("; ")}; read tip instead` } : {}) };
+    if (sha)
+      return {
+        ...result,
+        sha,
+        fetchedAt: fetchedAt(git, ctx.siblingDir),
+        ...(reasons.length ? { fallback: `${reasons.join("; ")}; read tip instead` } : {}),
+      };
     reasons.push(`${ctx.member.dir} records no remote default branch (refs/remotes/origin/HEAD)`);
     result.readAs = "local";
   }

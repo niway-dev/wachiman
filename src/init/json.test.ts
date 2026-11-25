@@ -30,7 +30,14 @@ function world() {
     err,
     env: { WACHIMAN_HOME: home },
     io: { stdout: (t: string) => void out.push(t), stderr: (l: string) => void err.push(l) },
-    deps: (extra: InitDeps = {}): InitDeps => ({ now: () => NOW, version: "1.9.0", defaultWorkflowRef: "v1.5.0", interactive: false, cwd: "/elsewhere", ...extra }),
+    deps: (extra: InitDeps = {}): InitDeps => ({
+      now: () => NOW,
+      version: "1.9.0",
+      defaultWorkflowRef: "v1.5.0",
+      interactive: false,
+      cwd: "/elsewhere",
+      ...extra,
+    }),
   };
 }
 type World = ReturnType<typeof world>;
@@ -61,7 +68,10 @@ describe("init --mode local --dry-run", () => {
 
   test("other github-only flags with local mode are still a usage error", async () => {
     const w = world();
-    const error = await init(w, ["--mode", "local", "--dry-run", "--operator", "me"]).then(() => undefined, (e) => e);
+    const error = await init(w, ["--mode", "local", "--dry-run", "--operator", "me"]).then(
+      () => undefined,
+      (e) => e,
+    );
     expect(error).toBeInstanceOf(UsageError);
   });
 });
@@ -103,7 +113,11 @@ describe("init --json", () => {
   test("local mode has no GitHub work and github mode has no local work", async () => {
     const local = world();
     expect(await init(local, ["--mode", "local", "--json"])).toBe(0);
-    expect(doc(local)).toMatchObject({ files: [{ path: "AGENTS.md", action: "created" }], github: { status: "not-used", pending: [] }, local: { status: "pending" } });
+    expect(doc(local)).toMatchObject({
+      files: [{ path: "AGENTS.md", action: "created" }],
+      github: { status: "not-used", pending: [] },
+      local: { status: "pending" },
+    });
     const gh = world();
     expect(await init(gh, ["--mode", "github", "--operator", "me", "--json"])).toBe(0);
     expect(doc(gh)).toMatchObject({ local: { status: "not-used", pending: [] }, github: { status: "pending" } });
@@ -112,7 +126,9 @@ describe("init --json", () => {
   test("a dry run puts the rendered workflow in the file entry and writes nothing", async () => {
     const w = world();
     const before = snapshotTree(w.repo);
-    expect(await init(w, ["--mode", "github", "--operator", "me", "--project-kind", "single", "--pr-template", "--dry-run", "--json"])).toBe(0);
+    expect(
+      await init(w, ["--mode", "github", "--operator", "me", "--project-kind", "single", "--pr-template", "--dry-run", "--json"]),
+    ).toBe(0);
     const d = doc(w);
     expect(d.dryRun).toBe(true);
     expect(d.files.map((f: any) => [f.path, f.action])).toEqual([
@@ -192,16 +208,38 @@ describe("init --json", () => {
 
   test("with stdin not a terminal and --mode missing it exits 2 naming --mode and never calls a prompter", async () => {
     const w = world();
-    const refuse = new Proxy({}, { get: () => () => { throw new Error("a prompter must not be used"); } });
-    const code = await runJson(w, ["--json"], { interactive: true, streams: { stdin: { isTTY: false }, stdout: { isTTY: false } }, prompter: refuse as never });
+    const refuse = new Proxy(
+      {},
+      {
+        get: () => () => {
+          throw new Error("a prompter must not be used");
+        },
+      },
+    );
+    const code = await runJson(w, ["--json"], {
+      interactive: true,
+      streams: { stdin: { isTTY: false }, stdout: { isTTY: false } },
+      prompter: refuse as never,
+    });
     expect(code).toBe(2);
     expect(doc(w).error.message).toContain("--mode");
   });
 
   test("--json never prompts even on a terminal", async () => {
     const w = world();
-    const refuse = new Proxy({}, { get: () => () => { throw new Error("a prompter must not be used"); } });
-    const code = await runJson(w, ["--json"], { interactive: true, streams: { stdin: { isTTY: true }, stdout: { isTTY: true } }, prompter: refuse as never });
+    const refuse = new Proxy(
+      {},
+      {
+        get: () => () => {
+          throw new Error("a prompter must not be used");
+        },
+      },
+    );
+    const code = await runJson(w, ["--json"], {
+      interactive: true,
+      streams: { stdin: { isTTY: true }, stdout: { isTTY: true } },
+      prompter: refuse as never,
+    });
     expect(code).toBe(2);
     expect(doc(w).error.message).toContain("--mode");
   });
@@ -248,7 +286,12 @@ describe("init --json: PR template outcomes", () => {
     const w = world();
     put(w, TEMPLATE_PATH, "## Rollout plan\n\nSteps\n");
     let calls = 0;
-    const hooks = { writeTemp: (path: string, content: string) => { if (++calls === 2) throw new Error("disk full"); writeFileSync(path, content, { flag: "wx" }); } };
+    const hooks = {
+      writeTemp: (path: string, content: string) => {
+        if (++calls === 2) throw new Error("disk full");
+        writeFileSync(path, content, { flag: "wx" });
+      },
+    };
     expect(await init(w, base, { prTemplate: { hooks } })).toBe(0);
     expect(w.err.join("\n")).toContain("only part of the install was done");
     const files = doc(w).files;
@@ -285,10 +328,18 @@ describe("init --json: workflow and settings outcomes", () => {
     w.out.length = 0;
     expect(await init(w, ["--mode", "both", "--operator", "you", "--project-kind", "monorepo", "--dry-run", "--json"])).toBe(0);
     expect(doc(w)).toMatchObject({ ok: true });
-    expect(actions(w)).toEqual([[".github/workflows/wachiman-review.yml", "refused"], [".wachiman.yml", "refused"], ["AGENTS.md", "unchanged"]]);
+    expect(actions(w)).toEqual([
+      [".github/workflows/wachiman-review.yml", "refused"],
+      [".wachiman.yml", "refused"],
+      ["AGENTS.md", "unchanged"],
+    ]);
     w.out.length = 0;
     expect(await init(w, ["--mode", "both", "--operator", "you", "--project-kind", "monorepo", "--force", "--dry-run", "--json"])).toBe(0);
-    expect(actions(w)).toEqual([[".github/workflows/wachiman-review.yml", "would-replace"], [".wachiman.yml", "would-replace"], ["AGENTS.md", "unchanged"]]);
+    expect(actions(w)).toEqual([
+      [".github/workflows/wachiman-review.yml", "would-replace"],
+      [".wachiman.yml", "would-replace"],
+      ["AGENTS.md", "unchanged"],
+    ]);
   });
 
   test("a different kind in .wachiman.yml without --force is refused in a real run: exit 2 and the file is listed", async () => {
@@ -302,7 +353,11 @@ describe("init --json: workflow and settings outcomes", () => {
 
   test("a failure that is not a usage error is code failed with exit 1", async () => {
     const w = world();
-    const hooks = { writeTemp: () => { throw new Error("disk full"); } };
+    const hooks = {
+      writeTemp: () => {
+        throw new Error("disk full");
+      },
+    };
     expect(await init(w, ["--mode", "github", "--operator", "me", "--json"], { hooks })).toBe(1);
     expect(doc(w)).toMatchObject({ ok: false, error: { code: "failed" } });
   });

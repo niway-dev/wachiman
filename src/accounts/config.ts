@@ -6,7 +6,21 @@
  * describe is `corrupt`, which every caller turns into a usage error: it is never read as
  * "absent", because a silent fallback is how a review would reach the wrong account.
  */
-import { closeSync, existsSync, fsyncSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, chmodSync, constants, statSync, unlinkSync, writeSync } from "node:fs";
+import {
+  closeSync,
+  existsSync,
+  fsyncSync,
+  lstatSync,
+  mkdirSync,
+  openSync,
+  readFileSync,
+  renameSync,
+  chmodSync,
+  constants,
+  statSync,
+  unlinkSync,
+  writeSync,
+} from "node:fs";
 import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import { isAbsolute, join } from "node:path";
@@ -63,9 +77,7 @@ export interface WachimanConfigV1 {
 }
 
 export type ConfigRead =
-  | { kind: "absent" }
-  | { kind: "ok"; config: WachimanConfigV1; path: string }
-  | { kind: "corrupt"; path: string; problem: string };
+  { kind: "absent" } | { kind: "ok"; config: WachimanConfigV1; path: string } | { kind: "corrupt"; path: string; problem: string };
 
 export interface ConfigIo {
   read: (path: string) => string;
@@ -74,7 +86,9 @@ export interface ConfigIo {
   isAbsent?: (path: string) => boolean;
 }
 
-const realIo: ConfigIo = { read: (p) => readFileSync(p, "utf8"), exists: (p) => existsSync(p),
+const realIo: ConfigIo = {
+  read: (p) => readFileSync(p, "utf8"),
+  exists: (p) => existsSync(p),
   isAbsent: (p) => {
     try {
       lstatSync(p);
@@ -141,7 +155,11 @@ function problemOf(home: string, parsed: unknown, exists: (path: string) => bool
       }
     }
   }
-  const lookup = { profiles: profiles as Record<string, ProfileEntry>, home, managedDirExists: (n: string) => exists(join(home, `claude-${n}`)) };
+  const lookup = {
+    profiles: profiles as Record<string, ProfileEntry>,
+    home,
+    managedDirExists: (n: string) => exists(join(home, `claude-${n}`)),
+  };
   const reference = (value: unknown, at: string) => {
     if (typeof value !== "string") return `${at} must be a profile name`;
     try {
@@ -216,7 +234,9 @@ function lockOwner(lock: string): string {
   try {
     const raw = readFileSync(lock, "utf8");
     const owner = JSON.parse(raw);
-    return isRecord(owner) && owner.pid !== undefined ? `pid ${owner.pid}${typeof owner.createdAt === "string" ? `, taken ${owner.createdAt}` : ""}` : `unreadable owner "${raw.slice(0, 40)}"`;
+    return isRecord(owner) && owner.pid !== undefined
+      ? `pid ${owner.pid}${typeof owner.createdAt === "string" ? `, taken ${owner.createdAt}` : ""}`
+      : `unreadable owner "${raw.slice(0, 40)}"`;
   } catch {
     return "unknown pid";
   }
@@ -271,7 +291,8 @@ export function updateConfig(opts: ConfigWriteOptions, mutate: (current: Wachima
   const lock = `${path}.lock`;
   const token = acquire(lock, opts.timeoutMs ?? 5000);
   try {
-    if (existsSync(path) && lstatSync(path).isSymbolicLink()) throw new UsageError(`${path} is a symbolic link; Wachiman does not write through links.`);
+    if (existsSync(path) && lstatSync(path).isSymbolicLink())
+      throw new UsageError(`${path} is a symbolic link; Wachiman does not write through links.`);
     const read = readConfig(home, realIo, { structural: true });
     if (read.kind === "corrupt") throw new UsageError(`${read.path} is corrupt (${read.problem}); fix or remove it.`);
     const current: WachimanConfigV1 = read.kind === "ok" ? read.config : { version: 1, profiles: {}, projects: {} };

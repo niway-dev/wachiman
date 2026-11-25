@@ -54,7 +54,11 @@ describe("the scene", () => {
       expect(new Set(s.top.map((row) => [...row].length))).toEqual(new Set([FACE_INSIDE + 2]));
       // Side by side: the cap carries the name, the eyes rows carry the gap before the line.
       const wide = mascotScene({ paint: plain, ascii, columns: 100, message: "x" });
-      const rows = [wide.top[0].slice(0, -`  ${NAME}:`.length), ...Object.values(wide.leads!).map((lead) => lead.slice(0, -2)), ...wide.bottom];
+      const rows = [
+        wide.top[0].slice(0, -`  ${NAME}:`.length),
+        ...Object.values(wide.leads!).map((lead) => lead.slice(0, -2)),
+        ...wide.bottom,
+      ];
       expect(new Set(rows.map((row) => [...row].length))).toEqual(new Set([FACE_INSIDE + 2]));
     }
   });
@@ -104,7 +108,14 @@ describe("playIntro", () => {
     const ui = fakeUi();
     const t = term();
     const sleeps: number[] = [];
-    const result = await playIntro({ ui, term: t, env: { TERM: "xterm" }, version: "1.2.3", line: "Hi!", sleep: async (ms) => void sleeps.push(ms) });
+    const result = await playIntro({
+      ui,
+      term: t,
+      env: { TERM: "xterm" },
+      version: "1.2.3",
+      line: "Hi!",
+      sleep: async (ms) => void sleeps.push(ms),
+    });
     expect(result).toBe("played");
     expect(sleeps.filter((ms) => ms === TYPE_MS)).toHaveLength(3);
     expect(t.input.modes).toEqual([true, false]);
@@ -117,7 +128,14 @@ describe("playIntro", () => {
     const ui = fakeUi();
     const t = term();
     let firstSleep = -1;
-    await playIntro({ ui, term: t, env: { TERM: "xterm" }, version: "1.2.3", line: "Hi!", sleep: async () => void (firstSleep < 0 && (firstSleep = t.written().length)) });
+    await playIntro({
+      ui,
+      term: t,
+      env: { TERM: "xterm" },
+      version: "1.2.3",
+      line: "Hi!",
+      sleep: async () => void (firstSleep < 0 && (firstSleep = t.written().length)),
+    });
     const before = stripAnsi(t.written().slice(0, firstSleep));
     expect(before).toContain("╰───────╯");
     expect(before).not.toContain("Hi!");
@@ -136,7 +154,10 @@ describe("playIntro", () => {
   });
 
   test("a key skips the typing and the whole line still appears; Ctrl-C reports interrupted", async () => {
-    for (const [key, expected] of [["x", "skipped"], ["\u0003", "interrupted"]] as const) {
+    for (const [key, expected] of [
+      ["x", "skipped"],
+      ["\u0003", "interrupted"],
+    ] as const) {
       const t = term();
       const result = await playIntro({
         ui: fakeUi(),

@@ -283,7 +283,12 @@ describe("the question ceiling (R4)", () => {
   test("the notice is not posted again while it is the latest Wachiman comment", async () => {
     const s = site({
       permissions: { carol: WRITER, dan: WRITER },
-      ledger: [askAnswer(1, "2026-11-10T10:00:00Z"), askAnswer(1, "2026-11-10T11:00:00Z"), askAnswer(1, "2026-11-10T12:00:00Z"), limitNotice("2026-11-10T13:00:00Z")],
+      ledger: [
+        askAnswer(1, "2026-11-10T10:00:00Z"),
+        askAnswer(1, "2026-11-10T11:00:00Z"),
+        askAnswer(1, "2026-11-10T12:00:00Z"),
+        limitNotice("2026-11-10T13:00:00Z"),
+      ],
     });
     const provider = new FakeProvider();
     await comment(depsFor(provider, s, WRITE), "o/r", 7, QUESTION, "carol");
@@ -315,7 +320,11 @@ describe("the question ceiling (R4)", () => {
     await comment(depsFor(operatorProvider, site({ ledger: full }), WRITE), "o/r", 7, QUESTION, "boss");
     expect(operatorProvider.requests).toHaveLength(1);
 
-    const operatorOnly = [operatorAnswer(1, "2026-11-10T10:00:00Z"), operatorAnswer(1, "2026-11-10T11:00:00Z"), operatorAnswer(1, "2026-11-10T12:00:00Z")];
+    const operatorOnly = [
+      operatorAnswer(1, "2026-11-10T10:00:00Z"),
+      operatorAnswer(1, "2026-11-10T11:00:00Z"),
+      operatorAnswer(1, "2026-11-10T12:00:00Z"),
+    ];
     const s = site({ permissions: { carol: WRITER }, ledger: operatorOnly });
     const provider = new FakeProvider();
     await comment(depsFor(provider, s, WRITE), "o/r", 7, QUESTION, "carol");
@@ -407,15 +416,32 @@ describe("line questions (R5, R6)", () => {
 
   test("the comment's id, reply target, path and line come from the environment", () => {
     expect(readCommentLine({})).toBeUndefined();
-    expect(readCommentLine({ WACHIMAN_COMMENT_ID: "50", WACHIMAN_COMMENT_IN_REPLY_TO: "40", WACHIMAN_COMMENT_PATH: "src/a.ts", WACHIMAN_COMMENT_LINE: "3" })).toEqual(LINE);
-    expect(readCommentLine({ WACHIMAN_COMMENT_ID: "50", WACHIMAN_COMMENT_PATH: "", WACHIMAN_COMMENT_LINE: "" })).toEqual({ id: 50, replyTo: null, path: null, line: null });
+    expect(
+      readCommentLine({
+        WACHIMAN_COMMENT_ID: "50",
+        WACHIMAN_COMMENT_IN_REPLY_TO: "40",
+        WACHIMAN_COMMENT_PATH: "src/a.ts",
+        WACHIMAN_COMMENT_LINE: "3",
+      }),
+    ).toEqual(LINE);
+    expect(readCommentLine({ WACHIMAN_COMMENT_ID: "50", WACHIMAN_COMMENT_PATH: "", WACHIMAN_COMMENT_LINE: "" })).toEqual({
+      id: 50,
+      replyTo: null,
+      path: null,
+      line: null,
+    });
     expect(() => readCommentLine({ WACHIMAN_COMMENT_ID: "x" })).toThrow("WACHIMAN_COMMENT_ID must be a comment id");
     expect(() => readCommentLine({ WACHIMAN_COMMENT_ID: "5", WACHIMAN_COMMENT_LINE: "3.5" })).toThrow("WACHIMAN_COMMENT_LINE must be");
   });
 
   test("a new line comment, with no reply target, is a question under itself, from the workflow's environment", async () => {
     // What the threads job exports for a top-level comment: the reply id is empty, path and line are set.
-    const top = readCommentLine({ WACHIMAN_COMMENT_ID: "50", WACHIMAN_COMMENT_IN_REPLY_TO: "", WACHIMAN_COMMENT_PATH: "src/a.ts", WACHIMAN_COMMENT_LINE: "3" });
+    const top = readCommentLine({
+      WACHIMAN_COMMENT_ID: "50",
+      WACHIMAN_COMMENT_IN_REPLY_TO: "",
+      WACHIMAN_COMMENT_PATH: "src/a.ts",
+      WACHIMAN_COMMENT_LINE: "3",
+    });
     expect(top).toEqual({ id: 50, replyTo: null, path: "src/a.ts", line: 3 });
     expect(routeMode("threads", top, QUESTION, "/wachiman")).toBe("comment");
     const s = site({ threads: [] });
@@ -449,7 +475,9 @@ describe("the prompt and the leak check (R7)", () => {
 
   test("an answer that leaks is withheld for a collaborator, with its cost still recorded", async () => {
     const s = site({ permissions: { carol: WRITER } });
-    const provider = new FakeProvider([{ structuredOutput: { sections: [{ title: "T", body: "The token is SECRET", refs: [] }], not_answered: "" }, costUsd: 0.3 }]);
+    const provider = new FakeProvider([
+      { structuredOutput: { sections: [{ title: "T", body: "The token is SECRET", refs: [] }], not_answered: "" }, costUsd: 0.3 },
+    ]);
     await comment(depsFor(provider, s, WRITE), "o/r", 7, QUESTION, "carol");
     expect(s.posted).toHaveLength(1);
     expect(s.posted[0]).toContain("Wachiman withheld this answer");
@@ -458,7 +486,9 @@ describe("the prompt and the leak check (R7)", () => {
   });
 
   test("an operator's leaking answer is still refused, not posted", async () => {
-    const provider = new FakeProvider([{ structuredOutput: { sections: [{ title: "T", body: "The token is SECRET", refs: [] }], not_answered: "" } }]);
+    const provider = new FakeProvider([
+      { structuredOutput: { sections: [{ title: "T", body: "The token is SECRET", refs: [] }], not_answered: "" } },
+    ]);
     const s = site();
     await expect(comment(depsFor(provider, s), "o/r", 7, QUESTION, "boss")).rejects.toThrow("not posting it");
     expect(s.posted).toHaveLength(0);

@@ -158,7 +158,12 @@ describe("bin/wachiman", () => {
     for (const args of [["local"], ["history"], ["local", "--profile", "default"]]) {
       const out = call(args, env).out;
       expect(out).not.toContain("isolated:me");
-      expect(out.split("\n").filter((l) => l.startsWith("ARG=")).slice(3)).toEqual(args.map((a) => `ARG=${a}`));
+      expect(
+        out
+          .split("\n")
+          .filter((l) => l.startsWith("ARG="))
+          .slice(3),
+      ).toEqual(args.map((a) => `ARG=${a}`));
     }
   });
 

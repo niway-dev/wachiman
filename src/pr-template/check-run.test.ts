@@ -48,9 +48,17 @@ const gitDown: Record<string, CommandResult> = { "git ": { code: 128, stdout: ""
 describe("parseCheckArgs", () => {
   test("a file with a title", () => {
     expect(parseCheckArgs(["body.md", "--title", "fix: a", "--head", "abc1234", "--allow-breaking"])).toEqual({
-      file: "body.md", title: "fix: a", head: "abc1234", base: "origin/main", allowBreaking: true,
+      file: "body.md",
+      title: "fix: a",
+      head: "abc1234",
+      base: "origin/main",
+      allowBreaking: true,
     });
-    expect(parseCheckArgs(["--title=fix: a", "--base", "main", "body.md"])).toMatchObject({ file: "body.md", base: "main", allowBreaking: false });
+    expect(parseCheckArgs(["--title=fix: a", "--base", "main", "body.md"])).toMatchObject({
+      file: "body.md",
+      base: "main",
+      allowBreaking: false,
+    });
   });
 
   test("a pull request, with an optional repository", () => {
@@ -177,7 +185,11 @@ describe("CliTest: check a file", () => {
     put(dir, "body.md", validBody({ risk: "🔴 High, x" }));
     const c = capture();
     const opts = { file: "body.md", title: TITLE, base: "main", allowBreaking: false };
-    expect(runCheck(opts, dir, c.io, { run: fake({ "git -c core.quotepath=false rev-parse HEAD": ok("0123456789abcdef0123456789abcdef01234567\n"), ...gitDown }).run })).toBe(1);
+    expect(
+      runCheck(opts, dir, c.io, {
+        run: fake({ "git -c core.quotepath=false rev-parse HEAD": ok("0123456789abcdef0123456789abcdef01234567\n"), ...gitDown }).run,
+      }),
+    ).toBe(1);
     expect(c.err()).toContain("footer-head-mismatch");
     const c2 = capture();
     expect(runCheck(opts, dir, c2.io, { run: fake(gitDown).run })).toBe(0);
@@ -229,7 +241,11 @@ describe("check a file against a real git repository", () => {
   const check = (dir: string, body: string, extra: Record<string, unknown> = {}) => {
     put(dir, "../body.md", body);
     const c = capture();
-    const status = runCheck({ file: join(dir, "../body.md"), title: TITLE, head: HEAD, base: "HEAD~1", allowBreaking: false, ...extra }, dir, c.io);
+    const status = runCheck(
+      { file: join(dir, "../body.md"), title: TITLE, head: HEAD, base: "HEAD~1", allowBreaking: false, ...extra },
+      dir,
+      c.io,
+    );
     return { status, out: c.out(), err: c.err() };
   };
 
@@ -291,7 +307,9 @@ describe("check a file against a real git repository", () => {
     expect(c.err()).not.toContain("--base");
     // An unknown base keeps it.
     const d = capture();
-    expect(runRisk({ base: "origin/main" }, tmp(), d.io, fake({ "merge-base": fail("fatal: Not a valid object name origin/main") }))).toBe(2);
+    expect(runRisk({ base: "origin/main" }, tmp(), d.io, fake({ "merge-base": fail("fatal: Not a valid object name origin/main") }))).toBe(
+      2,
+    );
     expect(d.err()).toContain("pass --base <ref> if origin/main does not exist");
   });
 
@@ -310,19 +328,21 @@ describe("check a file against a real git repository", () => {
 describe("check a pull request", () => {
   const BASE = "acme/widgets";
   const view = (over: Record<string, unknown> = {}) =>
-    ok(JSON.stringify({
-      title: TITLE,
-      body: validBody({ risk: "🟢 Low, docs only" }),
-      headRefOid: HEAD,
-      baseRefName: "main",
-      commits: [{ messageHeadline: "docs: describe the format", messageBody: "" }],
-      files: [{ path: "docs/format.md" }],
-      url: `https://github.com/${BASE}/pull/7`,
-      isCrossRepository: false,
-      headRepository: { name: "widgets" },
-      headRepositoryOwner: { login: "acme" },
-      ...over,
-    }));
+    ok(
+      JSON.stringify({
+        title: TITLE,
+        body: validBody({ risk: "🟢 Low, docs only" }),
+        headRefOid: HEAD,
+        baseRefName: "main",
+        commits: [{ messageHeadline: "docs: describe the format", messageBody: "" }],
+        files: [{ path: "docs/format.md" }],
+        url: `https://github.com/${BASE}/pull/7`,
+        isCrossRepository: false,
+        headRepository: { name: "widgets" },
+        headRepositoryOwner: { login: "acme" },
+        ...over,
+      }),
+    );
   const api = (repo: string, path: string, ref: string) => `repos/${repo}/contents/${path}?ref=${ref}`;
   const commit = (repo: string, ref: string) => `repos/${repo}/commits/${ref}`;
   const TEMPLATE = ".github/pr-template.json";
@@ -401,7 +421,9 @@ describe("check a pull request", () => {
 
   test("a risk extension that cannot be fetched fails closed with exit 2, naming it", () => {
     const vault = ok("diff --git a/vault/x.py b/vault/x.py\n@@ -1 +1 @@\n-a\n+b\n");
-    const got = check(baseAnswers({ "gh pr diff 7": vault, [api(BASE, ".github/pr-risk.toml", "main")]: fail("gh: HTTP 502 Bad Gateway") }));
+    const got = check(
+      baseAnswers({ "gh pr diff 7": vault, [api(BASE, ".github/pr-risk.toml", "main")]: fail("gh: HTTP 502 Bad Gateway") }),
+    );
     expect(got.status).toBe(2);
     expect(got.err).toContain("cannot read .github/pr-risk.toml");
     expect(got.err).toContain("502");
@@ -416,11 +438,17 @@ describe("check a pull request", () => {
   });
 
   test("a fork's template is read from the head repository", () => {
-    const got = check(baseAnswers({
-      "gh pr view 7": view({ isCrossRepository: true, headRepository: { name: "widgets-fork" }, headRepositoryOwner: { login: "someone" } }),
-      [api("someone/widgets-fork", TEMPLATE, HEAD)]: notFound,
-      [commit("someone/widgets-fork", HEAD)]: ok("{}"),
-    }));
+    const got = check(
+      baseAnswers({
+        "gh pr view 7": view({
+          isCrossRepository: true,
+          headRepository: { name: "widgets-fork" },
+          headRepositoryOwner: { login: "someone" },
+        }),
+        [api("someone/widgets-fork", TEMPLATE, HEAD)]: notFound,
+        [commit("someone/widgets-fork", HEAD)]: ok("{}"),
+      }),
+    );
     expect(got.status).toBe(0);
     expect(got.calls.some((c) => c.includes(api("someone/widgets-fork", TEMPLATE, HEAD)))).toBe(true);
     expect(got.calls.some((c) => c.includes(api(BASE, TEMPLATE, HEAD)))).toBe(false);
@@ -429,14 +457,20 @@ describe("check a pull request", () => {
   test("--repo goes to every gh call", () => {
     const got = check(baseAnswers(), tmp(), { repo: BASE });
     expect(got.status).toBe(0);
-    expect(got.calls.filter((c) => c.startsWith("gh pr "))).toEqual([expect.stringContaining("--repo acme/widgets"), expect.stringContaining("--repo acme/widgets")]);
+    expect(got.calls.filter((c) => c.startsWith("gh pr "))).toEqual([
+      expect.stringContaining("--repo acme/widgets"),
+      expect.stringContaining("--repo acme/widgets"),
+    ]);
   });
 
   test("the floor comes from the diff and the extension from the base branch", () => {
     const diff = ok("diff --git a/src/auth/login.ts b/src/auth/login.ts\n@@ -1 +1 @@\n-a\n+b\n");
     expect(check(baseAnswers({ "gh pr diff 7": diff })).err).toContain("risk-below-floor");
     const vault = ok("diff --git a/vault/x.py b/vault/x.py\n@@ -1 +1 @@\n-a\n+b\n");
-    const withExtension = baseAnswers({ "gh pr diff 7": vault, [api(BASE, ".github/pr-risk.toml", "main")]: ok('[high]\npaths = ["^vault/"]\n') });
+    const withExtension = baseAnswers({
+      "gh pr diff 7": vault,
+      [api(BASE, ".github/pr-risk.toml", "main")]: ok('[high]\npaths = ["^vault/"]\n'),
+    });
     expect(check(withExtension).err).toContain("risk-below-floor");
     expect(check(baseAnswers({ "gh pr diff 7": vault })).status).toBe(0);
   });
@@ -445,7 +479,9 @@ describe("check a pull request", () => {
     const got = check(baseAnswers({ "gh pr diff 7": fail("HTTP 406: diff too large") }));
     expect(got.status).toBe(1);
     expect(got.err).toContain("risk-unverified");
-    const high = check(baseAnswers({ "gh pr diff 7": fail("HTTP 406"), "gh pr view 7": view({ body: validBody({ risk: "🔴 High, big" }) }) }));
+    const high = check(
+      baseAnswers({ "gh pr diff 7": fail("HTTP 406"), "gh pr view 7": view({ body: validBody({ risk: "🔴 High, big" }) }) }),
+    );
     expect(high.status).toBe(0);
   });
 
@@ -469,7 +505,9 @@ describe("check a pull request", () => {
     const got = check(answers);
     expect(got.status).toBe(1);
     expect(got.out.split("\n")[0]).toBe("checked against the template in this pull request");
-    expect(got.out).toContain("the template on the base branch (the default, the base has no .github/pr-template.json) would report differently:");
+    expect(got.out).toContain(
+      "the template on the base branch (the default, the base has no .github/pr-template.json) would report differently:",
+    );
     expect(got.out).toContain("only this pull request's template reports: section-missing");
     expect(got.err).toContain("section-missing");
   });

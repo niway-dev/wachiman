@@ -38,7 +38,8 @@ const DESTRUCTIVE_CALL = new RegExp(
 
 /** A "clear every other ..." step: a clear/reset/wipe/purge call made inside a loop. */
 const CLEAR_CALL = /\b(?:clear|reset|wipe|purge)[A-Z]\w*\s*\(/g;
-const NOT_A_DATA_CLEAR = /^(?:clear|reset)(?:Timeout|Interval|Immediate|AnimationFrame|Idle|Form|Focus|Selection|Error|Filters?|Search|Input|Cache)/;
+const NOT_A_DATA_CLEAR =
+  /^(?:clear|reset)(?:Timeout|Interval|Immediate|AnimationFrame|Idle|Form|Focus|Selection|Error|Filters?|Search|Input|Cache)/;
 const LOOP_HEADER = /\b(?:for|while)\s*\(|\.(?:forEach|map|flatMap)\s*\(|\bfor\s+\w+\s+in\b/;
 /** How many added lines above a clear call may hold the loop header. */
 const LOOP_WINDOW = 3;

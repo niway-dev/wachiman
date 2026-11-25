@@ -35,15 +35,21 @@ class FakeProvider implements ProviderAdapter {
 const HEAD = "head1234567";
 
 /** A pull request whose last Wachiman review is at the head; any POST is recorded. */
-function fakeGh(posts: string[]): GhFn {
+function fakeGh(posts: string[], graphql: string[] = [], reviewed = true): GhFn {
   return (args) => {
     const line = args.join(" ");
+    if (args.includes("graphql")) {
+      graphql.push(line);
+      return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } });
+    }
     if (args.includes("POST")) {
       posts.push(line);
       return "{}";
     }
     if (line.startsWith("pr view")) return JSON.stringify({ headRefOid: HEAD, title: "t", body: "b", author: { login: "u" } });
-    if (line.includes("/pulls/7/files")) return JSON.stringify({ filename: "src/a.ts", additions: 1, deletions: 0, patch: "@@ -0,0 +1 @@\n+x" });
+    if (line.includes("/pulls/7/files"))
+      return JSON.stringify({ filename: "src/a.ts", additions: 1, deletions: 0, patch: "@@ -0,0 +1 @@\n+x" });
+    if (line.includes("/pulls/7/reviews") && !reviewed) return "";
     if (line.includes("/pulls/7/reviews"))
       return JSON.stringify({ body: `👮 review\n\n<sub>m · $0.20</sub>\n\n${SIGNATURE.review}\n\n${marker(HEAD)}` });
     if (line.startsWith("api repos/o/r/pulls/7 ")) return "b".repeat(40);
@@ -52,14 +58,15 @@ function fakeGh(posts: string[]): GhFn {
   };
 }
 
-async function run(env: Record<string, string>) {
+async function run(env: Record<string, string>, reviewed = true) {
   const head = mkdtempSync(join(tmpdir(), "full-review-head-"));
   writeFileSync(join(head, "x"), "");
   const provider = new FakeProvider();
   const logs: string[] = [];
   const posts: string[] = [];
+  const graphql: string[] = [];
   const deps: Deps = {
-    gh: fakeGh(posts),
+    gh: fakeGh(posts, graphql, reviewed),
     provider,
     config: loadConfig(env, () => {}),
     repoDir: head,
@@ -69,7 +76,7 @@ async function run(env: Record<string, string>) {
     sleep: () => {},
   };
   await review(deps, "o/r", 7, []);
-  return { provider, logs: logs.join("\n"), posts };
+  return { provider, logs: logs.join("\n"), posts, graphql };
 }
 
 describe("a dry run that ignores the previous-review marker", () => {
@@ -84,7 +91,15 @@ describe("a dry run that ignores the previous-review marker", () => {
     expect(r.provider.requests).toHaveLength(1);
     expect(r.logs).not.toContain("Already reviewed");
     expect(r.logs).toContain(`--- review at ${HEAD.slice(0, 7)} ---`);
-    expect(r.logs).toContain("review of the whole pull request");
+    expect(r.logs).toContain("whole PR at `head123`");
     expect(r.posts).toEqual([]);
+  });
+
+  test("every review reads the open threads for its status, a first review included", async () => {
+    const full = await run({ WACHIMAN_DRY_RUN: "1", WACHIMAN_FULL_REVIEW: "1" });
+    expect(full.graphql.length).toBeGreaterThan(0);
+    const first = await run({ WACHIMAN_DRY_RUN: "1" }, false);
+    expect(first.provider.requests).toHaveLength(1);
+    expect(first.graphql.length).toBeGreaterThan(0);
   });
 });

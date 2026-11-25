@@ -122,10 +122,7 @@ describe("assembling claims from the batches", () => {
   });
 
   test("a contradiction with no cited line still contradicts the claim, even beside support", () => {
-    const { claims } = assembleClaims(proposed, [
-      supports("a.ts", 0, 1),
-      { path: "b.ts", claim: 0, verdict: "contradicts", evidence: [] },
-    ]);
+    const { claims } = assembleClaims(proposed, [supports("a.ts", 0, 1), { path: "b.ts", claim: 0, verdict: "contradicts", evidence: [] }]);
     expect(claims[0]).toEqual({ text: "Retries uploads.", status: "contradicted", evidence: [] });
   });
 

@@ -20,8 +20,7 @@ export function checkClaims(claims: Claim[], lineExists: (path: string, line: nu
     const evidence: Evidence[] = [];
     for (const e of raw.evidence ?? []) {
       if (!Number.isInteger(e.line) || !lineExists(e.path, e.line)) continue;
-      const rangeOk =
-        e.endLine !== undefined && Number.isInteger(e.endLine) && e.endLine > e.line && lineExists(e.path, e.endLine);
+      const rangeOk = e.endLine !== undefined && Number.isInteger(e.endLine) && e.endLine > e.line && lineExists(e.path, e.endLine);
       evidence.push(rangeOk ? { path: e.path, line: e.line, endLine: e.endLine } : { path: e.path, line: e.line });
     }
     let status = CLAIM_STATUSES.includes(raw.status) ? raw.status : "unverified";
@@ -40,11 +39,7 @@ const explains = (claim: Claim | undefined): claim is Claim =>
  * assigned to a claim that is confirmed or unverified, or when a fixed rule covers it. The test rule
  * reads only claims that are confirmed: a test is explained when its source is.
  */
-export function unexplainedFiles(
-  changedFiles: ChangedFile[],
-  assignments: Assignment[],
-  claims: Claim[],
-): string[] {
+export function unexplainedFiles(changedFiles: ChangedFile[], assignments: Assignment[], claims: Claim[]): string[] {
   const changed = new Set(changedFiles.map((f) => f.path));
   const explained = new Set<string>();
   const confirmed = new Set<string>();

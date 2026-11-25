@@ -142,9 +142,7 @@ export function buildAskPrompt(input: AskInput): string {
   const { materialPaths: paths } = input;
   const parts: string[] = [`This is ${input.changeDescription}.`];
   const described = input.local ? "scope and file list" : "title, body and file list";
-  parts.push(
-    paths.meta ? `Its ${described} are in ${paths.meta}, and its diff is in ${paths.diff}.` : `Its diff is in ${paths.diff}.`,
-  );
+  parts.push(paths.meta ? `Its ${described} are in ${paths.meta}, and its diff is in ${paths.diff}.` : `Its diff is in ${paths.diff}.`);
   if (input.hasReview && paths.review) {
     parts.push(
       `${paths.review} holds the review Wachiman already ran on this change: its findings, with their verification and origin, its risk map, its contracts and what it covered. Your answer must be consistent with that review, and must mention any open finding that bears on the answer.`,

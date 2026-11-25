@@ -55,7 +55,8 @@ Tracking issue for the floating tag: [#8](https://github.com/niway-dev/wachiman/
 5. The last workflow step moves the floating major tag (`v1`) to the release commit, for callers
    that still use it. Recommended installs pin the exact tag and are not affected.
 
-6. In the same workflow run, the `verify` job checks out the tagged commit, runs `bun test`, packs
+6. In the same workflow run, four `verify-tests` jobs run the tagged commit's tests in parallel
+   shards, as CI does; after all four pass, the `verify` job checks out the tagged commit, packs
    the tarball and installs it with and without Bun; then the `publish` job uploads that same
    tarball to npm (next section).
 
@@ -75,17 +76,18 @@ reason. Every other place that names a version is updated by hand.
 ## Publishing to npm
 
 The package is `wachiman`. The
-`verify` and `publish` jobs live in `release-please.yml` itself and run only when that run created
+`verify-tests`, `verify` and `publish` jobs live in `release-please.yml` itself and run only when that run created
 a release (`release_created`). They are in the same file because a workflow cannot `needs:` a job
 of another file, and because a tag created with `GITHUB_TOKEN` does not start a workflow on
 `push: tags`, so a separate release workflow would silently not run whenever the PAT is missing.
 Nothing waits for a tag event.
 
-The `verify` job re-runs `bun test` and `scripts/verify-package.sh` on the tagged SHA; it replaces a cross-workflow `needs:` on `ci.yml`, which a workflow cannot do.
+The `verify-tests` and `verify` jobs re-run the tests and `scripts/verify-package.sh` on the tagged SHA; they replace a cross-workflow `needs:` on `ci.yml`, which a workflow cannot do.
 
 | Job | What it does | Authority |
 | --- | --- | --- |
-| `verify` | Checks out the tagged SHA, checks `package.json` name and version, runs `bun test`, runs `npm pack`, runs `scripts/verify-package.sh` on that tarball with and without Bun, uploads the tarball | `contents: read` |
+| `verify-tests` | Four jobs, one per shard (`scripts/test-shard.ts`, as in `ci.yml`): checks out the tagged SHA, checks `package.json` name and version, checks every test file is in exactly one shard, runs that shard's tests | `contents: read` |
+| `verify` | `needs: [release-please, verify-tests]`; checks out the tagged SHA, checks `package.json` name and version, runs `npm pack`, runs `scripts/verify-package.sh` on that tarball with and without Bun, uploads the tarball | `contents: read` |
 | `publish` | `needs: [release-please, verify]`; downloads that tarball, checks its version, requires npm 11.5.1 or later, runs `npm publish <tarball> --provenance --access public` (`--tag next` for a pre-release version) | `id-token: write`, environment `npm` |
 
 There is no `NPM_TOKEN` secret. npm accepts the workflow's OpenID Connect identity

@@ -43,12 +43,19 @@ export const accountDir = (home: string, account: string) => join(ledgerDir(home
 /** Every `YYYY-MM-DD` from `from` to `to`, both included. */
 export function daysBetween(from: string, to: string): string[] {
   const days: string[] = [];
-  for (let t = Date.parse(`${from}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86_400_000) days.push(new Date(t).toISOString().slice(0, 10));
+  for (let t = Date.parse(`${from}T00:00:00Z`); t <= Date.parse(`${to}T00:00:00Z`); t += 86_400_000)
+    days.push(new Date(t).toISOString().slice(0, 10));
   return days;
 }
 
 /** Stores one pull: each day in the range is replaced by the entries received for it, or removed when none came. Days outside the range stay. */
-export function storePull(home: string, response: EntriesResponse, from: string, to: string, pulledAt: string): { daysWritten: number; daysRemoved: number; entries: number } {
+export function storePull(
+  home: string,
+  response: EntriesResponse,
+  from: string,
+  to: string,
+  pulledAt: string,
+): { daysWritten: number; daysRemoved: number; entries: number } {
   const dir = accountDir(home, response.account);
   sweepStaleTemporaries(ledgerDir(home));
   sweepStaleTemporaries(dir);
@@ -60,14 +67,24 @@ export function storePull(home: string, response: EntriesResponse, from: string,
   let daysRemoved = 0;
   for (const day of daysBetween(from, to)) {
     const entries = byDay.get(day);
-    if (entries) writePrivateFile(join(dir, `${day}.json`), `${JSON.stringify({ format: DAY_FORMAT, account: response.account, day, entries }, null, 2)}\n`);
+    if (entries)
+      writePrivateFile(
+        join(dir, `${day}.json`),
+        `${JSON.stringify({ format: DAY_FORMAT, account: response.account, day, entries }, null, 2)}\n`,
+      );
     else if (existsSync(join(dir, `${day}.json`))) {
       unlinkSync(join(dir, `${day}.json`));
       daysRemoved++;
     }
   }
   const earlier = readPullMeta(dir, response.account)?.ranges ?? [];
-  const meta = { format: PULL_FORMAT, account: response.account, pulledAt, ranges: mergeRanges([...earlier, { from, to }]), limits: response.limits };
+  const meta = {
+    format: PULL_FORMAT,
+    account: response.account,
+    pulledAt,
+    ranges: mergeRanges([...earlier, { from, to }]),
+    limits: response.limits,
+  };
   writePrivateFile(join(dir, PULL_FILE), `${JSON.stringify(meta, null, 2)}\n`);
   return { daysWritten: byDay.size, daysRemoved, entries: [...byDay.values()].reduce((n, e) => n + e.length, 0) };
 }
@@ -78,13 +95,23 @@ export function readPullMeta(dir: string, account: string): PullMeta | undefined
     const m = JSON.parse(readFileSync(join(dir, PULL_FILE), "utf8"));
     if (!m || typeof m.pulledAt !== "string") return undefined;
     const raw: unknown[] = Array.isArray(m.ranges) ? m.ranges : [{ from: m.from, to: m.to }];
-    const ranges = raw.filter((r): r is Range => !!r && typeof (r as Range).from === "string" && typeof (r as Range).to === "string" && DAY_PATTERN.test((r as Range).from) && DAY_PATTERN.test((r as Range).to));
+    const ranges = raw.filter(
+      (r): r is Range =>
+        !!r &&
+        typeof (r as Range).from === "string" &&
+        typeof (r as Range).to === "string" &&
+        DAY_PATTERN.test((r as Range).from) &&
+        DAY_PATTERN.test((r as Range).to),
+    );
     if (ranges.length === 0) return undefined;
     return {
       account,
       pulledAt: m.pulledAt,
       ranges: mergeRanges(ranges),
-      limits: { dailyUsd: typeof m.limits?.dailyUsd === "number" ? m.limits.dailyUsd : null, weeklyUsd: typeof m.limits?.weeklyUsd === "number" ? m.limits.weeklyUsd : null },
+      limits: {
+        dailyUsd: typeof m.limits?.dailyUsd === "number" ? m.limits.dailyUsd : null,
+        weeklyUsd: typeof m.limits?.weeklyUsd === "number" ? m.limits.weeklyUsd : null,
+      },
     };
   } catch {
     return undefined;

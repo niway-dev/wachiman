@@ -21,7 +21,22 @@ afterAll(() => {
   removeTempRepos();
 });
 
-const ROWS = ["wachiman", "bun", "git", "tar", "config", "profile", "auth", "environment", "project", "settings", "workflow-pin", "history", "skills", "isolation"];
+const ROWS = [
+  "wachiman",
+  "bun",
+  "git",
+  "tar",
+  "config",
+  "profile",
+  "auth",
+  "environment",
+  "project",
+  "settings",
+  "workflow-pin",
+  "history",
+  "skills",
+  "isolation",
+];
 
 interface Machine {
   home: string;
@@ -53,7 +68,12 @@ function machine(tools: Tools = {}, extra: Partial<DoctorDeps> = {}): Machine {
     env,
     deps,
     calls,
-    report: (opts = {}, e = {}) => buildDoctorReport({ repoDir: temp("wachiman-cwd-"), allProfiles: false, json: true, redactPaths: false, ...opts }, { ...env, ...e }, deps),
+    report: (opts = {}, e = {}) =>
+      buildDoctorReport(
+        { repoDir: temp("wachiman-cwd-"), allProfiles: false, json: true, redactPaths: false, ...opts },
+        { ...env, ...e },
+        deps,
+      ),
   };
   return m;
 }
@@ -75,7 +95,11 @@ describe("doctor on a healthy machine", () => {
     expect(report.platform).toBe("darwin-arm64");
     expect(report.tier).toBe("supported");
     expect(report.profile).toEqual({ name: "default", kind: "default", rung: "builtIn" });
-    expect(row(report, "auth")).toMatchObject({ level: "required", status: "ok", detail: { networkObserved: "unknown", authMethod: "claude.ai" } });
+    expect(row(report, "auth")).toMatchObject({
+      level: "required",
+      status: "ok",
+      detail: { networkObserved: "unknown", authMethod: "claude.ai" },
+    });
     expect(report.failedRequired).toBe(0);
     expect(report.exitCode).toBe(0);
     for (const r of report.checks) if (r.level === "required") expect(r.status).not.toBe("fail");
@@ -177,7 +201,18 @@ describe("settings row: the repository's .wachiman.yml", () => {
 
   test("no file: ok, with the defaults named as the source of the model and the effort", () => {
     const r = settingsRow(machine(), emptyRepo());
-    expect(r).toMatchObject({ level: "optional", status: "ok", detail: { file: null, valid: true, effectiveModel: "claude-sonnet-5-5", modelFrom: "default", effectiveEffort: "high", effortFrom: "default" } });
+    expect(r).toMatchObject({
+      level: "optional",
+      status: "ok",
+      detail: {
+        file: null,
+        valid: true,
+        effectiveModel: "claude-sonnet-5-5",
+        modelFrom: "default",
+        effectiveEffort: "high",
+        effortFrom: "default",
+      },
+    });
     expect(r.evidence).toContain("no .wachiman.yml");
     expect(r.evidence).toContain("base commit");
   });
@@ -188,7 +223,15 @@ describe("settings row: the repository's .wachiman.yml", () => {
     const r = settingsRow(machine(), repo);
     expect(r).toMatchObject({
       status: "ok",
-      detail: { kind: "monorepo", model: "claude-opus-5-5", effort: "medium", effectiveModel: "claude-opus-5-5", modelFrom: "file", effectiveEffort: "medium", effortFrom: "file" },
+      detail: {
+        kind: "monorepo",
+        model: "claude-opus-5-5",
+        effort: "medium",
+        effectiveModel: "claude-opus-5-5",
+        modelFrom: "file",
+        effectiveEffort: "medium",
+        effortFrom: "file",
+      },
     });
     expect(r.evidence).toContain("from .wachiman.yml");
   });
@@ -211,7 +254,13 @@ describe("settings row: the repository's .wachiman.yml", () => {
     const repo = emptyRepo();
     write(repo, { ".wachiman.yml": "model: claude-opus-5-5\neffort: medium\n" });
     const r = settingsRow(machine(), repo, { WACHIMAN_MODEL: "claude-haiku-5-5", WACHIMAN_EFFORT: "max" });
-    expect(r.detail).toMatchObject({ effectiveModel: "claude-haiku-5-5", modelFrom: "env", effectiveEffort: "max", effortFrom: "env", model: "claude-opus-5-5" });
+    expect(r.detail).toMatchObject({
+      effectiveModel: "claude-haiku-5-5",
+      modelFrom: "env",
+      effectiveEffort: "max",
+      effortFrom: "env",
+      model: "claude-opus-5-5",
+    });
   });
 
   test("an invalid file is a warning with the fix, and the exit code stays 0", () => {
@@ -248,7 +297,10 @@ describe("settings row: the repository's .wachiman.yml", () => {
   test("a subfolder of the working tree finds the file at the root", () => {
     const repo = emptyRepo();
     write(repo, { ".wachiman.yml": "effort: low\n", "pkg/a.txt": "x" });
-    expect(row(machine().report({ repoDir: join(repo, "pkg") }), "settings").detail).toMatchObject({ effectiveEffort: "low", effortFrom: "file" });
+    expect(row(machine().report({ repoDir: join(repo, "pkg") }), "settings").detail).toMatchObject({
+      effectiveEffort: "low",
+      effortFrom: "file",
+    });
   });
 });
 
@@ -278,7 +330,9 @@ describe("configuration, profile and project rows", () => {
         "work-a": { kind: "external", configDir: dir, createdAt: "t" },
         "ignored-profile": { kind: "external", configDir: other, createdAt: "t" },
       },
-      projects: { [key]: { profile: "work-a", keyedBy: "remote", remote: "ssh://github.com/acme/app", name: "app", boundAt: "t", boundFrom: repo } },
+      projects: {
+        [key]: { profile: "work-a", keyedBy: "remote", remote: "ssh://github.com/acme/app", name: "app", boundAt: "t", boundFrom: repo },
+      },
     });
     const report = m.report({ repoDir: repo }, { WACHIMAN_PROFILE: "ignored-profile" });
     expect(report.profile).toEqual({ name: "work-a", kind: "external", rung: "binding" });
@@ -330,7 +384,11 @@ describe("configuration, profile and project rows", () => {
     const { evidence, fix } = row(populated, "isolation");
     expect(evidence).not.toContain("use another profile name");
     expect(fix).toContain("use another profile name");
-    expect(row(populated, "isolation")).toMatchObject({ status: "fail", level: "required", evidence: expect.stringContaining("CLAUDE.md") });
+    expect(row(populated, "isolation")).toMatchObject({
+      status: "fail",
+      level: "required",
+      evidence: expect.stringContaining("CLAUDE.md"),
+    });
     expect(populated.exitCode).toBe(1);
   });
 
@@ -362,7 +420,10 @@ describe("configuration, profile and project rows", () => {
     expect(row(m.report(), "skills").status).toBe("skip");
     mkdirSync(join(m.userHome, ".claude", "skills", "wachiman-review"), { recursive: true });
     const report = m.report();
-    expect(row(report, "skills")).toMatchObject({ status: "ok", detail: { "wachiman-review": true, "wachiman-loop": false, "wachiman-audit": false } });
+    expect(row(report, "skills")).toMatchObject({
+      status: "ok",
+      detail: { "wachiman-review": true, "wachiman-loop": false, "wachiman-audit": false },
+    });
   });
 });
 
@@ -405,7 +466,9 @@ describe("--redact-paths", () => {
     const key = repositoryKey(repo).key;
     seed(m, {
       profiles: { "work-a": { kind: "external", configDir: dir, createdAt: "t" } },
-      projects: { [key]: { profile: "work-a", keyedBy: "remote", remote: "ssh://github.com/acme/app", name: "app", boundAt: "t", boundFrom: repo } },
+      projects: {
+        [key]: { profile: "work-a", keyedBy: "remote", remote: "ssh://github.com/acme/app", name: "app", boundAt: "t", boundFrom: repo },
+      },
     });
     mkdirSync(join(m.home, "history", "app-aaaaaaaa"), { recursive: true });
     const plain = m.report({ repoDir: repo });
@@ -430,8 +493,23 @@ describe("--redact-paths with a space in the home", () => {
   test("a known root is replaced whole, so the rest of the path is not left behind", () => {
     const userHome = "/Users/Jane Doe";
     const home = `${userHome}/.wachiman`;
-    const row = { id: "wachiman", level: "required", status: "ok", evidence: `config ${home}/config.json and ${userHome}/proj, plain /opt/x`, detail: { path: `${home}/config.json` } };
-    const report = { format: "wachiman.doctor/1", version: "1", install: "source", platform: "x", tier: 0, checks: [row], failedRequired: 0, exitCode: 0 } as unknown as DoctorReport;
+    const row = {
+      id: "wachiman",
+      level: "required",
+      status: "ok",
+      evidence: `config ${home}/config.json and ${userHome}/proj, plain /opt/x`,
+      detail: { path: `${home}/config.json` },
+    };
+    const report = {
+      format: "wachiman.doctor/1",
+      version: "1",
+      install: "source",
+      platform: "x",
+      tier: 0,
+      checks: [row],
+      failedRequired: 0,
+      exitCode: 0,
+    } as unknown as DoctorReport;
     const out = JSON.stringify(redactReport(report, { home, userHome }));
     expect(out).not.toContain("Doe");
     expect(out).not.toContain("config.json");
@@ -454,7 +532,9 @@ describe("tiers and text output", () => {
     const text = renderText(m.report());
     const lines = text.split("\n");
     expect(lines[0]).toBe("Wachiman 1.9.0 (source, /opt/wachiman, darwin-arm64, tier supported)");
-    expect(text).toContain("Local mode: no telemetry and no GitHub requests by Wachiman; the code goes to the Claude account of the chosen profile. https://code.claude.com/docs/en/legal-and-compliance");
+    expect(text).toContain(
+      "Local mode: no telemetry and no GitHub requests by Wachiman; the code goes to the Claude account of the chosen profile. https://code.claude.com/docs/en/legal-and-compliance",
+    );
     expect(text.indexOf("Required")).toBeLessThan(text.indexOf("Optional"));
     expect(text).toMatch(/✗ tar /);
     expect(text).toMatch(/✓ git /);
@@ -466,7 +546,12 @@ describe("tiers and text output", () => {
   test("--json prints exactly the report, and runDoctor returns its exit code", () => {
     const m = machine({ tar: null });
     const out: string[] = [];
-    const code = runDoctor({ repoDir: temp("wachiman-cwd-"), allProfiles: false, json: true, redactPaths: false }, m.env, { stdout: (t) => out.push(t), stderr: () => {} }, m.deps);
+    const code = runDoctor(
+      { repoDir: temp("wachiman-cwd-"), allProfiles: false, json: true, redactPaths: false },
+      m.env,
+      { stdout: (t) => out.push(t), stderr: () => {} },
+      m.deps,
+    );
     expect(code).toBe(1);
     const parsed = JSON.parse(out.join(""));
     expect(parsed.exitCode).toBe(1);
@@ -503,15 +588,18 @@ describe("workflow-pin row", () => {
   test("a workflow it cannot read is named in a warning", () => {
     const repo = emptyRepo();
     write(repo, { ".github/workflows/w.yml": wf("v1.9.0"), ".github/workflows/x.yml": wf("v1.9.0") });
-    const m = machine({}, {
-      fs: {
-        ...realDoctorFs,
-        read: (p: string) => {
-          if (p.endsWith("x.yml")) throw new Error("EACCES");
-          return readFileSync(p, "utf8");
+    const m = machine(
+      {},
+      {
+        fs: {
+          ...realDoctorFs,
+          read: (p: string) => {
+            if (p.endsWith("x.yml")) throw new Error("EACCES");
+            return readFileSync(p, "utf8");
+          },
         },
       },
-    });
+    );
     const r = row(m.report({ repoDir: repo }), "workflow-pin");
     expect(r.status).toBe("warn");
     expect(r.evidence).toContain(".github/workflows/x.yml");

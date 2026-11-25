@@ -13,7 +13,10 @@ const npm = Bun.which("npm");
 function packedFiles(): string[] {
   // On Windows npm is `npm.cmd`, which only a shell can start.
   const command = process.platform === "win32" ? ["cmd.exe", "/d", "/s", "/c", "npm"] : [npm!];
-  const out = Bun.spawnSync([...command, "pack", "--dry-run", "--json", "--ignore-scripts"], { cwd: root, env: { ...process.env, npm_config_offline: "true" } });
+  const out = Bun.spawnSync([...command, "pack", "--dry-run", "--json", "--ignore-scripts"], {
+    cwd: root,
+    env: { ...process.env, npm_config_offline: "true" },
+  });
   expect(out.exitCode).toBe(0);
   const [report] = JSON.parse(out.stdout.toString());
   return report.files.map((f: { path: string }) => f.path.replaceAll("\\", "/"));
@@ -34,7 +37,8 @@ describe("package.json", () => {
   test("depends on bun (ADR 0028), chalk and @clack/prompts (ADR 0002, amendment 2026-11-13), each at one exact version, and on nothing else", () => {
     expect(Object.keys(pkg.dependencies).sort()).toEqual(["@clack/prompts", "bun", "chalk"]);
     for (const version of Object.values<string>(pkg.dependencies)) expect(version).toMatch(/^\d+\.\d+\.\d+$/);
-    for (const key of ["optionalDependencies", "peerDependencies", "bundledDependencies", "bundleDependencies"]) expect(pkg[key]).toBeUndefined();
+    for (const key of ["optionalDependencies", "peerDependencies", "bundledDependencies", "bundleDependencies"])
+      expect(pkg[key]).toBeUndefined();
   });
 
   test("the pinned Bun is the version CI tests and meets the floor in engines.bun", () => {
@@ -47,11 +51,13 @@ describe("package.json", () => {
 
   test("publishes publicly with provenance and runs no install-time script of its own", () => {
     expect(pkg.publishConfig).toEqual({ access: "public", provenance: true });
-    for (const hook of ["preinstall", "install", "postinstall", "prepare", "prepublishOnly", "prepack", "postpack"]) expect(pkg.scripts?.[hook]).toBeUndefined();
+    for (const hook of ["preinstall", "install", "postinstall", "prepare", "prepublishOnly", "prepack", "postpack"])
+      expect(pkg.scripts?.[hook]).toBeUndefined();
   });
 
   test("every bin exists, is a Node script, and the shipped launcher module is listed in files", () => {
-    for (const path of Object.values<string>(pkg.bin)) expect(readFileSync(join(root, path), "utf8").startsWith("#!/usr/bin/env node\n")).toBe(true);
+    for (const path of Object.values<string>(pkg.bin))
+      expect(readFileSync(join(root, path), "utf8").startsWith("#!/usr/bin/env node\n")).toBe(true);
     expect(pkg.files).toContain("bin/launcher-args.js");
   });
 });
@@ -65,7 +71,17 @@ describe.skipIf(!npm)("npm pack --json", () => {
   }, 60_000);
 
   test("ships the launcher, the engine, the skills, the templates, bunfig.toml, the licence and the manifest", () => {
-    for (const path of ["package.json", "bin/wachiman.js", "bin/launcher-args.js", "src/cli.ts", "src/install-kind.ts", "src/providers/claude-code.settings.json", "bunfig.toml", "LICENSE", "README.md"]) {
+    for (const path of [
+      "package.json",
+      "bin/wachiman.js",
+      "bin/launcher-args.js",
+      "src/cli.ts",
+      "src/install-kind.ts",
+      "src/providers/claude-code.settings.json",
+      "bunfig.toml",
+      "LICENSE",
+      "README.md",
+    ]) {
       expect(files).toContain(path);
     }
     expect(files.some((f) => f.startsWith("skills/wachiman-review/"))).toBe(true);

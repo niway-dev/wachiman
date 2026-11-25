@@ -11,6 +11,10 @@ This is a one-person project: reports are handled on a best-effort basis, with n
 
 ## Trust assumptions
 
+Every program Wachiman starts, file it writes and network destination it contacts is listed in
+[docs/on-your-machine.md](docs/on-your-machine.md), with the code that shows each one. If the code
+does something that page does not list, report it as above.
+
 These assumptions are what make the tool acceptable to run with an API key, or with a Claude
 subscription token (see "A subscription token instead of a key" below). Everything below
 describes the default Claude Code workflow (`review.yml` with `provider: claude-code`) unless a

@@ -74,7 +74,11 @@ export const isTerminal = (io: PromptIO) => (io.input as Terminal).isTTY === tru
  * The session for a command that opens one: a fancy one (Clack loaded here) on a terminal, the
  * plain one anywhere else. `deps.ui` replaces Clack, for a test.
  */
-export async function openPrompter(io: PromptIO, env: Record<string, string | undefined> = process.env, deps: { ui?: Ui } = {}): Promise<Prompter> {
+export async function openPrompter(
+  io: PromptIO,
+  env: Record<string, string | undefined> = process.env,
+  deps: { ui?: Ui } = {},
+): Promise<Prompter> {
   if (deps.ui) return createPrompter(io, env, deps.ui);
   return isTerminal(io) ? createPrompter(io, env, await loadUi(io)) : createPrompter(io, env);
 }
@@ -227,7 +231,8 @@ export function createPrompter(io: PromptIO, env: Record<string, string | undefi
         const line = await ask(`${label} ${defaultYes ? "[Y/n]" : "[y/N]"} `);
         if (line === null) return null;
         const answer = line.trim().toLowerCase();
-        const decided = answer === "" ? defaultYes : answer === "y" || answer === "yes" ? true : answer === "n" || answer === "no" ? false : undefined;
+        const decided =
+          answer === "" ? defaultYes : answer === "y" || answer === "yes" ? true : answer === "n" || answer === "no" ? false : undefined;
         if (decided !== undefined) return decided;
         say("Answer y or n.", "error");
       }

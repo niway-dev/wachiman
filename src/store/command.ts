@@ -21,7 +21,8 @@ export const DASHBOARD_FILE = "dashboard.html";
 
 export const dashboardUsage = `wachiman dashboard [--json] [--out <file>] [--refresh] [--repo-dir <dir>]`;
 
-export const LOCAL_ONLY = "Local runs only: those kept by `wachiman local --history` and `wachiman loop`. Runs by the GitHub Actions workflow are not counted.";
+export const LOCAL_ONLY =
+  "Local runs only: those kept by `wachiman local --history` and `wachiman loop`. Runs by the GitHub Actions workflow are not counted.";
 
 export interface DashboardArgs {
   json: boolean;
@@ -111,7 +112,13 @@ export function runDashboard(args: DashboardArgs, env: Record<string, string | u
   // A ledger is "connected" when a credentials file exists or a pull left files (nothing is parsed or resolved here: only `--refresh` makes a request, and the CLI does that first); otherwise the page is as before (ADR 0039).
   if (existsSync(credentialsPath(home)) || listLedgerAccounts(home).length > 0) {
     const spend = readSpendRows(refreshIndex(home, io.stderr).path);
-    const report = buildReport({ rows: spend.rows, coverage: deriveCoverage(spend.rows, spend.actions, now), limits: spend.limits, pulledAt: spend.pulledAt, now });
+    const report = buildReport({
+      rows: spend.rows,
+      coverage: deriveCoverage(spend.rows, spend.actions, now),
+      limits: spend.limits,
+      pulledAt: spend.pulledAt,
+      now,
+    });
     doc.usage = { report, pulled: spend.pulledAt !== null };
     doc.scope = "Laptop runs kept by `wachiman local --history` and `wachiman loop`, and GitHub Actions runs downloaded from the ledger.";
   }

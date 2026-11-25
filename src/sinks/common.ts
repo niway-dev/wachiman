@@ -2,7 +2,18 @@
  * What the local sinks share: the lines that must read the same in the terminal and in the
  * Markdown report. Every sink reads only the `ReviewResult` and computes no anchor.
  */
-import { detail, label, neutralise, oneLine, priorityLead, SEVERITY, TOPIC, type Finding, type Profile, type ReviewResult } from "../engine";
+import {
+  detail,
+  label,
+  neutralise,
+  oneLine,
+  priorityLead,
+  SEVERITY,
+  TOPIC,
+  type Finding,
+  type Profile,
+  type ReviewResult,
+} from "../engine";
 import { plainText, privateContextLine, type ResultSibling } from "../distributed";
 import type { Citation, ResultFinding } from "../formats";
 import { sectionOf, verificationSegment, type Section } from "../verify";
@@ -79,13 +90,10 @@ export const indent = (text: string, prefix: string) =>
 export function notReviewed(result: ReviewResult) {
   const reviewed = new Set(result.coverage.reviewed);
   const reasons = new Map(result.coverage.skipped.map((s) => [s.path, s.reason]));
-  return result.coverage.expected
-    .filter((f) => !reviewed.has(f))
-    .map((path) => ({ path, reason: reasons.get(path) }));
+  return result.coverage.expected.filter((f) => !reviewed.has(f)).map((path) => ({ path, reason: reasons.get(path) }));
 }
 
-const withReason = (f: { path: string; reason?: string }) =>
-  `${neutralise(f.path)}${f.reason ? ` (${neutralise(f.reason)})` : ""}`;
+const withReason = (f: { path: string; reason?: string }) => `${neutralise(f.path)}${f.reason ? ` (${neutralise(f.reason)})` : ""}`;
 
 /**
  * `all 4 files reviewed`, or `Partial: reviewed 3 of 4; not reviewed: a (binary), b`. Files the
@@ -95,7 +103,10 @@ export function coverageText(result: ReviewResult) {
   const missing = notReviewed(result);
   const total = result.coverage.expected.length;
   const unreviewable = result.coverage.unreviewable ?? [];
-  const tail = unreviewable.length > 0 ? `; not reviewable: ${unreviewable.map((u) => withReason({ path: u.path, reason: u.reason })).join(", ")}` : "";
+  const tail =
+    unreviewable.length > 0
+      ? `; not reviewable: ${unreviewable.map((u) => withReason({ path: u.path, reason: u.reason })).join(", ")}`
+      : "";
   if (missing.length === 0) return `all ${total} files reviewed${tail}`;
   return `Partial: reviewed ${total - missing.length} of ${total}; not reviewed: ${missing.map(withReason).join(", ")}${tail}`;
 }
@@ -197,15 +208,23 @@ const plural = (n: number, one: string, many: string) => (n === 1 ? one : many);
 export function siblingText(s: ResultSibling) {
   const member = manifestText(s.member);
   const rule = `rule ${s.rule} (${RULE_SOURCES[s.ruleSource]})`;
-  const why = s.byHand && s.contracts.length === 0 ? "added by hand" : `${s.byHand ? "added by hand, " : ""}for ${s.contracts.map(manifestText).join(", ")}`;
+  const why =
+    s.byHand && s.contracts.length === 0
+      ? "added by hand"
+      : `${s.byHand ? "added by hand, " : ""}for ${s.contracts.map(manifestText).join(", ")}`;
   if (s.status === "not-cloned" || s.status === "not-watched" || s.status === "unreadable" || s.sha === undefined) {
     const notCloned = s.sourceOfTruthOf?.length ? "source of truth not cloned: not checked" : "not cloned: not checked";
     const said =
-      s.status === "not-cloned" ? notCloned : s.status === "not-watched" ? "not watched: not checked" : `unreadable (${manifestText(s.unreadable ?? "unknown reason")}): not checked`;
+      s.status === "not-cloned"
+        ? notCloned
+        : s.status === "not-watched"
+          ? "not watched: not checked"
+          : `unreadable (${manifestText(s.unreadable ?? "unknown reason")}): not checked`;
     return `${member}: ${said} (${rule}, ${why})`;
   }
   const readAs = s.readAs === s.rule ? "" : `, read as ${s.readAs}`;
-  const fetched = s.fetchedAt === undefined ? "" : s.fetchedAt === "unknown" ? ", last fetch unknown" : `, last fetched ${manifestText(s.fetchedAt)}`;
+  const fetched =
+    s.fetchedAt === undefined ? "" : s.fetchedAt === "unknown" ? ", last fetch unknown" : `, last fetched ${manifestText(s.fetchedAt)}`;
   const files = `${s.paths.length} ${plural(s.paths.length, "file", "files")}`;
   const dirty = s.status === "uncommitted-not-read" ? ", uncommitted changes not read" : "";
   const fallback = s.fallback ? `, ${manifestText(s.fallback)}` : "";
@@ -219,10 +238,17 @@ export function siblingText(s: ResultSibling) {
 export function workspaceLines(result: ReviewResult): string[] {
   if (result.siblings === undefined) return [];
   const applied = result.workspaceContractsApplied ?? [];
-  const lines = [applied.length > 0 ? `Workspace contracts applied: ${applied.map(manifestText).join(", ")}` : "No workspace contract applied to this change."];
+  const lines = [
+    applied.length > 0
+      ? `Workspace contracts applied: ${applied.map(manifestText).join(", ")}`
+      : "No workspace contract applied to this change.",
+  ];
   lines.push(...result.siblings.map(siblingText));
   const removed = result.removedSiblingReferences ?? 0;
-  if (removed > 0) lines.push(`${removed} sibling ${plural(removed, "reference was", "references were")} removed: ${plural(removed, "it", "they")} could not be checked.`);
+  if (removed > 0)
+    lines.push(
+      `${removed} sibling ${plural(removed, "reference was", "references were")} removed: ${plural(removed, "it", "they")} could not be checked.`,
+    );
   return lines;
 }
 
@@ -232,7 +258,8 @@ export function privateNote(result: ReviewResult) {
 }
 
 /** The private-context line for a set of member names, or null when there are none. */
-export const privateLineFor = (members: string[] | undefined) => (members && members.length > 0 ? privateContextLine(members.map(manifestText)) : null);
+export const privateLineFor = (members: string[] | undefined) =>
+  members && members.length > 0 ? privateContextLine(members.map(manifestText)) : null;
 
 /** The checked references a finding makes into a sibling, as `member@sha:path:line` with the short commit. */
 export const siblingReferences = (f: { references?: { member: string; sha: string; path: string; line: number }[] }) =>
@@ -300,7 +327,8 @@ export function thisRunText(result: ReviewResult, a: HistoryAnnotation) {
   const whereWidth = Math.max(...rows.map((r) => r.where.length));
   const titleWidth = Math.max(...rows.map((r) => r.title.length));
   const lines = rows.map(
-    (r) => `  ${pad(r.word, wordWidth)}  ${pad(r.where, whereWidth)}  ${pad(r.title, titleWidth)}  (id ${r.id}${r.verdict ? `, verdict: ${r.verdict}` : ""})`,
+    (r) =>
+      `  ${pad(r.word, wordWidth)}  ${pad(r.where, whereWidth)}  ${pad(r.title, titleWidth)}  (id ${r.id}${r.verdict ? `, verdict: ${r.verdict}` : ""})`,
   );
   return ["This run (history):", ...lines].join("\n");
 }
@@ -310,9 +338,7 @@ export function sinceLastRunMarkdown(a: HistoryAnnotation) {
   const head = a.lastRun
     ? `Compared with the run at \`${sha7(a.lastRun.head)}\` (${a.lastRun.savedAt.slice(0, 16).replace("T", " ")}).`
     : "This is the first saved run of this repository.";
-  const bullets = a.settled.map(
-    (s) => `- ${SETTLED_WORDS[s.status]}: \`${location(s)}\` ${neutralise(s.title)} (id \`${s.firstId}\`)`,
-  );
+  const bullets = a.settled.map((s) => `- ${SETTLED_WORDS[s.status]}: \`${location(s)}\` ${neutralise(s.title)} (id \`${s.firstId}\`)`);
   if (a.unknown > 0) bullets.push(`- unknown: ${a.unknown} ${UNKNOWN_HINT}`);
   return bullets.length > 0 ? `${head}\n\n${bullets.join("\n")}` : head;
 }

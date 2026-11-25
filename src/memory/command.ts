@@ -46,7 +46,11 @@ const GIT_TIMEOUT_MS = 30_000;
 
 /** Tracked files plus untracked files that are not ignored; a plain directory walk when `root` is not a git repository. */
 function listRepoFiles(root: string): string[] {
-  const r = spawnGit(["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root, timeoutMs: GIT_TIMEOUT_MS, maxBytes: 256 * 1024 * 1024 });
+  const r = spawnGit(["ls-files", "-z", "--cached", "--others", "--exclude-standard"], {
+    cwd: root,
+    timeoutMs: GIT_TIMEOUT_MS,
+    maxBytes: 256 * 1024 * 1024,
+  });
   if (r.status === 0) return r.stdout.split("\0").filter(Boolean);
   const out: string[] = [];
   const walk = (rel: string) => {
@@ -75,7 +79,8 @@ function readMemoryFolder(root: string): Record<string, string> | undefined {
 export function runMemory(argv: string[], repoDir: string, io: MemoryIo, ctx: CaptureContext = {}): number {
   const [first, ...rest] = argv;
   if (first === undefined || first === "--help" || first === "-h") return (io.stdout(commandHelp(["memory"])!), 0);
-  if (!(MEMORY_SUBCOMMANDS as readonly string[]).includes(first)) throw new UsageError(`Unknown memory subcommand "${first}". Use one of: ${MEMORY_SUBCOMMANDS.join(", ")}.`);
+  if (!(MEMORY_SUBCOMMANDS as readonly string[]).includes(first))
+    throw new UsageError(`Unknown memory subcommand "${first}". Use one of: ${MEMORY_SUBCOMMANDS.join(", ")}.`);
   if (first === "archive") {
     if (rest.includes("--help") || rest.includes("-h")) return (io.stdout(commandHelp(["memory", "archive"])!), 0);
     return runArchive(rest, repoDir, io);
@@ -87,7 +92,14 @@ export function runMemory(argv: string[], repoDir: string, io: MemoryIo, ctx: Ca
     const key = repositoryKey(repoDir).key;
     const home = historyRoot(wachimanHome(ctx.env ?? process.env));
     const personalDir = personalMemoryDir(wachimanHome(ctx.env ?? process.env), repoDir);
-    const report = buildReport({ runs: readRuns(home, key, (line) => io.stderr(line)), verdicts: readVerdicts(home, key), files: readMemoryFolder(root), personalFiles: personalDir === undefined ? undefined : readPersonalFiles(personalDir, (line) => io.stderr(line)), use: readMemoryUse(wachimanHome(ctx.env ?? process.env), key), since: args.since });
+    const report = buildReport({
+      runs: readRuns(home, key, (line) => io.stderr(line)),
+      verdicts: readVerdicts(home, key),
+      files: readMemoryFolder(root),
+      personalFiles: personalDir === undefined ? undefined : readPersonalFiles(personalDir, (line) => io.stderr(line)),
+      use: readMemoryUse(wachimanHome(ctx.env ?? process.env), key),
+      since: args.since,
+    });
     io.stdout(args.format === "json" ? `${JSON.stringify(report, null, 2)}\n` : renderReport(report));
     return 0;
   }
@@ -118,7 +130,9 @@ export function runMemory(argv: string[], repoDir: string, io: MemoryIo, ctx: Ca
     printSuggestions(files, resolved, root, io, ctx);
     return 1;
   }
-  io.stdout(`memory ok: ${Object.keys(files).length} file${Object.keys(files).length === 1 ? "" : "s"}, ${result.entries} entr${result.entries === 1 ? "y" : "ies"}\n`);
+  io.stdout(
+    `memory ok: ${Object.keys(files).length} file${Object.keys(files).length === 1 ? "" : "s"}, ${result.entries} entr${result.entries === 1 ? "y" : "ies"}\n`,
+  );
   printSuggestions(files, resolved, root, io, ctx);
   return 0;
 }
@@ -132,12 +146,22 @@ const plural = (n: number) => `${n} day${n === 1 ? "" : "s"}`;
  * at all (that needs a model). Archive suggestions need the laptop's record of last use, so they are
  * not made in GitHub Actions, where no record persists, and need history on to be recorded (ADR 0020).
  */
-function printSuggestions(files: Record<string, string>, settings: { archiveAfterDays: number }, root: string, io: MemoryIo, ctx: CaptureContext) {
+function printSuggestions(
+  files: Record<string, string>,
+  settings: { archiveAfterDays: number },
+  root: string,
+  io: MemoryIo,
+  ctx: CaptureContext,
+) {
   const env = ctx.env ?? process.env;
-  const entries = Object.keys(files).sort().flatMap((name) => parseMemoryFile(name, files[name]).entries);
+  const entries = Object.keys(files)
+    .sort()
+    .flatMap((name) => parseMemoryFile(name, files[name]).entries);
   const lines: string[] = [];
   for (const { a, b, similarity } of findDuplicates(entries)) {
-    lines.push(`suggestion: ${a.id} and ${b.id} look like duplicates (same kind, overlapping scopes, rules ${Math.round(similarity * 100)}% alike): "${a.title}" (${where(a)}) and "${b.title}" (${where(b)}). Keep one; \`wachiman memory archive <id>\` moves the other to ${ARCHIVE_FILE}.`);
+    lines.push(
+      `suggestion: ${a.id} and ${b.id} look like duplicates (same kind, overlapping scopes, rules ${Math.round(similarity * 100)}% alike): "${a.title}" (${where(a)}) and "${b.title}" (${where(b)}). Keep one; \`wachiman memory archive <id>\` moves the other to ${ARCHIVE_FILE}.`,
+    );
   }
   if (env.GITHUB_ACTIONS !== "true") {
     let use: MemoryUse;
@@ -150,16 +174,23 @@ function printSuggestions(files: Record<string, string>, settings: { archiveAfte
     if (!use.known) {
       // Without a record nothing is known about use: an entry must not be called unused, so none is suggested. Said only when some entry is old enough for the answer to matter.
       const old = archiveSuggestions(entries, {}, settings.archiveAfterDays, date).length;
-      if (old > 0) lines.push(`note: ${old} entr${old === 1 ? "y is" : "ies are"} older than memory.archive_after_days (${settings.archiveAfterDays}) by added date, but whether ${old === 1 ? "it was" : "they were"} used is unknown, so no archive suggestion is made: ${use.reason}.`);
+      if (old > 0)
+        lines.push(
+          `note: ${old} entr${old === 1 ? "y is" : "ies are"} older than memory.archive_after_days (${settings.archiveAfterDays}) by added date, but whether ${old === 1 ? "it was" : "they were"} used is unknown, so no archive suggestion is made: ${use.reason}.`,
+        );
     } else {
       for (const s of archiveSuggestions(entries, use.used, settings.archiveAfterDays, date, use.since)) {
         const last = s.usedEver ? `last used ${s.since}` : `no use recorded on this laptop since ${s.since}`;
-        lines.push(`suggestion: ${s.entry.id} ${last} (${plural(s.days)} ago), over memory.archive_after_days (${settings.archiveAfterDays}): "${s.entry.title}" (${where(s.entry)}). \`wachiman memory archive ${s.entry.id}\` moves it to ${ARCHIVE_FILE}.`);
+        lines.push(
+          `suggestion: ${s.entry.id} ${last} (${plural(s.days)} ago), over memory.archive_after_days (${settings.archiveAfterDays}): "${s.entry.title}" (${where(s.entry)}). \`wachiman memory archive ${s.entry.id}\` moves it to ${ARCHIVE_FILE}.`,
+        );
       }
     }
   }
   if (lines.length === 0) return;
-  io.stdout(`${lines.join("\n")}\nsuggestions only: nothing was changed. Only likely duplicates are detected without a model; contradictions are not. Use is recorded on this laptop only.\n`);
+  io.stdout(
+    `${lines.join("\n")}\nsuggestions only: nothing was changed. Only likely duplicates are detected without a model; contradictions are not. Use is recorded on this laptop only.\n`,
+  );
 }
 
 /** `wachiman memory archive <id>`: moves the entry to archive.md in the working tree. Nothing is committed or pushed. */
@@ -190,6 +221,8 @@ function runArchive(rest: string[], repoDir: string, io: MemoryIo): number {
     // A new randomly named temporary file in the same directory, renamed over the target: a symbolic link planted at a guessable temporary name is never followed.
     writeFileAtomically(path, text, existsSync(path) ? statSync(path).mode & 0o777 : 0o644);
   }
-  io.stdout(`archived: ${rest[0]} moved from ${moved.from} to ${ARCHIVE_FILE} in ${MEMORY_DIR}/ (working tree only, not committed). Commit it, or leave it out of the change.\n`);
+  io.stdout(
+    `archived: ${rest[0]} moved from ${moved.from} to ${ARCHIVE_FILE} in ${MEMORY_DIR}/ (working tree only, not committed). Commit it, or leave it out of the change.\n`,
+  );
   return 0;
 }

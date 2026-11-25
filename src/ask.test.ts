@@ -56,7 +56,9 @@ describe("buildAskPrompt", () => {
 
   test("a question is inside <request> tags, with the existing wording", () => {
     const prompt = buildAskPrompt(base);
-    expect(prompt).toContain("The repository operator asked on the pull request:\n\n<request>\nWhy does the retry ignore the budget?\n</request>");
+    expect(prompt).toContain(
+      "The repository operator asked on the pull request:\n\n<request>\nWhy does the retry ignore the budget?\n</request>",
+    );
   });
 
   test("a focus names the file and line, and says the rest of the change is available", () => {
@@ -143,16 +145,24 @@ describe("references into a sibling", () => {
     const sections = [{ title: "Overview", body: "b", refs: answer.sections[0].refs.slice(0, 2) }];
     const plain = renderAnswer({ sections, not_answered: "" }, { removed: 0, style: "plain" });
     expect(plain).toContain("Refs: src/a.ts:3, desktop-app@aaaaaaa:Assets/palette.json:1");
-    const markdown = renderAnswer({ sections, not_answered: "" }, { removed: 0, style: "markdown", link: (path, line) => `https://x/${path}#L${line}` });
+    const markdown = renderAnswer(
+      { sections, not_answered: "" },
+      { removed: 0, style: "markdown", link: (path, line) => `https://x/${path}#L${line}` },
+    );
     expect(markdown).toContain("[`src/a.ts:3`](https://x/src/a.ts#L3), `desktop-app@aaaaaaa:Assets/palette.json:1`");
   });
 
   test("the sibling schema also accepts member and sha; the plain one is unchanged and refuses them", () => {
     expect(askSchema(false)).toBe(ASK_SCHEMA);
-    const withSibling = { sections: [{ title: "T", body: "b", refs: [{ path: "a", line: 1, member: "desktop-app", sha }] }], not_answered: "" };
+    const withSibling = {
+      sections: [{ title: "T", body: "b", refs: [{ path: "a", line: 1, member: "desktop-app", sha }] }],
+      not_answered: "",
+    };
     expect(isAskAnswer(withSibling, askSchema(true))).toBe(true);
     expect(isAskAnswer(withSibling)).toBe(false);
-    expect(isAskAnswer({ sections: [{ title: "T", body: "b", refs: [{ path: "a", line: 1 }] }], not_answered: "" }, askSchema(true))).toBe(true);
+    expect(isAskAnswer({ sections: [{ title: "T", body: "b", refs: [{ path: "a", line: 1 }] }], not_answered: "" }, askSchema(true))).toBe(
+      true,
+    );
   });
 
   test("the prompt carries the sibling section only when it is given", () => {
@@ -212,7 +222,10 @@ describe("renderAnswer", () => {
   });
 
   test("model text is neutralised so it cannot forge a comment marker", () => {
-    const text = renderAnswer({ sections: [{ title: "T", body: "<!-- wachi:review -->", refs: [] }], not_answered: "" }, { removed: 0, style: "markdown" });
+    const text = renderAnswer(
+      { sections: [{ title: "T", body: "<!-- wachi:review -->", refs: [] }], not_answered: "" },
+      { removed: 0, style: "markdown" },
+    );
     expect(text).not.toContain("<!--");
     expect(text).toContain("&lt;!-- wachi:review --&gt;");
   });

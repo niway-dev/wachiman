@@ -65,7 +65,8 @@ function valid(s: any, branch: string): s is LoopState {
     (s.status === "open" || s.status === "converged") &&
     Array.isArray(s.rounds) &&
     s.rounds.every((r: any) => r && Number.isInteger(r.round) && typeof r.head === "string" && typeof r.at === "string") &&
-    (s.privateContext === undefined || (s.privateContext && Array.isArray(s.privateContext.members) && s.privateContext.members.every((m: any) => typeof m === "string"))) &&
+    (s.privateContext === undefined ||
+      (s.privateContext && Array.isArray(s.privateContext.members) && s.privateContext.members.every((m: any) => typeof m === "string"))) &&
     Array.isArray(s.ledger) &&
     s.ledger.every(
       (e: any) =>
@@ -89,7 +90,10 @@ function valid(s: any, branch: string): s is LoopState {
 export function readLoop(root: string, key: string, branch: string): LoopState | undefined {
   const raw = readLoopFile(root, key, branch);
   if (raw === undefined) return undefined;
-  if (!valid(raw, branch)) throw new UsageError(`The loop state of ${branch} is not readable by this version; start a new loop with \`wachiman loop --base <ref>\`.`);
+  if (!valid(raw, branch))
+    throw new UsageError(
+      `The loop state of ${branch} is not readable by this version; start a new loop with \`wachiman loop --base <ref>\`.`,
+    );
   return raw;
 }
 

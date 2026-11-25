@@ -13,7 +13,8 @@ function entry(rule: string, scope = "**", extra = 0) {
   return `### ${entryId(fields)} ${rule}\n\n- kind: convention\n- scope: ${scope}\n- rule: ${rule}\n${filler ? `${filler}\n` : ""}- why: because\n- evidence:\n  - 2026-11-18 instruction\n- added: 2026-11-18\n`;
 }
 
-const indexOf = (rows: [string, string][], body = "") => `# Memory\n\n| Glob | File |\n| --- | --- |\n${rows.map(([g, f]) => `| \`${g}\` | \`${f}\` |`).join("\n")}\n\n${body}`;
+const indexOf = (rows: [string, string][], body = "") =>
+  `# Memory\n\n| Glob | File |\n| --- | --- |\n${rows.map(([g, f]) => `| \`${g}\` | \`${f}\` |`).join("\n")}\n\n${body}`;
 
 function source(files: Record<string, string>, settingsText?: string): MemorySource & { reads: string[] } {
   const reads: string[] = [];
@@ -72,7 +73,13 @@ describe("loadMemory", () => {
 
   test("loads index.md and only the area files whose glob matches a changed path, naming the revision and the files", () => {
     const src = source({
-      "index.md": indexOf([["apps/desktop/**", "apps-desktop.md"], ["packages/ui/**", "packages-ui.md"]], entry("repo wide")),
+      "index.md": indexOf(
+        [
+          ["apps/desktop/**", "apps-desktop.md"],
+          ["packages/ui/**", "packages-ui.md"],
+        ],
+        entry("repo wide"),
+      ),
       "apps-desktop.md": entry("desktop rule", "apps/desktop/**"),
       "packages-ui.md": entry("ui rule", "packages/ui/**"),
       "archive.md": entry("old rule"),
@@ -96,7 +103,14 @@ describe("loadMemory", () => {
 
   test("a row that points outside the folder or at archive.md loads nothing", () => {
     // The source lists the odd names too, so only the plain-name guard keeps them out.
-    const rows: [string, string][] = [["**", "../secret.md"], ["**", "sub/deep.md"], ["**", "..\\win.md"], ["**", ".hidden.md"], ["**", "archive.md"], ["**", "index.md"]];
+    const rows: [string, string][] = [
+      ["**", "../secret.md"],
+      ["**", "sub/deep.md"],
+      ["**", "..\\win.md"],
+      ["**", ".hidden.md"],
+      ["**", "archive.md"],
+      ["**", "index.md"],
+    ];
     const src = source({
       "index.md": indexOf(rows),
       "../secret.md": entry("secret"),
@@ -128,7 +142,11 @@ describe("loadMemory", () => {
   test("over the loaded budget it loads the most specific files first and names what it left out", () => {
     const src = source(
       {
-        "index.md": indexOf([["apps/**", "broad.md"], ["apps/desktop/src/**", "narrow.md"], ["apps/desktop/**", "middle.md"]]),
+        "index.md": indexOf([
+          ["apps/**", "broad.md"],
+          ["apps/desktop/src/**", "narrow.md"],
+          ["apps/desktop/**", "middle.md"],
+        ]),
         "broad.md": lines(30),
         "middle.md": lines(30),
         "narrow.md": lines(30),
@@ -136,7 +154,11 @@ describe("loadMemory", () => {
       "memory:\n  max_loaded_lines: 85\n",
     );
     const load = loadMemory(src, REV, ["apps/desktop/src/a.ts"], () => {})!;
-    expect(load.files.map((f) => f.path)).toEqual([".wachiman/memory/index.md", ".wachiman/memory/narrow.md", ".wachiman/memory/middle.md"]);
+    expect(load.files.map((f) => f.path)).toEqual([
+      ".wachiman/memory/index.md",
+      ".wachiman/memory/narrow.md",
+      ".wachiman/memory/middle.md",
+    ]);
     expect(load.leftOut).toEqual([".wachiman/memory/broad.md"]);
     expect(load.overBudget).toBe(true);
     expect(load.budget.loadedLines).toBeLessThanOrEqual(85);
@@ -145,7 +167,10 @@ describe("loadMemory", () => {
   test("it stops at the first file that does not fit: a less specific file that would fit does not take its place", () => {
     const src = source(
       {
-        "index.md": indexOf([["apps/desktop/src/**", "narrow.md"], ["apps/**", "broad.md"]]),
+        "index.md": indexOf([
+          ["apps/desktop/src/**", "narrow.md"],
+          ["apps/**", "broad.md"],
+        ]),
         "narrow.md": lines(60),
         "broad.md": lines(5),
       },
@@ -181,7 +206,13 @@ describe("loadMemory", () => {
 
   test("a broken settings file leaves the defaults and warns", () => {
     const warned: string[] = [];
-    const src: MemorySource = { list: () => ["index.md"], read: () => lines(3), settings: () => { throw new UsageError("not valid YAML"); } };
+    const src: MemorySource = {
+      list: () => ["index.md"],
+      read: () => lines(3),
+      settings: () => {
+        throw new UsageError("not valid YAML");
+      },
+    };
     const load = loadMemory(src, REV, [], (l) => warned.push(l))!;
     expect(load.budget.maxLoadedLines).toBe(400);
     expect(warned.join("\n")).toContain("not valid YAML");
@@ -206,7 +237,12 @@ describe("memoryNotice", () => {
   });
 
   test("files left out say the memory does not fit and name them", () => {
-    const load = loadMemory(source({ "index.md": indexOf([["**", "a.md"]]), "a.md": lines(30) }, "memory:\n  max_loaded_lines: 20\n"), REV, ["x.ts"], () => {})!;
+    const load = loadMemory(
+      source({ "index.md": indexOf([["**", "a.md"]]), "a.md": lines(30) }, "memory:\n  max_loaded_lines: 20\n"),
+      REV,
+      ["x.ts"],
+      () => {},
+    )!;
     const notice = memoryNotice(load)!;
     expect(notice).toContain("does not fit in 20 lines");
     expect(notice).toContain(".wachiman/memory/a.md");
@@ -301,7 +337,13 @@ describe("loadMemory with personal memory", () => {
 
   test("a personal folder without index.md warns and loads nothing", () => {
     const warned: string[] = [];
-    const load = loadMemory(source({ "index.md": indexOf([], entry("Committed rule.")) }), REV, [], (l) => warned.push(l), source({ "src.md": "x\n" }))!;
+    const load = loadMemory(
+      source({ "index.md": indexOf([], entry("Committed rule.")) }),
+      REV,
+      [],
+      (l) => warned.push(l),
+      source({ "src.md": "x\n" }),
+    )!;
     expect(load.entries.map((e) => e.rule)).toEqual(["Committed rule."]);
     expect(warned.join("\n")).toContain("personal memory has no index.md");
   });

@@ -38,7 +38,10 @@ function fenced(text: string, info: string) {
 
 const sentenceCase = (text: string) => `${text[0].toUpperCase()}${text.slice(1)}`;
 
-export function renderMarkdown(result: ReviewResult, opts: { profileNote?: string; history?: HistoryAnnotation; settingsFrom?: SettingsFrom } = {}): string {
+export function renderMarkdown(
+  result: ReviewResult,
+  opts: { profileNote?: string; history?: HistoryAnnotation; settingsFrom?: SettingsFrom } = {},
+): string {
   const parts: string[] = [];
   parts.push(`# Wachiman review of ${neutralise(result.change.describe)}, at ${sha7(result.change.head.sha)}`);
   parts.push(`${sentenceCase(coverageText(result))}.`, `Profile: ${profileText(result, opts.profileNote)}`, countLine(result.findings));
@@ -78,7 +81,10 @@ export function renderMarkdown(result: ReviewResult, opts: { profileNote?: strin
   }
   const missing = notReviewed(result);
   if (missing.length > 0) {
-    parts.push("## Not reviewed", missing.map((f) => `- \`${neutralise(f.path)}\`${f.reason ? `: ${neutralise(f.reason)}` : ""}`).join("\n"));
+    parts.push(
+      "## Not reviewed",
+      missing.map((f) => `- \`${neutralise(f.path)}\`${f.reason ? `: ${neutralise(f.reason)}` : ""}`).join("\n"),
+    );
   }
   if (opts.history) parts.push("## Since the last run", sinceLastRunMarkdown(opts.history));
   parts.push("## Summary", neutralise(result.summary || "(no summary)"));

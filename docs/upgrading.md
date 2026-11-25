@@ -27,7 +27,7 @@ One line in your caller file, usually `.github/workflows/wachiman-review.yml`:
 ```yaml
 jobs:
   review:
-    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.18.0
+    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.20.1
 ```
 <!-- x-release-please-end -->
 
@@ -38,7 +38,7 @@ tag that is, compare the SHA with the tag's commit:
 
 <!-- x-release-please-start-version -->
 ```sh
-git ls-remote https://github.com/niway-dev/wachiman 'refs/tags/v1.18.0'
+git ls-remote https://github.com/niway-dev/wachiman 'refs/tags/v1.20.1'
 ```
 <!-- x-release-please-end -->
 
@@ -49,8 +49,8 @@ the [Releases page](https://github.com/niway-dev/wachiman/releases), not from th
 
 | Ref | What it is | Consequence |
 | --- | --- | --- |
-| Exact tag, `@v1.18.0` | A release tag. The project's recommendation ([install.md](install.md)). | Readable in your file. It changes only when you edit the file. See the limits below. | <!-- x-release-please-version -->
-| Full commit SHA, `@<40 characters>` | A commit. GitHub accepts it. | Does not depend on any tag rule. Unreadable by itself, so keep the version in a trailing comment, such as `# v1.18.0`. | <!-- x-release-please-version -->
+| Exact tag, `@v1.20.1` | A release tag. The project's recommendation ([install.md](install.md)). | Readable in your file. It changes only when you edit the file. See the limits below. | <!-- x-release-please-version -->
+| Full commit SHA, `@<40 characters>` | A commit. GitHub accepts it. | Does not depend on any tag rule. Unreadable by itself, so keep the version in a trailing comment, such as `# v1.20.1`. | <!-- x-release-please-version -->
 | Floating tag, `@v1` | A tag the maintainer moves to each compatible release. | Not recommended. A release reaches your repository, and runs with your key, before you have read it. |
 
 ### What an exact tag guarantees, and what it does not

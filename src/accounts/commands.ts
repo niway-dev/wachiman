@@ -22,7 +22,15 @@ import { repositoryKey } from "../history/store";
 import type { HistoryRepository } from "../history/types";
 import { buildChildEnv } from "../providers/claude-code";
 import { DEFAULT_ISOLATED_NAME, setupProfile } from "../profiles";
-import { readConfig, updateConfig, wachimanHome, type ConfigRead, type ProfileEntry, type ProjectBinding, type WachimanConfigV1 } from "./config";
+import {
+  readConfig,
+  updateConfig,
+  wachimanHome,
+  type ConfigRead,
+  type ProfileEntry,
+  type ProjectBinding,
+  type WachimanConfigV1,
+} from "./config";
 import type { SpawnFn, SpawnResult } from "./confirm";
 import { buildProfileList, managedDir, refersTo, type ProfileList } from "./profile-list";
 import { checkProfileName, failureText, lookupProfileRef, parseProfileRef, profileLine, resolveProfile, type ProfileRef } from "./resolve";
@@ -104,9 +112,15 @@ const askOnTerminal = (question: string, defaultYes: boolean): Answer => {
 };
 
 /** A question the person must answer; without a terminal and without `--yes` it is a usage error. */
-function confirm(command: string, env: Record<string, string | undefined>, deps: AccountDeps, p: { yes: boolean; question: string; defaultYes: boolean }): Answer {
+function confirm(
+  command: string,
+  env: Record<string, string | undefined>,
+  deps: AccountDeps,
+  p: { yes: boolean; question: string; defaultYes: boolean },
+): Answer {
   if (p.yes) return "yes";
-  const interactive = deps.interactive ?? isInteractive(env, { stdin: process.stdin.isTTY === true, stdout: process.stdout.isTTY === true });
+  const interactive =
+    deps.interactive ?? isInteractive(env, { stdin: process.stdin.isTTY === true, stdout: process.stdout.isTTY === true });
   if (!interactive) throw new UsageError(`${command} needs --yes when it cannot ask.`);
   return (deps.ask ?? askOnTerminal)(p.question, p.defaultYes);
 }
@@ -169,7 +183,13 @@ export function parseProfileArgs(argv: string[]): ProfileCommand {
       const name = one(positionals, "a profile name");
       const configDir = values["--config-dir"];
       if (configDir === undefined) throw new UsageError("profile add needs --config-dir <absolute directory>.");
-      return { kind: "add", name, configDir, ...(values["--binary"] ? { binary: values["--binary"] } : {}), ...(values["--note"] ? { note: values["--note"] } : {}) };
+      return {
+        kind: "add",
+        name,
+        configDir,
+        ...(values["--binary"] ? { binary: values["--binary"] } : {}),
+        ...(values["--note"] ? { note: values["--note"] } : {}),
+      };
     }
     case "login": {
       const { positionals } = parseFlags(rest, { values: [], booleans: [] }, command);
@@ -177,7 +197,12 @@ export function parseProfileArgs(argv: string[]): ProfileCommand {
     }
     case "remove": {
       const { positionals, booleans } = parseFlags(rest, { values: [], booleans: ["--delete-dir", "--yes"] }, command);
-      return { kind: "remove", name: one(positionals, "a profile name"), deleteDir: booleans["--delete-dir"] === true, yes: booleans["--yes"] === true };
+      return {
+        kind: "remove",
+        name: one(positionals, "a profile name"),
+        deleteDir: booleans["--delete-dir"] === true,
+        yes: booleans["--yes"] === true,
+      };
     }
     default: {
       const { positionals, booleans } = parseFlags(rest, { values: [], booleans: ["--none"] }, command);
@@ -235,7 +260,9 @@ const realOrResolved = (path: string) => {
 /** The refusals for a new profile name, before anything is written; the same for `profile add` and the `setup` wizard. */
 export function checkNewProfileName(name: string, home: string) {
   if (name === "default" || name === DEFAULT_ISOLATED_NAME) {
-    throw new UsageError(`"${name}" is reserved (${name === "default" ? "the built-in profile" : "the managed profile of that name"}); choose another name.`);
+    throw new UsageError(
+      `"${name}" is reserved (${name === "default" ? "the built-in profile" : "the managed profile of that name"}); choose another name.`,
+    );
   }
   checkProfileName(name);
   if (existsSync(managedDir(home, name))) {
@@ -259,12 +286,19 @@ export function checkExternalConfigDir(raw: string, home: string, userHome: stri
   }
   if (!stat.isDirectory()) throw new UsageError(`${label} ${configDir} is not a directory.`);
   if (isUnder(configDir, resolve(home)) || isUnder(realOrResolved(configDir), realOrResolved(home))) {
-    throw new UsageError(`${label} ${configDir} is under the Wachiman home ${home}, which holds the managed profiles; use \`wachiman profile create\` for those.`);
+    throw new UsageError(
+      `${label} ${configDir} is under the Wachiman home ${home}, which holds the managed profiles; use \`wachiman profile create\` for those.`,
+    );
   }
   return configDir;
 }
 
-function addProfile(cmd: Extract<ProfileCommand, { kind: "add" }>, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps) {
+function addProfile(
+  cmd: Extract<ProfileCommand, { kind: "add" }>,
+  env: Record<string, string | undefined>,
+  io: CommandIo,
+  deps: AccountDeps,
+) {
   const home = wachimanHome(env);
   const { name } = cmd;
   checkNewProfileName(name, home);
@@ -281,7 +315,8 @@ function addProfile(cmd: Extract<ProfileCommand, { kind: "add" }>, env: Record<s
     ...(cmd.note ? { note: cmd.note } : {}),
   };
   updateConfig({ home }, (current) => {
-    if (Object.hasOwn(current.profiles, name)) throw new UsageError(`"${name}" is already registered; run \`wachiman profile remove ${name}\` first to register it again.`);
+    if (Object.hasOwn(current.profiles, name))
+      throw new UsageError(`"${name}" is already registered; run \`wachiman profile remove ${name}\` first to register it again.`);
     return { ...current, profiles: { ...current.profiles, [name]: entry } };
   });
   io.stderr(`registered external profile ${name} (${configDir}${cmd.binary ? `, binary ${cmd.binary}` : ", claude from PATH"}).`);
@@ -307,10 +342,17 @@ function renderProfileList(list: ProfileList, home: string) {
     if (list.defaultProfile !== undefined && refersTo(list.defaultProfile, p.name)) parts.push("(default)");
     return parts.join("  ");
   });
-  return [`Profiles in ${home}${list.defaultProfile ? ` (default: ${list.defaultProfile})` : ""}:`, ...lines.map((l) => `  ${l}`), ""].join("\n");
+  return [`Profiles in ${home}${list.defaultProfile ? ` (default: ${list.defaultProfile})` : ""}:`, ...lines.map((l) => `  ${l}`), ""].join(
+    "\n",
+  );
 }
 
-function removeProfile(cmd: Extract<ProfileCommand, { kind: "remove" }>, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps) {
+function removeProfile(
+  cmd: Extract<ProfileCommand, { kind: "remove" }>,
+  env: Record<string, string | undefined>,
+  io: CommandIo,
+  deps: AccountDeps,
+) {
   const home = wachimanHome(env);
   const { name } = cmd;
   if (name === "default") throw new UsageError("`default` is the built-in profile; there is nothing to remove.");
@@ -319,7 +361,9 @@ function removeProfile(cmd: Extract<ProfileCommand, { kind: "remove" }>, env: Re
   const config = loadConfig(home, true);
   const entry = config && Object.hasOwn(config.profiles, name) ? config.profiles[name] : undefined;
   if (cmd.deleteDir && entry?.kind === "external") {
-    throw new UsageError(`--delete-dir deletes the directory of a managed profile only; ${entry.configDir} belongs to you, so \`wachiman profile remove ${name}\` leaves it alone.`);
+    throw new UsageError(
+      `--delete-dir deletes the directory of a managed profile only; ${entry.configDir} belongs to you, so \`wachiman profile remove ${name}\` leaves it alone.`,
+    );
   }
   const bound = Object.entries(config?.projects ?? {}).filter(([, b]) => refersTo(b.profile, name));
   const isDefault = config?.defaultProfile !== undefined && refersTo(config.defaultProfile, name);
@@ -327,7 +371,9 @@ function removeProfile(cmd: Extract<ProfileCommand, { kind: "remove" }>, env: Re
   const dirExists = existsSync(dir);
   const managedTarget = entry?.kind === "managed" || (entry === undefined && dirExists);
   if (!entry && bound.length === 0 && !isDefault && !(cmd.deleteDir && dirExists)) {
-    throw new UsageError(`profile "${name}" is not registered${dirExists ? `; its directory ${dir} is unregistered, and \`--delete-dir\` removes it` : ""}. Run \`wachiman profile list\`.`);
+    throw new UsageError(
+      `profile "${name}" is not registered${dirExists ? `; its directory ${dir} is unregistered, and \`--delete-dir\` removes it` : ""}. Run \`wachiman profile list\`.`,
+    );
   }
   const deleteTarget = cmd.deleteDir && managedTarget && dirExists;
   if (deleteTarget && lstatSync(dir).isSymbolicLink()) {
@@ -342,7 +388,10 @@ function removeProfile(cmd: Extract<ProfileCommand, { kind: "remove" }>, env: Re
   const first = confirm("profile remove", env, deps, {
     yes: cmd.yes,
     defaultYes: false,
-    question: `Remove profile ${name}?\n${changes.filter(Boolean).map((c) => `  - ${c}`).join("\n")}`,
+    question: `Remove profile ${name}?\n${changes
+      .filter(Boolean)
+      .map((c) => `  - ${c}`)
+      .join("\n")}`,
   });
   if (first !== "yes") return first === "no" ? 0 : 130;
   const keychain =
@@ -376,7 +425,12 @@ function removeProfile(cmd: Extract<ProfileCommand, { kind: "remove" }>, env: Re
   return 0;
 }
 
-function loginProfile(cmd: Extract<ProfileCommand, { kind: "login" }>, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps) {
+function loginProfile(
+  cmd: Extract<ProfileCommand, { kind: "login" }>,
+  env: Record<string, string | undefined>,
+  io: CommandIo,
+  deps: AccountDeps,
+) {
   const home = wachimanHome(env);
   if (parseProfileRef(cmd.profile).kind === "default") {
     throw new UsageError("`default` is your own claude: sign in with `claude auth login`.");
@@ -385,14 +439,21 @@ function loginProfile(cmd: Extract<ProfileCommand, { kind: "login" }>, env: Reco
     throw new UsageError("profile login needs a terminal: run it yourself in a terminal, not from an agent or a pipe.");
   }
   const config = loadConfig(home);
-  const found = lookupProfileRef(cmd.profile, { profiles: config?.profiles ?? {}, home, managedDirExists: (n) => existsSync(managedDir(home, n)) });
+  const found = lookupProfileRef(cmd.profile, {
+    profiles: config?.profiles ?? {},
+    home,
+    managedDirExists: (n) => existsSync(managedDir(home, n)),
+  });
   if (!found.ok) throw new UsageError(found.problem);
   const { profile } = found;
   if (profile.kind === "default") throw new UsageError("`default` is your own claude: sign in with your own claude.");
   const stored = profile.kind === "external" ? profile.binary : undefined;
   if (stored !== undefined) {
     const problem = binaryProblem(stored);
-    if (problem) throw new UsageError(`The binary of profile "${profile.name}", ${stored}, ${problem}. Register the profile again with \`wachiman profile add\`.`);
+    if (problem)
+      throw new UsageError(
+        `The binary of profile "${profile.name}", ${stored}, ${problem}. Register the profile again with \`wachiman profile add\`.`,
+      );
   }
   if (!statIsDirectory(profile.configDir)) {
     throw new UsageError(
@@ -403,12 +464,26 @@ function loginProfile(cmd: Extract<ProfileCommand, { kind: "login" }>, env: Reco
   const childEnv = buildChildEnv(env, { auth: "subscription", configDir: profile.configDir });
   const cwd = mkdtempSync(join(tmpdir(), "wachiman-login-"));
   try {
-    const probe = (deps.spawn ?? defaultSpawn)(binary, ["auth", "--help"], { cwd, env: childEnv, timeout: 15_000, maxBuffer: 64 * 1024, shell: false, encoding: "utf8" });
-    if (probe.error) throw new UsageError(`"${binary}" did not start: ${probe.error.message}. Install Claude Code, or register the profile with the path of its binary.`);
+    const probe = (deps.spawn ?? defaultSpawn)(binary, ["auth", "--help"], {
+      cwd,
+      env: childEnv,
+      timeout: 15_000,
+      maxBuffer: 64 * 1024,
+      shell: false,
+      encoding: "utf8",
+    });
+    if (probe.error)
+      throw new UsageError(
+        `"${binary}" did not start: ${probe.error.message}. Install Claude Code, or register the profile with the path of its binary.`,
+      );
     const hasLogin = probe.status === 0 && /^\s*login\b/m.test(probe.stdout);
     io.stderr(`Signing in profile ${profile.name}: starting ${binary} under ${profile.configDir}.`);
     if (!hasLogin) io.stderr("This claude has no `auth login`: run /login in the session that opens, then /exit.");
-    const run = (deps.interactiveSpawn ?? defaultInteractiveSpawn)(binary, hasLogin ? ["auth", "login"] : [], { cwd, env: childEnv, stdio: "inherit" });
+    const run = (deps.interactiveSpawn ?? defaultInteractiveSpawn)(binary, hasLogin ? ["auth", "login"] : [], {
+      cwd,
+      env: childEnv,
+      stdio: "inherit",
+    });
     if (run.error) throw new Error(`claude did not start: ${run.error.message}`);
     if (run.status !== null && run.status !== 0) io.stderr(`claude exited with status ${run.status}.`);
     io.stderr(`Wachiman did not read the outcome: run \`wachiman doctor --profile ${cmd.profile}\` to see the sign-in state.`);
@@ -430,7 +505,11 @@ function setDefault(cmd: Extract<ProfileCommand, { kind: "default" }>, env: Reco
   const home = wachimanHome(env);
   if (cmd.profile !== null) {
     const config = loadConfig(home);
-    const found = lookupProfileRef(cmd.profile, { profiles: config?.profiles ?? {}, home, managedDirExists: (n) => existsSync(managedDir(home, n)) });
+    const found = lookupProfileRef(cmd.profile, {
+      profiles: config?.profiles ?? {},
+      home,
+      managedDirExists: (n) => existsSync(managedDir(home, n)),
+    });
     if (!found.ok) throw new UsageError(found.problem);
   }
   const profile = cmd.profile;
@@ -474,9 +553,7 @@ export function runProfile(cmd: ProfileCommand, env: Record<string, string | und
 // project
 
 export type ProjectCommand =
-  | { kind: "help" }
-  | { kind: "show"; repoDir: string; json: boolean }
-  | { kind: "unbind"; repoDir: string; yes: boolean };
+  { kind: "help" } | { kind: "show"; repoDir: string; json: boolean } | { kind: "unbind"; repoDir: string; yes: boolean };
 
 export const projectUsage = `wachiman project show [--json] [--repo-dir <dir>]
 wachiman project unbind [--repo-dir <dir>] [--yes]`;
@@ -490,7 +567,9 @@ export function parseProjectArgs(argv: string[], repoDir: string): ProjectComman
   const command = `project ${sub}`;
   const { positionals, booleans } = parseFlags(rest, { values: [], booleans: sub === "show" ? ["--json"] : ["--yes"] }, command);
   if (positionals.length > 0) throw new UsageError(`${command} takes no argument "${positionals[0]}".`);
-  return sub === "show" ? { kind: "show", repoDir, json: booleans["--json"] === true } : { kind: "unbind", repoDir, yes: booleans["--yes"] === true };
+  return sub === "show"
+    ? { kind: "show", repoDir, json: booleans["--json"] === true }
+    : { kind: "unbind", repoDir, yes: booleans["--yes"] === true };
 }
 
 export interface ProjectShow {
@@ -498,9 +577,7 @@ export interface ProjectShow {
   repository: { key: string; name: string; keyedBy: "remote" | "path"; remote?: string; path: string };
   binding?: ProjectBinding;
   /** What `local` would use here right now, with the rung and the ignored values. */
-  resolved:
-    | { profile: string; kind: ProfileRef["kind"]; rung: string; overridden: { rung: string; value: string }[] }
-    | { error: string };
+  resolved: { profile: string; kind: ProfileRef["kind"]; rung: string; overridden: { rung: string; value: string }[] } | { error: string };
 }
 
 const repositoryOf = (repo: HistoryRepository): ProjectShow["repository"] => ({
@@ -609,20 +686,34 @@ export function parseSetupArgs(argv: string[], repoDir: string): SetupOptions | 
  * The end of `setup`: the compact doctor summary and the suggested `wachiman local` line, on stderr.
  * Returns the exit code the summary decides (1 when a required check failed; the binding stays written).
  */
-export function closeSetup(repoDir: string, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps = {}, result?: { failedRequired?: number }): number {
-  const report = buildDoctorReport(
-    { repoDir, allProfiles: false, json: false, redactPaths: false },
-    env,
-    { spawn: deps.spawn, git: deps.git, userHome: deps.userHome, ...deps.doctor },
-  );
+export function closeSetup(
+  repoDir: string,
+  env: Record<string, string | undefined>,
+  io: CommandIo,
+  deps: AccountDeps = {},
+  result?: { failedRequired?: number },
+): number {
+  const report = buildDoctorReport({ repoDir, allProfiles: false, json: false, redactPaths: false }, env, {
+    spawn: deps.spawn,
+    git: deps.git,
+    userHome: deps.userHome,
+    ...deps.doctor,
+  });
   if (result) result.failedRequired = report.failedRequired;
   const width = Math.max(...report.checks.map((r) => r.id.length));
   io.stderr(`doctor: ${report.checks.length} checks, ${report.failedRequired} required failed`);
-  for (const row of report.checks) if (row.status === "fail" || row.status === "warn") for (const line of renderRow(row, width)) io.stderr(line);
-  io.stderr(report.failedRequired > 0 ? `${report.failedRequired} required check(s) failed; the binding was written. Fix them, then run the doctor command below.` : "All required checks passed.");
-  io.stderr(report.failedRequired > 0
-    ? "local: not ready; configuration saved, required checks need attention."
-    : "local: ready; required machine and account checks passed (review range not checked).");
+  for (const row of report.checks)
+    if (row.status === "fail" || row.status === "warn") for (const line of renderRow(row, width)) io.stderr(line);
+  io.stderr(
+    report.failedRequired > 0
+      ? `${report.failedRequired} required check(s) failed; the binding was written. Fix them, then run the doctor command below.`
+      : "All required checks passed.",
+  );
+  io.stderr(
+    report.failedRequired > 0
+      ? "local: not ready; configuration saved, required checks need attention."
+      : "local: ready; required machine and account checks passed (review range not checked).",
+  );
   for (const command of projectCommands(report.failedRequired > 0 ? "doctor" : "local", repoDir)) io.stderr(`next: ${command}`);
   return report.exitCode;
 }
@@ -633,7 +724,8 @@ export function closeSetup(repoDir: string, env: Record<string, string | undefin
  * doctor summary decides the exit code: the binding stays written when a required check fails.
  */
 export function runSetup(opts: SetupOptions, env: Record<string, string | undefined>, io: CommandIo, deps: AccountDeps = {}): number {
-  const interactive = !opts.yes && (deps.interactive ?? isInteractive(env, { stdin: process.stdin.isTTY === true, stdout: process.stdout.isTTY === true }));
+  const interactive =
+    !opts.yes && (deps.interactive ?? isInteractive(env, { stdin: process.stdin.isTTY === true, stdout: process.stdout.isTTY === true }));
   if (opts.profile === undefined) {
     throw new UsageError(
       interactive
@@ -656,7 +748,9 @@ export function runSetup(opts: SetupOptions, env: Record<string, string | undefi
   io.stderr(
     `profile: ${profile.kind === "default" ? "default (your shell's claude)" : `${profile.name} (${profile.kind}, ${profile.configDir}${profile.kind === "external" && profile.binary ? `, binary ${profile.binary}` : ""})`}`,
   );
-  io.stderr(`identity: keyed by ${repo.keyedBy === "remote" ? `origin: ${repo.remote ?? "(unparsed)"}` : `path: ${repo.path}`}; every clone and worktree of this origin will use it`);
+  io.stderr(
+    `identity: keyed by ${repo.keyedBy === "remote" ? `origin: ${repo.remote ?? "(unparsed)"}` : `path: ${repo.path}`}; every clone and worktree of this origin will use it`,
+  );
   io.stderr(`will write: ${join(home, "config.json")} (nothing is written in the repository)`);
   if (interactive) {
     const answer = (deps.ask ?? askOnTerminal)(`Bind ${repo.name} to ${opts.profile}?`, true);

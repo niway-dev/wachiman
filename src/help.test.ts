@@ -14,7 +14,25 @@ describe("root help", () => {
   test("is short, names every public command and hides the CI commands and --setup-profile", () => {
     const text = rootHelp();
     expect(text.trimEnd().split("\n").length).toBeLessThanOrEqual(29);
-    for (const name of ["local", "loop", "ask", "history", "status", "dashboard", "ledger", "setup", "init", "doctor", "profile", "project", "skills", "upgrade", "pr-template", "memory", "pr-state"]) {
+    for (const name of [
+      "local",
+      "loop",
+      "ask",
+      "history",
+      "status",
+      "dashboard",
+      "ledger",
+      "setup",
+      "init",
+      "doctor",
+      "profile",
+      "project",
+      "skills",
+      "upgrade",
+      "pr-template",
+      "memory",
+      "pr-state",
+    ]) {
       expect(text).toContain(`  ${name} `);
     }
     for (const name of CI_COMMANDS) expect(text).not.toMatch(new RegExp(`^  ${name} `, "m"));
@@ -66,7 +84,21 @@ describe("a page per command", () => {
   }, 30_000);
 
   test("nested commands have their own page", () => {
-    for (const words of [["profile", "create"], ["profile", "add"], ["project", "show"], ["skills", "install"], ["skills", "uninstall"], ["ledger", "pull"], ["memory", "check"], ["memory", "archive"], ["memory", "candidates"], ["memory", "add"], ["memory", "show"], ["memory", "propose"], ...["show", "install", "status", "check", "format", "risk", "strip"].map((sub) => ["pr-template", sub])]) {
+    for (const words of [
+      ["profile", "create"],
+      ["profile", "add"],
+      ["project", "show"],
+      ["skills", "install"],
+      ["skills", "uninstall"],
+      ["ledger", "pull"],
+      ["memory", "check"],
+      ["memory", "archive"],
+      ["memory", "candidates"],
+      ["memory", "add"],
+      ["memory", "show"],
+      ["memory", "propose"],
+      ...["show", "install", "status", "check", "format", "risk", "strip"].map((sub) => ["pr-template", sub]),
+    ]) {
       const page = commandHelp(words)!;
       expect(page).toContain(`Usage\n  wachiman ${words.join(" ")}`);
       expect(helpFor([...words, "--help"])).toEqual({ text: page });

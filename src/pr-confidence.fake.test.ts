@@ -70,7 +70,13 @@ function prInput(paths: string[], over: { title?: string; description?: string }
   for (const p of paths) writeFileSync(join(headDir, p), TEN_LINES);
   const input: ReviewInput = structuredClone(prFixture);
   delete input.since;
-  input.change = { ...input.change, head: { sha: HEAD }, title: "Retry uploads", description: "Retries failed uploads and logs each retry.", ...over };
+  input.change = {
+    ...input.change,
+    head: { sha: HEAD },
+    title: "Retry uploads",
+    description: "Retries failed uploads and logs each retry.",
+    ...over,
+  };
   input.files = paths.map((filename) => ({ filename, additions: 10, deletions: 0, patch: patchOf(10) }));
   return { ...input, headDir };
 }
@@ -95,9 +101,11 @@ const deps = (provider: FakeProvider): CoreDeps => ({
 const base = (budget = 5): ReviewOptions => reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "0" }), budget);
 const graded = (budget = 5): ReviewOptions => ({ ...base(budget), confidence: { budgetUsd: CLAIMS_BUDGET_USD } });
 
-const claimsAnswer = (...claims: { text: string; vague?: boolean }[]) => () => ({
-  structuredOutput: { claims: claims.map((c) => ({ vague: false, ...c })) },
-});
+const claimsAnswer =
+  (...claims: { text: string; vague?: boolean }[]) =>
+  () => ({
+    structuredOutput: { claims: claims.map((c) => ({ vague: false, ...c })) },
+  });
 const TWO_CLAIMS = claimsAnswer({ text: "Retries failed uploads." }, { text: "Logs each retry." });
 
 const supports = (path: string, claim: number, line: number) => ({
@@ -108,14 +116,16 @@ const supports = (path: string, claim: number, line: number) => ({
 });
 
 /** One batch that reviewed every path and ties the first two to the two claims. */
-const batchOf = (paths: string[], extra: Partial<ReviewOutput> = {}) => () => ({
-  structuredOutput: out({
-    files_reviewed: paths,
-    summary: "Reviewed.",
-    claim_assignments: [supports("src/upload.ts", 0, 2), supports("src/log.ts", 1, 3)],
-    ...extra,
-  }),
-});
+const batchOf =
+  (paths: string[], extra: Partial<ReviewOutput> = {}) =>
+  () => ({
+    structuredOutput: out({
+      files_reviewed: paths,
+      summary: "Reviewed.",
+      claim_assignments: [supports("src/upload.ts", 0, 2), supports("src/log.ts", 1, 3)],
+      ...extra,
+    }),
+  });
 
 /** The claims call and the batches end on a limit with usable output; the grade must not trust it. */
 const limited = (reason: "turns" | "timeout", step: () => Partial<ProviderResult>) => () => ({ ...step(), terminalReason: reason });
@@ -274,7 +284,15 @@ describe("the grade of a pull request review", () => {
 
   test("an open Blocker gives C", async () => {
     const paths = ["src/upload.ts", "src/log.ts"];
-    const blocker = { path: "src/upload.ts", line: 2, severity: "blocker" as const, topic: "bug" as const, confidence: "high" as const, title: "Loses data", body: "It drops the file." };
+    const blocker = {
+      path: "src/upload.ts",
+      line: 2,
+      severity: "blocker" as const,
+      topic: "bug" as const,
+      confidence: "high" as const,
+      title: "Loses data",
+      body: "It drops the file.",
+    };
     const provider = new FakeProvider([TWO_CLAIMS, batchOf(paths, { findings: [blocker] })]);
     const result = await reviewChange(prInput(paths), graded(), deps(provider));
     expect(result.fidelity?.grade).toBe("C");
@@ -290,7 +308,14 @@ describe("a run that did not read everything has no grade", () => {
       // The first batch spends nearly the whole budget; the second is not run.
       (request) => {
         const mine = partFiles(request.prompt);
-        return { costUsd: 0.34, structuredOutput: out({ files_reviewed: mine, summary: "One.", claim_assignments: mine.includes("src/upload.ts") ? [supports("src/upload.ts", 0, 2)] : [] }) };
+        return {
+          costUsd: 0.34,
+          structuredOutput: out({
+            files_reviewed: mine,
+            summary: "One.",
+            claim_assignments: mine.includes("src/upload.ts") ? [supports("src/upload.ts", 0, 2)] : [],
+          }),
+        };
       },
     ]);
     const options = { ...graded(0.4), batchLines: 10 };
@@ -304,7 +329,11 @@ describe("a run that did not read everything has no grade", () => {
 
   test("a file the batch did not account for gives cannot say", async () => {
     const paths = ["src/upload.ts", "src/log.ts"];
-    const provider = new FakeProvider([TWO_CLAIMS, batchOf(["src/upload.ts"]), () => ({ structuredOutput: out({ files_reviewed: ["src/upload.ts"] }) })]);
+    const provider = new FakeProvider([
+      TWO_CLAIMS,
+      batchOf(["src/upload.ts"]),
+      () => ({ structuredOutput: out({ files_reviewed: ["src/upload.ts"] }) }),
+    ]);
     const result = await reviewChange(prInput(paths), graded(), deps(provider));
     expect(result.fidelity?.grade).toBe("cannot say");
     expect(result.fidelity?.reasons).toContain("One file was not read");
@@ -312,7 +341,10 @@ describe("a run that did not read everything has no grade", () => {
 
   test("a claims call that returns nothing usable gives cannot say, never C", async () => {
     const paths = ["src/upload.ts"];
-    const provider = new FakeProvider([() => ({ structuredOutput: { nope: true } }), () => ({ structuredOutput: out({ files_reviewed: paths }) })]);
+    const provider = new FakeProvider([
+      () => ({ structuredOutput: { nope: true } }),
+      () => ({ structuredOutput: out({ files_reviewed: paths }) }),
+    ]);
     const result = await reviewChange(prInput(paths), graded(), deps(provider));
     expect(result.fidelity?.grade).toBe("cannot say");
     expect(provider.requests[1]?.prompt).not.toContain("claim_assignments");
@@ -464,7 +496,7 @@ describe("result /2 and /1", () => {
       automatic: false,
       instructionChanges: { files: [], baseSha: "b".repeat(40) },
     }).body;
-    expect(body).toContain("**PR Confidence: B.** One unexplained change.");
-    expect(body.indexOf("on their lines")).toBeLessThan(body.indexOf("PR Confidence: B"));
+    expect(body).toContain("| **PR Confidence** | B: One unexplained change |");
+    expect(body.indexOf("| **Findings** |")).toBeLessThan(body.indexOf("| **PR Confidence** |"));
   });
 });
