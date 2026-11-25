@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { appendEntry, parseAppendArgs, parseHistory, parseTableArgs, renderTable, toEntry } from "./bench-history";
+import { appendEntry, parseAppendArgs, parseHistory, parseTableArgs, renderTable, toEntry } from "./cli-bench-history";
 
 const run = (commit: string, a: number, b: number) => ({
   commit,
@@ -17,7 +17,7 @@ const entry = (commit: string, parentA: number, commitA: number, date = "2026-11
     arch: "X64",
   });
 
-describe("bench-history", () => {
+describe("cli-bench-history", () => {
   test("an entry holds the parent median, the commit median, the change and the runner per case", () => {
     expect(entry("abc-dirty", 100, 110, "2026-11-22T01:02:03Z")).toEqual({
       commit: "abc",

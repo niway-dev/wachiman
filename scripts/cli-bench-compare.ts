@@ -1,9 +1,9 @@
 #!/usr/bin/env bun
 /**
- * Compares the `bun run bench --json` output of a base checkout and a head checkout and prints a
+ * Compares the `bun run bench:cli --json` output of a base checkout and a head checkout and prints a
  * Markdown table: per case, the base median, the head median and the change in percent.
  *
- *   bun scripts/bench-compare.ts --threshold 15 --base b1.json b2.json --head h1.json h2.json [--base-commit sha] [--head-commit sha] [--out table.md]
+ *   bun scripts/cli-bench-compare.ts --threshold 15 --base b1.json b2.json --head h1.json h2.json [--base-commit sha] [--head-commit sha] [--out table.md]
  *
  * Each side may be several files (rounds measured one after the other, interleaved with the other
  * side, so runner noise lands on both). A case's figure for a side is the median of that side's
@@ -18,7 +18,15 @@ import { readFileSync, writeFileSync } from "node:fs";
 export const clean = (c?: string) => (c ?? "unknown").replace(/-dirty$/, "");
 
 /** First line of the PR comment: how the workflow finds the comment to update. */
-export const MARKER = "<!-- wachiman-bench -->";
+export const MARKER = "<!-- wachiman-cli-bench -->";
+
+/**
+ * The marker the workflow wrote before it was renamed to "CLI bench". The workflow still accepts it
+ * when it looks for its comment, so a pull request open at the rename keeps one comment, not two.
+ * Remove it (here and in the jq filter of .github/workflows/cli-bench.yml) once no pull request
+ * opened before the rename is still open.
+ */
+export const LEGACY_MARKER = "<!-- wachiman-bench -->";
 
 export type BenchRun = { commit?: string; date?: string; results: { case: string; median_ms: number }[] };
 export type Options = { thresholdPct: number; minDeltaMs: number };
@@ -128,7 +136,7 @@ if (import.meta.main) {
     base = args.base.map(read);
     head = args.head.map(read);
   } catch (e) {
-    console.error(`bench-compare: ${(e as Error).message}`);
+    console.error(`cli-bench-compare: ${(e as Error).message}`);
     process.exit(2);
   }
   const result = compare(base, head, args);

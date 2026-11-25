@@ -200,7 +200,7 @@ try {
   cleanup();
 }
 if (failure) {
-  console.error(`bench failed: ${failure}`);
+  console.error(`cli-cli-bench failed: ${failure}`);
   process.exit(1);
 }
 
