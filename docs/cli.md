@@ -650,7 +650,7 @@ skip it.
 wachiman upgrade [--check] [--repo-only] [--to <version>] [--repo-dir <dir>]
 ```
 
-The caller workflow pins an exact release (`uses: niway-dev/wachiman/.github/workflows/review.yml@v1.20.1`), <!-- x-release-please-version -->
+The caller workflow pins an exact release (`uses: niway-dev/wachiman/.github/workflows/review.yml@v1.21.0`), <!-- x-release-please-version -->
 so a new release never reaches CI without a change you review. `upgrade` makes that change one command, in two steps.
 
 1. **The CLI.** It reads the latest version with `npm view wachiman version wachimanDataCollection --json` (one request), then installs it with the package manager
@@ -1062,7 +1062,7 @@ on:
 permissions: { contents: write, pull-requests: write }
 jobs:
   remember:
-    uses: niway-dev/wachiman/.github/workflows/wachiman-memory.yml@v1.20.1
+    uses: niway-dev/wachiman/.github/workflows/wachiman-memory.yml@v1.21.0
     with:
       operator: your-github-login
 ```
