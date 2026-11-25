@@ -140,6 +140,7 @@ if (import.meta.main) {
       writeFileSync(file, appendEntry(read(file), entry));
     } else {
       const { file, last } = parseTableArgs(argv);
+      if (!existsSync(file)) throw new Error(`${file} does not exist`);
       const entries = parseHistory(read(file));
       process.stdout.write(renderTable(Number.isFinite(last) ? entries.slice(-last) : entries));
     }
