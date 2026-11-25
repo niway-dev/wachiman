@@ -10,8 +10,10 @@ export function doNotTrack(env: Record<string, string | undefined> = process.env
   return value !== undefined && value !== "" && value !== "0" && value !== "false";
 }
 
-/** Wachiman collects nothing, so this is false; future collection must also return false whenever `doNotTrack(env)` is true. */
+/** Wachiman collects no usage data. A change that adds collection flips this and must still pass through `usageDataAllowed`. */
+const COLLECTS_USAGE_DATA = false;
+
+/** Whether usage data may be collected: never when `DO_NOT_TRACK` is set, whatever was opted into. */
 export function usageDataAllowed(env: Record<string, string | undefined> = process.env): boolean {
-  void env;
-  return false;
+  return COLLECTS_USAGE_DATA && !doNotTrack(env);
 }

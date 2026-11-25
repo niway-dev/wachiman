@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { UsageError } from "../config";
 import type { GitRunner } from "../evidence";
 import type { InstallKind } from "../install-kind";
-import { dataNotices, makeRun, parseUpgradeArgs, planCliUpgrade, runUpgrade, type UpgradeDeps, type UpgradeOptions } from "./command";
+import { dataNotices, makeRun, parseRegistryView, parseUpgradeArgs, planCliUpgrade, runUpgrade, type UpgradeDeps, type UpgradeOptions } from "./command";
 import { classifyRef, rewritePins } from "./pin";
 
 const scratch: string[] = [];
@@ -409,14 +409,15 @@ describe("data collection notices", () => {
     expect(dataNotices(field, "not-a-version", "1.3.0")).toEqual([]);
   });
 
-  test("the upgrade prints the heading and the pointer after a successful install", () => {
+  test("the upgrade prints the heading and the pointer before the package manager runs", () => {
     const r = rig({});
     expect(r.go({}, { dataCollection: () => field })).toBe(0);
     const out = r.out.join("");
     expect(out).toContain("Data collection changes in this upgrade:");
     expect(out).toContain("v1.3.0: Sends the command name.");
     expect(out).not.toContain("Too new.");
-    expect(out).toContain("docs/on-your-machine.md");
+    expect(out.indexOf("Data collection changes")).toBeLessThan(out.indexOf("Installing v1.3.0"));
+    expect(out).toContain("https://github.com/niway-dev/wachiman/blob/main/docs/on-your-machine.md");
   });
 
   test("--check prints them only when an upgrade is available", () => {
@@ -429,16 +430,37 @@ describe("data collection notices", () => {
   });
 
   test("nothing is printed when no notice applies, and a throwing field is not a failure", () => {
-    for (const dataCollection of [() => undefined, () => ({}), () => "junk"]) {
+    for (const dataCollection of [() => undefined, () => ({}), () => "junk", () => { throw new Error("boom"); }]) {
       const r = rig({});
       expect(r.go({}, { dataCollection })).toBe(0);
       expect(r.out.join("")).not.toContain("Data collection");
     }
   });
 
-  test("a failed install prints no notice", () => {
+  test("the notices come before the install, so a failed install still shows them", () => {
     const r = rig({});
     expect(r.go({}, { run: () => 1, dataCollection: () => field })).toBe(1);
-    expect(r.out.join("")).not.toContain("Data collection");
+    expect(r.out.join("")).toContain("Data collection");
+  });
+});
+
+describe("parseRegistryView", () => {
+  test("reads an object with both fields", () => {
+    expect(parseRegistryView('{"version":"1.3.0","wachimanDataCollection":{"1.3.0":"x"}}')).toEqual({
+      version: "1.3.0",
+      dataCollection: { "1.3.0": "x" },
+    });
+  });
+  test("a bare version string (no field published) still gives the version", () => {
+    expect(parseRegistryView('"1.3.0"')).toEqual({ version: "1.3.0", dataCollection: undefined });
+  });
+  test("an object without the field still gives the version", () => {
+    expect(parseRegistryView('{"version":"1.3.0"}')).toEqual({ version: "1.3.0", dataCollection: undefined });
+  });
+  test("malformed JSON and non-release versions give no version", () => {
+    expect(parseRegistryView("not json")).toEqual({});
+    expect(parseRegistryView("")).toEqual({});
+    expect(parseRegistryView('{"version":"1.3.0-beta.1"}').version).toBeUndefined();
+    expect(parseRegistryView('"latest"').version).toBeUndefined();
   });
 });

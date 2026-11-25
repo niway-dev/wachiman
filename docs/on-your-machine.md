@@ -110,7 +110,7 @@ appear only in the files that a row, here or in the table above, names for that 
 
 | Address | What it is | Where in the code |
 | --- | --- | --- |
-| `github.com` | Links in review comments, help text and prompts | `src/engine.ts`, `src/help.ts`, `src/init/prompt.ts`, `src/review-format/render.ts` |
+| `github.com` | Links in review comments, help text and prompts | `src/engine.ts`, `src/help.ts`, `src/init/prompt.ts`, `src/review-format/render.ts`, `src/upgrade/command.ts` |
 | `bun.sh` | An install hint shown when Bun is missing | `bin/launcher-args.js`, `scripts/verify-package.sh` |
 | `code.claude.com` | A link in the `wachiman doctor` output | `src/doctor/render.ts` |
 | `claude.dev` | A link in a comment of the `.wachiman.yml` that `wachiman init` writes | `src/init/settings.ts` |

@@ -77,6 +77,18 @@ export function makeRun(platform: NodeJS.Platform = process.platform, spawn: Spa
 
 const defaultRun = makeRun();
 
+/** What `npm view wachiman version wachimanDataCollection --json` printed: an object, or a bare version string when the field is absent. */
+export function parseRegistryView(stdout: string): { version?: string; dataCollection?: unknown } {
+  try {
+    const body: unknown = JSON.parse(stdout);
+    const object = typeof body === "object" && body !== null && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
+    const version = typeof body === "string" ? body : object.version;
+    return { ...(typeof version === "string" && parseTag(version) ? { version } : {}), dataCollection: object.wachimanDataCollection };
+  } catch {
+    return {};
+  }
+}
+
 /** The one registry request: `npm view wachiman[@spec] version wachimanDataCollection --json`, asked once per spec. */
 const viewed = new Map<string, { version?: string; dataCollection?: unknown }>();
 const registryView = (spec: string) => {
@@ -88,17 +100,7 @@ const registryView = (spec: string) => {
     timeout: 30_000,
     ...spawnShell(process.platform),
   });
-  let result: { version?: string; dataCollection?: unknown } = {};
-  if (run.status === 0) {
-    try {
-      const body: unknown = JSON.parse(String(run.stdout));
-      const object = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
-      const version = typeof body === "string" ? body : object.version;
-      result = { ...(typeof version === "string" && parseTag(version) ? { version } : {}), dataCollection: object.wachimanDataCollection };
-    } catch {
-      // An unreadable answer is the same as no answer.
-    }
-  }
+  const result = run.status === 0 ? parseRegistryView(String(run.stdout)) : {};
   viewed.set(spec, result);
   return result;
 };
@@ -125,8 +127,17 @@ export function dataNotices(field: unknown, installed: string, target: string): 
   return found.map((n) => `  v${n.version.join(".")}: ${n.text}`);
 }
 
+/** The notices for the step from `installed` to `target`; a failing lookup gives none and never fails the upgrade. */
+function noticesFor(deps: UpgradeDeps, spec: string, installed: string, target: string): string[] {
+  try {
+    return dataNotices((deps.dataCollection ?? defaultDataCollection)(spec), installed, target);
+  } catch {
+    return [];
+  }
+}
+
 const noticeText = (lines: string[]) =>
-  lines.length === 0 ? "" : `Data collection changes in this upgrade:\n${lines.join("\n")}\nSee docs/on-your-machine.md.\n`;
+  lines.length === 0 ? "" : `Data collection changes in this upgrade:\n${lines.join("\n")}\nSee https://github.com/niway-dev/wachiman/blob/main/docs/on-your-machine.md\n`;
 
 /** `npm prefix -g`: the directory whose `lib/node_modules` (`node_modules` on Windows) holds npm's global packages. */
 const defaultNpmPrefix = () => {
@@ -219,7 +230,7 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
     }
     const newer = compareVersions(parseTag(found)!, current) > 0;
     io.stdout(`Latest:    v${found}\n${newer ? "Run `wachiman upgrade` to update.\n" : "You are up to date.\n"}`);
-    if (newer) io.stdout(noticeText(dataNotices((deps.dataCollection ?? defaultDataCollection)("latest"), deps.version, found)));
+    if (newer) io.stdout(noticeText(noticesFor(deps, "latest", deps.version, found)));
     return 0;
   }
 
@@ -256,13 +267,13 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
         io.stdout(`The CLI is already on v${deps.version}${opts.to ? ` (newer than or equal to ${opts.to})` : ""}; nothing to install.\n`);
         target ??= `v${found}`;
       } else {
+        io.stdout(noticeText(noticesFor(deps, opts.to === undefined ? "latest" : found, deps.version, found)));
         const shown = [plan.command, ...plan.args].join(" ");
         io.stdout(`Installing v${found} with ${plan.manager}: ${shown}\n`);
         const status = (deps.run ?? defaultRun)(plan.command, plan.args);
         if (status === 0) {
           target ??= `v${found}`;
           io.stdout(`The CLI is now v${found}.\n`);
-          io.stdout(noticeText(dataNotices((deps.dataCollection ?? defaultDataCollection)(opts.to === undefined ? "latest" : found), deps.version, found)));
         } else {
           io.stderr(`wachiman: ${shown} ${status === null ? "could not start" : `failed with exit ${status}`}; the CLI is unchanged.`);
           // The pins would name a release the CLI could not install (with --to it may not exist).
