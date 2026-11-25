@@ -103,8 +103,8 @@ Two facts shape the decision:
 - One formatting commit rewrites about 300 files (11,400 lines added, 4,160 removed). `git blame`
   skips it through `.git-blame-ignore-revs`; GitHub honours that file, and locally
   `git config blame.ignoreRevsFile .git-blame-ignore-revs` turns it on.
-- The baseline started at 116 lint diagnostics (before the comment rule, which adds its own count: see the
-  [code comments](../code-comments.md) page) in 50 files and 155 type errors in 46 files. They
+- The baseline started at 116 lint diagnostics (before the comment rule, which adds its own count, kept in
+  `scripts/ratchet-baseline.json` under `local/comments-point-to-docs`; see [code comments](../code-comments.md)) in 50 files and 155 type errors in 46 files. They
   are real findings, not noise, and each fix lowers the baseline in the same pull request.
   Renaming or moving a file with a baseline entry looks like a rise in the new path; update the
   baseline in that pull request.

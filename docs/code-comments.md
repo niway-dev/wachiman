@@ -40,9 +40,11 @@ plugin is not part of the npm package, and it changes nothing for people who use
 
 The opt-in review behavior [`review.comments_point_to_docs`](configuration.md#the-comment-rule-reviewcomments_point_to_docs)
 is a separate thing, a review opinion on the comments a pull request adds, off unless a repository turns it
-on ([ADR 0064](adr/0064-new-review-behavior-is-opt-in-per-repository-and-off-by-default.md)). Both accept
-the same two forms (a pointer and a tool directive). The lint rule is mechanical and rejects every other
-comment in a file; the review rule is a model's judgement and only reports with `Consider` severity.
+on ([ADR 0064](adr/0064-new-review-behavior-is-opt-in-per-repository-and-off-by-default.md)). They overlap
+(a pointer to a document, `@ts-expect-error` with a reason) but they are not the same list. The review rule
+also lets a comment through that is a link to a document, `biome-ignore`, `prettier-ignore`, a type annotation
+or a license header; the lint rule reports those as prose. The lint rule is mechanical and rejects every
+other comment in a file; the review rule is a model's judgement and only reports with `Consider` severity.
 
 ## How it is enforced
 
