@@ -15,7 +15,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 /** The harness copy dirties the base checkout; the table names the commit. */
-const clean = (c?: string) => (c ?? "unknown").replace(/-dirty$/, "");
+export const clean = (c?: string) => (c ?? "unknown").replace(/-dirty$/, "");
 
 /** First line of the PR comment: how the workflow finds the comment to update. */
 export const MARKER = "<!-- wachiman-bench -->";

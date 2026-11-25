@@ -17,7 +17,7 @@
  * read, and the table shows `n/a` for their change.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { side, type BenchRun } from "./bench-compare";
+import { clean, side, type BenchRun } from "./bench-compare";
 
 export type CaseRow = { parent_ms: number; commit_ms: number; change_pct: number };
 export type Runner = { os: string; arch: string; cpu: string };
@@ -35,8 +35,6 @@ export type Entry = {
 };
 type Meta = { commit?: string; bun?: string; platform?: string; cpu?: string };
 type Run = BenchRun & Meta;
-
-const clean = (c?: string) => (c ?? "unknown").replace(/-dirty$/, "");
 
 /** Builds a controlled row from the interleaved rounds of the parent and of the commit. */
 export function toEntry(parent: Run[], commit: Run[], date: string, runner: { os?: string; arch?: string } = {}): Entry {
