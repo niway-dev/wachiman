@@ -74,10 +74,15 @@ export async function runSetupCommand(
     if (!resolved.ok) throw new UsageError(resolved.error);
     const { options } = resolved;
     const search = deps.ripgrep ? await deps.ripgrep(env, io.stderr) : { ok: true };
-    const code = await runSetup({ repoDir: options.repoDir, profile: options.profile, yes: flags.yes === true, json: options.json }, env, io, {
-      ...deps,
-      interactive: false,
-    });
+    const code = await runSetup(
+      { repoDir: options.repoDir, profile: options.profile, yes: flags.yes === true, json: options.json },
+      env,
+      io,
+      {
+        ...deps,
+        interactive: false,
+      },
+    );
     return code === 0 && !search.ok ? 1 : code;
   }
 

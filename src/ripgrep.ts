@@ -79,15 +79,17 @@ export type RipgrepResolution =
 /** What `--version` returned; a test replaces it. */
 export type VersionProbe = (binary: string) => { status: number | null; stdout: string; error?: Error };
 
-const defaultProbe = (env: Env): VersionProbe => (binary) => {
-  const run = spawnSync(binary, ["--version"], {
-    encoding: "utf8",
-    timeout: 10_000,
-    env: { PATH: env.PATH ?? "", HOME: env.HOME ?? "", LC_ALL: "C" },
-    stdio: ["ignore", "pipe", "ignore"],
-  });
-  return { status: run.status, stdout: run.stdout ?? "", error: run.error };
-};
+const defaultProbe =
+  (env: Env): VersionProbe =>
+  (binary) => {
+    const run = spawnSync(binary, ["--version"], {
+      encoding: "utf8",
+      timeout: 10_000,
+      env: { PATH: env.PATH ?? "", HOME: env.HOME ?? "", LC_ALL: "C" },
+      stdio: ["ignore", "pipe", "ignore"],
+    });
+    return { status: run.status, stdout: run.stdout ?? "", error: run.error };
+  };
 
 /** `ripgrep 15.2.0 (rev ...)` gives `15.2.0`; anything that is not ripgrep gives `undefined`. */
 export function parseRipgrepVersion(output: string): string | undefined {
@@ -98,15 +100,21 @@ const majorOf = (version: string) => Number(version.split(".")[0]);
 
 function check(binary: string, probe: VersionProbe): { ok: true; version: string } | { ok: false; why: string } {
   const run = probe(binary);
-  if (run.error || run.status !== 0) return { ok: false, why: `${binary} did not answer --version${run.error ? ` (${run.error.message})` : ""}` };
+  if (run.error || run.status !== 0)
+    return { ok: false, why: `${binary} did not answer --version${run.error ? ` (${run.error.message})` : ""}` };
   const version = parseRipgrepVersion(run.stdout);
   if (!version) return { ok: false, why: `${binary} is not ripgrep` };
-  if (majorOf(version) < RIPGREP_MIN_MAJOR) return { ok: false, why: `${binary} is ripgrep ${version}; ${RIPGREP_MIN_MAJOR} or newer is needed` };
+  if (majorOf(version) < RIPGREP_MIN_MAJOR)
+    return { ok: false, why: `${binary} is ripgrep ${version}; ${RIPGREP_MIN_MAJOR} or newer is needed` };
   return { ok: true, version };
 }
 
 /** Finds the `rg` to run, in the order documented at the top of this file. Never throws. */
-export function resolveRipgrep(env: Env, probe: VersionProbe = defaultProbe(env), exists: (path: string) => boolean = existsSync): RipgrepResolution {
+export function resolveRipgrep(
+  env: Env,
+  probe: VersionProbe = defaultProbe(env),
+  exists: (path: string) => boolean = existsSync,
+): RipgrepResolution {
   const tried: string[] = [];
   const attempt = (source: RipgrepFound["source"], binary: string): RipgrepResolution | undefined => {
     const result = check(binary, probe);
@@ -226,7 +234,9 @@ export async function ensureRipgrep(
 ): Promise<{ ok: boolean; result: RipgrepResolution | InstallResult }> {
   const resolved = resolveRipgrep(env, deps.probe, deps.exists);
   if (resolved.found) {
-    print(`ripgrep ${resolved.version} found (${resolved.source === "env" ? RIPGREP_ENV : resolved.source === "installed" ? "installed by Wachiman" : "on PATH"}): ${resolved.path}`);
+    print(
+      `ripgrep ${resolved.version} found (${resolved.source === "env" ? RIPGREP_ENV : resolved.source === "installed" ? "installed by Wachiman" : "on PATH"}): ${resolved.path}`,
+    );
     return { ok: true, result: resolved };
   }
   const dir = ripgrepInstallDir(env);
@@ -240,6 +250,8 @@ export async function ensureRipgrep(
     print(`ripgrep was NOT installed: ${result.reason}`);
     return { ok: false, result };
   }
-  print(`ripgrep was not installed: ${result.reason}. Reviews still work; the call-site evidence uses git grep, which is slower on large repositories.`);
+  print(
+    `ripgrep was not installed: ${result.reason}. Reviews still work; the call-site evidence uses git grep, which is slower on large repositories.`,
+  );
   return { ok: true, result };
 }

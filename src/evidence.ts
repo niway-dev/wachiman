@@ -476,22 +476,22 @@ export interface Match {
 
 /** What a search for one symbol returned: its matches in path order, or why there are none. */
 export type SymbolSearchResult =
-  | { matches: Match[]; /** The backend's output limit cut the list. */ outputCut?: boolean }
-  | { timedOut: true }
-  | { failed: string };
+  { matches: Match[]; /** The backend's output limit cut the list. */ outputCut?: boolean } | { timedOut: true } | { failed: string };
 
 /** Searches the head for one symbol. `timeoutMs` is what is left of the step's time box. */
 export type SymbolSearch = (symbol: string, timeoutMs: number) => SymbolSearchResult;
 
 /** The `git grep` backend: one search per symbol, the fallback when ripgrep is not available. */
-export const gitSymbolSearch = (io: Pick<EvidenceIo, "git">, repoDir: string): SymbolSearch => (symbol, timeoutMs) => {
-  const run = io.git(grepArgs(symbol), { cwd: repoDir, timeoutMs });
-  if (run.timedOut) return { timedOut: true };
-  if (run.status !== 0 && run.status !== 1 && !run.outputCut) {
-    return { failed: run.error ?? `git grep exited with status ${run.status}` };
-  }
-  return { matches: parseMatches(run.stdout), ...(run.outputCut ? { outputCut: true } : {}) };
-};
+export const gitSymbolSearch =
+  (io: Pick<EvidenceIo, "git">, repoDir: string): SymbolSearch =>
+  (symbol, timeoutMs) => {
+    const run = io.git(grepArgs(symbol), { cwd: repoDir, timeoutMs });
+    if (run.timedOut) return { timedOut: true };
+    if (run.status !== 0 && run.status !== 1 && !run.outputCut) {
+      return { failed: run.error ?? `git grep exited with status ${run.status}` };
+    }
+    return { matches: parseMatches(run.stdout), ...(run.outputCut ? { outputCut: true } : {}) };
+  };
 
 function parseMatches(stdout: string): Match[] {
   const out: Match[] = [];

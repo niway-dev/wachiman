@@ -64,17 +64,20 @@ export const SEARCH_WALL_CLOCK_MS = 60_000;
 export const ripgrepArgs = (patternFile: string): string[] => [
   "--no-config", // never read the user's RIPGREP_CONFIG_PATH
   "--no-unicode", // ASCII word boundaries, as `git grep -w` under LC_ALL=C
-  "--encoding", "none", // no BOM sniffing: a UTF-16 file stays bytes, and has NULs
+  "--encoding",
+  "none", // no BOM sniffing: a UTF-16 file stays bytes, and has NULs
   "--text", // rg's own binary rule (stop at the first NUL anywhere) is not git's; `looksBinary` applies git's
   "--hidden",
   "--no-ignore",
   "--null",
   "--line-number",
   "--no-heading",
-  "--color", "never",
+  "--color",
+  "never",
   "--word-regexp",
   "--fixed-strings",
-  "--file", patternFile,
+  "--file",
+  patternFile,
   // Later globs win: the extensions first, then the exclusions, the way the pathspecs read.
   ...SOURCE_EXTENSIONS.flatMap((e) => ["--glob", `*.${e}`]),
   ...[...EXCLUDED_DIRS, ".git"].flatMap((d) => ["--glob", `!${d}/`]),
@@ -206,7 +209,10 @@ export class MatchCollector {
   private binary = new Map<string, boolean>();
 
   /** `isBinary(file)` says whether `git grep -I` would have skipped the file; it is asked once per file that has a match. */
-  constructor(names: string[], private isBinary: (file: string) => boolean = () => false) {
+  constructor(
+    names: string[],
+    private isBinary: (file: string) => boolean = () => false,
+  ) {
     this.index = new NameIndex(names);
     for (const name of names) this.lists.set(name, []);
   }
@@ -288,10 +294,13 @@ export async function runRipgrep(
       stderr: "pipe",
     });
     let timedOut = false;
-    timer = setTimeout(() => {
-      timedOut = true;
-      proc.kill();
-    }, Math.max(1, opts.timeoutMs ?? SEARCH_WALL_CLOCK_MS));
+    timer = setTimeout(
+      () => {
+        timedOut = true;
+        proc.kill();
+      },
+      Math.max(1, opts.timeoutMs ?? SEARCH_WALL_CLOCK_MS),
+    );
     const collector = new MatchCollector(names, (file) => looksBinary(join(repoDir, file)));
     const splitter = new RowSplitter((row) => collector.add(row));
     const stderrText = new Response(proc.stderr).text();
@@ -302,7 +311,8 @@ export async function runRipgrep(
     const ms = now() - started;
     if (timedOut) return { ok: false, timedOut: true, ms };
     // 0: matches, 1: none. 2 means an error, possibly after partial output: not trusted.
-    if (code !== 0 && code !== 1) return { ok: false, failed: `ripgrep exited with status ${code}${stderr ? `: ${stderr.split("\n")[0].slice(0, 200)}` : ""}`, ms };
+    if (code !== 0 && code !== 1)
+      return { ok: false, failed: `ripgrep exited with status ${code}${stderr ? `: ${stderr.split("\n")[0].slice(0, 200)}` : ""}`, ms };
     return { ok: true, byName: collector.result(), lines: collector.lines, ms };
   } catch (error) {
     return { ok: false, failed: `ripgrep could not run: ${(error as Error).message}`, ms: now() - started };
@@ -437,5 +447,4 @@ export async function startEvidenceRun(args: {
 }
 
 /** The line printed once when the evidence steps of a review are done. */
-export const evidenceSummaryLine = (t: EvidenceTally) =>
-  `evidence: backend ${t.backend}, ${t.searches} search(es), ${t.ms} ms in total`;
+export const evidenceSummaryLine = (t: EvidenceTally) => `evidence: backend ${t.backend}, ${t.searches} search(es), ${t.ms} ms in total`;

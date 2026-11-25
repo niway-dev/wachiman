@@ -266,7 +266,13 @@ export const CHECKS: DoctorCheck[] = [
       );
       if (found.found) {
         const where = found.source === "env" ? "WACHIMAN_RIPGREP" : found.source === "installed" ? "installed by Wachiman" : "on PATH";
-        return { id: "ripgrep", level: "optional", status: "ok", evidence: `ripgrep ${found.version} (${where}): ${found.path}`, detail: { version: found.version, source: found.source } };
+        return {
+          id: "ripgrep",
+          level: "optional",
+          status: "ok",
+          evidence: `ripgrep ${found.version} (${where}): ${found.path}`,
+          detail: { version: found.version, source: found.source },
+        };
       }
       // Not required: without it the call-site evidence searches with git grep, which is only slower.
       return {

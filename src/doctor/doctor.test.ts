@@ -150,7 +150,11 @@ describe("required checks that fail turn the exit code to 1", () => {
   });
 
   test("the ripgrep row reports the version found, and warns without failing when there is none or it is too old", () => {
-    expect(row(machine().report(), "ripgrep")).toMatchObject({ status: "ok", level: "optional", detail: { version: "15.2.0", source: "path" } });
+    expect(row(machine().report(), "ripgrep")).toMatchObject({
+      status: "ok",
+      level: "optional",
+      detail: { version: "15.2.0", source: "path" },
+    });
     const missing = machine({ rg: null }).report();
     expect(row(missing, "ripgrep")).toMatchObject({ status: "warn", level: "optional" });
     expect(row(missing, "ripgrep").evidence).toContain("git grep");

@@ -124,7 +124,11 @@ describe("RowSplitter", () => {
   test("a row cut across chunks, and a multi-byte character cut in the middle, come out whole", () => {
     const bytes = new TextEncoder().encode("./a.ts\u00001:café(1)\n./b.ts\u00002:naïve\n./c.ts\u00003:last");
     for (let cut = 1; cut < bytes.length; cut++) {
-      expect(collect([bytes.slice(0, cut), bytes.slice(cut)])).toEqual(["./a.ts\u00001:café(1)", "./b.ts\u00002:naïve", "./c.ts\u00003:last"]);
+      expect(collect([bytes.slice(0, cut), bytes.slice(cut)])).toEqual([
+        "./a.ts\u00001:café(1)",
+        "./b.ts\u00002:naïve",
+        "./c.ts\u00003:last",
+      ]);
     }
   });
 
@@ -213,18 +217,23 @@ describe("NameIndex", () => {
 describe("MatchCollector", () => {
   test("sorts a name's matches by path in byte order, then line, as git grep lists them", () => {
     const c = new MatchCollector(["f"]);
-    for (const [file, line] of [["a/b.ts", 1], ["a.ts", 2], ["a-b.ts", 1], ["a.ts", 1], ["a.b.ts", 1], ["A.ts", 1], ["a dir/x.ts", 1]] as const) {
+    for (const [file, line] of [
+      ["a/b.ts", 1],
+      ["a.ts", 2],
+      ["a-b.ts", 1],
+      ["a.ts", 1],
+      ["a.b.ts", 1],
+      ["A.ts", 1],
+      ["a dir/x.ts", 1],
+    ] as const) {
       c.add(`./${file}\0${line}:f(1)`);
     }
-    expect(c.result().get("f")!.map((m) => `${m.file}:${m.line}`)).toEqual([
-      "A.ts:1",
-      "a dir/x.ts:1",
-      "a-b.ts:1",
-      "a.b.ts:1",
-      "a.ts:1",
-      "a.ts:2",
-      "a/b.ts:1",
-    ]);
+    expect(
+      c
+        .result()
+        .get("f")!
+        .map((m) => `${m.file}:${m.line}`),
+    ).toEqual(["A.ts:1", "a dir/x.ts:1", "a-b.ts:1", "a.b.ts:1", "a.ts:1", "a.ts:2", "a/b.ts:1"]);
   });
 
   test("a name far into a very long line is found, with the whole text", () => {
@@ -255,12 +264,33 @@ describe("ripgrepArgs", () => {
   });
 
   test("searches what git grep -n -I -w -F searches", () => {
-    for (const flag of ["--hidden", "--no-ignore", "--null", "--line-number", "--word-regexp", "--fixed-strings", "--no-unicode", "--text"]) {
+    for (const flag of [
+      "--hidden",
+      "--no-ignore",
+      "--null",
+      "--line-number",
+      "--word-regexp",
+      "--fixed-strings",
+      "--no-unicode",
+      "--text",
+    ]) {
       expect(args).toContain(flag);
     }
     const globs = args.flatMap((a, i) => (args[i - 1] === "--glob" ? [a] : []));
     expect(globs).toEqual(
-      expect.arrayContaining(["*.ts", "*.tsx", "*.go", "!node_modules/", "!dist/", "!build/", "!.next/", "!vendor/", "!.git/", "!*.min.js", "!*.d.ts"]),
+      expect.arrayContaining([
+        "*.ts",
+        "*.tsx",
+        "*.go",
+        "!node_modules/",
+        "!dist/",
+        "!build/",
+        "!.next/",
+        "!vendor/",
+        "!.git/",
+        "!*.min.js",
+        "!*.d.ts",
+      ]),
     );
     // The exclusions come after the extensions, because the last matching glob wins.
     expect(globs.indexOf("!node_modules/")).toBeGreaterThan(globs.indexOf("*.svelte"));
@@ -296,7 +326,14 @@ describe("runRipgrep", () => {
     expect(run.ok).toBe(true);
     if (!run.ok) return;
     const files = (name: string) => run.byName.get(name)!.map((m) => m.file);
-    expect(files("formatDuration")).toEqual([".hidden/h.ts", "late-nul.ts", "late-nul.ts", "src/a.ts", "src/a/b.ts", "src/with space/c:o.ts"]);
+    expect(files("formatDuration")).toEqual([
+      ".hidden/h.ts",
+      "late-nul.ts",
+      "late-nul.ts",
+      "src/a.ts",
+      "src/a/b.ts",
+      "src/with space/c:o.ts",
+    ]);
     expect(files("parse")).toEqual([".hidden/h.ts"]);
   });
 
@@ -345,11 +382,13 @@ describe("runRipgrep", () => {
 // Backend choice
 // -----------------------------------------------------------------------------------------------
 
-const answers = (table: Record<string, string | null>): VersionProbe => (binary) => {
-  const out = table[binary];
-  if (out === undefined || out === null) return { status: null, stdout: "", error: new Error(`spawn ${binary} ENOENT`) };
-  return { status: 0, stdout: out };
-};
+const answers =
+  (table: Record<string, string | null>): VersionProbe =>
+  (binary) => {
+    const out = table[binary];
+    if (out === undefined || out === null) return { status: null, stdout: "", error: new Error(`spawn ${binary} ENOENT`) };
+    return { status: 0, stdout: out };
+  };
 const RG15 = "ripgrep 15.2.0 (rev e89fff89ac)\n\nfeatures:+pcre2\n";
 
 describe("resolveRipgrep", () => {
@@ -363,7 +402,11 @@ describe("resolveRipgrep", () => {
   });
 
   test("then the copy Wachiman installed, then rg on PATH", () => {
-    expect(resolveRipgrep(env(), answers({ [installed]: RG15, rg: RG15 }), (p) => p === installed)).toMatchObject({ found: true, path: installed, source: "installed" });
+    expect(resolveRipgrep(env(), answers({ [installed]: RG15, rg: RG15 }), (p) => p === installed)).toMatchObject({
+      found: true,
+      path: installed,
+      source: "installed",
+    });
     expect(resolveRipgrep(env(), answers({ rg: RG15 }), () => false)).toMatchObject({ found: true, path: "rg", source: "path" });
   });
 
@@ -417,14 +460,25 @@ describe("startEvidenceRun", () => {
 
   test("a batch with no symbol to search never resolves ripgrep and says nothing", async () => {
     const logs: string[] = [];
-    const run = await startEvidenceRun({ ...base, batches: [[{ filename: "README.md", patch: "@@\n+hello\n" }]], customGit: false, ripgrep: never, log: (l) => logs.push(l) });
+    const run = await startEvidenceRun({
+      ...base,
+      batches: [[{ filename: "README.md", patch: "@@\n+hello\n" }]],
+      customGit: false,
+      ripgrep: never,
+      log: (l) => logs.push(l),
+    });
     expect(run.searcher).toBeUndefined();
     expect(logs).toEqual([]);
   });
 
   test("without a qualifying ripgrep it falls back to git grep and logs one clear line", async () => {
     const logs: string[] = [];
-    const run = await startEvidenceRun({ ...base, customGit: false, ripgrep: () => ({ found: false, tried: ["rg did not answer --version (spawn rg ENOENT)"] }), log: (l) => logs.push(l) });
+    const run = await startEvidenceRun({
+      ...base,
+      customGit: false,
+      ripgrep: () => ({ found: false, tried: ["rg did not answer --version (spawn rg ENOENT)"] }),
+      log: (l) => logs.push(l),
+    });
     expect(run.searcher).toBeUndefined();
     expect(run.tally.backend).toBe("git grep");
     expect(logs).toEqual(["evidence: ripgrep not found, using git grep (slower); run `wachiman setup`"]);
@@ -441,16 +495,23 @@ describe("startEvidenceRun", () => {
     writeFileSync(join(dir, "other.ts"), "markCopySeen(1);\nstartFileDrag(2);\n");
     const logs: string[] = [];
     const second = [{ filename: "src/two.ts", patch: "@@\n+  window.api.startFileDrag(x);\n+  refreshAll();\n" }];
-    const run = await startEvidenceRun({ ...base, repoDir: dir, batches: [files, second], customGit: false, ripgrep: () => real as RipgrepFound, log: (l) => logs.push(l) });
+    const run = await startEvidenceRun({
+      ...base,
+      repoDir: dir,
+      batches: [files, second],
+      customGit: false,
+      ripgrep: () => ({ found: true as const, ...(real as RipgrepFound) }),
+      log: (l) => logs.push(l),
+    });
     expect(run.tally.searches).toBe(1);
-    expect(run.searcher!.search("startFileDrag")).toMatchObject({ matches: [{ file: "other.ts", line: 2 }] });
-    expect(run.searcher!.search("refreshAll")).toEqual({ matches: [] });
+    expect(run.searcher!.search("startFileDrag", 1000)).toMatchObject({ matches: [{ file: "other.ts", line: 2 }] });
+    expect(run.searcher!.search("refreshAll", 1000)).toEqual({ matches: [] });
     expect(logs).toHaveLength(1);
     expect(logs[0]).toMatch(/^evidence: ripgrep \d+\.\d+\.\d+ searched 3 name\(s\) in \d+ ms \(2 matching lines\)$/);
     // A later batch that needs a name nobody planned gets one more search; names already known are not searched again.
     await run.searcher!.ensure(["startFileDrag", "late"]);
     expect(run.tally.searches).toBe(2);
-    expect(run.searcher!.search("late")).toEqual({ matches: [] });
+    expect(run.searcher!.search("late", 1000)).toEqual({ matches: [] });
     await run.searcher!.ensure(["startFileDrag", "late"]);
     expect(run.tally.searches).toBe(2);
   });
@@ -622,7 +683,12 @@ describe("ensureRipgrep", () => {
 
   test("a missing one is announced before it is installed, with the pinned version and the directory", async () => {
     const lines: string[] = [];
-    const out = await ensureRipgrep(env, (l) => lines.push(l), { probe: answers({}), exists: () => false, platform: "freebsd", arch: "x64" });
+    const out = await ensureRipgrep(env, (l) => lines.push(l), {
+      probe: answers({}),
+      exists: () => false,
+      platform: "freebsd",
+      arch: "x64",
+    });
     expect(lines[0]).toBe("Installing ripgrep 15.2.0 (fast search for call-site evidence) into /h/.wachiman/bin...");
     // No build for this platform: not a failure, the review runs on git grep, and the line says so.
     expect(out.ok).toBe(true);
@@ -678,11 +744,27 @@ describe("differential: ripgrep and git grep give the same evidence", () => {
       const run = Bun.spawnSync(["git", ...args], { cwd: repo, stderr: "pipe" });
       if (run.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${run.stderr.toString()}`);
     };
-    write("src/preload.ts", "export const api = {\n  startFileDrag: (p: string) => ipc.send('drag', p),\n};\nexport function formatDuration(ms: number) {\n  return ms;\n}\n");
-    write("src/export-status-cards.tsx", "export function Card() {\n  const drag = () => {\n    markCopySeen(id);\n    window.electronAPI.startFileDrag(path);\n  };\n}\n");
+    write(
+      "src/preload.ts",
+      "export const api = {\n  startFileDrag: (p: string) => ipc.send('drag', p),\n};\nexport function formatDuration(ms: number) {\n  return ms;\n}\n",
+    );
+    write(
+      "src/export-status-cards.tsx",
+      "export function Card() {\n  const drag = () => {\n    markCopySeen(id);\n    window.electronAPI.startFileDrag(path);\n  };\n}\n",
+    );
     write("src/new.ts", "formatDuration(1);\nstartFileDrag(2);\n");
     // Path order: byte order of the whole path, which the ranking tie-break follows.
-    for (const p of ["src/a.ts", "src/a/b.ts", "src/a-b.ts", "src/a.b.ts", "src/A.ts", "src/a b.ts", "src/with space/c:o.ts", ".hidden/h.ts", "src/_u.ts"]) {
+    for (const p of [
+      "src/a.ts",
+      "src/a/b.ts",
+      "src/a-b.ts",
+      "src/a.b.ts",
+      "src/A.ts",
+      "src/a b.ts",
+      "src/with space/c:o.ts",
+      ".hidden/h.ts",
+      "src/_u.ts",
+    ]) {
       write(p, "const d = formatDuration(7);\n");
     }
     // More callers than the cap, tests among them, and mentions that are not calls.
@@ -718,12 +800,28 @@ describe("differential: ripgrep and git grep give the same evidence", () => {
   }
 
   const plans: { name: string; symbols: PlannedSymbol[]; batchFiles: string[] }[] = [
-    { name: "a call and its definition", symbols: [sym("formatDuration"), sym("startFileDrag", { qualified: true, qualifier: "window.electronAPI.startFileDrag" })], batchFiles: ["src/new.ts"] },
+    {
+      name: "a call and its definition",
+      symbols: [sym("formatDuration"), sym("startFileDrag", { qualified: true, qualifier: "window.electronAPI.startFileDrag" })],
+      batchFiles: ["src/new.ts"],
+    },
     { name: "more callers than the cap", symbols: [sym("popular")], batchFiles: [] },
-    { name: "names on the same line", symbols: [sym("markCopySeen"), sym("startFileDrag"), sym("$store"), sym("$")], batchFiles: ["src/new.ts"] },
+    {
+      name: "names on the same line",
+      symbols: [sym("markCopySeen"), sym("startFileDrag"), sym("$store"), sym("$")],
+      batchFiles: ["src/new.ts"],
+    },
     { name: "channel names", symbols: [sym("recording-ready:show", { kind: "channel" })], batchFiles: [] },
-    { name: "a name nothing else holds, and one only a definition holds", symbols: [sym("nobodyCallsThis"), sym("Widget"), sym("helper")], batchFiles: [] },
-    { name: "the batch's own files are dropped", symbols: [sym("formatDuration")], batchFiles: ["src/a.ts", "src/a/b.ts", "src/new.ts", "src/preload.ts"] },
+    {
+      name: "a name nothing else holds, and one only a definition holds",
+      symbols: [sym("nobodyCallsThis"), sym("Widget"), sym("helper")],
+      batchFiles: [],
+    },
+    {
+      name: "the batch's own files are dropped",
+      symbols: [sym("formatDuration")],
+      batchFiles: ["src/a.ts", "src/a/b.ts", "src/new.ts", "src/preload.ts"],
+    },
   ];
 
   withRipgrep("every plan gives byte-identical evidence.json, whatever else the search carries", async () => {
@@ -740,7 +838,11 @@ describe("differential: ripgrep and git grep give the same evidence", () => {
   withRipgrep("the fixture exercises what it claims: sites, definitions, truncation, ranking", async () => {
     const repo = fixtureRepo();
     const [one] = plans;
-    const { rg } = await bothBackends(repo, { symbols: one.symbols, omitted: [] }, one.batchFiles, ["formatDuration", "startFileDrag", "popular"]);
+    const { rg } = await bothBackends(repo, { symbols: one.symbols, omitted: [] }, one.batchFiles, [
+      "formatDuration",
+      "startFileDrag",
+      "popular",
+    ]);
     const duration = rg.doc.symbols.find((s) => s.symbol === "formatDuration")!;
     expect(duration.definition_guess).toMatchObject({ file: "go/main.go" });
     expect(duration.status).toBe("truncated");
@@ -767,43 +869,53 @@ describe("differential: ripgrep and git grep give the same evidence", () => {
 
   // The same comparison over a real code base: this repository at HEAD, extracted so that
   // uncommitted files (which git grep ignores and ripgrep would read) cannot differ.
-  withRipgrep("every batch of a review of this repository's own sources agrees", async () => {
-    const root = join(import.meta.dir, "..");
-    const archived = Bun.spawnSync(["git", "-c", "core.quotepath=off", "archive", "--format=tar", "HEAD"], { cwd: root, stderr: "pipe" });
-    if (archived.exitCode !== 0) return; // not a git checkout (a packed install): nothing to compare
-    const repo = temp("evidence-self-");
-    const unpacked = Bun.spawnSync(["tar", "-x", "-C", repo], { stdin: archived.stdout });
-    expect(unpacked.exitCode).toBe(0);
-    for (const args of [["init", "-q"], ["add", "-A", "-f"]]) Bun.spawnSync(["git", ...args], { cwd: repo });
+  withRipgrep(
+    "every batch of a review of this repository's own sources agrees",
+    async () => {
+      const root = join(import.meta.dir, "..");
+      const archived = Bun.spawnSync(["git", "-c", "core.quotepath=off", "archive", "--format=tar", "HEAD"], { cwd: root, stderr: "pipe" });
+      if (archived.exitCode !== 0) return; // not a git checkout (a packed install): nothing to compare
+      const repo = temp("evidence-self-");
+      const unpacked = Bun.spawnSync(["tar", "-x", "-C", repo], { stdin: archived.stdout });
+      expect(unpacked.exitCode).toBe(0);
+      for (const args of [
+        ["init", "-q"],
+        ["add", "-A", "-f"],
+      ])
+        Bun.spawnSync(["git", ...args], { cwd: repo });
 
-    const sources = readdirSync(join(repo, "src"))
-      .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
-      .sort();
-    // Batches of three files, each planned from the whole text of its files as if every line were added.
-    const batches: { files: string[]; plan: EvidencePlan }[] = [];
-    for (let i = 0; i < sources.length; i += 3) {
-      const files = sources.slice(i, i + 3).map((f) => `src/${f}`);
-      const plan = planEvidence(files.map((filename) => ({ filename, addedLines: readFileSync(join(repo, filename), "utf8").split("\n") })));
-      if (plan.symbols.length > 0) batches.push({ files, plan });
-    }
-    expect(batches.length).toBeGreaterThan(5);
-    const union = [...new Set(batches.flatMap((b) => b.plan.symbols.map((s) => s.name)))];
-    const searcher = new EvidenceSearcher(real as RipgrepFound, repo, () => {}, { backend: "ripgrep", searches: 0, ms: 0 });
-    await searcher.ensure(union);
-    expect(searcher.usable).toBe(true);
-    let compared = 0;
-    let sites = 0;
-    for (const { files, plan } of batches) {
-      const ctx = { repoDir: repo, batchFiles: files };
-      const viaGit = collectEvidence(plan, ctx, defaultEvidenceIo);
-      const viaRg = collectEvidence(plan, ctx, defaultEvidenceIo, undefined, searcher.search);
-      expect(serializeEvidence(viaRg.doc), files.join(",")).toBe(serializeEvidence(viaGit.doc));
-      compared += 1;
-      sites += viaGit.doc.symbols.reduce((n, e) => n + e.call_sites.length, 0);
-    }
-    expect(compared).toBe(batches.length);
-    expect(sites).toBeGreaterThan(20);
-  }, 120_000); // one git grep per name per batch is the slow side of this comparison
+      const sources = readdirSync(join(repo, "src"))
+        .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
+        .sort();
+      // Batches of three files, each planned from the whole text of its files as if every line were added.
+      const batches: { files: string[]; plan: EvidencePlan }[] = [];
+      for (let i = 0; i < sources.length; i += 3) {
+        const files = sources.slice(i, i + 3).map((f) => `src/${f}`);
+        const plan = planEvidence(
+          files.map((filename) => ({ filename, addedLines: readFileSync(join(repo, filename), "utf8").split("\n") })),
+        );
+        if (plan.symbols.length > 0) batches.push({ files, plan });
+      }
+      expect(batches.length).toBeGreaterThan(5);
+      const union = [...new Set(batches.flatMap((b) => b.plan.symbols.map((s) => s.name)))];
+      const searcher = new EvidenceSearcher(real as RipgrepFound, repo, () => {}, { backend: "ripgrep", searches: 0, ms: 0 });
+      await searcher.ensure(union);
+      expect(searcher.usable).toBe(true);
+      let compared = 0;
+      let sites = 0;
+      for (const { files, plan } of batches) {
+        const ctx = { repoDir: repo, batchFiles: files };
+        const viaGit = collectEvidence(plan, ctx, defaultEvidenceIo);
+        const viaRg = collectEvidence(plan, ctx, defaultEvidenceIo, undefined, searcher.search);
+        expect(serializeEvidence(viaRg.doc), files.join(",")).toBe(serializeEvidence(viaGit.doc));
+        compared += 1;
+        sites += viaGit.doc.symbols.reduce((n, e) => n + e.call_sites.length, 0);
+      }
+      expect(compared).toBe(batches.length);
+      expect(sites).toBeGreaterThan(20);
+    },
+    120_000,
+  ); // one git grep per name per batch is the slow side of this comparison
 });
 
 // extractCalledSymbols is imported only so a rename in evidence.ts breaks this file loudly.
