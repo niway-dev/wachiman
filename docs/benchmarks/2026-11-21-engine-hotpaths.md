@@ -140,6 +140,25 @@ comparison above (base 656.7 ms for the 569-file case there, 693.0 ms here): tha
 (p90 about 740 ms on base in both), so read its effect as a range of about -10% to -15%, not one
 figure.
 
+### Measured again after merging main (2026-11-25)
+
+Main moved on (the review settings read at the merge-base, one ripgrep call per evidence batch, the
+formatting commit). The three changes were re-applied on top of it and the bench run again on the Mac
+mini, `bun scripts/bench.ts --runs=5` (the bench script is part of this branch, so the base tree ran
+it copied in), two rounds alternating base (`c6edcdd`, main) and head, from fresh clones:
+
+| Case | Base, run 1 / run 2 | Head, run 1 / run 2 |
+| --- | --- | --- |
+| launcher `--version` (under bun) | 58.8 / 57.9 ms | 58.5 / 59.7 ms |
+| tests: engine fakes | 401.3 / 412.3 ms | 399.0 / 412.1 ms |
+| local review (fake claude, e2e) | 490.0 / 491.1 ms | 344.0 / 323.6 ms |
+
+The review row improves by about 30% (146 to 167 ms) and the unchanged rows do not move. `git` spawns
+per review, counted with a `git` wrapper on the fake `claude`'s PATH over the 7 runs of the case (2
+warm-ups and 5 measured): 259 on main (37 per review) and 168 on the head (24 per review), the same
+37 and 24 as before the merge. Main's new settings read at the merge-base goes through the same
+one-listing `ls-tree` as the instruction files, so no spawn was given up for it.
+
 ## Left unchanged
 
 | Area | Why it stays |
