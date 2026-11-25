@@ -277,7 +277,7 @@ describe("localInstructions", () => {
     expect(read(".wachiman.yml")?.toString()).toBe("effort: high\n");
     expect(read("CLAUDE.md")).toBeNull();
     expect(read("not-listed.txt")).toBeNull();
-    // Four instruction paths, the old focus path and the settings file: one `ls-tree`, plus the one for the unlisted path.
+    // Three instruction paths, the old focus path and the settings file: one `ls-tree`, plus the one for the unlisted path.
     expect(calls.filter((c) => c[0] === "ls-tree").length).toBe(2);
   });
 
