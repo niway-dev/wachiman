@@ -1,6 +1,7 @@
 {
   "name": "wachiman",
   "version": "1.20.1",
+  "wachimanDataCollection": {},
   "description": "Advisory pull request reviews by an agent CLI, run in your own GitHub Actions with your own key, or locally on your own Claude subscription",
   "private": false,
   "type": "module",

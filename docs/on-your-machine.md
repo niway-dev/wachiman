@@ -95,7 +95,7 @@ or when a URL host in the source is not named in this section. The test scans `s
 | The spend ledger at your `ledger_url` | Only in GitHub Actions, only when the workflow input `ledger_url` is set, and only through a workflow that grants `id-token: write`: `.github/workflows/review-platform.yml` or its generated copy `.github/workflows/wachiman-platform.yml`. On a laptop the engine skips it and says so | `POST /v1/reserve`, `/v1/settle`, `/v1/record`: amounts, trigger, PR number, per-call token and cost rows, and the job's OIDC token as bearer. Details in the next section | `src/ledger.ts` (`defaultCurl`, `reserve`, `settle`, `record`), `src/engine.ts` (`spendReserve`, `spendSettle`), `src/config.ts` |
 | GitHub's OIDC token service (`ACTIONS_ID_TOKEN_REQUEST_URL`) | Same conditions as the row above, before each ledger call | The job's request token, with the ledger URL as the audience | `src/ledger.ts` (`requestIdToken`) |
 | The ledger you connected, for reading | `wachiman ledger pull`, and `wachiman dashboard --refresh` or `wachiman status --refresh` | `GET /v1/entries?from=…&to=…` with your read token. Redirects are refused, so the token is not sent elsewhere | `src/ledger-read/pull.ts`, `src/ledger-read/credentials.ts`, `src/cli.ts` (`refreshLedger`) |
-| The npm registry, through `npm` or `bun` | `wachiman upgrade` and `wachiman upgrade --check` run `npm view wachiman version`; `upgrade` (not `--check`) then runs `npm install -g wachiman@<version>` or `bun add -g wachiman@<version>` | The package name and version | `src/upgrade/command.ts` |
+| The npm registry, through `npm` or `bun` | `wachiman upgrade` and `wachiman upgrade --check` run `npm view wachiman version wachimanDataCollection --json` (one request: the latest version and the data-collection notices of the releases up to it); `upgrade` (not `--check`) then runs `npm install -g wachiman@<version>` or `bun add -g wachiman@<version>` | The package name and version | `src/upgrade/command.ts` |
 | `downloads.claude.ai` | Only in the Actions workflow, to install the pinned Claude Code binary, which is checked against a SHA-256 before it is installed | The version and platform in the URL | `src/install-claude-code.sh` (run by `.github/workflows/review.yml`) |
 | `registry.npmjs.org` and the npm registry | At `npm i -g wachiman`, by the `bun` package's install script | Package names and versions | Not in this repository: `bun@1.3.4`'s `install.js`. See above |
 | GitHub, for `actions/checkout`, and the host `oven-sh/setup-bun` downloads Bun from | Only in the Actions workflow | Not verified: both are third-party actions pinned by commit SHA | `.github/workflows/review.yml`, `templates/caller-workflow.yml` |
@@ -178,7 +178,7 @@ the `WACHIMAN_*` and older `CLAUDE_REVIEW_*` settings are read by name in `src/c
   `WACHIMAN_COMMENT_IN_REPLY_TO`, `WACHIMAN_COMMENT_PATH`, `WACHIMAN_INTRO_DONE`,
   `WACHIMAN_NO_ANIMATION`.
 - **System:** `HOME`, `PATH`, `USER`, `TMPDIR`, `TERM`, `COLORTERM`, `LC_ALL`, `LANG`, `NO_COLOR`,
-  `FORCE_COLOR`, `BUN_INSTALL` (to find Bun), `CURL_HOME` (to find a curl config).
+  `DO_NOT_TRACK` (read only to honor it, see Telemetry), `FORCE_COLOR`, `BUN_INSTALL` (to find Bun), `CURL_HOME` (to find a curl config).
 
 **What the model's child process gets.** Claude Code is started with an allowlisted environment
 (`CHILD_ENV_ALLOWLIST` and `buildChildEnv` in `src/providers/claude-code.ts`): `PATH`, `HOME`,
@@ -239,9 +239,15 @@ telemetry destination disappear and only `api.anthropic.com` remain, and could s
 others ([local-review.md](local-review.md#7-what-is-verified-and-what-is-not)). In Actions,
 Wachiman sets none of those switches, so Claude Code runs there with its own defaults.
 
+**DO_NOT_TRACK.** Wachiman follows [donottrack.sh](https://donottrack.sh/). It sends no usage data
+today, so it already behaves as if `DO_NOT_TRACK=1` were set. It reads the variable, and when it is
+set (to anything but empty, `0` or `false`) no future opt-in can turn collection on. It never sets
+the variable and never passes it to another program. `DO_NOT_TRACK` does not change what Claude
+Code, Codex or Bun send; that is their own telemetry, described above.
+
 If Wachiman ever collects usage data to improve the tool, it will be listed on this page before the
 release that adds it, it will be possible to turn it off, and local review will keep working with it
-off.
+off. The release will also be announced in `CHANGELOG.md` and printed by `wachiman upgrade`.
 
 ## What is not verified
 

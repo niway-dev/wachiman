@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { UsageError } from "../config";
 import type { GitRunner } from "../evidence";
 import type { InstallKind } from "../install-kind";
-import { makeRun, parseUpgradeArgs, planCliUpgrade, runUpgrade, type UpgradeDeps, type UpgradeOptions } from "./command";
+import { dataNotices, makeRun, parseUpgradeArgs, planCliUpgrade, runUpgrade, type UpgradeDeps, type UpgradeOptions } from "./command";
 import { classifyRef, rewritePins } from "./pin";
 
 const scratch: string[] = [];
@@ -166,6 +166,7 @@ function rig(files: Record<string, string>, { inRepo = true }: { inRepo?: boolea
           run: (c, a) => (r.runs.push([c, ...a].join(" ")), 0),
           latest: () => (r.latestCalls++, "1.3.0"),
           npmPrefix: () => "/usr",
+          dataCollection: () => undefined,
           ...deps,
         },
       ),
@@ -390,5 +391,54 @@ describe("runUpgrade", () => {
     expect(r.go({})).toBe(0);
     expect(r.out.join("")).toContain("is not a git repository");
     expect(r.read("a.yml")).toContain("@v1.0.0");
+  });
+});
+
+describe("data collection notices", () => {
+  const field = { "1.3.0": "Sends the command name.", "1.2.5": "Older notice.", "1.4.0": "Too new." };
+
+  test("dataNotices keeps releases after the installed one up to the target, oldest first", () => {
+    expect(dataNotices(field, "1.2.0", "1.3.0")).toEqual(["  v1.2.5: Older notice.", "  v1.3.0: Sends the command name."]);
+    expect(dataNotices(field, "1.3.0", "1.3.9")).toEqual([]);
+    expect(dataNotices(field, "1.2.0", "1.2.4")).toEqual([]);
+  });
+
+  test("dataNotices ignores a missing or malformed field and bad entries", () => {
+    for (const bad of [undefined, null, "text", 3, ["1.3.0"], {}]) expect(dataNotices(bad, "1.2.0", "1.3.0")).toEqual([]);
+    expect(dataNotices({ "1.3.0": 5, "nope": "x", "1.2.5": "  " }, "1.2.0", "1.3.0")).toEqual([]);
+    expect(dataNotices(field, "not-a-version", "1.3.0")).toEqual([]);
+  });
+
+  test("the upgrade prints the heading and the pointer after a successful install", () => {
+    const r = rig({});
+    expect(r.go({}, { dataCollection: () => field })).toBe(0);
+    const out = r.out.join("");
+    expect(out).toContain("Data collection changes in this upgrade:");
+    expect(out).toContain("v1.3.0: Sends the command name.");
+    expect(out).not.toContain("Too new.");
+    expect(out).toContain("docs/on-your-machine.md");
+  });
+
+  test("--check prints them only when an upgrade is available", () => {
+    const r = rig({});
+    expect(r.go({ check: true }, { dataCollection: () => field })).toBe(0);
+    expect(r.out.join("")).toContain("Data collection changes in this upgrade:");
+    const upToDate = rig({});
+    upToDate.go({ check: true }, { latest: () => "1.2.0", dataCollection: () => field });
+    expect(upToDate.out.join("")).not.toContain("Data collection");
+  });
+
+  test("nothing is printed when no notice applies, and a throwing field is not a failure", () => {
+    for (const dataCollection of [() => undefined, () => ({}), () => "junk"]) {
+      const r = rig({});
+      expect(r.go({}, { dataCollection })).toBe(0);
+      expect(r.out.join("")).not.toContain("Data collection");
+    }
+  });
+
+  test("a failed install prints no notice", () => {
+    const r = rig({});
+    expect(r.go({}, { run: () => 1, dataCollection: () => field })).toBe(1);
+    expect(r.out.join("")).not.toContain("Data collection");
   });
 });

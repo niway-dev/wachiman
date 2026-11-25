@@ -15,7 +15,7 @@ import { UsageError } from "../config";
 import { spawnGit, type GitRunner } from "../evidence";
 import { parseFlags } from "../flags";
 import { detectInstall, type InstallKind } from "../install-kind";
-import { compareVersions, parseTag, rewritePins, scanWorkflows, type PinFs, type PinOutcome } from "./pin";
+import { compareVersions, parseTag, rewritePins, scanWorkflows, type PinFs, type PinOutcome, type SemVer } from "./pin";
 
 export interface UpgradeOptions {
   repoDir: string;
@@ -52,6 +52,12 @@ export interface UpgradeDeps {
   run?: (command: string, args: string[]) => number | null;
   /** The latest published version (`1.2.3`), or undefined when it cannot be read. */
   latest?: () => string | undefined;
+  /**
+   * The `wachimanDataCollection` field of the release `spec` (`latest` or `1.2.3`) as the registry returns it, or
+   * undefined. Not validated here: `dataNotices` ignores anything malformed. The default shares the one `npm view`
+   * request with `latest`.
+   */
+  dataCollection?: (spec: string) => unknown;
   git?: GitRunner;
   fs?: PinFs & { write: (path: string, text: string) => void };
   /** `process.env`, for `BUN_INSTALL`. */
@@ -71,12 +77,56 @@ export function makeRun(platform: NodeJS.Platform = process.platform, spawn: Spa
 
 const defaultRun = makeRun();
 
-/** `npm view wachiman version`; the one network request of `--check` and the first step. */
-const defaultLatest = () => {
-  const run = spawnSync("npm", ["view", "wachiman", "version"], { encoding: "utf8", timeout: 30_000, ...spawnShell(process.platform) });
-  const version = run.status === 0 ? String(run.stdout).trim() : "";
-  return parseTag(version) ? version : undefined;
+/** The one registry request: `npm view wachiman[@spec] version wachimanDataCollection --json`, asked once per spec. */
+const viewed = new Map<string, { version?: string; dataCollection?: unknown }>();
+const registryView = (spec: string) => {
+  const cached = viewed.get(spec);
+  if (cached) return cached;
+  const name = spec === "latest" ? "wachiman" : `wachiman@${spec}`;
+  const run = spawnSync("npm", ["view", name, "version", "wachimanDataCollection", "--json"], {
+    encoding: "utf8",
+    timeout: 30_000,
+    ...spawnShell(process.platform),
+  });
+  let result: { version?: string; dataCollection?: unknown } = {};
+  if (run.status === 0) {
+    try {
+      const body: unknown = JSON.parse(String(run.stdout));
+      const object = typeof body === "object" && body !== null ? (body as Record<string, unknown>) : {};
+      const version = typeof body === "string" ? body : object.version;
+      result = { ...(typeof version === "string" && parseTag(version) ? { version } : {}), dataCollection: object.wachimanDataCollection };
+    } catch {
+      // An unreadable answer is the same as no answer.
+    }
+  }
+  viewed.set(spec, result);
+  return result;
 };
+
+const defaultLatest = () => registryView("latest").version;
+const defaultDataCollection = (spec: string) => registryView(spec).dataCollection;
+
+/**
+ * The notices of every release after `installed` up to `target`, oldest first. `field` maps a release version to a
+ * one-line notice; anything that is not that is ignored, so a bad field never fails an upgrade.
+ */
+export function dataNotices(field: unknown, installed: string, target: string): string[] {
+  const from = parseTag(installed);
+  const to = parseTag(target);
+  if (from === undefined || to === undefined || typeof field !== "object" || field === null || Array.isArray(field)) return [];
+  const found: { version: SemVer; text: string }[] = [];
+  for (const [key, text] of Object.entries(field)) {
+    const version = parseTag(key);
+    if (version && typeof text === "string" && text.trim() !== "" && compareVersions(version, from) > 0 && compareVersions(version, to) <= 0) {
+      found.push({ version, text: text.trim() });
+    }
+  }
+  found.sort((a, b) => compareVersions(a.version, b.version));
+  return found.map((n) => `  v${n.version.join(".")}: ${n.text}`);
+}
+
+const noticeText = (lines: string[]) =>
+  lines.length === 0 ? "" : `Data collection changes in this upgrade:\n${lines.join("\n")}\nSee docs/on-your-machine.md.\n`;
 
 /** `npm prefix -g`: the directory whose `lib/node_modules` (`node_modules` on Windows) holds npm's global packages. */
 const defaultNpmPrefix = () => {
@@ -169,6 +219,7 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
     }
     const newer = compareVersions(parseTag(found)!, current) > 0;
     io.stdout(`Latest:    v${found}\n${newer ? "Run `wachiman upgrade` to update.\n" : "You are up to date.\n"}`);
+    if (newer) io.stdout(noticeText(dataNotices((deps.dataCollection ?? defaultDataCollection)("latest"), deps.version, found)));
     return 0;
   }
 
@@ -211,6 +262,7 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
         if (status === 0) {
           target ??= `v${found}`;
           io.stdout(`The CLI is now v${found}.\n`);
+          io.stdout(noticeText(dataNotices((deps.dataCollection ?? defaultDataCollection)(opts.to === undefined ? "latest" : found), deps.version, found)));
         } else {
           io.stderr(`wachiman: ${shown} ${status === null ? "could not start" : `failed with exit ${status}`}; the CLI is unchanged.`);
           // The pins would name a release the CLI could not install (with --to it may not exist).
