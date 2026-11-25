@@ -17,8 +17,9 @@ env:
 jobs:
   # Base and head run on the SAME runner, one after the other, round after round (base, head,
   # base, head, ...), so a slow minute on the machine hits both sides alike. A PR is checked out
-  # as GitHub's merge commit, whose first parent is the base commit: comparing the two measures
-  # this PR's change on top of the current base, not other PRs merged meanwhile.
+  # as GitHub's merge commit, which is built on the base commit, so head is the PR on top of base:
+  # comparing the two measures this PR's change. Base is the base commit GitHub reports for the
+  # run, not other PRs merged meanwhile.
   # scripts/bench.ts and its fixture helper (test/support/temp-repo.ts) always come from the head
   # checkout and are copied into the base one, so both sides are measured by the same harness
   # (the base may predate it).
