@@ -338,7 +338,7 @@ export interface GitResult {
   stderr?: string;
 }
 
-export type GitRunner = (args: string[], opts: { cwd: string; timeoutMs: number; maxBytes?: number }) => GitResult;
+export type GitRunner = (args: string[], opts: { cwd: string; timeoutMs: number; maxBytes?: number; input?: string }) => GitResult;
 
 const GIT_OUTPUT_LIMIT = 8 * 1024 * 1024;
 
@@ -357,7 +357,7 @@ export const GIT_BASE_ARGS = ["-c", "core.quotepath=off", "-c", "core.fsmonitor=
 /** Runs `git` with a minimal environment: the checked-out head is untrusted, the engine's token is not its business. */
 export const spawnGit = (
   args: string[],
-  { cwd, timeoutMs, maxBytes }: { cwd: string; timeoutMs: number; maxBytes?: number },
+  { cwd, timeoutMs, maxBytes, input }: { cwd: string; timeoutMs: number; maxBytes?: number; input?: string },
   env: Record<string, string> = gitEnv(),
 ): GitResult => {
   const run = spawnSync("git", [...GIT_BASE_ARGS, ...args], {
@@ -366,6 +366,7 @@ export const spawnGit = (
     timeout: Math.max(1, Math.floor(timeoutMs)),
     maxBuffer: maxBytes ?? GIT_OUTPUT_LIMIT,
     env,
+    ...(input !== undefined ? { input } : {}),
   });
   const code = (run.error as NodeJS.ErrnoException | undefined)?.code;
   return {

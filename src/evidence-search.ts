@@ -14,8 +14,9 @@
  *     boundaries that are ASCII (`--no-unicode`), because `git grep` runs with `LC_ALL=C`.
  *   - Binary files: `git grep -I` skips a file with a NUL in its first 8000 bytes and searches the
  *     whole of any other, while `rg` stops at the first NUL wherever it is, losing the matches after
- *     it. So `rg` runs with `--text` and `looksBinary` applies git's rule to each file that has a
- *     match (one 8 KB read per file).
+ *     it. So `rg` runs with `--text`, and `binaryFiles` then decides for each file that has a match:
+ *     the `diff` attribute first (one `git check-attr` for all files), and a NUL in the first 8000
+ *     bytes (`looksBinary`, one 8 KB read per file) when the attribute does not say.
  *   - Matches are attributed to names by this module, not by `rg`: a line that holds several names
  *     counts for each of them. `rg` only says the line holds at least one.
  *   - Matches of a name are sorted by path, then line, the order of `git grep` (index order is the
@@ -43,7 +44,6 @@
  * into one line; cutting the text would change which sites are picked. Memory is bounded by the
  * output of the one search, and a normal row is about 100 characters.
  */
-import { spawnSync } from "node:child_process";
 import { closeSync, mkdtempSync, openSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -53,6 +53,8 @@ import {
   SOURCE_EXTENSIONS,
   addedLinesOf,
   planEvidence,
+  spawnGit,
+  type GitRunner,
   type EvidenceFileInput,
   type Match,
   type SymbolSearch,
@@ -202,20 +204,18 @@ export class NameIndex {
   }
 }
 
-/** Collects the rows into one list of matches per name, in `git grep` order. */
+/**
+ * Collects the rows into one list of matches per name, in `git grep` order. Files that are binary
+ * for git are removed afterwards with `drop(binaryFiles(...))`, once all rows are in.
+ */
 export class MatchCollector {
   private lists = new Map<string, Match[]>();
   /** Lines kept, whatever names they hold. */
   lines = 0;
   private index: NameIndex;
-  private binary = new Map<string, boolean>();
   private perFile = new Map<string, number>();
 
-  /** `isBinary(file)` says whether `git grep -I` would have skipped the file; it is asked once per file that has a match. */
-  constructor(
-    names: string[],
-    private isBinary: (file: string) => boolean = () => false,
-  ) {
+  constructor(names: string[]) {
     this.index = new NameIndex(names);
     for (const name of names) this.lists.set(name, []);
   }
@@ -225,12 +225,6 @@ export class MatchCollector {
     if (!whole) return;
     const names = this.index.namesIn(whole.text);
     if (names.length === 0) return;
-    let skip = this.binary.get(whole.file);
-    if (skip === undefined) {
-      skip = this.isBinary(whole.file);
-      this.binary.set(whole.file, skip);
-    }
-    if (skip) return;
     this.lines += 1;
     this.perFile.set(whole.file, (this.perFile.get(whole.file) ?? 0) + 1);
     // One object for the line, shared by every name that holds it.
@@ -300,26 +294,35 @@ export function looksBinary(path: string): boolean {
  * for all files, in `repoDir` as `git grep` runs there; if it cannot run, the NUL heuristic
  * decides for every file.
  */
-export function binaryFiles(repoDir: string, files: string[]): Set<string> {
+export function binaryFiles(
+  repoDir: string,
+  files: string[],
+  git: GitRunner = spawnGit,
+  log: (line: string) => void = () => {},
+): Set<string> {
   const binary = new Set<string>();
   if (files.length === 0) return binary;
   const attr = new Map<string, string>();
+  let why: string | undefined;
   try {
-    const run = spawnSync("git", ["check-attr", "-z", "--stdin", "diff"], {
+    const run = git(["check-attr", "-z", "--stdin", "diff"], {
       cwd: repoDir,
       input: files.join("\0") + "\0",
-      timeout: 20_000,
-      maxBuffer: 256 * 1024 * 1024,
-      env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", LC_ALL: "C" },
-      stdio: ["pipe", "pipe", "ignore"],
+      timeoutMs: 20_000,
+      maxBytes: 256 * 1024 * 1024,
     });
-    if (run.status === 0 && !run.error) {
-      const parts = run.stdout.toString("utf8").split("\0");
+    if (run.timedOut) why = "timed out";
+    else if (run.outputCut) why = "output cut";
+    else if (run.error) why = run.error;
+    else if (run.status !== 0) why = `exit status ${run.status}`;
+    else {
+      const parts = run.stdout.split("\0");
       for (let i = 0; i + 2 < parts.length; i += 3) attr.set(parts[i], parts[i + 2]);
     }
-  } catch {
-    // The heuristic below decides.
+  } catch (error) {
+    why = (error as Error).message;
   }
+  if (why !== undefined) log(`evidence: git check-attr failed (${why}); binary files decided by the NUL rule`);
   for (const file of files) {
     const value = attr.get(file);
     if (value === "unset") binary.add(file);
@@ -337,7 +340,7 @@ export async function runRipgrep(
   binary: string,
   names: string[],
   repoDir: string,
-  opts: { timeoutMs?: number; now?: () => number } = {},
+  opts: { timeoutMs?: number; now?: () => number; log?: (line: string) => void; git?: GitRunner } = {},
 ): Promise<RipgrepRun> {
   const now = opts.now ?? Date.now;
   const started = now();
@@ -368,13 +371,18 @@ export async function runRipgrep(
     splitter.finish();
     const code = await proc.exited;
     const stderr = (await stderrText).trim();
-    const ms = now() - started;
-    if (timedOut) return { ok: false, timedOut: true, ms };
+    if (timedOut) return { ok: false, timedOut: true, ms: now() - started };
+    const ms = () => now() - started;
     // 0: matches, 1: none. 2 means an error, possibly after partial output: not trusted.
     if (code !== 0 && code !== 1)
-      return { ok: false, failed: `ripgrep exited with status ${code}${stderr ? `: ${stderr.split("\n")[0].slice(0, 200)}` : ""}`, ms };
-    collector.drop(binaryFiles(repoDir, collector.files()));
-    return { ok: true, byName: collector.result(), lines: collector.lines, ms };
+      return {
+        ok: false,
+        failed: `ripgrep exited with status ${code}${stderr ? `: ${stderr.split("\n")[0].slice(0, 200)}` : ""}`,
+        ms: ms(),
+      };
+    // The attribute check and the file reads are part of the search step: counted in `ms`.
+    collector.drop(binaryFiles(repoDir, collector.files(), opts.git, opts.log));
+    return { ok: true, byName: collector.result(), lines: collector.lines, ms: ms() };
   } catch (error) {
     return { ok: false, failed: `ripgrep could not run: ${(error as Error).message}`, ms: now() - started };
   } finally {
@@ -410,7 +418,7 @@ export class EvidenceSearcher {
     private repoDir: string,
     private log: (line: string) => void,
     readonly tally: EvidenceTally,
-    private opts: { timeoutMs?: number; now?: () => number } = {},
+    private opts: { timeoutMs?: number; now?: () => number; git?: GitRunner } = {},
   ) {}
 
   get usable() {
@@ -429,7 +437,7 @@ export class EvidenceSearcher {
     if (!this.usable) return;
     const missing = [...new Set(names)].filter((n) => !this.found.has(n));
     if (missing.length === 0) return;
-    const run = await runRipgrep(this.binary.path, missing, this.repoDir, this.opts);
+    const run = await runRipgrep(this.binary.path, missing, this.repoDir, { ...this.opts, log: this.log });
     this.tally.searches += 1;
     this.tally.ms += run.ms;
     if (run.ok) {

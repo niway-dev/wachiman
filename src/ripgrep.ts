@@ -111,11 +111,15 @@ function check(binary: string, probe: VersionProbe): { ok: true; version: string
   return { ok: true, version };
 }
 
+/** The file names probed in each `PATH` directory: Windows installs `rg.exe`. */
+export const pathCandidateNames = (platform: string): string[] => (platform === "win32" ? ["rg.exe", "rg"] : ["rg"]);
+
 /** Finds the `rg` to run, in the order documented at the top of this file. Never throws. */
 export function resolveRipgrep(
   env: Env,
   probe: VersionProbe = defaultProbe(env),
   exists: (path: string) => boolean = existsSync,
+  platform: string = process.platform,
 ): RipgrepResolution {
   const tried: string[] = [];
   const attempt = (source: RipgrepFound["source"], binary: string): RipgrepResolution | undefined => {
@@ -148,10 +152,12 @@ export function resolveRipgrep(
   // resolve against the repository the search runs in, where a file of the pull request could win.
   for (const entry of (env.PATH ?? "").split(delimiter)) {
     if (entry === "" || !isAbsolute(entry)) continue;
-    const candidate = join(entry, "rg");
-    if (!exists(candidate)) continue;
-    const hit = attempt("path", candidate);
-    if (hit) return hit;
+    for (const name of pathCandidateNames(platform)) {
+      const candidate = join(entry, name);
+      if (!exists(candidate)) continue;
+      const hit = attempt("path", candidate);
+      if (hit) return hit;
+    }
   }
   return { found: false, tried };
 }

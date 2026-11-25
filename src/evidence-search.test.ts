@@ -1,12 +1,14 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import {
   collectEvidence,
   defaultEvidenceIo,
   gitSymbolSearch,
+  type GitRunner,
   planEvidence,
   serializeEvidence,
   type EvidencePlan,
@@ -17,6 +19,7 @@ import {
   BINARY_PROBE_BYTES,
   MatchCollector,
   NameIndex,
+  binaryFiles,
   RowSplitter,
   holdsWord,
   looksBinary,
@@ -34,6 +37,7 @@ import {
   ensureRipgrep,
   installRipgrep,
   parseRipgrepVersion,
+  pathCandidateNames,
   resolveRipgrep,
   type RipgrepFound,
   type VersionProbe,
@@ -219,6 +223,64 @@ describe("NameIndex", () => {
     for (const line of lines) {
       expect(index.namesIn(line).sort()).toEqual(names.filter((n) => holdsWord(line, n)).sort());
     }
+  });
+});
+
+describe("binaryFiles", () => {
+  const dir = mkdtempSync(join(tmpdir(), "wachiman-binfiles-"));
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
+  writeFileSync(join(dir, "nul.txt"), "a\0b");
+  writeFileSync(join(dir, "plain.txt"), "plain\n");
+  // `git check-attr -z --stdin diff` prints `path NUL diff NUL value NUL` per file.
+  const answering =
+    (values: Record<string, string>, calls: string[][] = []): GitRunner =>
+    (args, opts) => {
+      calls.push(args);
+      const out = (opts.input ?? "")
+        .split("\0")
+        .filter(Boolean)
+        .map((f) => `${f}\0diff\0${values[f] ?? "unspecified"}\0`);
+      return { status: 0, stdout: out.join("") };
+    };
+
+  test("the diff attribute decides first: unset is binary, set is text, even against the bytes", () => {
+    const calls: string[][] = [];
+    const out = binaryFiles(dir, ["nul.txt", "plain.txt"], answering({ "plain.txt": "unset", "nul.txt": "set" }, calls));
+    expect([...out]).toEqual(["plain.txt"]);
+    expect(calls[0]).toEqual(["check-attr", "-z", "--stdin", "diff"]);
+  });
+
+  test("a driver name or an unspecified attribute falls back to the NUL rule", () => {
+    const out = binaryFiles(dir, ["nul.txt", "plain.txt"], answering({ "nul.txt": "custom", "plain.txt": "unspecified" }));
+    expect([...out]).toEqual(["nul.txt"]);
+    expect([...binaryFiles(dir, ["nul.txt", "plain.txt"], answering({}))]).toEqual(["nul.txt"]);
+  });
+
+  test("a check-attr that fails, times out or is cut logs one line and the NUL rule decides", () => {
+    for (const [run, why] of [
+      [{ status: 128, stdout: "" }, "exit status 128"],
+      [{ status: null, stdout: "", timedOut: true }, "timed out"],
+      [{ status: null, stdout: "", outputCut: true }, "output cut"],
+      [{ status: null, stdout: "", error: "spawn git ENOENT" }, "spawn git ENOENT"],
+    ] as const) {
+      const lines: string[] = [];
+      const out = binaryFiles(
+        dir,
+        ["nul.txt", "plain.txt"],
+        () => run,
+        (l) => lines.push(l),
+      );
+      expect([...out]).toEqual(["nul.txt"]);
+      expect(lines).toEqual([`evidence: git check-attr failed (${why}); binary files decided by the NUL rule`]);
+    }
+  });
+
+  test("no files, no git", () => {
+    expect(
+      binaryFiles(dir, [], () => {
+        throw new Error("must not run");
+      }).size,
+    ).toBe(0);
   });
 });
 
@@ -422,6 +484,16 @@ describe("resolveRipgrep", () => {
     });
   });
 
+  test("on Windows the PATH walk also tries rg.exe, first", () => {
+    const probed: string[] = [];
+    const probe: VersionProbe = (b) => (probed.push(b), { status: 0, stdout: RG15 });
+    const found = resolveRipgrep(env({ PATH: "/tools" }), probe, (p) => p.endsWith("rg.exe"), "win32");
+    expect(pathCandidateNames("win32")).toEqual(["rg.exe", "rg"]);
+    expect(pathCandidateNames("linux")).toEqual(["rg"]);
+    expect(probed).toHaveLength(1);
+    expect(found).toMatchObject({ found: true, source: "path" });
+  });
+
   test("an installed copy that does not exist is not probed", () => {
     const probed: string[] = [];
     const probe: VersionProbe = (b) => (probed.push(b), { status: 0, stdout: RG15 });
@@ -433,7 +505,7 @@ describe("resolveRipgrep", () => {
     const probed: string[] = [];
     const probe: VersionProbe = (b) => (probed.push(b), b === "/usr/bin/rg" ? { status: 0, stdout: RG15 } : { status: 1, stdout: "" });
     const found = resolveRipgrep(
-      env({ PATH: ["tools", "", ".", "/usr/bin"].join(":") }),
+      env({ PATH: ["tools", "", ".", "/usr/bin"].join(delimiter) }),
       probe,
       (p) => p.endsWith("/rg") && !p.startsWith("/home"),
     );
@@ -441,7 +513,9 @@ describe("resolveRipgrep", () => {
     expect(found).toMatchObject({ found: true, path: "/usr/bin/rg" });
     // Never the bare name, which would resolve against the repository the search runs in.
     expect(probed).not.toContain("rg");
-    expect(resolveRipgrep(env({ PATH: "tools:." }), probe, (p) => !p.startsWith("/home"))).toMatchObject({ found: false });
+    expect(resolveRipgrep(env({ PATH: ["tools", "."].join(delimiter) }), probe, (p) => !p.startsWith("/home"))).toMatchObject({
+      found: false,
+    });
     expect(probed).toEqual(["/usr/bin/rg"]);
   });
 
@@ -571,6 +645,8 @@ describe("startEvidenceRun", () => {
   withRipgrep("with ripgrep it searches the names of every batch in one call before any batch runs", async () => {
     const dir = temp("evidence-run-");
     writeFileSync(join(dir, "other.ts"), "markCopySeen(1);\nstartFileDrag(2);\n");
+    // A repository, so that `git check-attr` answers and the one log line is the search's own.
+    spawnSync("git", ["init", "-q"], { cwd: dir });
     const logs: string[] = [];
     const second = [{ filename: "src/two.ts", patch: "@@\n+  window.api.startFileDrag(x);\n+  refreshAll();\n" }];
     const run = await startEvidenceRun({
