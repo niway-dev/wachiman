@@ -54,6 +54,12 @@ const NOT_A_CALL: { file: string; rules: string[]; reason: string }[] = [
     rules: ["gh or git network command in a script"],
     reason: 'Prints "git push" as a next step for the person to run; `init` itself runs no git network command.',
   },
+  {
+    file: "scripts/bench.ts",
+    rules: ["provider CLI"],
+    reason:
+      'Dev-only benchmark (not shipped). Writes a fake "claude" shell script into a temp dir and puts it on PATH; no real provider CLI runs.',
+  },
 ];
 
 const SITE_RULES: { name: string; pattern: RegExp }[] = [
