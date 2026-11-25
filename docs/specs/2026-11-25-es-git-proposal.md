@@ -25,7 +25,7 @@ Open questions:
   and `PATCH` in `src/connectors/local-git.ts`).
 - Who maintains it and how often it is released.
 
-Out of scope: replacing `git` for writes, for the call-site search (ripgrep does that), or for
+Out of scope: replacing `git` for writes, for the call-site search, or for
 anything outside reading a change.
 
 ## What the numbers say today
