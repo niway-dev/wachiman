@@ -406,6 +406,54 @@ describe("snapshotHead", () => {
   });
 });
 
+describe("the comment rule in buildLocalInput (ADR 0064)", () => {
+  const ON = "review:\n  comments_point_to_docs: true\n";
+  const OFF = "review:\n  comments_point_to_docs: false\n";
+  const repoWith = (base: string | undefined, head: string | undefined) => {
+    const dir = emptyRepo();
+    commit(dir, { "src/a.ts": "a\n", ...(base !== undefined ? { ".wachiman.yml": base } : {}) }, "base");
+    git(dir, "switch", "-q", "-c", "feat/x");
+    commit(dir, { "src/a.ts": "b\n", ...(head !== undefined ? { ".wachiman.yml": head } : {}) }, "change");
+    return dir;
+  };
+  const build = (dir: string) => {
+    const warnings: string[] = [];
+    const built = buildLocalInput({ repoDir: dir, paths: [], log: () => {}, warn: (l) => warnings.push(l) });
+    snapshots.push(built.snapshotDir);
+    return { input: built.input, warnings };
+  };
+
+  test("on at the merge-base: the input says so, and still validates against the schema", () => {
+    const { input, warnings } = build(repoWith(ON, undefined));
+    expect(input.commentsPointToDocs).toBe(true);
+    expect(warnings).toEqual([]);
+    const schema = JSON.parse(readFileSync(join(import.meta.dir, "../../docs/formats/review-input.v1.schema.json"), "utf8"));
+    const { headDir: _, ...onDisk } = input;
+    expect(validate(schema, JSON.parse(JSON.stringify(onDisk)))).toEqual([]);
+  });
+
+  test("absent, false, and a file with other keys leave the input without the field", () => {
+    expect(build(repoWith(undefined, undefined)).input).not.toHaveProperty("commentsPointToDocs");
+    expect(build(repoWith(OFF, undefined)).input).not.toHaveProperty("commentsPointToDocs");
+    expect(build(repoWith("effort: high\n", undefined)).input).not.toHaveProperty("commentsPointToDocs");
+  });
+
+  test("the branch's own copy is never applied: turning it on does not activate it, turning it off does not escape it", () => {
+    expect(build(repoWith(undefined, ON)).input).not.toHaveProperty("commentsPointToDocs");
+    expect(build(repoWith(OFF, ON)).input).not.toHaveProperty("commentsPointToDocs");
+    expect(build(repoWith(ON, OFF)).input.commentsPointToDocs).toBe(true);
+    expect(build(repoWith(ON, undefined)).input.commentsPointToDocs).toBe(true);
+  });
+
+  test("an invalid value is ignored with one warning and the rule stays off", () => {
+    const { input, warnings } = build(repoWith("review:\n  comments_point_to_docs: yes please\n", undefined));
+    expect(input).not.toHaveProperty("commentsPointToDocs");
+    expect(warnings).toEqual([
+      expect.stringContaining('review.comments_point_to_docs must be true or false, got "yes please"; using false'),
+    ]);
+  });
+});
+
 describe("path rules in buildLocalInput", () => {
   const RULES = 'paths:\n  - match: "src/billing/**"\n    severity: critical\n    reason: charges customers\n';
   const repoWith = (base: string | undefined, head: string | undefined) => {

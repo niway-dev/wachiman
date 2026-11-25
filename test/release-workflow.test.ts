@@ -10,7 +10,7 @@ import { join } from "node:path";
 const path = join(import.meta.dir, "..", ".github", "workflows", "release-please.yml");
 const text = readFileSync(path, "utf8");
 const workflow = Bun.YAML.parse(text) as { permissions: Record<string, string>; jobs: Record<string, any> };
-const { publish, verify } = workflow.jobs;
+const { publish, verify, "verify-tests": verifyTests } = workflow.jobs;
 const stepText = (job: any) => JSON.stringify(job.steps);
 
 describe("release-please.yml", () => {
@@ -18,25 +18,36 @@ describe("release-please.yml", () => {
     expect(publish.permissions["id-token"]).toBe("write");
     expect(workflow.permissions["id-token"]).toBeUndefined();
     expect(verify.permissions["id-token"]).toBeUndefined();
+    expect(verifyTests.permissions["id-token"]).toBeUndefined();
     expect(workflow.jobs["release-please"].permissions?.["id-token"]).toBeUndefined();
     const code = text.split("\n").filter((line) => !line.trim().startsWith("#"));
     expect(code.filter((line) => /NPM_TOKEN|NODE_AUTH_TOKEN|_authToken|secrets\.[A-Z_]*NPM/.test(line))).toEqual([]);
   });
 
-  test("publish waits for the verify job, which waits for the release, and both run only when a release was created", () => {
+  test("publish waits for verify, which waits for the release and every test shard, and all run only when a release was created", () => {
     expect(publish.needs).toEqual(expect.arrayContaining(["release-please", "verify"]));
-    expect(verify.needs).toBe("release-please");
-    expect(String(publish.if)).toContain("release_created == 'true'");
-    expect(String(verify.if)).toContain("release_created == 'true'");
+    expect(verify.needs).toEqual(expect.arrayContaining(["release-please", "verify-tests"]));
+    expect(verifyTests.needs).toBe("release-please");
+    for (const job of [publish, verify, verifyTests]) expect(String(job.if)).toContain("release_created == 'true'");
   });
 
-  test("verify checks out the tagged commit and runs the tests and both tarball checks before packing the artifact", () => {
+  test("verify-tests runs the tagged commit's tests in four shards, each checking the split and its file count", () => {
+    expect(verifyTests.strategy.matrix.shard).toEqual([1, 2, 3, 4]);
+    expect(verifyTests.strategy["fail-fast"]).toBe(false);
+    const steps = stepText(verifyTests);
+    expect(steps).toContain("needs.release-please.outputs.sha");
+    expect(steps).toContain("scripts/test-shard.ts --check");
+    expect(steps).toContain('bun test \\"${files[@]}\\"');
+    expect(steps).toContain("across ${#files[@]} files");
+  });
+
+  test("verify checks out the tagged commit and runs both tarball checks before uploading the artifact", () => {
     const steps = stepText(verify);
     expect(steps).toContain("needs.release-please.outputs.sha");
-    expect(steps).toContain("bun test");
+    expect(steps).not.toContain("bun test");
     expect(steps).toContain("verify-package.sh --tarball");
     expect(steps).toContain("--without-bun");
-    expect(steps.indexOf("bun test")).toBeLessThan(steps.indexOf("npm pack"));
+    expect(steps.indexOf("npm pack")).toBeLessThan(steps.indexOf("verify-package.sh"));
     expect(steps.indexOf("verify-package.sh")).toBeLessThan(steps.indexOf("upload-artifact"));
   });
 

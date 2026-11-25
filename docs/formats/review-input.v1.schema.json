@@ -49,6 +49,10 @@
     "pathPolicyChanged": {
       "description": "True when the change edits the path rules in `.wachiman.yml`: pathRules then also holds the rule that makes `.wachiman.yml` a critical path for this review, and the review says its policy changed. Optional; absent otherwise.",
       "const": true
+    },
+    "commentsPointToDocs": {
+      "description": "True when `review.comments_point_to_docs` is on in `.wachiman.yml` at change.base.sha, never the head: the review also reports each added comment that is not a pointer to a document or a tool directive. Optional; absent when the setting is off or unset.",
+      "const": true
     }
   },
   "$defs": {

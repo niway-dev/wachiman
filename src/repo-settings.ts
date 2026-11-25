@@ -3,15 +3,16 @@
  *
  * `init` writes it with plain string handling (`src/init/settings.ts`); everything that reads it
  * goes through `parseRepoSettings`, so what counts as valid is decided in one place. The keys are
- * `kind` (metadata), `model`, `effort`, `paths` (the maintainer's path rules, ADR 0058) and
- * `memory`. Unknown keys are ignored.
+ * `kind` (metadata), `model`, `effort`, `paths` (the maintainer's path rules, ADR 0058), `memory`
+ * and `review` (opt-in review behavior, ADR 0064). Unknown keys are ignored.
  *
  * Where the file is read from is a spend decision, not a convenience: in Actions it comes from the
  * pull request's base commit and locally from the merge-base, never from the head, so a change
  * cannot raise the model or the effort it is reviewed under (`readBaseSettings` in engine.ts,
  * `localRepoSettings` in connectors/local-git.ts). The values lose to an explicit
  * `WACHIMAN_MODEL` / `WACHIMAN_EFFORT` (a workflow input or the environment) and win over the
- * built-in defaults. `paths` is read whatever those say: it is review policy, not a spend choice.
+ * built-in defaults. `paths` and `review` are read whatever those say: they are review policy, not
+ * a spend choice.
  */
 import { UsageError, type EngineConfig, type SettingSource } from "./config";
 import { PER_BATCH_USD } from "./estimate";
@@ -56,6 +57,17 @@ const MEMORY_KEYS = {
   archive_after_days: "archiveAfterDays",
 } as const;
 
+/**
+ * The `review` settings: behaviors a repository opts into, each off unless the file says `true`
+ * (ADR 0064). A new key here needs an off-state test.
+ */
+export interface ReviewSettings {
+  /** Report comments added in the diff that are not a pointer to a document or a tool directive. */
+  commentsPointToDocs?: boolean;
+}
+
+const REVIEW_KEYS = { comments_point_to_docs: "commentsPointToDocs" } as const;
+
 export interface RepoSettings {
   /** `monorepo` or `single` when `init` wrote it; any text a person typed otherwise. Metadata only. */
   kind?: string;
@@ -67,6 +79,10 @@ export interface RepoSettings {
   memoryNotices?: string[];
   /** The maintainer's path rules; absent when the file has none. */
   paths?: PathRule[];
+  /** The `review` values that were valid; absent when the file sets none. */
+  review?: ReviewSettings;
+  /** Why a `review` value was ignored, one line each. Set only when something was. */
+  reviewNotices?: string[];
 }
 
 /**
@@ -182,7 +198,9 @@ export function parseRepoSettings(content: string): RepoSettings {
   }
   if (doc === null || doc === undefined) return {};
   if (typeof doc !== "object" || Array.isArray(doc)) {
-    throw new UsageError(`${SETTINGS_PATH} must be a mapping of settings (kind, model, effort, paths, memory), like \`effort: high\`.`);
+    throw new UsageError(
+      `${SETTINGS_PATH} must be a mapping of settings (kind, model, effort, paths, memory, review), like \`effort: high\`.`,
+    );
   }
   const map = doc as Record<string, unknown>;
   const settings: RepoSettings = {};
@@ -208,7 +226,46 @@ export function parseRepoSettings(content: string): RepoSettings {
   const memory = parseMemorySettings(map.memory);
   if (memory.values) settings.memory = memory.values;
   if (memory.notices.length > 0) settings.memoryNotices = memory.notices;
+  const review = parseReviewSettings(map.review);
+  if (review.values) settings.review = review.values;
+  if (review.notices.length > 0) settings.reviewNotices = review.notices;
   return settings;
+}
+
+/**
+ * The `review` map: a value that is not `true` or `false` is ignored with a notice, never an
+ * error, and the behavior stays off. An opt-in that cannot be read is the safe direction to fail
+ * in, and an error would discard the file's `model` and `effort` with it.
+ */
+function parseReviewSettings(raw: unknown): { values?: ReviewSettings; notices: string[] } {
+  if (raw === undefined || raw === null) return { notices: [] };
+  if (typeof raw !== "object" || Array.isArray(raw))
+    return { notices: [`${SETTINGS_PATH}: review must be a mapping of settings; ignored`] };
+  const values: ReviewSettings = {};
+  const notices: string[] = [];
+  for (const [key, name] of Object.entries(REVIEW_KEYS)) {
+    const value = (raw as Record<string, unknown>)[key];
+    if (value === undefined || value === null) continue;
+    if (typeof value === "boolean") values[name] = value;
+    else notices.push(`${SETTINGS_PATH}: review.${key} must be true or false, got ${JSON.stringify(value)}; using false`);
+  }
+  return { ...(Object.keys(values).length > 0 ? { values } : {}), notices };
+}
+
+/** The review policy of a settings file, as the connectors hand it to the core: `paths` and the opt-in behaviors that are on. */
+export interface ReviewPolicy {
+  pathRules?: PathRule[];
+  /** True only when the file says so; absent means off. */
+  commentsPointToDocs?: true;
+}
+
+/** `settings` as a `ReviewPolicy`; `warn` gets the notices for ignored `review` values. Undefined settings are an empty policy. */
+export function reviewPolicyOf(settings: RepoSettings | undefined, warn: (line: string) => void): ReviewPolicy {
+  for (const notice of settings?.reviewNotices ?? []) warn(notice);
+  return {
+    ...(settings?.paths ? { pathRules: settings.paths } : {}),
+    ...(settings?.review?.commentsPointToDocs === true ? { commentsPointToDocs: true as const } : {}),
+  };
 }
 
 /** The `memory` map: a value that is not a positive whole number is ignored with a notice, never an error. */

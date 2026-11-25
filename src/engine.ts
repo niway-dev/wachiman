@@ -65,12 +65,14 @@ import {
   matchPathRule,
   parseRepoSettings,
   pathsEdited,
+  reviewPolicyOf,
   touchesSettingsFile,
   wantsRepoSettings,
   withPolicyEditRule,
   type PathRule,
   type PathSeverity,
   type RepoSettings,
+  type ReviewPolicy,
 } from "./repo-settings";
 import { newCandidate, proposability, renderEntry, today, type Candidate } from "./memory/candidates";
 import { renderProposal } from "./memory/proposal";
@@ -1735,20 +1737,21 @@ export function readBaseSettings(gh: GhFn, repo: string, sha: string): RepoSetti
 }
 
 /**
- * The base commit's `paths` rules (ADR 0058), or undefined when it has none. Read on every run,
- * whether or not `model` and `effort` were set explicitly: the rules are review policy, not a spend
+ * What the base commit's `.wachiman.yml` says about how the change is reviewed, read in one
+ * request: the `paths` rules (ADR 0058) and the opt-in `review` behaviors (ADR 0064). Read on every
+ * run, whether or not `model` and `effort` were set explicitly: this is review policy, not a spend
  * choice. Like `withBaseSettings`, a broken file is ignored with one warning and the run continues
- * with no rules, so the pull request that fixes the file can be reviewed; errors from GitHub itself
- * still propagate. When a `.wachiman.yml` read has already warned about the same file, the same
- * problem is reported once more here: the two reads are independent.
+ * with no rules and every opt-in off, so the pull request that fixes the file can be reviewed;
+ * errors from GitHub itself still propagate. When a `.wachiman.yml` read has already warned about
+ * the same file, the same problem is reported once more here: the two reads are independent.
  */
-export function readBasePathRules(gh: GhFn, repo: string, sha: string, warn: (line: string) => void): PathRule[] | undefined {
+export function readBasePolicy(gh: GhFn, repo: string, sha: string, warn: (line: string) => void): ReviewPolicy {
   try {
-    return readBaseSettings(gh, repo, sha)?.paths;
+    return reviewPolicyOf(readBaseSettings(gh, repo, sha), warn);
   } catch (error) {
     if (!(error instanceof UsageError)) throw error;
     warn(ignoredSettingsNote(error.message, `the base commit ${sha.slice(0, 7)}`));
-    return undefined;
+    return {};
   }
 }
 
@@ -3542,6 +3545,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     // The hand-written files first, then the learned conventions, which they outrank (ADR 0057). No exception is ever here.
     instructions: renderInstructions(input.instructions) + renderConventions(options.memory),
     ...(input.pathRules?.length ? { pathRules: input.pathRules } : {}),
+    ...(input.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
     costTags: { repo: change.repository.name, ...(number ? { pr: Number(number) } : {}) },
   };
 
@@ -4294,6 +4298,8 @@ export function githubReviewInput(p: {
   pathRules?: PathRule[];
   /** The pull request edits the path rules; `pathRules` then ends with the rule for `.wachiman.yml`. */
   pathPolicyChanged?: boolean;
+  /** `review.comments_point_to_docs` is on at the base commit. */
+  commentsPointToDocs?: boolean;
 }): ReviewInput {
   return {
     format: REVIEW_INPUT_FORMAT,
@@ -4326,6 +4332,7 @@ export function githubReviewInput(p: {
     ...(p.threads.length > 0 ? { conversation: p.threads } : {}),
     ...(p.pathRules?.length ? { pathRules: p.pathRules } : {}),
     ...(p.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
+    ...(p.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
   };
 }
 
@@ -4637,7 +4644,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // The path rules come from the base commit whatever the model and effort inputs say; they reorder
   // the batches, so the estimate is made with them.
   const base = baseSha(gh, repo, pr);
-  const baseRules = readBasePathRules(gh, repo, base, deps.warn);
+  const { pathRules: baseRules, commentsPointToDocs } = readBasePolicy(gh, repo, base, deps.warn);
   // A pull request that edits the rules is reviewed under the base's, and `.wachiman.yml` itself is
   // a critical path for that review: the head's rules are never applied, only compared.
   const pathPolicyChanged = touchesSettingsFile(prFiles) && headEditsPathRules(gh, repo, headSha, baseRules);
@@ -4686,6 +4693,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     threads,
     pathRules,
     pathPolicyChanged,
+    commentsPointToDocs,
   });
   // PR Confidence grades a full review only (ADR 0033): an incremental or scoped review reads a
   // part of the change, and "nothing else changed" cannot be said of a part.
@@ -5182,6 +5190,8 @@ export interface ReviewContext {
   instructions: string;
   /** The repository's path rules (`paths` in `.wachiman.yml`, from the base commit); a matched file's line in the prompt quotes its rule. */
   pathRules?: readonly PathRule[];
+  /** `review.comments_point_to_docs` is on at the base commit: the prompt carries `COMMENT_PARAGRAPH`. Absent: the prompt is as it was before the rule. */
+  commentsPointToDocs?: true;
   /** PR Confidence on: the claims the batches assign their files to, as the claims call listed them. */
   claims?: readonly string[];
   /** How the cost log line names the change; absent for a change with no repository or number. */
@@ -5215,6 +5225,37 @@ line; an empty list is the normal answer for most changes.
 In \`judgement\`, report at most three places where the code cannot settle the question and a person
 must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
 empty list is normal. Do not state a risk level.`;
+
+/**
+ * The comment rule (`review.comments_point_to_docs`, ADR 0064), added to the batch prompt only
+ * for a repository that turned it on. A comment is allowed as a pointer to a document or as a
+ * tool directive; any other added comment is a "consider" finding that names its category and
+ * its action.
+ */
+export const COMMENT_PARAGRAPH = `## Comments in the added lines
+
+This repository allows a comment in code in two forms only: a pointer to the document that explains
+the code (\`// See docs/adr/0053-....md\`, or a link to a document), and a tool directive
+(\`@ts-expect-error <reason>\`, \`eslint-disable ... -- <reason>\`, \`biome-ignore\`,
+\`prettier-ignore\`, a shebang, a type annotation such as \`/** @type {Foo} */\`, a license header).
+The explanation of why code is the way it is lives in a document, where it can be reviewed and kept
+current.
+
+Report each comment this part ADDS (a "+" line) that is neither of those. Do not report a comment
+the diff leaves unchanged or removes, or one inside a string. One finding per comment, with:
+- severity "consider", never higher: it must not block the merge. Its topic is "cleanup" or "docs".
+- a title that starts "Comment (<category>):", where the category is one of:
+  - tautology: it repeats what the code says. Action: delete it.
+  - stale: it contradicts the code next to it. Action: delete it, or move the true reason to a
+    document and leave a pointer.
+  - excuse: it justifies a hack or a workaround. Action: delete it and open an issue for the hack.
+  - decision record: a real "why" that a person will need later. Action: move it to a document
+    (an ADR, a reference page) and leave a pointer in its place.
+- a body that names the action in one sentence.
+Pick the category by what the comment does. A comment that fits none of them is not a finding.`;
+
+/** How `COMMENT_PARAGRAPH` tells the model to title a comment finding. */
+const COMMENT_FINDING_TITLE = /^Comment \((tautology|stale|excuse|decision record)\):/i;
 
 /** The prompt for one batch: its framing, the rules, the repository's instructions and its diff last. */
 export function buildBatchPrompt(
@@ -5284,7 +5325,7 @@ finding that already has an open thread.
 `
       : ""
   }
-${RISK_PARAGRAPH}${ctx.claims ? `\n\n${claimsParagraph(ctx.claims)}` : ""}
+${RISK_PARAGRAPH}${ctx.claims ? `\n\n${claimsParagraph(ctx.claims)}` : ""}${ctx.commentsPointToDocs ? `\n\n${COMMENT_PARAGRAPH}` : ""}
 
 ${FLOW_QUESTIONS}${renderDataPathQuestions(questions)}
 
@@ -5349,10 +5390,16 @@ export function relativisePaths(output: ReviewOutput, repoDir: string): ReviewOu
  * What the engine verifies of a batch's output beyond the label enums the schema holds: a
  * finding's `confidence` is one of `CONFIDENCE` (anything else is dropped, so the label shows
  * none), and `contracts` have the right shape and cite lines that exist in the head
- * (`contracts.ts`). Problems are warnings; the findings and the rest of the review stand.
+ * (`contracts.ts`). Problems are warnings; the findings and the rest of the review stand. With
+ * `capComments` (the comment rule is on), a comment finding is never above "consider", whatever
+ * the model answered: the rule is advice, never a reason to stop a merge.
  */
-export function checkOutput(output: ReviewOutput, lines: LineCounter, warn: (line: string) => void): ReviewOutput {
-  const findings = output.findings.map((f) => {
+export function checkOutput(output: ReviewOutput, lines: LineCounter, warn: (line: string) => void, capComments = false): ReviewOutput {
+  const findings = output.findings.map((raw) => {
+    const f =
+      capComments && COMMENT_FINDING_TITLE.test(raw.title) && (raw.severity === "blocker" || raw.severity === "fix")
+        ? { ...raw, severity: "consider" as const }
+        : raw;
     if (f.confidence === undefined || (CONFIDENCE as readonly unknown[]).includes(f.confidence)) return f;
     warn(`Finding "${f.title}" has confidence ${JSON.stringify(f.confidence)}; ignored.`);
     const { confidence: _dropped, ...rest } = f;
@@ -5465,7 +5512,14 @@ async function reviewBatch(
     }
     const result = call.value;
     const raw = !result.isError ? (result.structuredOutput as ReviewOutput | undefined) : undefined;
-    const output = raw && checkOutput(relativisePaths(raw, ctx.headDir), deps.lineCounter ?? repoLineCounter(ctx.headDir), deps.warn);
+    const output =
+      raw &&
+      checkOutput(
+        relativisePaths(raw, ctx.headDir),
+        deps.lineCounter ?? repoLineCounter(ctx.headDir),
+        deps.warn,
+        ctx.commentsPointToDocs === true,
+      );
     const stopped = result.terminalReason === "turns" || result.terminalReason === "timeout" ? result.terminalReason : undefined;
     if (stopped === "turns")
       deps.warn(`Batch ${part.index} of ${part.total} hit the ${limits.maxTurns}-turn limit after ${result.turns} turns.`);

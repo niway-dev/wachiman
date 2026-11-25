@@ -33,6 +33,17 @@ says to a document and leave a pointer.
 **JSDoc on exported symbols is reported like any other prose.** There is no exception: the types carry the
 contract, and the reasoning belongs in the document the symbol points to.
 
+## Relation to the review rule
+
+This page is about the lint rule that guards this repository's own source. It is a development tool: the
+plugin is not part of the npm package, and it changes nothing for people who use Wachiman.
+
+The opt-in review behavior [`review.comments_point_to_docs`](configuration.md#the-comment-rule-reviewcomments_point_to_docs)
+is a separate thing, a review opinion on the comments a pull request adds, off unless a repository turns it
+on ([ADR 0064](adr/0064-new-review-behavior-is-opt-in-per-repository-and-off-by-default.md)). Both accept
+the same two forms (a pointer and a tool directive). The lint rule is mechanical and rejects every other
+comment in a file; the review rule is a model's judgement and only reports with `Consider` severity.
+
 ## How it is enforced
 
 `scripts/lint/plugin.js` is loaded by the `[lint]` section of `bunfig.toml`. The ratchet

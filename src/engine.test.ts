@@ -19,6 +19,7 @@ import {
   SCHEMA,
   SEVERITY,
   TOPIC,
+  COMMENT_PARAGRAPH,
   buildBatchPrompt,
   type ReviewContext,
   resolveScope,
@@ -1249,6 +1250,37 @@ describe("buildBatchPrompt", () => {
     expect(text.trimEnd().endsWith("</diff>")).toBe(true);
   });
 
+  test("without the comment rule the prompt does not mention comments or any category", () => {
+    expect(prompt()).not.toContain("Comments in the added lines");
+    expect(prompt()).not.toContain("tautology");
+  });
+
+  test("with the comment rule on, the paragraph sits between the risk paragraph and the rules, and says what to report", () => {
+    const on = buildBatchPrompt({ ...ctx, commentsPointToDocs: true }, files, false, { index: 1, total: 2 }, "/tmp/d", ctx.instructions);
+    expect(on).toContain(COMMENT_PARAGRAPH);
+    expect(on.indexOf(COMMENT_PARAGRAPH)).toBeGreaterThan(on.indexOf("## Risk facts and judgement"));
+    expect(on.indexOf(COMMENT_PARAGRAPH)).toBeLessThan(on.indexOf("## What the change does to the running product"));
+    for (const word of [
+      "tautology",
+      "stale",
+      "excuse",
+      "decision record",
+      "delete",
+      "open an issue",
+      "pointer",
+      "@ts-expect-error",
+      "biome-ignore",
+      "prettier-ignore",
+      "shebang",
+      "license header",
+      '"consider"',
+    ]) {
+      expect(COMMENT_PARAGRAPH).toContain(word);
+    }
+    // Only the paragraph is added: take it out and the prompt is the off prompt.
+    expect(on.replace(`\n\n${COMMENT_PARAGRAPH}`, "")).toBe(prompt());
+  });
+
   test("tells the model it manages no budget, so it has no reason to ration its reading", () => {
     expect(prompt()).toContain("You do not manage a budget");
     expect(prompt()).toContain("never shorten your reading");
@@ -1731,6 +1763,22 @@ describe("checkOutput", () => {
     );
     expect(checked.findings.map((f) => f.confidence)).toEqual(["high", undefined, undefined]);
     expect(warnings).toHaveLength(1);
+  });
+
+  test("with the comment rule on, a comment finding is capped at consider, and nothing else is touched", () => {
+    const mixed = output({
+      findings: [
+        found({ severity: "blocker", title: "Comment (excuse): hack: the API lies" }),
+        found({ line: 2, severity: "fix", title: "Comment (stale): says 3, code says 5" }),
+        found({ line: 3, severity: "info", title: "Comment (tautology): repeats the code" }),
+        found({ line: 4, severity: "fix", title: "Null deref" }),
+        found({ line: 5, severity: "fix", title: "Commentary on retries" }),
+      ],
+    });
+    const off = checkOutput(mixed, lines, () => {});
+    expect(off.findings.map((f) => f.severity)).toEqual(["blocker", "fix", "info", "fix", "fix"]);
+    const on = checkOutput(mixed, lines, () => {}, true);
+    expect(on.findings.map((f) => f.severity)).toEqual(["consider", "consider", "info", "fix", "fix"]);
   });
 
   test("marks the contracts whose citations resolve, and warns for those whose do not", () => {
