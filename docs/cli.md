@@ -662,7 +662,7 @@ so a new release never reaches CI without a change you review. `upgrade` makes t
    build is never upgraded: the command says to `git pull` or run `scripts/dev-build.sh`. A CLI that is already on the
    latest version installs nothing. When a release between the installed one and the new one adds data collection, the
    command prints a notice for it under `Data collection changes in this upgrade:` before it installs, and `--check` prints it
-   too. It prints nothing when no release does, and today none does. If that lookup fails (the registry cannot be reached or answers with something unreadable), it prints one line on stderr saying so and carries on; an upgrade never fails because of it. With `--to`, the command makes this one registry request too, which it did not before, to read the notices of the release you chose.
+   too. It prints nothing when no release does, and today none does. If that lookup fails (the registry cannot be reached or answers with something unreadable), it prints one line on stderr saying so and carries on; an upgrade never fails because of it. With `--to`, the command makes this one registry request too, to read the notices of the release you chose.
 2. **The repository.** In the current git repository it rewrites the `@<tag>` of every such `uses:` line in
    `.github/workflows/*.yml` to the new version and prints the files it changed and the commands to commit them
    (`git add …`, `git commit -m "chore: pin Wachiman to vX.Y.Z"`). The rest of each file stays byte for byte the same,

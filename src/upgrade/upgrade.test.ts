@@ -438,7 +438,7 @@ describe("data collection notices", () => {
     expect(upToDate.out.join("")).not.toContain("Data collection");
   });
 
-  test("nothing is printed when no notice applies, and a throwing field is not a failure", () => {
+  test("nothing is printed for an absent, empty or malformed field", () => {
     for (const dataCollection of [() => undefined, () => ({}), () => "junk"]) {
       const r = rig({});
       expect(r.go({}, { dataCollection })).toBe(0);
