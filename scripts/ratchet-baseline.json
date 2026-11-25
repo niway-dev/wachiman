@@ -41,6 +41,7 @@
     "local/comments-point-to-docs": {
       "bin/launcher-args.js": 15,
       "bin/wachiman.js": 3,
+      "scripts/bench.ts": 9,
       "scripts/generate-wachiman-platform.ts": 4,
       "scripts/install-local.test.ts": 2,
       "scripts/prompt-golden.ts": 3,
