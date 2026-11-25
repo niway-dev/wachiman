@@ -26,6 +26,10 @@ Evidence is text matching. It is a lead for the model, not a resolved call graph
 
 ## The table
 
+A ✅ means the step runs for that language. It does not mean Wachiman understands the language: no
+language is parsed today, every step is a text match, and a ✅ step can still miss or mistake names.
+⚠️ means the step runs but misses common forms, named in the note. ❌ means the step does not run.
+
 | Language | Extensions | Diff reviewed by the model | Call names extracted | Call sites searched | Local declarations recognized | Test files recognized | How |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | JavaScript | `js` `jsx` `mjs` `cjs` | ✅ | ✅ | ✅ | ⚠️ [1] | ✅ | generic regex |
@@ -44,8 +48,6 @@ Evidence is text matching. It is a lead for the model, not a resolved call graph
 | C | `c` `h` | ✅ | ❌ | ❌ | ❌ | ❌ | none |
 | C++ | `cpp` `cc` `hpp` | ✅ | ❌ | ❌ | ❌ | ❌ | none |
 | Any other text file | any | ✅ | ❌ | ❌ | ❌ | ❌ | none |
-
-✅ works. ⚠️ partly works; the note says where. ❌ does nothing today.
 
 Notes:
 
