@@ -13,8 +13,6 @@
  * median, the commit median and the change in percent, plus the runner identity (OS, architecture,
  * CPU model) and the Bun version. Absolute medians are only comparable within one line, never
  * across lines (runners differ by up to 2.5x): the trend to read is the per-commit change.
- * Lines written before this format hold only `medians` (one uncontrolled run); they are still
- * read, and the table shows `n/a` for their change.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { clean, side, type BenchRun } from "./bench-compare";
@@ -26,12 +24,9 @@ export type Entry = {
   date: string;
   bun: string;
   platform: string;
-  /** Controlled rows only. */
-  parent?: string;
-  runner?: Runner;
-  cases?: Record<string, CaseRow>;
-  /** Legacy rows only: absolute medians of one uncontrolled run. */
-  medians?: Record<string, number>;
+  parent: string;
+  runner: Runner;
+  cases: Record<string, CaseRow>;
 };
 type Meta = { commit?: string; bun?: string; platform?: string; cpu?: string };
 type Run = BenchRun & Meta;
@@ -79,17 +74,16 @@ export function appendEntry(text: string, entry: Entry): string {
 }
 
 export function renderTable(entries: Entry[]): string {
-  const cases = [...new Set(entries.flatMap((e) => Object.keys(e.cases ?? {})))];
+  const cases = [...new Set(entries.flatMap((e) => Object.keys(e.cases)))];
   const cell = (e: Entry, c: string) => {
-    const r = e.cases?.[c];
+    const r = e.cases[c];
     return r === undefined ? "n/a" : `${r.change_pct >= 0 ? "+" : ""}${r.change_pct.toFixed(1)}%`;
   };
   const lines = [
     `| date | commit | runner | ${cases.join(" | ")} |`,
     `| --- | --- | --- | ${cases.map(() => "---:").join(" | ")} |`,
     ...entries.map(
-      (e) =>
-        `| ${e.date.slice(0, 10)} | ${e.commit} | ${e.runner ? `${e.runner.os}-${e.runner.arch}` : e.platform} | ${cases.map((c) => cell(e, c)).join(" | ")} |`,
+      (e) => `| ${e.date.slice(0, 10)} | ${e.commit} | ${e.runner.os}-${e.runner.arch} | ${cases.map((c) => cell(e, c)).join(" | ")} |`,
     ),
   ];
   return lines.join("\n") + "\n";
@@ -118,7 +112,9 @@ export function parseTableArgs(argv: string[]): { file: string; last: number } {
   let file: string | undefined;
   let last = Infinity;
   for (let i = 0; i < argv.length; i++) {
-    const [flag, inline] = argv[i].split("=", 2);
+    const eq = argv[i].indexOf("=");
+    const flag = eq === -1 ? argv[i] : argv[i].slice(0, eq);
+    const inline = eq === -1 ? undefined : argv[i].slice(eq + 1);
     if (flag === "--last") {
       last = Number(inline ?? argv[++i]);
       if (!(last >= 1)) throw new Error("--last needs a positive number");

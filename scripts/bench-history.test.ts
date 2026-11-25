@@ -51,10 +51,8 @@ describe("bench-history", () => {
     expect(() => parseHistory('{"commit":"x","medians":{}}\nnot json\n')).toThrow(/line 2/);
   });
 
-  test("the table shows the change per commit and keeps reading legacy rows as n/a", () => {
-    const legacy = { commit: "old", date: "2026-11-19", bun: "1.3.4", platform: "linux-x64", medians: { a: 100, b: 50 } };
-    const out = renderTable([legacy, entry("c1", 100, 110, "2026-11-20"), entry("c2", 100, 90, "2026-11-21")]);
-    expect(out).toContain("| 2026-11-19 | old | linux-x64 | n/a | n/a |");
+  test("the table shows the change per commit", () => {
+    const out = renderTable([entry("c1", 100, 110, "2026-11-20"), entry("c2", 100, 90, "2026-11-21")]);
     expect(out).toContain("| 2026-11-20 | c1 | Linux-X64 | +10.0% | +0.0% |");
     expect(out).toContain("| 2026-11-21 | c2 | Linux-X64 | -10.0% | +0.0% |");
   });
@@ -73,6 +71,7 @@ describe("bench-history", () => {
   test("table arguments: --last in both forms, unknown flags are errors", () => {
     expect(parseTableArgs(["h.jsonl", "--last", "5"])).toEqual({ file: "h.jsonl", last: 5 });
     expect(parseTableArgs(["--last=7", "h.jsonl"])).toEqual({ file: "h.jsonl", last: 7 });
+    expect(parseTableArgs(["h=1.jsonl"])).toEqual({ file: "h=1.jsonl", last: Infinity });
     expect(parseTableArgs(["h.jsonl"]).last).toBe(Infinity);
     expect(() => parseTableArgs(["h.jsonl", "--lst=5"])).toThrow(/Unknown/);
     expect(() => parseTableArgs(["h.jsonl", "--last=0"])).toThrow(/--last/);
