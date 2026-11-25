@@ -7,7 +7,7 @@
  *   bun scripts/cli-bench-history.ts history.jsonl [--last N]
  *       Markdown table of the change per commit, oldest first
  *
- * CI keeps the file on the `bench-history` branch (see .github/workflows/cli-bench.yml). Each line is a
+ * CI keeps the file on the `cli-bench-history` branch (see .github/workflows/cli-bench.yml). Each line is a
  * controlled measurement: the job measured the commit AND its first parent on the same runner,
  * interleaved, the way a pull request compares base and head. A line holds, per case, the parent
  * median, the commit median and the change in percent, plus the runner identity (OS, architecture,

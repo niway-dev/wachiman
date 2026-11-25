@@ -111,7 +111,7 @@ esac
 type Case = { name: string; cmd: string[]; cwd: string; runs: number; warmup: number; env: Record<string, string>; expect?: string };
 
 function build(): Case[] {
-  const home = temp("wachiman-bench-home-");
+  const home = temp("wachiman-cli-bench-home-");
   // The pinned Bun is called by path, so node_modules/.bin is not on PATH; node is, for the launcher case.
   const base: Record<string, string> = {
     PATH: [...(node ? [dirname(node)] : []), "/usr/bin", "/bin"].join(delimiter),
@@ -122,7 +122,7 @@ function build(): Case[] {
   };
   if (process.env.TMPDIR !== undefined) base.TMPDIR = process.env.TMPDIR;
 
-  const fakeBin = temp("wachiman-bench-fake-");
+  const fakeBin = temp("wachiman-cli-bench-fake-");
   const reviewFile = join(fakeBin, "review.json");
   writeFileSync(reviewFile, JSON.stringify(REVIEW));
   writeFileSync(join(fakeBin, "claude"), fakeScript(reviewFile), { mode: 0o755 });
