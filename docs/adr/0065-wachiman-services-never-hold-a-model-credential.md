@@ -56,8 +56,10 @@ customers.
   for what.
 - Setup is harder than pasting a key into a vendor's form. The documentation has to carry that
   cost, with one tested setup per provider and per secret manager.
-- Spending is not prevented: anyone allowed to start a run can spend. Budgets, the per-pull-request
-  ceiling, provider spend limits and the `operator` input bound it.
+- Spending is not prevented: anyone allowed to start a run can spend. Wachiman's budgets and the
+  `operator` input are caller inputs that anyone who can push may edit for their own branch's run,
+  so the only limit a teammate cannot edit is the provider's own (a workspace spend limit, or the
+  broker's or `watch` machine's limits).
 - The engine gains a federation mode that adds three variables to the model process's allowlist,
   and keeps blocking custom endpoints until a separate decision.
 

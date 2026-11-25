@@ -89,7 +89,7 @@ provider refuses.
 
 - `repository_id`: your repository's numeric ID, which survives a rename;
 - `job_workflow_ref`: the exact reusable workflow that runs, for example
-  `niway-dev/wachiman/.github/workflows/review-platform.yml@<commit SHA>` (the variant of the
+  `niway-dev/wachiman/.github/workflows/wachiman-platform.yml@<commit SHA>` (the variant of the
   workflow that may request an OIDC token).
 
 Pinning `job_workflow_ref` to a commit SHA you reviewed is your defence against a compromised
@@ -116,15 +116,18 @@ access. To upgrade, you add the new SHA on purpose. See
 2. Add GitHub as an identity issuer, create a service account, and create a federation rule for
    that workspace whose conditions name your `repository_id` and the Wachiman
    `job_workflow_ref` at the SHA you pin.
-3. In the caller workflow, call `review-platform.yml`, pass the rule ID and the organization ID
+3. In the caller workflow, call `wachiman-platform.yml`, pass the rule ID and the organization ID
    as inputs, and grant the job `id-token: write`. No secret is added.
 
 What still holds:
 
-- A teammate can still **use** the legitimate workflow, by opening a pull request or commenting,
-  and spend from the workspace. They cannot take a credential with them. The workspace spend
-  limit, the per-pull-request ceiling and [who may command Wachiman](#who-may-command-wachiman)
-  bound that.
+- A teammate can still **use** the legitimate workflow and spend from the workspace. They cannot
+  take a credential with them. **The workspace spend limit is the only limit they cannot edit.**
+  Wachiman's budgets (`budget_usd`, `auto_budget_usd`), the model, and the `operator` input are
+  inputs in the caller file, and on `pull_request` GitHub runs the caller file from the pull
+  request's own branch. A teammate can raise those inputs on their branch and still match the
+  rule, because the rule checks which workflow runs, not the inputs passed to it. Set the
+  workspace limit to what you are willing to lose in a month.
 - The short-lived access token is on the runner while the review runs. The engine passes it only
   to the model process and never executes code from the pull request
   ([SECURITY.md](../SECURITY.md#what-from-the-head-is-executed-and-what-is-read)).
@@ -219,15 +222,20 @@ posts nothing. See [local-review.md](local-review.md) and [on-your-machine.md](o
 | A copied credential is used elsewhere for months | Exposed | Protected: tokens expire | Exposed once copied | Protected | Exposed if the machine is breached |
 | A malicious newer Wachiman release | Exposed with a moving tag | Protected by the SHA in the rule | Protected if the conditions pin the SHA | Partly: it can spend, not take | Protected by the pinned image |
 | Wachiman's own services are breached | Not affected | Not affected | Not affected | Not affected | Not affected |
-| A teammate spends through legitimate reviews | Bounded by budgets | Bounded by budgets and the workspace limit | Bounded by budgets | Bounded by budgets | Bounded by budgets |
+| A teammate spends through reviews on their own branch | Unbounded: they can take the credential | Bounded by the provider workspace limit only | Bounded only by limits on the provider account | Bounded by the broker's limits | Bounded by the machine's own budgets |
 
 The fourth row is the point of the whole design: Wachiman's services hold no customer
 credential, so breaching them yields none.
 
+The last row is why provider-side limits matter. Wachiman's budgets live in the caller file, and
+anyone who can push a branch can edit that file for their own pull request's run. They bound
+honest mistakes, not a teammate who wants to spend.
+
 ## Who may command Wachiman
 
-Protecting the credential bounds who can **take** it. Who can **spend** it is decided by who may
-start a run:
+Protecting the credential bounds who can **take** it. Who may **command** a run is decided by the
+`operator` input. Like every caller input, a teammate can edit it on their own branch, so it
+decides who commands Wachiman in normal use and does not replace a provider-side spend limit.
 
 - **Today:** the `operator` input names one GitHub login. Only that person can request a review
   with `/wachiman review`, resolve threads and approve a budget; `askers: write` lets other

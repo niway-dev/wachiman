@@ -29,8 +29,9 @@ Build order:
 | --- | --- | --- | --- |
 | 1 | Wachiman's services never receive, store or have permission to fetch a customer's model credential. No hosted vault | A breach of Wachiman must yield no customer credential; concentrating many customers' keys is the target an attacker wants | 0065 (new) |
 | 2 | Six options, each labelled available or planned: repository secret, provider federation, secret manager, broker, `watch`, local | Teams differ in whom they trust and which provider they pay | — |
-| 3 | Provider federation is built first, Anthropic first, on the workflow that already requests an OIDC token (`review-platform.yml`) | It removes the stored secret entirely; that workflow already grants `id-token: write` for the ledger | 0065 |
+| 3 | Provider federation is built first, Anthropic first, on the workflow that already requests an OIDC token (`wachiman-platform.yml`) | It removes the stored secret entirely; that workflow already grants `id-token: write` for the ledger | 0065 |
 | 4 | When a key and a federation rule are both passed, the run fails before any model call | Claude Code prefers `ANTHROPIC_API_KEY` and ignores federation without saying so | 0065 |
+| 4b | The docs say the provider-side spend limit is the only limit a teammate cannot edit; Wachiman's budgets and `operator` are caller inputs a pusher changes for their own branch's run | A federation rule checks which workflow runs, not its inputs | — |
 | 5 | The documented defence against a compromised release is pinning the reusable workflow's SHA in the federation rule or the secret manager's conditions | The provider or manager, not Wachiman, then refuses a release the customer has not approved | — |
 | 6 | `operator` accepts `maintain` (GitHub maintain or admin, checked per command) besides a login; a Wachiman role registry is later and not designed here | A team must not depend on one login; GitHub already knows who maintains | amends the `operator` input; ADR at build time |
 | 7 | Secret managers are reached through Varlock plugins, not one integration per manager and not a vault Wachiman publishes for customers to deploy | Managers already gate access on GitHub OIDC; a company will not stand up infrastructure for a review tool | — |
@@ -70,7 +71,7 @@ Build order:
 - The engine passes the model process an allowlist of variables (`CHILD_ENV_ALLOWLIST` in
   `src/providers/claude-code.ts`): the key, the config directory and a few system variables, plus
   the OAuth token in that mode. Federation variables are not on it.
-- `review-platform.yml` is `review.yml` plus `id-token: write`, used today only to enroll in the
+- `wachiman-platform.yml` (formerly `review-platform.yml`) is `review.yml` plus `id-token: write`, used today only to enroll in the
   spend ledger.
 - `operator` is one login, required by every job.
 
@@ -78,7 +79,7 @@ Build order:
 
 How it runs:
 
-1. The caller uses `review-platform.yml`, grants `id-token: write`, and passes two inputs:
+1. The caller uses `wachiman-platform.yml`, grants `id-token: write`, and passes two inputs:
    `anthropic_federation_rule_id` and `anthropic_organization_id`. It passes no model secret.
 2. A workflow step requests GitHub's OIDC token with the audience Anthropic expects and writes it
    to a file outside the checkout, readable only by the runner user.
@@ -96,7 +97,9 @@ Acceptance criteria:
 
 - **AC1.** A caller with the two inputs, `id-token: write` and no model secret produces a review.
   The model process's environment holds the three federation variables and no
-  `ANTHROPIC_API_KEY` or `CLAUDE_CODE_OAUTH_TOKEN`.
+  `ANTHROPIC_API_KEY`, `CLAUDE_CODE_OAUTH_TOKEN`, `ACTIONS_ID_TOKEN_REQUEST_URL` or
+  `ACTIONS_ID_TOKEN_REQUEST_TOKEN`: the model process can use the identity token it was given but
+  cannot mint new ones.
 - **AC2.** A caller that passes a key or a token together with the federation inputs fails before
   any model call, with a message naming both.
 - **AC3.** The identity token file is outside the checkout, mode 0600, and gone after the job. A
