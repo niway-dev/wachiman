@@ -105,11 +105,21 @@ describe("what a name resolves to", () => {
   });
 
   test("a registered managed name", () => {
-    expect(profileOf("personal")).toEqual({ kind: "managed", name: "personal", configDir: join(home, "claude-personal"), registered: true });
+    expect(profileOf("personal")).toEqual({
+      kind: "managed",
+      name: "personal",
+      configDir: join(home, "claude-personal"),
+      registered: true,
+    });
   });
 
   test("a registered external name, with and without its binary", () => {
-    expect(profileOf("work-a")).toEqual({ kind: "external", name: "work-a", configDir: "/Users/me/.claude-work-a", binary: "/opt/claude/claude" });
+    expect(profileOf("work-a")).toEqual({
+      kind: "external",
+      name: "work-a",
+      configDir: "/Users/me/.claude-work-a",
+      binary: "/opt/claude/claude",
+    });
     expect(profileOf("work-b")).toEqual({ kind: "external", name: "work-b", configDir: "/Users/me/.claude-work-b" });
   });
 
@@ -119,8 +129,18 @@ describe("what a name resolves to", () => {
   });
 
   test("isolated is the managed profile named isolated; isolated:<n> is the managed profile n", () => {
-    expect(profileOf("isolated")).toEqual({ kind: "managed", name: "isolated", configDir: join(home, "claude-isolated"), registered: false });
-    expect(profileOf("isolated:legacy")).toEqual({ kind: "managed", name: "legacy", configDir: join(home, "claude-legacy"), registered: false });
+    expect(profileOf("isolated")).toEqual({
+      kind: "managed",
+      name: "isolated",
+      configDir: join(home, "claude-isolated"),
+      registered: false,
+    });
+    expect(profileOf("isolated:legacy")).toEqual({
+      kind: "managed",
+      name: "legacy",
+      configDir: join(home, "claude-legacy"),
+      registered: false,
+    });
     expect(profileOf("isolated:personal")).toMatchObject({ kind: "managed", name: "personal", registered: true });
   });
 

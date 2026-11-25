@@ -2,7 +2,11 @@
 
 - **Status:** draft 2026-11-14, revised 2026-11-18 (the inline table). The owner answered open
   questions 2 to 4 on 2026-11-14 and question 1 provisionally; open questions 5, 6 and 7 run on
-  their defaults unless the owner says otherwise.
+  their defaults unless the owner says otherwise. Amended 2026-11-21 before the review body
+  (build PR 2): the status modes, one colour per status line, the partial callout, the answer line
+  and the path rule (decisions 2, 4 and 16 to 19; "Amendment 2026-11-21" below). The owner chose
+  them after comparing six layouts on five real review bodies (wachiman #281, #236, #277, #242,
+  #276).
 - **ADR:** [ADR 0055](../adr/0055-the-review-comment-is-rendered-in-fixed-slots-from-a-view-model.md) (new).
 - **Issue:** [NIW2-810](https://linear.app/niway/issue/NIW2-810/wachiman-one-fixed-layout-for-every-comment-on-a-pull-request-summary)
 
@@ -21,9 +25,9 @@ parser round-trip tests instead of more string assertions.
 | # | Decision | Why | ADR |
 | --- | --- | --- | --- |
 | 1 | The review body has fixed slots in a fixed order; an empty slot is omitted, never moved | A reader learns where to look once | 0055 (new) |
-| 2 | The first line is a computed status: Not reviewed > Partial > Blocker > Fix > Needs investigation > none; partial coverage always shows beside it | The answer comes first; a failure never looks like "no findings" | 0055 |
+| 2 | The first line is a computed status with nine modes (Not reviewed > Partial > Blocker > Fix > Needs investigation > Questions for you > No new findings to fix > Nothing to fix with Consider > Wachiman found nothing to fix); partial coverage always shows beside it. Amended 2026-11-21 | The answer comes first; a failure never looks like "no findings"; a question only a person can answer is never hidden behind a reassuring lead | 0055 (amended) |
 | 3 | "before merge" is said only for Blocker; Fix is "to fix in this PR"; there is no ✅ | ADR 0003 defines Fix as not blocking; a green check reads as approval, which ADR 0031 point 5 and ADR 0033 reject | reuses 0003, 0031, 0033 |
-| 4 | An "At a glance" two-column table: findings (adds up, Info included), risk with its top reason, needs a person, coverage, earlier threads, read first, how to answer | Two columns stay narrow; every row is a question a reader asks | 0055 |
+| 4 | An "At a glance" two-column table: findings (adds up, Info included), risk with its top reason, needs a person (only when there is one), coverage, earlier threads, read first. How to answer a finding is a `<sub>` line above the cost line, not a row. Amended 2026-11-21 | Two columns stay narrow; every row is a question a reader asks; a row that reads the same on every review is not one | 0055 (amended) |
 | 5 | Blocker and Fix findings of this pull request are listed in the body as a table, whatever their anchor; Consider too, collapsed above eight rows | A skimmer must see what to fix without opening threads | 0055 |
 | 6 | Pre-existing and Needs investigation (inconclusive) keep their own slots, routed by origin as the engine does today; a slot holding a Blocker or Fix is visible and never dropped; PR Confidence is a row of the glance table; the verifier and instructions notices keep a visible slot | They carry origin and uncertainty, not severity | reuses 0030, 0033 |
 | 7 | "Where" links to the file and line at the head SHA, never to a thread | Threads do not exist when the body is rendered; on the 422 fallback they never exist | 0055 |
@@ -35,6 +39,10 @@ parser round-trip tests instead of more string assertions.
 | 13 | A not-reviewed notice says who acts, where, and what was spent; a $0 refusal (billing, auth) that is the latest bot notice is edited in place, every other notice stays a new review | 68 identical no-credit reviews in three days; notices that spent money must stay separate for the ceiling | 0055, keeps 0012 |
 | 14 | A rebase or base-merge with no new changes stays a new one-line review with one wording | It must advance the head marker; editing an older review would rewrite its marker and its cost | 0055 |
 | 15 | The format is protected by a view model, golden Markdown files and parser round-trip tests, not by string assertions spread over tests | ~280 test lines assert on today's strings; the next change would move them all again | 0055 |
+| 16 | One colour per status line: only the lead carries a colour emoji and it is bold; the parts after it are plain text. Risk never appears on the status line | "🟢 nothing blocks · 🔴 high risk" on one line reads as a contradiction (owner, 2026-11-21, on #281) | 0055 (amended) |
+| 17 | A partial review adds a callout under the status line: a blockquote with the count of files not reviewed per reason and how to ask for the rest. The file list moves to a collapsed "Files not reviewed" slot | Today the first line of #242 is 52 file names long; the reader needs the count and the next step, the list is for lookup | 0055 (amended) |
+| 18 | The clean lead is "⚪ Wachiman found nothing to fix", never "good to merge" | Says what the reviewer did, not what the PR is; keeps ADR 0031 point 5, ADR 0033 and the README's "never approves" true | reuses 0031, 0033 |
+| 19 | A displayed file name that two locations of the same body share shows the shortest path suffix that tells them apart | `run.ts` and `prompt.ts` exist in several directories; a bare name would point at the wrong file | 0055 (amended) |
 
 ### Open questions
 
@@ -49,10 +57,10 @@ parser round-trip tests instead of more string assertions.
    It needs an extra model call per review.
 5. **A rebase-only push: a one-line review or nothing?** Default: one line. The line advances the
    head marker, so the next review does not re-read the same changes.
-6. **Where does "how to answer a finding" appear?** The `Verdict: correct` / `Verdict: wrong` reply
-   is the owner's existing convention, read by `src/precision.ts` to measure how often the reviewer
-   is right; no posted comment mentions it today. Default: one row in the review body's glance
-   table, nothing on each inline comment.
+6. ~~**Where does "how to answer a finding" appear?**~~ Answered 2026-11-21: a `<sub>` line just
+   above the cost line, nothing on each inline comment. The `Verdict: correct` / `Verdict: wrong`
+   reply keeps its keyword, because `src/precision.ts` reads it; the status line is called the
+   status, never a verdict, so the two words do not collide.
 7. **A Fix line with the evidence folded away, inline?** Default: no, for now. The owner's table
    layout (2026-11-18) showed `**Fix:**` and a `<details>` Evidence block, but the finding schema
    has one `body` string, so splitting it means asking the model for the fix separately, as in
@@ -135,6 +143,26 @@ parser round-trip tests instead of more string assertions.
 - [ ] Each build pull request's Evidence has a GitHub-rendered screenshot of every golden scenario
       it changes.
 
+Added 2026-11-21 with the amendment; in the earlier criteria, "Nothing to fix" as a clean lead now
+reads "Wachiman found nothing to fix".
+
+- [ ] **S1** Golden scenarios built from the data of five real reviews: wachiman #281 (one line,
+      a question for you), #236 (16 files, one Fix, two needs-a-person items), #277 (35 files, six
+      batches), #242 (partial, 52 files not reviewed) and #276 (changes since an earlier commit).
+- [ ] **S2** The first line of every golden body has exactly one emoji from ⛔ ⚠️ 🔴 🟠 🔍 🟣 ⏳ 🟡 ⚪,
+      in the bold lead, and its lead is the first mode of the status table that applies.
+- [ ] **S3** No golden body contains "good to merge", "LGTM" or ✅; the clean golden body opens
+      `👮 **Wachiman** · ⚪ **Wachiman found nothing to fix** · whole PR at`.
+- [ ] **S4** The #281 golden body, with no Blocker, Fix or inconclusive finding and one open
+      question, leads with `🟣 **1 question for you**`.
+- [ ] **S5** The #242 golden body's first line is under 300 characters; its callout's counts per
+      reason add up to the files not reviewed; "Files not reviewed" lists every path, grouped by
+      reason.
+- [ ] **S6** No golden body has an "Answer a finding" row; each has the answer `<sub>` line after
+      slot 14, and `readAutoCost` returns the run cost for every golden body.
+- [ ] **S7** A golden body with findings in `src/init/run.ts` and `src/setup/run.ts` shows
+      `init/run.ts` and `setup/run.ts`.
+
 ## Detail
 
 ### What is wrong today (evidence)
@@ -203,19 +231,21 @@ Slots, in order. An empty slot is omitted.
 | # | Slot | Visible | Source |
 | --- | --- | --- | --- |
 | 1 | Status line (brand first, ADR 0010) | yes | computed |
-| 2 | Instructions-changed notice, verifier notices | yes | computed |
+| 2 | Partial callout (decision 17), instructions-changed notice, verifier notices | yes | computed |
 | 3 | At a glance table, with a PR Confidence row when graded | yes | computed |
 | 4 | To fix (Blocker, Fix) | yes | findings |
 | 5 | Needs investigation (inconclusive Blocker/Fix) | yes | findings |
 | 6 | To consider | collapsed above eight rows | findings |
-| 7 | Needs a person (up to three, with the model's why) | yes | risk map |
+| 7 | Questions for you: the needs-a-person items (up to three, with the model's why), then every open "connects to" question with its location. Amended 2026-11-21 | yes | risk map, contracts |
 | 8 | Risk facts | yes | risk map |
 | 9 | Pre-existing | visible if it holds a Blocker or Fix, else collapsed | findings |
 | 10 | For your information (Info) | collapsed | findings |
 | 11 | What the change connects to | collapsed | contracts |
 | 12 | What the reviewer checked (batch prose) | collapsed | model |
 | 13 | Coverage by batch | collapsed | computed |
+| 13a | Files not reviewed, grouped by reason (partial only) | collapsed | computed |
 | 14 | Run details | collapsed (provisional, open question 1) | computed |
+| 14a | Answer line: how to answer a finding (`<sub>`), then the receipt | yes | fixed text |
 | 15 | `<sub>` cost line | yes | computed |
 | 16 | Hidden markers | — | computed |
 
@@ -227,10 +257,11 @@ applies) sits immediately before slot 15, as it does today. It is never dropped 
 states a receipt is edited in place with the receipt of the run that replaces it: each receipt covers
 one run's settlement, and an older $0 receipt is superseded by the newer one, not added to.
 
-Size fitting drops whole slots from a named list, in this order: 12, 11, 13, 14, 10, 9 (only when
-it holds no Blocker or Fix), then 6. Slot 6 keeps its rows that have no inline thread (outside the
+Size fitting drops whole slots from a named list, in this order: 12, 11, 13, 13a (it first shrinks
+to one count per reason; the callout in slot 2 keeps the counts, and the partial marker keeps every
+path), 14, 10, 9 (only when it holds no Blocker or Fix), then 6. Slot 6 keeps its rows that have no inline thread (outside the
 diff) and shrinks the rest to a count: "11 more to consider, on their lines (see Files changed)".
-There is no link to a thread, for the reason of decision 7. Slots 1–3, 7, 15 and 16 are never dropped. Slots 4, 5, 8 and 9 are never removed as slots; their
+There is no link to a thread, for the reason of decision 7. Slots 1–3, 7, 14a (with the receipt), 15 and 16 are never dropped. Slots 4, 5, 8 and 9 are never removed as slots; their
 rows are cut when the body is over the limit, as below.
 
 If the never-dropped slots alone pass `MAX_BODY_CHARS`, the row tables are cut in this order until
@@ -248,30 +279,66 @@ between slots 13 and 14. Its drop order there: slot 12, then the Consider and In
 to their first paragraph. The 422 body is rendered from the same view, so it needs no text split
 point: `moveCommentsToBody`'s split on `### Summary` is replaced by this slot-based fitting.
 
-Status line, built from parts joined by ` · `:
+Status line, built from parts joined by ` · ` (amended 2026-11-21, decisions 2, 16 and 18). It is
+called the status, never a verdict: "Verdict" is the reply a person gives a finding.
 
-1. The lead, the first that applies: `⛔ Not reviewed: <reason>`, `⚠️ Partial: N of M files not
-   reviewed`, `🔴 N blockers before merge`, `🟠 N to fix in this PR`, `Needs investigation: N`,
-   `No new findings to fix` (unresolved bot threads remain, a pre-existing Blocker or Fix exists,
-   or the thread count is unknown), `Nothing to fix` (none of those).
-2. When the lead is Partial and the review also has Blockers or Fixes, their part follows the lead:
-   `⚠️ Partial: 2 of 9 files not reviewed · 🔴 1 blocker before merge · …`. The same holds for a
-   Fix part after a Blocker lead: `🔴 1 blocker before merge · 🟠 2 to fix in this PR · …`.
-3. Doubts that must not read as reassuring follow next, whatever the lead: `⚠️ verifier did not
-   finish: N findings not checked` when the verifier failed or stopped, and `N pre-existing issues
-   to fix, not from this PR` when slot 9 holds a Blocker or Fix. So a review with no findings and a failed verifier opens
-   `Nothing to fix · ⚠️ verifier did not finish: …`, never a bare `Nothing to fix`.
-4. Earlier threads: when unresolved bot threads remain, `N earlier threads open` always follows;
-   when a page of `fetchThreads` failed, `⚠️ earlier threads not counted` follows instead. So
-   "Nothing to fix" never appears while an earlier bot thread is unresolved or uncounted.
-5. `🟡 N to consider`, when there are any.
-6. The scope, always last: `whole PR at <sha>` or `changes since <sha> at <sha>`.
+1. The lead is the first mode that applies. It is bold and carries the only colour emoji on the
+   line:
+
+   | # | Mode | Lead | When |
+   | --- | --- | --- | --- |
+   | 1 | Not reviewed | `⛔ **Not reviewed: <reason>**` | the notice template (build PR 4) |
+   | 2 | Partial | `⚠️ **Partial: N of M files not reviewed**` | some files were not reached |
+   | 3 | Blocker | `🔴 **N blockers before merge**` | a Blocker of this PR |
+   | 4 | Fix | `🟠 **N to fix in this PR**` | a Fix of this PR |
+   | 5 | Needs investigation | `🔍 **Needs investigation: N**` | an inconclusive Blocker or Fix |
+   | 6 | Questions for you | `🟣 **N questions for you**` | needs-a-person items plus open "connects to" questions, all listed visibly in slot 7 |
+   | 7 | No new findings to fix | `⏳ **No new findings to fix**` | earlier bot threads unresolved, a pre-existing Blocker or Fix, or the thread count unknown |
+   | 8 | Only Consider | `🟡 **Nothing to fix · N to consider**` | Consider findings, no Blocker or Fix |
+   | 9 | Clean | `⚪ **Wachiman found nothing to fix**` | none of the above |
+
+2. The parts after the lead are plain text, in this order, each only when it applies and is not
+   already the lead: `N blockers before merge`, `N to fix in this PR`, `N to investigate` (so a Fix
+   or Partial lead cannot hide an inconclusive Blocker), `verifier did not finish: N
+   findings not checked`, `N pre-existing issues to fix, not from this PR`, `N questions for you`,
+   `N earlier threads open` or `earlier threads not counted`, `N to consider`. So a partial review
+   with fixes reads `⚠️ **Partial: 2 of 9 files not reviewed** · 1 blocker before merge · 2 to fix
+   in this PR · …`, and a clean review with a failed verifier reads `⚪ **Wachiman found nothing to
+   fix** · verifier did not finish: …`, never a bare clean lead.
+3. The scope, always last: `whole PR at <sha>`, `changes since <sha> at <sha>`, or `changes since
+   <sha> (after a rebase) at <sha>`.
+4. Risk is never on the status line. It is the Risk row of the glance table, and its facts are
+   slot 8. A question the risk raises reaches the line through mode 6.
+
+The status is computed from the review's own data when it is posted. `wachiman pr-state` reads the
+live pull request and is unchanged: a body that leads with mode 6 can still give `pr-state` `done`,
+because a question for a person is not a thread an agent resolves.
+
+The partial callout (slot 2), with the real counts of wachiman #242:
+
+```markdown
+> ⚠️ **Partial review: 30 of 82 files reviewed.** 52 not reviewed: 42 because the pull request's
+> budget was spent, 10 because a call ran out of its budget. They are listed under "Files not
+> reviewed". Ask `/wachiman review <paths>` for the rest.
+```
+
+The glance table has no "Answer a finding" row, and its "Needs a person" row appears only when there
+is an item. The Findings row ends with today's priority counts: `… (9) · 1 Should · 5 Could`. How
+to answer a finding is a `<sub>` line (slot 14a) placed after slot 14 and before the receipt; it is never
+dropped and holds no `$`, so `readAutoCost` still reads the cost line:
+
+```markdown
+<sub>Answer a finding in its thread: `Verdict: correct` or `Verdict: wrong`, and why.</sub>
+```
+
+Build PR 2 keeps today's `<sub>` cost line text unchanged; the shortened line and Run details
+(slot 14) are build PR 3.
 
 Example, with the real data of wachiman #238 (the version and duration in Run details are
 illustrative):
 
 ```markdown
-👮 **Wachiman** · Nothing to fix · 🟡 6 to consider · whole PR at `d6f4431`
+👮 **Wachiman** · 🟣 **1 question for you** · 6 to consider · whole PR at `d6f4431`
 
 | At a glance | |
 | --- | --- |
@@ -280,7 +347,6 @@ illustrative):
 | **Needs a person** | 1 trade-off, in `0051-…-from-wachiman.md:27` |
 | **Coverage** | 4 of 4 files reviewed, whole pull request |
 | **Read first** | `pr-template-command-design.md` and 3 ADRs |
-| **Answer a finding** | Reply in its thread with `Verdict: correct` or `Verdict: wrong` and why |
 
 ### To consider (6)
 
@@ -315,7 +381,9 @@ illustrative):
 ```
 
 Displayed paths keep the file name and the line; a name longer than 40 characters keeps its first
-and last words around `…`. The link carries the full path.
+and last words around `…`. The link carries the full path. When two locations in the same body
+share a displayed name in different directories, both show the shortest path suffix that tells
+them apart (`init/run.ts`, `setup/run.ts`), decision 19.
 
 ### Inline finding
 

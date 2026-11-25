@@ -33,7 +33,14 @@ function step(runs: HistoryRun[], s: Step) {
     format: "wachiman.review-result/1",
     change: { head: { sha: s.head } },
     coverage: { reviewed: s.reviewed, expected: s.expected ?? s.reviewed, skipped: [] },
-    findings: s.findings.map((f) => ({ path: f.path, line: f.line, title: f.title, topic: f.topic ?? "bug", severity: f.severity ?? "fix", body: "b" })),
+    findings: s.findings.map((f) => ({
+      path: f.path,
+      line: f.line,
+      title: f.title,
+      topic: f.topic ?? "bug",
+      severity: f.severity ?? "fix",
+      body: "b",
+    })),
   } as unknown as ReviewResult;
   const textOf = new Map(s.findings.map((f) => [`${f.path}:${f.line}:${f.title}`, f.text]));
   const out = reconcile({
@@ -79,7 +86,14 @@ describe("reconcile", () => {
     const runs: HistoryRun[] = [];
     const first = step(runs, { head: "h1", findings: [A], reviewed: ["src/a.ts"] });
     const out = step(runs, { head: "h2", findings: [{ ...A, line: 9, title: "A reworded complaint" }], reviewed: ["src/a.ts"] });
-    expect(out.tracking[0]).toMatchObject({ status: "open", matchedBy: "line", runs: 2, firstHead: "h1", firstId: first.tracking[0].firstId, reopened: 0 });
+    expect(out.tracking[0]).toMatchObject({
+      status: "open",
+      matchedBy: "line",
+      runs: 2,
+      firstHead: "h1",
+      firstId: first.tracking[0].firstId,
+      reopened: 0,
+    });
     expect(out.settled).toEqual([]);
   });
 
@@ -154,7 +168,10 @@ describe("reconcile", () => {
     step(runs, { head: "h1", findings: [A], reviewed: ["src/a.ts", "src/b.ts"] });
     const out = step(runs, {
       head: "h2",
-      findings: [{ ...A, text: undefined, topic: "security" }, { ...A, path: "src/b.ts" }],
+      findings: [
+        { ...A, text: undefined, topic: "security" },
+        { ...A, path: "src/b.ts" },
+      ],
       reviewed: ["src/a.ts", "src/b.ts"],
     });
     expect(out.tracking.map((t) => t.status)).toEqual(["new", "new"]);
@@ -165,7 +182,9 @@ describe("reconcile", () => {
     const first = step(runs, { head: "h1", findings: [A], reviewed: ["src/a.ts"] });
     const out = step(runs, { head: "h2", findings: [], reviewed: ["src/a.ts"], changed: [A.title] });
     expect(out.tracking).toEqual([]);
-    expect(out.settled).toEqual([{ firstId: first.tracking[0].firstId, status: "probably-fixed", path: "src/a.ts", line: 2, title: A.title, lastHead: "h1" }]);
+    expect(out.settled).toEqual([
+      { firstId: first.tracking[0].firstId, status: "probably-fixed", path: "src/a.ts", line: 2, title: A.title, lastHead: "h1" },
+    ]);
     expect(out.unknown).toBe(0);
   });
 
@@ -210,7 +229,12 @@ describe("reconcile", () => {
     const runs: HistoryRun[] = [];
     const whole = { path: "src/a.ts", line: 0, title: "The module has no error handling" };
     step(runs, { head: "h1", findings: [whole], reviewed: ["src/a.ts"], blobs: { "src/a.ts": "blob1" } });
-    const again = step(runs, { head: "h2", findings: [{ ...whole, text: "ignoredbecauseline0" }], reviewed: ["src/a.ts"], blobs: { "src/a.ts": "blob1" } });
+    const again = step(runs, {
+      head: "h2",
+      findings: [{ ...whole, text: "ignoredbecauseline0" }],
+      reviewed: ["src/a.ts"],
+      blobs: { "src/a.ts": "blob1" },
+    });
     expect(again.tracking[0]).toMatchObject({ status: "open", matchedBy: "title" });
     const fixed = step(runs, { head: "h3", findings: [], reviewed: ["src/a.ts"], changed: [whole.title], blobs: { "src/a.ts": "blob2" } });
     expect(fixed.settled.map((s) => s.status)).toEqual(["probably-fixed"]);

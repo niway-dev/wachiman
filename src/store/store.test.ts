@@ -1,6 +1,17 @@
 import { afterAll, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
-import { appendFileSync, chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, statSync, unlinkSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  appendFileSync,
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  statSync,
+  unlinkSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { join } from "node:path";
 import { appendVerdict, historyRoot, writeLoopFile, writeRun } from "../history/store";
 import type { HistoryRun } from "../history/types";
@@ -37,7 +48,10 @@ describe("the local index", () => {
       [ALPHA.key, "feat/x", "converged", 2, "not recorded"],
       ["beta-5e6f7a8b", "fix/y", "open", 3, "not recorded"],
     ]);
-    expect(f.loops.branches[0].ledger).toEqual({ total: 1, byStatus: { new: 0, open: 0, "probably-fixed": 1, "not-repeated": 0, unknown: 0 } });
+    expect(f.loops.branches[0].ledger).toEqual({
+      total: 1,
+      byStatus: { new: 0, open: 0, "probably-fixed": 1, "not-repeated": 0, unknown: 0 },
+    });
   });
 
   test("is one file, 0600, written through a temporary name that is gone afterwards", () => {
@@ -109,7 +123,14 @@ describe("the local index", () => {
     appendVerdict(root, ALPHA.key, { at: "2026-11-03T00:00:00.000Z", firstId: "c1c1c1c1c1", verdict: "partial" });
     expect(refreshIndex(wachiman, warn).rebuilt).toBe(true);
     expect(marker()).toBeNull();
-    expect(readFigures(index).findings.byVerdict).toEqual({ correct: 1, partial: 1, wrong: 1, intentional: 0, notImportant: 0, unjudged: 1 });
+    expect(readFigures(index).findings.byVerdict).toEqual({
+      correct: 1,
+      partial: 1,
+      wrong: 1,
+      intentional: 0,
+      notImportant: 0,
+      unjudged: 1,
+    });
   });
 
   test("findings judged intentional or not-important are counted, not dropped", () => {
@@ -134,7 +155,14 @@ describe("the local index", () => {
     expect(readFigures(index).totals.runs).toBe(EXPECTED.totals.runs + 1);
     expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
 
-    writeLoopFile(root, ALPHA.key, "feat/z", { format: "wachiman.loop-state/1", branch: "feat/z", base: "main", status: "open", rounds: [{ round: 1, head: "a".repeat(40), at: "2026-11-05T11:00:00.000Z" }], ledger: [] });
+    writeLoopFile(root, ALPHA.key, "feat/z", {
+      format: "wachiman.loop-state/1",
+      branch: "feat/z",
+      base: "main",
+      status: "open",
+      rounds: [{ round: 1, head: "a".repeat(40), at: "2026-11-05T11:00:00.000Z" }],
+      ledger: [],
+    });
     expect(refreshIndex(wachiman, warn).rebuilt).toBe(true);
     expect(readFigures(index).loops.totals.branches).toBe(3);
     expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
@@ -145,7 +173,9 @@ describe("the local index", () => {
     const [first] = readdirSync(join(root, ALPHA.key, "runs"));
     const extra = JSON.parse(readFileSync(join(root, ALPHA.key, "runs", first), "utf8")) as HistoryRun;
     // The write lands after the signature was taken and before the replay reads the files.
-    refreshIndex(wachiman, warn, { beforeReplay: () => writeRun(historyRoot(wachiman), { ...extra, savedAt: "2026-11-06T10:00:00.000Z" }) });
+    refreshIndex(wachiman, warn, {
+      beforeReplay: () => writeRun(historyRoot(wachiman), { ...extra, savedAt: "2026-11-06T10:00:00.000Z" }),
+    });
     expect(refreshIndex(wachiman, warn).rebuilt).toBe(true);
     expect(readFigures(index).totals.runs).toBe(EXPECTED.totals.runs + 1);
     expect(refreshIndex(wachiman, warn).rebuilt).toBe(false);
@@ -320,7 +350,14 @@ describe("the local index", () => {
     const { wachiman, index, root } = fixtureHome();
     appendFileSync(join(root, ALPHA.key, "verdicts.jsonl"), `${JSON.stringify({ firstId: "c1c1c1c1c1", verdict: "partial" })}\n`);
     refreshIndex(wachiman, warn);
-    expect(readFigures(index).findings.byVerdict).toEqual({ correct: 1, partial: 1, wrong: 1, intentional: 0, notImportant: 0, unjudged: 1 });
+    expect(readFigures(index).findings.byVerdict).toEqual({
+      correct: 1,
+      partial: 1,
+      wrong: 1,
+      intentional: 0,
+      notImportant: 0,
+      unjudged: 1,
+    });
   });
 
   test("an index that keeps its version and signature but lost a table or a column is rebuilt", () => {
@@ -351,11 +388,17 @@ describe("nothing existing depends on the index", () => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const path = join(dir, entry.name);
         if (entry.isDirectory()) walk(path);
-        else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts") && !path.includes(`${join("src", "store")}`) && path !== join(import.meta.dir, "..", "cli.ts")) {
+        else if (
+          entry.name.endsWith(".ts") &&
+          !entry.name.endsWith(".test.ts") &&
+          !path.includes(`${join("src", "store")}`) &&
+          path !== join(import.meta.dir, "..", "cli.ts")
+        ) {
           // The help text may take the dashboard's usage string and nothing else from the store.
-          const text = path === join(import.meta.dir, "..", "help.ts")
-            ? readFileSync(path, "utf8").replace(/import\s*\{\s*dashboardUsage\s*\}\s*from\s*"\.\/store\/command";?/, "")
-            : readFileSync(path, "utf8");
+          const text =
+            path === join(import.meta.dir, "..", "help.ts")
+              ? readFileSync(path, "utf8").replace(/import\s*\{\s*dashboardUsage\s*\}\s*from\s*"\.\/store\/command";?/, "")
+              : readFileSync(path, "utf8");
           if (/from "\.\.?\/(\.\.\/)?store\//.test(text)) offenders.push(path);
         }
       }

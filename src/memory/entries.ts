@@ -205,7 +205,16 @@ export function parseIndexMap(content: string): IndexRow[] {
   content.split(/\r?\n/).forEach((raw, i) => {
     const t = raw.trim();
     if (!t.startsWith("|")) return;
-    const cells = t.replace(/^\|/, "").replace(/\|$/, "").split("|").map((c) => c.trim().replace(/^`+|`+$/g, "").trim());
+    const cells = t
+      .replace(/^\|/, "")
+      .replace(/\|$/, "")
+      .split("|")
+      .map((c) =>
+        c
+          .trim()
+          .replace(/^`+|`+$/g, "")
+          .trim(),
+      );
     if (cells.length < 2 || !/\.md$/.test(cells[1]) || cells[0] === "") return;
     rows.push({ glob: cells[0], file: cells[1], line: i + 1 });
   });

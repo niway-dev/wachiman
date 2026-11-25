@@ -11,7 +11,8 @@ import { parseEntriesResponse } from "./types";
 export const DEFAULT_PULL_DAYS = 35;
 export const MAX_PULL_DAYS = 92;
 const TIMEOUT_MS = 30_000;
-const REDIRECT_MESSAGE = (url: string) => `the ledger URL ${url} redirected; the token is not sent to another address. Connect again with the final URL.`;
+const REDIRECT_MESSAGE = (url: string) =>
+  `the ledger URL ${url} redirected; the token is not sent to another address. Connect again with the final URL.`;
 
 export interface PullDeps {
   fetch: typeof fetch;
@@ -32,18 +33,28 @@ export interface PullResult {
 
 const dayOf = (d: Date) => d.toISOString().slice(0, 10);
 
-export async function pullLedger(home: string, env: Record<string, string | undefined>, sinceDays: number | undefined, deps: PullDeps = realPullDeps): Promise<PullResult> {
+export async function pullLedger(
+  home: string,
+  env: Record<string, string | undefined>,
+  sinceDays: number | undefined,
+  deps: PullDeps = realPullDeps,
+): Promise<PullResult> {
   const credentials = resolveCredentials(home, env);
   if (!credentials) throw new UsageError("No ledger is connected: run `wachiman ledger connect <url>` first.");
   const days = sinceDays ?? DEFAULT_PULL_DAYS;
-  if (!Number.isInteger(days) || days < 1 || days > MAX_PULL_DAYS) throw new UsageError(`--since takes 1 to ${MAX_PULL_DAYS} days, got ${days}.`);
+  if (!Number.isInteger(days) || days < 1 || days > MAX_PULL_DAYS)
+    throw new UsageError(`--since takes 1 to ${MAX_PULL_DAYS} days, got ${days}.`);
   const now = deps.now();
   const to = dayOf(now);
   const from = dayOf(new Date(now.getTime() - (days - 1) * 86_400_000));
   const url = `${credentials.url}/v1/entries?from=${from}&to=${to}`;
   let res: Response;
   try {
-    res = await deps.fetch(url, { headers: { authorization: `Bearer ${credentials.token}`, accept: "application/json" }, signal: AbortSignal.timeout(TIMEOUT_MS), redirect: "error" });
+    res = await deps.fetch(url, {
+      headers: { authorization: `Bearer ${credentials.token}`, accept: "application/json" },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
+      redirect: "error",
+    });
   } catch (error) {
     if (error instanceof Error && /redirect/i.test(error.message)) throw new Error(REDIRECT_MESSAGE(credentials.url));
     throw new Error(`could not reach the ledger at ${credentials.url}: ${error instanceof Error ? error.name : "network error"}`);
@@ -65,5 +76,13 @@ export async function pullLedger(home: string, env: Record<string, string | unde
     }
   })();
   const stored = storePull(home, response, from, to, now.toISOString());
-  return { account: response.account, from, to, entries: stored.entries, daysWritten: stored.daysWritten, daysRemoved: stored.daysRemoved, url: credentials.url };
+  return {
+    account: response.account,
+    from,
+    to,
+    entries: stored.entries,
+    daysWritten: stored.daysWritten,
+    daysRemoved: stored.daysRemoved,
+    url: credentials.url,
+  };
 }

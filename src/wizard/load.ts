@@ -26,5 +26,8 @@ export async function loadTerminalUi(): Promise<TerminalUi> {
 /** Bun and Node say it with a code or with the text; either is a package that is not installed. */
 export function isMissingPackage(error: unknown): boolean {
   const e = error as { code?: string; message?: string } | undefined;
-  return e?.code === "ERR_MODULE_NOT_FOUND" || /Cannot find (package|module) '(chalk|@clack\/[a-z-]+|sisteransi|fast-[a-z-]+)/.test(e?.message ?? "");
+  return (
+    e?.code === "ERR_MODULE_NOT_FOUND" ||
+    /Cannot find (package|module) '(chalk|@clack\/[a-z-]+|sisteransi|fast-[a-z-]+)/.test(e?.message ?? "")
+  );
 }

@@ -24,10 +24,22 @@ function valid(home: string): Record<string, any> {
     defaultProfile: "personal",
     profiles: {
       personal: { kind: "managed", configDir: join(home, "claude-personal"), createdAt: "2026-11-09T10:00:00Z" },
-      "work-a": { kind: "external", configDir: "/Users/me/.claude-work-a", binary: "/opt/claude/claude", createdAt: "2026-11-09T10:05:00Z" },
+      "work-a": {
+        kind: "external",
+        configDir: "/Users/me/.claude-work-a",
+        binary: "/opt/claude/claude",
+        createdAt: "2026-11-09T10:05:00Z",
+      },
     },
     projects: {
-      [KEY]: { profile: "work-a", keyedBy: "remote", remote: "ssh://github.com/acme/kaipu-record", name: "kaipu-record", boundAt: "2026-11-09T10:10:00Z", boundFrom: "/Users/me/src/kaipu-record" },
+      [KEY]: {
+        profile: "work-a",
+        keyedBy: "remote",
+        remote: "ssh://github.com/acme/kaipu-record",
+        name: "kaipu-record",
+        boundAt: "2026-11-09T10:10:00Z",
+        boundFrom: "/Users/me/src/kaipu-record",
+      },
     },
   };
 }
@@ -110,19 +122,55 @@ describe("readConfig", () => {
     ["projects not an object", (c) => ({ ...c, projects: "x" }), "projects"],
     ["an entry that is not an object", (c) => ({ ...c, profiles: { ...c.profiles, bad: "x" } }), "profiles.bad"],
     ["an entry without a kind", (c) => ({ ...c, profiles: { ...c.profiles, bad: { configDir: "/x" } } }), "profiles.bad.kind"],
-    ["an entry with an unknown kind", (c) => ({ ...c, profiles: { ...c.profiles, bad: { kind: "cloud", configDir: "/x" } } }), "profiles.bad.kind"],
-    ["a relative external configDir", (c) => ({ ...c, profiles: { ...c.profiles, "work-a": { ...c.profiles["work-a"], configDir: "rel/dir" } } }), "profiles.work-a.configDir"],
-    ["a missing external configDir", (c) => ({ ...c, profiles: { ...c.profiles, "work-a": { kind: "external" } } }), "profiles.work-a.configDir"],
-    ["a relative binary", (c) => ({ ...c, profiles: { ...c.profiles, "work-a": { ...c.profiles["work-a"], binary: "claude" } } }), "profiles.work-a.binary"],
-    ["a non-string binary", (c) => ({ ...c, profiles: { ...c.profiles, "work-a": { ...c.profiles["work-a"], binary: 3 } } }), "profiles.work-a.binary"],
-    ["a managed configDir elsewhere than <home>/claude-<name>", (c) => ({ ...c, profiles: { ...c.profiles, personal: { ...c.profiles.personal, configDir: "/elsewhere/claude-personal" } } }), "profiles.personal.configDir"],
-    ["a profile name that breaks the rule", (c) => ({ ...c, profiles: { ...c.profiles, "Bad Name": c.profiles["work-a"] } }), "profiles.Bad Name"],
+    [
+      "an entry with an unknown kind",
+      (c) => ({ ...c, profiles: { ...c.profiles, bad: { kind: "cloud", configDir: "/x" } } }),
+      "profiles.bad.kind",
+    ],
+    [
+      "a relative external configDir",
+      (c) => ({ ...c, profiles: { ...c.profiles, "work-a": { ...c.profiles["work-a"], configDir: "rel/dir" } } }),
+      "profiles.work-a.configDir",
+    ],
+    [
+      "a missing external configDir",
+      (c) => ({ ...c, profiles: { ...c.profiles, "work-a": { kind: "external" } } }),
+      "profiles.work-a.configDir",
+    ],
+    [
+      "a relative binary",
+      (c) => ({ ...c, profiles: { ...c.profiles, "work-a": { ...c.profiles["work-a"], binary: "claude" } } }),
+      "profiles.work-a.binary",
+    ],
+    [
+      "a non-string binary",
+      (c) => ({ ...c, profiles: { ...c.profiles, "work-a": { ...c.profiles["work-a"], binary: 3 } } }),
+      "profiles.work-a.binary",
+    ],
+    [
+      "a managed configDir elsewhere than <home>/claude-<name>",
+      (c) => ({ ...c, profiles: { ...c.profiles, personal: { ...c.profiles.personal, configDir: "/elsewhere/claude-personal" } } }),
+      "profiles.personal.configDir",
+    ],
+    [
+      "a profile name that breaks the rule",
+      (c) => ({ ...c, profiles: { ...c.profiles, "Bad Name": c.profiles["work-a"] } }),
+      "profiles.Bad Name",
+    ],
     ["a profile named default", (c) => ({ ...c, profiles: { ...c.profiles, default: c.profiles["work-a"] } }), "profiles.default"],
-    ["an external profile named isolated", (c) => ({ ...c, profiles: { ...c.profiles, isolated: c.profiles["work-a"] } }), "profiles.isolated"],
+    [
+      "an external profile named isolated",
+      (c) => ({ ...c, profiles: { ...c.profiles, isolated: c.profiles["work-a"] } }),
+      "profiles.isolated",
+    ],
     ["a project key that fails the key pattern", (c) => ({ ...c, projects: { "../evil": c.projects[KEY] } }), "projects.../evil"],
     ["a binding that is not an object", (c) => ({ ...c, projects: { [KEY]: "work-a" } }), `projects.${KEY}`],
     ["a dangling binding", (c) => ({ ...c, projects: { [KEY]: { ...c.projects[KEY], profile: "gone" } } }), `projects.${KEY}.profile`],
-    ["a binding with a malformed name", (c) => ({ ...c, projects: { [KEY]: { ...c.projects[KEY], profile: "Work" } } }), `projects.${KEY}.profile`],
+    [
+      "a binding with a malformed name",
+      (c) => ({ ...c, projects: { [KEY]: { ...c.projects[KEY], profile: "Work" } } }),
+      `projects.${KEY}.profile`,
+    ],
     ["a dangling defaultProfile", (c) => ({ ...c, defaultProfile: "gone" }), "defaultProfile"],
     ["a non-string defaultProfile", (c) => ({ ...c, defaultProfile: 4 }), "defaultProfile"],
     ["isolated:<n> pointing at an external profile", (c) => ({ ...c, defaultProfile: "isolated:work-a" }), "defaultProfile"],
@@ -144,7 +192,10 @@ describe("readConfig", () => {
     expect(readConfig(home, io).kind).toBe("corrupt");
     expect(readConfig(home, io, { structural: true }).kind).toBe("ok");
     const broken = { ...dangling, profiles: [] };
-    expect(readConfig(home, { read: () => JSON.stringify(broken), exists: (p: string) => p === join(home, "config.json") }, { structural: true }).kind).toBe("corrupt");
+    expect(
+      readConfig(home, { read: () => JSON.stringify(broken), exists: (p: string) => p === join(home, "config.json") }, { structural: true })
+        .kind,
+    ).toBe("corrupt");
   });
 
   test("unknown extra fields at any level are kept, never a reason to fail", () => {
@@ -159,10 +210,12 @@ describe("readConfig", () => {
 });
 
 describe("updateConfig", () => {
-  const addProject = (key: string) => (c: WachimanConfigV1): WachimanConfigV1 => ({
-    ...c,
-    projects: { ...c.projects, [key]: { profile: "default", keyedBy: "path", name: key, boundAt: "t", boundFrom: "/x" } },
-  });
+  const addProject =
+    (key: string) =>
+    (c: WachimanConfigV1): WachimanConfigV1 => ({
+      ...c,
+      projects: { ...c.projects, [key]: { profile: "default", keyedBy: "path", name: key, boundAt: "t", boundFrom: "/x" } },
+    });
 
   test("starts from an empty config, creates the home at 0700 and the file at 0600", () => {
     const home = join(temp("wh-update-"), "nested", ".wachiman");

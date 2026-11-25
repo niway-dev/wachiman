@@ -24,8 +24,7 @@ function fakeGh(files: ReturnType<typeof filesOf>, posted: { review?: { body: st
     const line = args.join(" ");
     if (line.includes("contents/")) throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
     if (line.startsWith("api repos/o/r/pulls/7 ")) return BASE;
-    if (line.startsWith("pr view"))
-      return JSON.stringify({ headRefOid: "head1234567", title: "t", body: "b", author: { login: "u" } });
+    if (line.startsWith("pr view")) return JSON.stringify({ headRefOid: "head1234567", title: "t", body: "b", author: { login: "u" } });
     if (line.includes("/pulls/7/files")) return files.map((f) => JSON.stringify(f)).join("\n");
     if (line.includes("/pulls/7/reviews") && !args.includes("POST")) return "";
     if (line.includes("-X POST repos/o/r/pulls/7/reviews")) {
@@ -181,9 +180,7 @@ describe("batches run side by side", () => {
 
   test("a rejection stops new batches; the ones already running finish", async () => {
     // Batch 1 is refused at once. Batches 2 to 4 are in flight and finish; 5 and 6 never start.
-    const provider = new TimedProvider((file) =>
-      file === fileName(1) ? { delayMs: 10, rejected: true } : { delayMs: 60 },
-    );
+    const provider = new TimedProvider((file) => (file === fileName(1) ? { delayMs: 10, rejected: true } : { delayMs: 60 }));
     const r = run(6, provider);
     await r.done;
     expect(provider.requests).toHaveLength(4);
@@ -213,11 +210,7 @@ describe("batches run side by side", () => {
     // Batch 2 is refused first. Batch 1, still in flight, then stops on its budget with no review.
     // Batch 3 is reviewed, so the posted review has a coverage table.
     const provider = new TimedProvider((file) =>
-      file === fileName(1)
-        ? { delayMs: 60, budget: true }
-        : file === fileName(2)
-          ? { delayMs: 10, rejected: true }
-          : { delayMs: 10 },
+      file === fileName(1) ? { delayMs: 60, budget: true } : file === fileName(2) ? { delayMs: 10, rejected: true } : { delayMs: 10 },
     );
     const r = run(3, provider);
     await r.done;

@@ -114,7 +114,11 @@ const emptySplit = (): Split => ({
   bySource: { laptop: zero(), actions: zero() },
   byCredential: { billed: zero(), estimated: zero(), unknown: zero() },
 });
-const emptyAside = (): AsideLines => ({ unreserved: { runs: 0, usd: 0, reservedUsd: 0 }, unsettled: { runs: 0, usd: 0, reservedUsd: 0 }, reserved: { runs: 0, usd: 0, reservedUsd: 0 } });
+const emptyAside = (): AsideLines => ({
+  unreserved: { runs: 0, usd: 0, reservedUsd: 0 },
+  unsettled: { runs: 0, usd: 0, reservedUsd: 0 },
+  reserved: { runs: 0, usd: 0, reservedUsd: 0 },
+});
 
 /** Six decimals hide floating-point noise and lose no cent. */
 export const roundUsd = (n: number) => Math.round(n * 1e6) / 1e6;
@@ -175,7 +179,8 @@ const roundAside = (a: AsideLines): AsideLines => {
 };
 
 /** What the ledger limit counts for one Actions row: spend, a reservation hold, or a late record. */
-const counted = (row: SpendRow) => (row.source !== "actions" ? 0 : row.state === "settled" || row.state === "unreserved" ? row.costUsd : row.reservedUsd);
+const counted = (row: SpendRow) =>
+  row.source !== "actions" ? 0 : row.state === "settled" || row.state === "unreserved" ? row.costUsd : row.reservedUsd;
 
 /** The Monday (UTC) of the week that contains `day`. */
 export function weekStart(day: string): string {
@@ -235,7 +240,9 @@ export function group(rows: SpendRow[], by: GroupBy): Group[] {
   }
   const groups = [...map.values()];
   for (const g of groups) roundSplit(g.split);
-  return groups.sort((a, b) => (by === "day" || by === "week" ? b.key.localeCompare(a.key) : b.split.total.usd - a.split.total.usd || a.key.localeCompare(b.key)));
+  return groups.sort((a, b) =>
+    by === "day" || by === "week" ? b.key.localeCompare(a.key) : b.split.total.usd - a.split.total.usd || a.key.localeCompare(b.key),
+  );
 }
 
 export interface ReportInput {
@@ -251,7 +258,10 @@ export interface ReportInput {
 
 /** The laptop covers from its first kept run to today, whatever the filters; Actions covers what the last pull asked for. */
 export function deriveCoverage(allRows: SpendRow[], actions: Range[], now: Date): Record<Source, Range[]> {
-  const days = allRows.filter((r) => r.source === "laptop").map((r) => r.day).sort();
+  const days = allRows
+    .filter((r) => r.source === "laptop")
+    .map((r) => r.day)
+    .sort();
   return { laptop: days.length ? [{ from: days[0], to: now.toISOString().slice(0, 10) }] : [], actions: mergeRanges(actions) };
 }
 
@@ -304,7 +314,14 @@ function buckets(input: ReportInput, kind: "day" | "week", sources: Source[]): B
       addAside(aside, row);
       limitUse += counted(row);
     }
-    return { key, known, partial, spend: roundSplit(spend), aside: roundAside(aside), countedAgainstLimitUsd: known.actions ? roundUsd(limitUse) : null };
+    return {
+      key,
+      known,
+      partial,
+      spend: roundSplit(spend),
+      aside: roundAside(aside),
+      countedAgainstLimitUsd: known.actions ? roundUsd(limitUse) : null,
+    };
   });
 }
 
@@ -319,8 +336,13 @@ export interface LimitUse {
 export function limitUse(report: Report, now: Date): { day: LimitUse | null; week: LimitUse | null } {
   const today = now.toISOString().slice(0, 10);
   const one = (buckets: Bucket[], key: string, limit: number | null): LimitUse | null =>
-    report.limits === null || limit === null ? null : { key, usedUsd: buckets.find((b) => b.key === key)?.countedAgainstLimitUsd ?? null, limitUsd: limit };
-  return { day: one(report.days, today, report.limits?.dailyUsd ?? null), week: one(report.weeks, weekStart(today), report.limits?.weeklyUsd ?? null) };
+    report.limits === null || limit === null
+      ? null
+      : { key, usedUsd: buckets.find((b) => b.key === key)?.countedAgainstLimitUsd ?? null, limitUsd: limit };
+  return {
+    day: one(report.days, today, report.limits?.dailyUsd ?? null),
+    week: one(report.weeks, weekStart(today), report.limits?.weeklyUsd ?? null),
+  };
 }
 
 export function buildReport(input: ReportInput): Report {
@@ -336,7 +358,10 @@ export function buildReport(input: ReportInput): Report {
   }
   return {
     filters: { sources },
-    coverage: { laptop: sources.includes("laptop") ? hull(input.coverage.laptop) : null, actions: sources.includes("actions") ? hull(input.coverage.actions) : null },
+    coverage: {
+      laptop: sources.includes("laptop") ? hull(input.coverage.laptop) : null,
+      actions: sources.includes("actions") ? hull(input.coverage.actions) : null,
+    },
     pulledAt: input.pulledAt ?? null,
     limits: input.limits ?? null,
     totals: roundSplit(totals),

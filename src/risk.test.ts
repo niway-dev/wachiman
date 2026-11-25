@@ -195,11 +195,7 @@ describe("the two-line form", () => {
 describe("read first", () => {
   test("files with facts come first, most severe fact first, then by score and size", () => {
     const map = build({
-      files: [
-        file("src/big.ts", 500),
-        file("src/small.ts", 2),
-        file("src/mid.ts", 10),
-      ],
+      files: [file("src/big.ts", 500), file("src/small.ts", 2), file("src/mid.ts", 10)],
       facts: [fact("dependency", "src/small.ts"), fact("auth", "src/mid.ts")],
     });
     expect(map.readFirst).toEqual(["src/mid.ts", "src/small.ts", "src/big.ts"]);
@@ -207,13 +203,7 @@ describe("read first", () => {
 
   test("the list is capped at five paths", () => {
     const files = [0, 1, 2, 3, 4, 5, 6].map((i) => file(`src/mod/f${i}.ts`, i));
-    expect(build({ files }).readFirst).toEqual([
-      "src/mod/f6.ts",
-      "src/mod/f5.ts",
-      "src/mod/f4.ts",
-      "src/mod/f3.ts",
-      "src/mod/f2.ts",
-    ]);
+    expect(build({ files }).readFirst).toEqual(["src/mod/f6.ts", "src/mod/f5.ts", "src/mod/f4.ts", "src/mod/f3.ts", "src/mod/f2.ts"]);
   });
 });
 
@@ -234,21 +224,13 @@ describe("rendering", () => {
 
   test("a full map renders exactly as ADR 0031 shows it", () => {
     const map = build({
-      files: [
-        file("db/migrations/0042_split_name.sql", 30),
-        file("src/api/session.ts", 12),
-        file("src/billing/retry.ts", 8),
-      ],
+      files: [file("db/migrations/0042_split_name.sql", 30), file("src/api/session.ts", 12), file("src/billing/retry.ts", 8)],
       facts: [
         fact("data-migration", "db/migrations/0042_split_name.sql", 1, "drops `users.name` after copying it."),
         fact("auth", "src/api/session.ts", 88, "the role check now runs after the handler is chosen."),
       ],
       judgement: [
-        judged(
-          "src/billing/retry.ts",
-          40,
-          "retries are capped at 3; whether a fourth charge attempt is acceptable is a product call.",
-        ),
+        judged("src/billing/retry.ts", 40, "retries are capped at 3; whether a fourth charge attempt is acceptable is a product call."),
       ],
     });
     expect(renderRiskMap(map, "### Risk map")).toBe(
@@ -311,7 +293,10 @@ describe("path rule bullets in the rendered risk map", () => {
   });
 
   test("a renamed file's old path is matched by the rule", () => {
-    const map = build({ files: [{ ...file("src/util/c.ts"), previousPath: "src/billing/c.ts" }], pathRules: [{ match: "src/billing/**", severity: "critical", reason: "money" }] });
+    const map = build({
+      files: [{ ...file("src/util/c.ts"), previousPath: "src/billing/c.ts" }],
+      pathRules: [{ match: "src/billing/**", severity: "critical", reason: "money" }],
+    });
     expect(map.level).toBe("high");
     expect(map.pathReasons).toHaveLength(1);
   });

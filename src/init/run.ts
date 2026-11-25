@@ -86,7 +86,11 @@ const readDefaultTemplate = () => readFileSync(TEMPLATE, "utf8");
 
 const openSession = async (deps: InitDeps, env: Record<string, string | undefined>, ui: Awaited<ReturnType<typeof loadTerminalUi>>) => {
   if (deps.prompter) return { prompter: deps.prompter, close: (_outcome: Outcome, _message?: string) => {} };
-  const prompter = await ui.openPrompter(deps.promptIO ?? { input: process.stdin, output: process.stderr }, env, deps.ui ? { ui: deps.ui } : undefined);
+  const prompter = await ui.openPrompter(
+    deps.promptIO ?? { input: process.stdin, output: process.stderr },
+    env,
+    deps.ui ? { ui: deps.ui } : undefined,
+  );
   // The message is the last line of the session: without it a saved run with one step left would end as "Stopped.".
   return { prompter, close: (outcome: Outcome, message?: string) => prompter.close(outcome, message) };
 };
@@ -95,7 +99,13 @@ const openSession = async (deps: InitDeps, env: Record<string, string | undefine
 const outcomeOf = (code: number): Outcome => (code === 0 ? "done" : code === 130 ? "cancelled" : "failed");
 
 /** `init` as `cli.ts` runs it. A parse failure under `--json` is still one JSON document with exit 2. */
-export async function runInitFromArgv(argv: string[], repoDir: string, env: Record<string, string | undefined>, io: CommandIo, deps: InitDeps = {}): Promise<number> {
+export async function runInitFromArgv(
+  argv: string[],
+  repoDir: string,
+  env: Record<string, string | undefined>,
+  io: CommandIo,
+  deps: InitDeps = {},
+): Promise<number> {
   let flags: RawInitFlags;
   try {
     flags = parseInitFlags(argv, repoDir);
@@ -105,7 +115,17 @@ export async function runInitFromArgv(argv: string[], repoDir: string, env: Reco
     const named = at >= 0 ? argv[at + 1] : undefined;
     const mode = initModes.includes(named as InitMode) ? (named as InitMode) : null;
     io.stderr(error.message);
-    printDocument(io.stdout, failureDocument({ mode, dryRun: argv.includes("--dry-run"), repoDir: resolve(deps.cwd ?? process.cwd(), repoDir), report: {}, code: "usage", message: error.message }));
+    printDocument(
+      io.stdout,
+      failureDocument({
+        mode,
+        dryRun: argv.includes("--dry-run"),
+        repoDir: resolve(deps.cwd ?? process.cwd(), repoDir),
+        report: {},
+        code: "usage",
+        message: error.message,
+      }),
+    );
     return 2;
   }
   return runInitCommand(flags, env, io, deps);
@@ -126,19 +146,30 @@ async function runInitJson(flags: RawInitFlags, io: CommandIo, deps: InitDeps): 
     if (!resolved.ok) throw new UsageError(resolved.error);
     mode = resolved.options.mode;
     await runInit(resolved.options, quiet, { ...deps, prompter: undefined, report });
-    printDocument(io.stdout, buildDocument({ mode, dryRun: resolved.options.github?.dryRun ?? resolved.options.dryRun === true, repoDir, report }));
+    printDocument(
+      io.stdout,
+      buildDocument({ mode, dryRun: resolved.options.github?.dryRun ?? resolved.options.dryRun === true, repoDir, report }),
+    );
     return 0;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     const usage = error instanceof UsageError;
     io.stderr(message);
-    printDocument(io.stdout, failureDocument({ mode, dryRun: flags.dryRun === true, repoDir, report, code: usage ? "usage" : "failed", message }));
+    printDocument(
+      io.stdout,
+      failureDocument({ mode, dryRun: flags.dryRun === true, repoDir, report, code: usage ? "usage" : "failed", message }),
+    );
     return usage ? 2 : 1;
   }
 }
 
 /** From the parsed flags: asks what is missing when a person can be asked, resolves, and runs. */
-export async function runInitCommand(flags: RawInitFlags, env: Record<string, string | undefined>, io: CommandIo, deps: InitDeps = {}): Promise<number> {
+export async function runInitCommand(
+  flags: RawInitFlags,
+  env: Record<string, string | undefined>,
+  io: CommandIo,
+  deps: InitDeps = {},
+): Promise<number> {
   if (flags.json) return runInitJson(flags, io, deps);
   // Fail before asking for an operator or account in an unusable target.
   const root = worktreeRoot(flags.repoDir ?? ".", deps.git);
@@ -203,7 +234,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     const wrote: string[] = [];
     const record = (file: string, backup?: string) => {
       wrote.push(file);
-      if (backup !== undefined) backups.set(file, isAbsolute(backup) && !relative(root, backup).startsWith("..") ? relative(root, backup) : backup);
+      if (backup !== undefined)
+        backups.set(file, isAbsolute(backup) && !relative(root, backup).startsWith("..") ? relative(root, backup) : backup);
     };
     try {
       // Same semantics as `pr-template install` with no --force and no --commit: init never commits.
@@ -222,7 +254,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     }
     if (report) {
       const entry = (path: string): { path: string; action: FileAction; backup?: string } => {
-        if (wrote.includes(path)) return { path, action: existed.has(path) ? "replaced" : "created", ...(backups.has(path) ? { backup: backups.get(path) } : {}) };
+        if (wrote.includes(path))
+          return { path, action: existed.has(path) ? "replaced" : "created", ...(backups.has(path) ? { backup: backups.get(path) } : {}) };
         return { path, action: templateInstalled ? "unchanged" : "refused" };
       };
       report.template = [entry(TEMPLATE_FILE), ...(wrote.includes(CHOICE_FILE) ? [entry(CHOICE_FILE)] : [])];
@@ -234,7 +267,12 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   const previewTemplate = () => {
     if (!report || !options.prTemplate) return;
     const preview = previewInstall(root, deps.prTemplate);
-    report.template = [{ path: TEMPLATE_FILE, action: { create: "would-create", replace: "would-replace", unchanged: "unchanged", refused: "refused" }[preview] as FileAction }];
+    report.template = [
+      {
+        path: TEMPLATE_FILE,
+        action: { create: "would-create", replace: "would-replace", unchanged: "unchanged", refused: "refused" }[preview] as FileAction,
+      },
+    ];
   };
 
   /** Records the pointer file in the report: a dry run says what would happen, a real run what did (a skip is a refusal). */
@@ -242,10 +280,17 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     if (!report || !pointer) return;
     const path = pointer.action === "skip" || pointer.action === "same" ? pointer.file : pointer.writePath;
     const action: FileAction =
-      pointer.action === "skip" || outcome === "failed" ? "refused"
-      : pointer.action === "same" ? "unchanged"
-      : outcome === "plan" ? (pointer.action === "create" ? "would-create" : "would-replace")
-      : pointer.action === "create" ? "created" : "replaced";
+      pointer.action === "skip" || outcome === "failed"
+        ? "refused"
+        : pointer.action === "same"
+          ? "unchanged"
+          : outcome === "plan"
+            ? pointer.action === "create"
+              ? "would-create"
+              : "would-replace"
+            : pointer.action === "create"
+              ? "created"
+              : "replaced";
     report.agentPointer = { path, action };
   };
 
@@ -255,7 +300,11 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   let settingsWritten = false;
   if (plan?.action === "same") io.stderr(`${SETTINGS_PATH} already says kind: ${plan.kind}.`);
   if (report && plan?.action === "same") report.settings = { path: SETTINGS_PATH, action: "unchanged" };
-  else if (report && plan && dryRun) report.settings = { path: SETTINGS_PATH, action: plan.action === "create" ? "would-create" : options.settings?.force ? "would-replace" : "refused" };
+  else if (report && plan && dryRun)
+    report.settings = {
+      path: SETTINGS_PATH,
+      action: plan.action === "create" ? "would-create" : options.settings?.force ? "would-replace" : "refused",
+    };
   if (settingsToWrite && dryRun) {
     io.stderr(`would write ${SETTINGS_PATH} (kind: ${settingsToWrite.kind})`);
     if (settingsToWrite.action === "change" && !options.settings?.force) {
@@ -264,9 +313,12 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   }
   if (settingsToWrite?.action === "change" && !dryRun && !prompter && !options.settings?.force) {
     if (report) report.settings = { path: SETTINGS_PATH, action: "refused" };
-    throw new UsageError(`${SETTINGS_PATH} says kind: ${settingsToWrite.from ?? "(none)"}, not ${settingsToWrite.kind}. Re-run with --force to change it.`);
+    throw new UsageError(
+      `${SETTINGS_PATH} says kind: ${settingsToWrite.from ?? "(none)"}, not ${settingsToWrite.kind}. Re-run with --force to change it.`,
+    );
   }
-  const settingsTitle = (p: Exclude<SettingsPlan, { action: "same" }>) => (p.action === "create" ? `${SETTINGS_PATH} (new)` : `${SETTINGS_PATH} (kind: ${p.from ?? "none"} to ${p.kind})`);
+  const settingsTitle = (p: Exclude<SettingsPlan, { action: "same" }>) =>
+    p.action === "create" ? `${SETTINGS_PATH} (new)` : `${SETTINGS_PATH} (kind: ${p.from ?? "none"} to ${p.kind})`;
   const showSettings = (p: Exclude<SettingsPlan, { action: "same" }>) => {
     const body = p.action === "create" ? p.content.replace(/\n$/, "") : `kind: ${p.kind}`;
     if (prompter?.fancy) prompter.note(body, settingsTitle(p));
@@ -279,7 +331,10 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   const confirmChange = async (): Promise<boolean | null> => {
     if (!prompter || settingsToWrite?.action !== "change") return true;
     const { from, kind } = settingsToWrite;
-    const answer = await prompter.confirm(from === undefined ? `Add kind: ${kind} to ${SETTINGS_PATH}?` : `Change kind from ${from} to ${kind} in ${SETTINGS_PATH}?`, true);
+    const answer = await prompter.confirm(
+      from === undefined ? `Add kind: ${kind} to ${SETTINGS_PATH}?` : `Change kind from ${from} to ${kind} in ${SETTINGS_PATH}?`,
+      true,
+    );
     if (answer === false) {
       io.stderr(`${SETTINGS_PATH} left as it is.`);
       settingsToWrite = undefined;
@@ -327,15 +382,28 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       }
     }
     try {
-      writeManagedFile({ repoDir: root, relativePath: pointer.writePath, content: pointer.content, inspected: pointer.inspected, now: (deps.now ?? (() => new Date().toISOString()))(), label: "init", backup: false, hooks: deps.hooks });
+      writeManagedFile({
+        repoDir: root,
+        relativePath: pointer.writePath,
+        content: pointer.content,
+        inspected: pointer.inspected,
+        now: (deps.now ?? (() => new Date().toISOString()))(),
+        label: "init",
+        backup: false,
+        hooks: deps.hooks,
+      });
     } catch (error) {
       reportPointer("failed");
-      io.stderr(`wachiman pointer not written: ${error instanceof Error ? error.message : String(error)} The rest of init is unaffected. ${manualHint()}`);
+      io.stderr(
+        `wachiman pointer not written: ${error instanceof Error ? error.message : String(error)} The rest of init is unaffected. ${manualHint()}`,
+      );
       return undefined;
     }
     reportPointer("written");
     const how = pointer.action === "create" ? "created" : pointer.action === "append" ? "added to" : "replaced in";
-    io.stderr(`wrote the wachiman pointer: ${how} ${pointer.file}${pointer.writePath !== pointer.file ? ` (through the link, to ${pointer.writePath})` : ""}.`);
+    io.stderr(
+      `wrote the wachiman pointer: ${how} ${pointer.file}${pointer.writePath !== pointer.file ? ` (through the link, to ${pointer.writePath})` : ""}.`,
+    );
     return undefined;
   };
 
@@ -376,14 +444,22 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
 
     if (github.dryRun) {
       if (unchanged) io.stderr(`note: ${shown} is unchanged.`);
-      else if (inspected.exists && !github.force && !prompter) io.stderr(`note: ${shown} exists; a real run needs --force to replace it (a .bak copy is kept).`);
+      else if (inspected.exists && !github.force && !prompter)
+        io.stderr(`note: ${shown} exists; a real run needs --force to replace it (a .bak copy is kept).`);
       if (pointer) for (const line of describePointer(pointer)) io.stderr(line);
       else io.stderr("note: --no-agent-pointer: no wachiman pointer would be written to AGENTS.md or CLAUDE.md.");
       reportPointer("plan");
-      if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
+      if (options.prTemplate)
+        io.stderr(
+          "note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.",
+        );
       if (report) {
         const refused = inspected.exists && !unchanged && !github.force;
-        report.workflow = { path: shown, action: unchanged ? "unchanged" : refused ? "refused" : inspected.exists ? "would-replace" : "would-create", content: rendered };
+        report.workflow = {
+          path: shown,
+          action: unchanged ? "unchanged" : refused ? "refused" : inspected.exists ? "would-replace" : "would-create",
+          content: rendered,
+        };
         previewTemplate();
       } else io.stdout(rendered);
       return 0;
@@ -424,7 +500,11 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
         io.stderr("not written.");
         const templateIn = installTemplate();
         // The closing line of a terminal session says what happened, not "All set".
-        if (prompter.fancy) prompter.close("done", templateIn ? "The workflow was not written; the PR description template is in place." : "Nothing was written.");
+        if (prompter.fancy)
+          prompter.close(
+            "done",
+            templateIn ? "The workflow was not written; the PR description template is in place." : "Nothing was written.",
+          );
         return 0;
       }
     } else {
@@ -434,8 +514,15 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       // The workflow first: it is what the run is for. If the settings file then fails, the error says the workflow stays.
       const result = writeWorkflow({ repoDir: root, relativePath: github.path, content: rendered, inspected, now, hooks: deps.hooks });
       written = shown;
-      if (report) report.workflow = { path: shown, action: inspected.exists ? "replaced" : "created", ...(result.backup ? { backup: join(dirname(github.path), basename(result.backup)) } : {}) };
-      io.stderr(`wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`);
+      if (report)
+        report.workflow = {
+          path: shown,
+          action: inspected.exists ? "replaced" : "created",
+          ...(result.backup ? { backup: join(dirname(github.path), basename(result.backup)) } : {}),
+        };
+      io.stderr(
+        `wrote ${shown}${result.backup ? `; the earlier file is kept as ${join(dirname(github.path), basename(result.backup))}` : ""}.`,
+      );
     }
     // The template is reported and never fails init, so it goes before the settings file, which can throw.
     installTemplate();
@@ -448,7 +535,10 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     if (options.mode === "github") prompter?.step("Checks and next actions", 5, 5);
     if (prompter?.fancy) {
       // The same two things, as the closing "Next steps" box with the commands to run.
-      prompter.nextAction("Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.", ["gh secret set ANTHROPIC_API_KEY"]);
+      prompter.nextAction(
+        "Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.",
+        ["gh secret set ANTHROPIC_API_KEY"],
+      );
       const added = settingsWritten ? `${shown} and ${SETTINGS_PATH}` : shown;
       prompter.nextAction(`Open a pull request that adds ${added}. init does not commit, push or open one.`, [
         `git add ${quoteArgument(shown, "posix")}${settingsWritten ? ` ${SETTINGS_PATH}` : ""}`,
@@ -458,23 +548,31 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
       prompter.say("Local runs use your signed-in claude, never this key.", "muted");
     } else {
       io.stderr("Two things are left to do in GitHub:");
-      io.stderr("  1. Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.");
-      io.stderr(`  2. Open a pull request that adds ${settingsWritten ? `${shown} and ${SETTINGS_PATH}` : shown}. init does not commit, push or open one.`);
+      io.stderr(
+        "  1. Add the repository secret ANTHROPIC_API_KEY (a Console key; Actions runs are billed to it): Settings, Secrets and variables, Actions.",
+      );
+      io.stderr(
+        `  2. Open a pull request that adds ${settingsWritten ? `${shown} and ${SETTINGS_PATH}` : shown}. init does not commit, push or open one.`,
+      );
       io.stderr("Local runs use your signed-in claude, never this key.");
     }
   }
 
   if (!github && dryRun) {
     // A local dry run previews the files init would write and writes none (decision 4 of the agent-operated setup spec).
-    if (options.prTemplate) io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
+    if (options.prTemplate)
+      io.stderr("note: --dry-run writes nothing, so the PR description template is not installed; `wachiman pr-template show` prints it.");
     previewTemplate();
     if (pointer) for (const line of describePointer(pointer)) io.stderr(line);
     else io.stderr("note: --no-agent-pointer: no wachiman pointer would be written to AGENTS.md or CLAUDE.md.");
     reportPointer("plan");
     const pointerWrites = pointer?.action === "create" || pointer?.action === "append" || pointer?.action === "replace";
     if (!options.settings && !options.prTemplate && !pointerWrites) {
-      io.stderr("dry run: nothing would be written. Local mode has no workflow; a project kind, the PR template or the agent pointer are the only files it writes.");
-      for (const command of projectCommands("setup", options.repoDir, cwd)) io.stderr(`Next, on this machine: ${command}   (binds this repository to a Claude account)`);
+      io.stderr(
+        "dry run: nothing would be written. Local mode has no workflow; a project kind, the PR template or the agent pointer are the only files it writes.",
+      );
+      for (const command of projectCommands("setup", options.repoDir, cwd))
+        io.stderr(`Next, on this machine: ${command}   (binds this repository to a Claude account)`);
     }
     return 0;
   }
@@ -484,7 +582,11 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     commitSettings();
   } else if (!github) commitSettings();
   if (!github && settingsWritten) {
-    if (prompter?.fancy) prompter.nextAction(`Commit ${SETTINGS_PATH} so the repository kind travels with it. init does not commit.`, [`git add ${SETTINGS_PATH}`, 'git commit -m "Record the repository kind for Wachiman"']);
+    if (prompter?.fancy)
+      prompter.nextAction(`Commit ${SETTINGS_PATH} so the repository kind travels with it. init does not commit.`, [
+        `git add ${SETTINGS_PATH}`,
+        'git commit -m "Record the repository kind for Wachiman"',
+      ]);
     else io.stderr(`Commit ${SETTINGS_PATH} like any file; init does not commit.`);
   }
   installTemplate();
@@ -499,7 +601,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
     try {
       const code = await deps.bindNow(prompter, options.mode, deps.closing ?? {});
       if (code === 130 && written) io.stderr(`${written} was written before setup was cancelled and stays in place.`);
-      if (code !== 130 && written) io.stderr(`github: pending; ${written} is written. Secret and workflow submission still require action in GitHub.`);
+      if (code !== 130 && written)
+        io.stderr(`github: pending; ${written} is written. Secret and workflow submission still require action in GitHub.`);
       return code;
     } catch (error) {
       if (written) io.stderr(`${written} was written before setup failed and stays in place.`);
@@ -508,7 +611,8 @@ export async function runInit(options: InitOptions, io: CommandIo, deps: InitDep
   }
 
   if (written) io.stderr(`github: pending; ${written} is written. Secret and workflow submission still require action in GitHub.`);
-  for (const command of projectCommands("setup", options.repoDir, cwd)) io.stderr(`Next, on this machine: ${command}   (binds this repository to a Claude account)`);
+  for (const command of projectCommands("setup", options.repoDir, cwd))
+    io.stderr(`Next, on this machine: ${command}   (binds this repository to a Claude account)`);
   return 0;
 }
 

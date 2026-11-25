@@ -45,7 +45,9 @@ describe("describeCall", () => {
   });
 
   test("a finished call on a subscription shows its dollars as an estimate", () => {
-    expect(describeCall({ ...base, credential: "oauth-token" })).toBe("✅ batch 1/2: finished in 3 turns, 42.1 s, $0.31 (API-price estimate).");
+    expect(describeCall({ ...base, credential: "oauth-token" })).toBe(
+      "✅ batch 1/2: finished in 3 turns, 42.1 s, $0.31 (API-price estimate).",
+    );
     expect(describeCall({ ...base, credential: "api-key" })).toBe(describeCall(base));
   });
 
@@ -60,13 +62,25 @@ describe("describeCall", () => {
   });
 
   test("budget, turn and time limits are named", () => {
-    expect(describeCall({ ...base, isError: true, terminalReason: "budget" })).toBe("💸 batch 1/2: stopped at its budget after 3 turns, $0.31.");
-    expect(describeCall({ ...base, isError: true, terminalReason: "turns" })).toBe("⏹️ batch 1/2: hit the turn limit after 3 turns, $0.31.");
-    expect(describeCall({ ...base, isError: true, terminalReason: "timeout" })).toBe("⏱️ batch 1/2: killed at the time limit after 42.1 s.");
+    expect(describeCall({ ...base, isError: true, terminalReason: "budget" })).toBe(
+      "💸 batch 1/2: stopped at its budget after 3 turns, $0.31.",
+    );
+    expect(describeCall({ ...base, isError: true, terminalReason: "turns" })).toBe(
+      "⏹️ batch 1/2: hit the turn limit after 3 turns, $0.31.",
+    );
+    expect(describeCall({ ...base, isError: true, terminalReason: "timeout" })).toBe(
+      "⏱️ batch 1/2: killed at the time limit after 42.1 s.",
+    );
   });
 
   test("the error text is kept on one line and cut", () => {
-    const line = describeCall({ ...base, isError: true, terminalReason: "error", providerError: "other", errorText: `a\nb ${"x".repeat(500)}` });
+    const line = describeCall({
+      ...base,
+      isError: true,
+      terminalReason: "error",
+      providerError: "other",
+      errorText: `a\nb ${"x".repeat(500)}`,
+    });
     expect(line).not.toContain("\n");
     expect(line.length).toBeLessThan(400);
   });

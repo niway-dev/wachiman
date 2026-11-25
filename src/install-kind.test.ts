@@ -81,7 +81,9 @@ describe("readAsset", () => {
   });
 
   test("the executable layout is not served by this slice, and says so", () => {
-    expect(() => readAsset({ kind: "exe", version: "1.0.0" }, "templates/wachiman-review-caller.yml")).toThrow(/executable.*not implemented/i);
+    expect(() => readAsset({ kind: "exe", version: "1.0.0" }, "templates/wachiman-review-caller.yml")).toThrow(
+      /executable.*not implemented/i,
+    );
   });
 });
 

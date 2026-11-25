@@ -21,12 +21,16 @@ export type ResolveResult<T> = { ok: true; options: T } | { ok: false; error: st
 
 /** Validates the flags, whoever produced them: the parser or the prompts. Whether the profile resolves is the run's business. */
 export function resolveSetupOptions(flags: RawSetupFlags, ctx: { interactive: boolean }): ResolveResult<SetupOptions> {
-  if (flags.profile === undefined) return { ok: false, error: "setup needs --profile <name> when it cannot ask; run wachiman profile list" };
+  if (flags.profile === undefined)
+    return { ok: false, error: "setup needs --profile <name> when it cannot ask; run wachiman profile list" };
   try {
     parseProfileRef(flags.profile);
   } catch (error) {
     if (error instanceof UsageError) return { ok: false, error: error.message };
     throw error;
   }
-  return { ok: true, options: { profile: flags.profile, repoDir: flags.repoDir ?? ".", interactive: ctx.interactive, json: flags.json === true } };
+  return {
+    ok: true,
+    options: { profile: flags.profile, repoDir: flags.repoDir ?? ".", interactive: ctx.interactive, json: flags.json === true },
+  };
 }

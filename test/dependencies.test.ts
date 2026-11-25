@@ -73,14 +73,20 @@ describe("chalk and @clack/* stay in the terminal screens", () => {
   });
 
   test("no module that sees the API key loads them: engine, providers and the review paths of the CLI", () => {
-    const roots = sourceFiles(SRC).filter((f) => /\/providers\//.test(f) || /\/(engine|review-core|threads|spend|verify|local|local-ask|ask)\.ts$/.test(f));
+    const roots = sourceFiles(SRC).filter(
+      (f) => /\/providers\//.test(f) || /\/(engine|review-core|threads|spend|verify|local|local-ask|ask)\.ts$/.test(f),
+    );
     expect(roots.length).toBeGreaterThan(5);
-    const loads = [...staticClosure(roots)].filter((f) => specifiers(f).some(({ spec, kind }) => kind === "static" && UI_PACKAGE.test(spec)));
+    const loads = [...staticClosure(roots)].filter((f) =>
+      specifiers(f).some(({ spec, kind }) => kind === "static" && UI_PACKAGE.test(spec)),
+    );
     expect(loads.map(rel)).toEqual([]);
   });
 
   test("src/cli.ts reaches them only through a dynamic import, so GitHub Actions needs no node_modules", () => {
-    const loads = [...staticClosure([join(SRC, "cli.ts")])].filter((f) => specifiers(f).some(({ spec, kind }) => kind === "static" && UI_PACKAGE.test(spec)));
+    const loads = [...staticClosure([join(SRC, "cli.ts")])].filter((f) =>
+      specifiers(f).some(({ spec, kind }) => kind === "static" && UI_PACKAGE.test(spec)),
+    );
     expect(loads.map(rel)).toEqual([]);
   });
 
@@ -99,6 +105,11 @@ describe("chalk and @clack/* stay in the terminal screens", () => {
       { spec: "sisteransi", kind: "static" },
       { spec: "fast-wrap-ansi", kind: "dynamic" },
     ]);
-    expect(["chalk", "@clack/prompts", "sisteransi", "fast-wrap-ansi", "node:fs", "./x"].filter((s) => UI_PACKAGE.test(s))).toEqual(["chalk", "@clack/prompts", "sisteransi", "fast-wrap-ansi"]);
+    expect(["chalk", "@clack/prompts", "sisteransi", "fast-wrap-ansi", "node:fs", "./x"].filter((s) => UI_PACKAGE.test(s))).toEqual([
+      "chalk",
+      "@clack/prompts",
+      "sisteransi",
+      "fast-wrap-ansi",
+    ]);
   });
 });

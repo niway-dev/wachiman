@@ -3,7 +3,16 @@ import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "../config";
-import { githubReview, reviewChange, reviewOptionsOf, type CoreDeps, type Finding, type ReviewInput, type ReviewOptions, type ReviewOutput } from "../engine";
+import {
+  githubReview,
+  reviewChange,
+  reviewOptionsOf,
+  type CoreDeps,
+  type Finding,
+  type ReviewInput,
+  type ReviewOptions,
+  type ReviewOutput,
+} from "../engine";
 import { toResultV1 } from "../formats";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "../providers/types";
 import { validate } from "../../test/support/json-schema";
@@ -40,7 +49,11 @@ class FakeProvider implements ProviderAdapter {
   }
   async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
-    const step = request.prompt.includes("<exceptions>") ? this.matching : request.prompt.includes("<candidates>") ? this.verifying : this.discovery;
+    const step = request.prompt.includes("<exceptions>")
+      ? this.matching
+      : request.prompt.includes("<candidates>")
+        ? this.verifying
+        : this.discovery;
     if (!step) throw new Error("the fake provider has no answer for this call");
     return { costUsd: 0.1, turns: 1, durationMs: 1, terminalReason: "success", isError: false, raw: {}, ...step(request) };
   }
@@ -59,14 +72,45 @@ function branchInput(): ReviewInput {
 
 const deps = (provider: ProviderAdapter, verifier?: ProviderAdapter) => {
   const warnings: string[] = [];
-  const d: CoreDeps = { provider, ...(verifier ? { verifier } : {}), log: () => {}, warn: (l) => void warnings.push(l), sleep: () => {}, rateLimitBackoffMs: 0 };
+  const d: CoreDeps = {
+    provider,
+    ...(verifier ? { verifier } : {}),
+    log: () => {},
+    warn: (l) => void warnings.push(l),
+    sleep: () => {},
+    rateLimitBackoffMs: 0,
+  };
   return { deps: d, warnings };
 };
-const options = (over: Partial<ReviewOptions> = {}, verify = "0"): ReviewOptions => ({ ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: verify }), 5), ...over });
+const options = (over: Partial<ReviewOptions> = {}, verify = "0"): ReviewOptions => ({
+  ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: verify }), 5),
+  ...over,
+});
 
-const finding = (over: Partial<Finding>): Finding => ({ path: "src/a.ts", line: 2, severity: "consider", topic: "cleanup", confidence: "high", title: "t", body: "b", ...over });
-const discover = (findings: Finding[]): Step => () => ({ structuredOutput: { files_reviewed: ["src/a.ts"], files_skipped: [], findings, thread_replies: [], summary: "Looks fine." } satisfies ReviewOutput });
-const answer = (...matches: { finding: string; entry: string; reason?: string }[]): Step => () => ({ structuredOutput: { matches: matches.map((m) => ({ reason: "it is that kind of finding", ...m })) } });
+const finding = (over: Partial<Finding>): Finding => ({
+  path: "src/a.ts",
+  line: 2,
+  severity: "consider",
+  topic: "cleanup",
+  confidence: "high",
+  title: "t",
+  body: "b",
+  ...over,
+});
+const discover =
+  (findings: Finding[]): Step =>
+  () => ({
+    structuredOutput: {
+      files_reviewed: ["src/a.ts"],
+      files_skipped: [],
+      findings,
+      thread_replies: [],
+      summary: "Looks fine.",
+    } satisfies ReviewOutput,
+  });
+const answer =
+  (...matches: { finding: string; entry: string; reason?: string }[]): Step =>
+  () => ({ structuredOutput: { matches: matches.map((m) => ({ reason: "it is that kind of finding", ...m })) } });
 
 function memoryEntry(kind: "convention" | "exception", rule: string, scope: string, holdsWhile?: string) {
   const why = "the owner said so";
@@ -77,7 +121,11 @@ function memoryEntry(kind: "convention" | "exception", rule: string, scope: stri
 const REV = "b".repeat(40);
 function memoryOf(blocks: string[], settings?: string) {
   const files: Record<string, string> = { "index.md": `# Memory\n\n${blocks.join("\n")}` };
-  const source: MemorySource = { list: () => Object.keys(files), read: (n) => files[n] ?? null, settings: () => (settings === undefined ? undefined : parseRepoSettings(settings)) };
+  const source: MemorySource = {
+    list: () => Object.keys(files),
+    read: (n) => files[n] ?? null,
+    settings: () => (settings === undefined ? undefined : parseRepoSettings(settings)),
+  };
   return loadMemory(source, REV, ["src/a.ts"], () => {})!;
 }
 
@@ -89,7 +137,10 @@ describe("conventions in the review prompt", () => {
     const convention = memoryEntry("convention", "Readable before terse", "src/**");
     const provider = new FakeProvider(discover([]));
     const input = branchInput();
-    input.instructions = { baseSha: REV, files: [{ path: ".github/wachiman.md", content: "HAND WRITTEN RULE" }] } as ReviewInput["instructions"];
+    input.instructions = {
+      baseSha: REV,
+      files: [{ path: ".github/wachiman.md", content: "HAND WRITTEN RULE" }],
+    } as ReviewInput["instructions"];
     await reviewChange(input, options({ memory: memoryOf([convention.block, EXCEPTION.block]) }), deps(provider).deps);
 
     const prompt = provider.discoveryCalls[0].prompt;
@@ -115,7 +166,10 @@ describe("conventions in the review prompt", () => {
 
 describe("AC5: an exception acts after discovery and what it mutes is listed", () => {
   test("the matching call carries the exception, the discovery prompt never does, and the muted finding is listed with the entry id", async () => {
-    const provider = new FakeProvider(discover([NIT, finding({ line: 3, title: "keep me", severity: "fix", topic: "bug" })]), answer({ finding: "f1", entry: EXCEPTION.id }));
+    const provider = new FakeProvider(
+      discover([NIT, finding({ line: 3, title: "keep me", severity: "fix", topic: "bug" })]),
+      answer({ finding: "f1", entry: EXCEPTION.id }),
+    );
     const { deps: d } = deps(provider);
     const result = await reviewChange(branchInput(), options({ memory: memoryOf([EXCEPTION.block]) }), d);
 
@@ -129,7 +183,17 @@ describe("AC5: an exception acts after discovery and what it mutes is listed", (
     expect(provider.matchingCalls[0].prompt).not.toContain("keep me");
 
     expect(result.findings.map((f) => f.title)).toEqual(["keep me"]);
-    expect(result.muted).toEqual([{ path: "src/a.ts", line: 2, severity: "consider", topic: "cleanup", title: "stale comment", entry: EXCEPTION.id, reason: "it is that kind of finding" }]);
+    expect(result.muted).toEqual([
+      {
+        path: "src/a.ts",
+        line: 2,
+        severity: "consider",
+        topic: "cleanup",
+        title: "stale comment",
+        entry: EXCEPTION.id,
+        reason: "it is that kind of finding",
+      },
+    ]);
     expect(result.summary).toStartWith("Looks fine.");
     expect(result.summary).toContain("**Muted by memory**");
     expect(result.summary).toContain("stale comment");
@@ -141,13 +205,23 @@ describe("AC5: an exception acts after discovery and what it mutes is listed", (
     expect(validate(resultSchema, JSON.parse(JSON.stringify(result)))).toEqual([]);
     expect("muted" in toResultV1(result)).toBe(false);
 
-    const posted = githubReview(result, { since: null, rebased: false, scoped: false, mention: "/wachiman", automatic: false, instructionChanges: { files: [], baseSha: REV } });
+    const posted = githubReview(result, {
+      since: null,
+      rebased: false,
+      scoped: false,
+      mention: "/wachiman",
+      automatic: false,
+      instructionChanges: { files: [], baseSha: REV },
+    });
     expect(posted.body).toContain("Muted by memory");
     expect(posted.comments.map((c) => c.body).join("\n")).not.toContain("stale comment");
   });
 
   test("an Info finding is muted too", async () => {
-    const provider = new FakeProvider(discover([finding({ severity: "info", title: "fyi" })]), answer({ finding: "f1", entry: EXCEPTION.id }));
+    const provider = new FakeProvider(
+      discover([finding({ severity: "info", title: "fyi" })]),
+      answer({ finding: "f1", entry: EXCEPTION.id }),
+    );
     const result = await reviewChange(branchInput(), options({ memory: memoryOf([EXCEPTION.block]) }), deps(provider).deps);
     expect(result.findings).toEqual([]);
     expect(result.muted?.map((m) => m.title)).toEqual(["fyi"]);
@@ -185,9 +259,17 @@ describe("AC6: an exception cannot mute a Blocker, a Fix or a security finding",
 
     expect(provider.matchingCalls).toHaveLength(1);
     expect(result.findings.map((f) => f.title)).toEqual(protectedFindings.map((f) => f.title));
-    for (const f of result.findings) expect(f.body).toContain(`Memory exception \`${EXCEPTION.id}\` matched this finding, but memory cannot mute`);
+    for (const f of result.findings)
+      expect(f.body).toContain(`Memory exception \`${EXCEPTION.id}\` matched this finding, but memory cannot mute`);
     expect(result.muted?.map((m) => m.title)).toEqual(["real nit"]);
-    const posted = githubReview(result, { since: null, rebased: false, scoped: false, mention: "/wachiman", automatic: false, instructionChanges: { files: [], baseSha: REV } });
+    const posted = githubReview(result, {
+      since: null,
+      rebased: false,
+      scoped: false,
+      mention: "/wachiman",
+      automatic: false,
+      instructionChanges: { files: [], baseSha: REV },
+    });
     expect(posted.comments.map((c) => c.body).join("\n")).toContain("blocker one");
     expect(posted.comments.map((c) => c.body).join("\n")).toContain("fix one");
   });
@@ -200,7 +282,19 @@ describe("AC6: an exception cannot mute a Blocker, a Fix or a security finding",
   });
 
   test("the floor applies to the final severity: a finding the verifier raises to Fix is not offered and is posted", async () => {
-    const verifying: Step = () => ({ structuredOutput: { verdicts: [{ id: "c1", verdict: "supported", reason: "it is worse than a nit", checked: [{ snapshot: "head", path: "src/a.ts", line: 2 }], severity: "fix" }] } });
+    const verifying: Step = () => ({
+      structuredOutput: {
+        verdicts: [
+          {
+            id: "c1",
+            verdict: "supported",
+            reason: "it is worse than a nit",
+            checked: [{ snapshot: "head", path: "src/a.ts", line: 2 }],
+            severity: "fix",
+          },
+        ],
+      },
+    });
     const provider = new FakeProvider(discover([NIT]), answer({ finding: "f1", entry: EXCEPTION.id }), verifying);
     const result = await reviewChange(branchInput(), options({ memory: memoryOf([EXCEPTION.block]) }, "1"), deps(provider).deps);
     expect(result.findings.map((f) => [f.title, f.severity])).toEqual([["stale comment", "fix"]]);
@@ -209,10 +303,18 @@ describe("AC6: an exception cannot mute a Blocker, a Fix or a security finding",
   });
 
   test("with verification on, a finding the verifier keeps at Consider is matched after it, and the call is made once", async () => {
-    const verifying: Step = () => ({ structuredOutput: { verdicts: [{ id: "c1", verdict: "supported", reason: "yes", checked: [{ snapshot: "head", path: "src/a.ts", line: 2 }] }] } });
+    const verifying: Step = () => ({
+      structuredOutput: {
+        verdicts: [{ id: "c1", verdict: "supported", reason: "yes", checked: [{ snapshot: "head", path: "src/a.ts", line: 2 }] }],
+      },
+    });
     const provider = new FakeProvider(discover([NIT]), answer({ finding: "f1", entry: EXCEPTION.id }), verifying);
     const result = await reviewChange(branchInput(), options({ memory: memoryOf([EXCEPTION.block]) }, "1"), deps(provider).deps);
-    expect(provider.requests.map((r) => (r.prompt.includes("<exceptions>") ? "match" : r.prompt.includes("<candidates>") ? "verify" : "discover"))).toEqual(["discover", "verify", "match"]);
+    expect(
+      provider.requests.map((r) =>
+        r.prompt.includes("<exceptions>") ? "match" : r.prompt.includes("<candidates>") ? "verify" : "discover",
+      ),
+    ).toEqual(["discover", "verify", "match"]);
     expect(result.findings).toEqual([]);
     expect(result.muted?.map((m) => m.title)).toEqual(["stale comment"]);
   });
@@ -327,7 +429,12 @@ describe("when the exception does not or cannot apply", () => {
   });
 
   test("an error result from the matching call logs the provider text locally and keeps it out of the summary", async () => {
-    const provider = new FakeProvider(discover([NIT]), () => ({ isError: true, terminalReason: "error", providerError: "billing", errorText: "credit balance is too low" }));
+    const provider = new FakeProvider(discover([NIT]), () => ({
+      isError: true,
+      terminalReason: "error",
+      providerError: "billing",
+      errorText: "credit balance is too low",
+    }));
     const { deps: d, warnings } = deps(provider);
     const result = await reviewChange(branchInput(), options({ memory: memoryOf([EXCEPTION.block]) }), d);
     expect(warnings.some((w) => w.includes("billing") && w.includes("credit balance is too low"))).toBe(true);
@@ -384,7 +491,11 @@ describe("when the exception does not or cannot apply", () => {
   test("the whole change's paths decide, not the files this run reviews: an earlier commit's path makes the exception stale", async () => {
     const guarded = memoryEntry("exception", "Handlers get validated input", "src/**", "src/gateway.ts");
     const provider = new FakeProvider(discover([NIT]), answer({ finding: "f1", entry: guarded.id }));
-    const result = await reviewChange(branchInput(), options({ memory: memoryOf([guarded.block]), changedPaths: ["src/a.ts", "assets/icon.png", "src/gateway.ts"] }), deps(provider).deps);
+    const result = await reviewChange(
+      branchInput(),
+      options({ memory: memoryOf([guarded.block]), changedPaths: ["src/a.ts", "assets/icon.png", "src/gateway.ts"] }),
+      deps(provider).deps,
+    );
     expect(provider.matchingCalls).toHaveLength(0);
     expect(result.summary).toContain(`\`${guarded.id}\` may be out of date`);
   });
@@ -425,7 +536,11 @@ describe("when the exception does not or cannot apply", () => {
 
   test("a budget with no room left for the matching call mutes nothing and says so", async () => {
     const provider = new FakeProvider((r) => ({ ...discover([NIT])(r), costUsd: 0.19 }), answer({ finding: "f1", entry: EXCEPTION.id }));
-    const result = await reviewChange(branchInput(), options({ memory: memoryOf([EXCEPTION.block]), totalBudgetUsd: 0.2 }), deps(provider).deps);
+    const result = await reviewChange(
+      branchInput(),
+      options({ memory: memoryOf([EXCEPTION.block]), totalBudgetUsd: 0.2 }),
+      deps(provider).deps,
+    );
     expect(provider.matchingCalls).toHaveLength(0);
     expect(result.findings.map((f) => f.title)).toEqual(["stale comment"]);
     expect(result.muted).toBeUndefined();

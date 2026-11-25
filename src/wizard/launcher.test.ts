@@ -6,7 +6,18 @@ import { PassThrough } from "node:stream";
 import { main } from "../cli";
 import { commit, emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import { scripted } from "../../test/support/scripted-prompt";
-import { commandArgs, commandLine, detectBase, maybeLaunch, runLauncher, scopeArgs, shouldLaunch, SPENDING, type Action, type Scope } from "./launcher";
+import {
+  commandArgs,
+  commandLine,
+  detectBase,
+  maybeLaunch,
+  runLauncher,
+  scopeArgs,
+  shouldLaunch,
+  SPENDING,
+  type Action,
+  type Scope,
+} from "./launcher";
 
 const tty = { isTTY: true };
 const allTty = { stdin: tty, stdout: tty, stderr: tty };
@@ -93,12 +104,18 @@ describe("what each menu entry runs", () => {
 });
 
 describe("the base branch", () => {
-  const run = (answers: Record<string, string>) => (args: string[]) => ({ status: args.join(" ") in answers ? 0 : 1, stdout: answers[args.join(" ")] ?? "", stderr: "" });
+  const run = (answers: Record<string, string>) => (args: string[]) => ({
+    status: args.join(" ") in answers ? 0 : 1,
+    stdout: answers[args.join(" ")] ?? "",
+    stderr: "",
+  });
 
   test("origin's default branch wins, then the first common name that exists", () => {
     expect(detectBase("/x", run({ "symbolic-ref --short refs/remotes/origin/HEAD": "origin/develop\n" }))).toBe("origin/develop");
     expect(detectBase("/x", run({ "rev-parse --verify --quiet main": "x" }))).toBe("main");
-    expect(detectBase("/x", run({ "rev-parse --verify --quiet origin/main": "x", "rev-parse --verify --quiet main": "x" }))).toBe("origin/main");
+    expect(detectBase("/x", run({ "rev-parse --verify --quiet origin/main": "x", "rev-parse --verify --quiet main": "x" }))).toBe(
+      "origin/main",
+    );
     expect(detectBase("/x", run({}))).toBeUndefined();
   });
 });

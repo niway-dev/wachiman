@@ -72,7 +72,8 @@ if (import.meta.main) {
   ];
   if (process.argv.includes("--check")) {
     const stale = outputs.filter(([path, text]) => !existsSync(path) || readFileSync(path, "utf8") !== text);
-    for (const [path] of stale) console.error(`${path} is not what scripts/generate-wachiman-platform.ts writes. Run: bun scripts/generate-wachiman-platform.ts`);
+    for (const [path] of stale)
+      console.error(`${path} is not what scripts/generate-wachiman-platform.ts writes. Run: bun scripts/generate-wachiman-platform.ts`);
     process.exit(stale.length === 0 ? 0 : 1);
   }
   for (const [path, text] of outputs) {

@@ -73,7 +73,9 @@ function workspace(changed: "desktop-app" | "web-site", cloneDesktop = true): Wo
     }
     return path;
   };
-  const desktopApp = cloneDesktop ? make("desktop-app", { [PALETTE]: palette("#000000") }, changed === "desktop-app" ? { [PALETTE]: palette("#0a7a5c") } : undefined) : undefined;
+  const desktopApp = cloneDesktop
+    ? make("desktop-app", { [PALETTE]: palette("#000000") }, changed === "desktop-app" ? { [PALETTE]: palette("#0a7a5c") } : undefined)
+    : undefined;
   const webSite = make("web-site", { [CSS]: css("#000000") }, changed === "web-site" ? { [CSS]: css("#0a7a5c") } : undefined);
   writeFileSync(join(parent, MANIFEST_FILE), JSON.stringify(MANIFEST));
   return { parent, desktopApp, webSite };
@@ -122,19 +124,46 @@ console.log(JSON.stringify({
 
 function review(repoDir: string, findings: unknown[], format: "json" | "terminal" | "markdown" = "json") {
   const s = stub(findings);
-  const env = { PATH: `${s.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-user-"), USER: "dev", WACHIMAN_HOME: temp("wachiman-home-"), WACHIMAN_VERIFY: "0", WACHIMAN_BATCH_LINES: "1" };
-  const out = Bun.spawnSync([process.execPath, cli, "local", "--repo-dir", repoDir, "--base", "main", "--distributed-repo", "--format", format], { env, stdin: "ignore" });
+  const env = {
+    PATH: `${s.bin}:${process.env.PATH ?? ""}`,
+    HOME: temp("wachiman-user-"),
+    USER: "dev",
+    WACHIMAN_HOME: temp("wachiman-home-"),
+    WACHIMAN_VERIFY: "0",
+    WACHIMAN_BATCH_LINES: "1",
+  };
+  const out = Bun.spawnSync(
+    [process.execPath, cli, "local", "--repo-dir", repoDir, "--base", "main", "--distributed-repo", "--format", format],
+    { env, stdin: "ignore" },
+  );
   const stdout = out.stdout.toString();
-  return { code: out.exitCode, stdout, stderr: out.stderr.toString(), calls: s.calls(), ghCalled: existsSync(s.gh), result: format === "json" ? JSON.parse(stdout) : undefined };
+  return {
+    code: out.exitCode,
+    stdout,
+    stderr: out.stderr.toString(),
+    calls: s.calls(),
+    ghCalled: existsSync(s.gh),
+    result: format === "json" ? JSON.parse(stdout) : undefined,
+  };
 }
 
-const finding = (path: string, body: string) => ({ path, line: 2, severity: "fix", topic: "bug", confidence: "high", title: "The copy of the palette drifts", body });
+const finding = (path: string, body: string) => ({
+  path,
+  line: 2,
+  severity: "fix",
+  topic: "bug",
+  confidence: "high",
+  title: "The copy of the palette drifts",
+  body,
+});
 
 describe("palette workspace: a change in desktop-app, the source of truth", () => {
   const w = workspace("desktop-app");
   const webSha = git(w.webSite, "rev-parse", "HEAD").trim();
   const short = webSha.slice(0, 7);
-  const r = review(w.desktopApp!, [finding(PALETTE, `The copy still says \`web-site@${short}:${CSS}:2\`, and \`web-site@${short}:${CSS}:99\` is not it.`)]);
+  const r = review(w.desktopApp!, [
+    finding(PALETTE, `The copy still says \`web-site@${short}:${CSS}:2\`, and \`web-site@${short}:${CSS}:99\` is not it.`),
+  ]);
 
   test("the run reads web-site as a snapshot and the batch prompt holds the palette contract section", () => {
     expect(r.code).toBe(0);
@@ -160,7 +189,13 @@ describe("palette workspace: a change in desktop-app, the source of truth", () =
     expect(r.result.format).toBe("wachiman.review-result/2");
     expect(r.result.workspaceContractsApplied).toContain("palette");
     expect(r.result.siblings).toHaveLength(1);
-    expect(r.result.siblings[0]).toMatchObject({ member: "web-site", visibility: "private", status: "read", sha: webSha, contracts: ["palette"] });
+    expect(r.result.siblings[0]).toMatchObject({
+      member: "web-site",
+      visibility: "private",
+      status: "read",
+      sha: webSha,
+      contracts: ["palette"],
+    });
     expect(r.result.privateContext).toEqual({ members: ["web-site"] });
   });
 });
@@ -186,9 +221,13 @@ describe("palette workspace: a change in web-site, the copy", () => {
 
     test("the run completes, the sibling row says not cloned, and nothing is snapshotted", () => {
       expect(json.code).toBe(0);
-      expect(json.result.siblings.map((s: { member: string; status: string }) => [s.member, s.status])).toEqual([["desktop-app", "not-cloned"]]);
+      expect(json.result.siblings.map((s: { member: string; status: string }) => [s.member, s.status])).toEqual([
+        ["desktop-app", "not-cloned"],
+      ]);
       expect(json.calls[0]!.snapshots).toHaveLength(0);
-      expect(json.calls[0]!.prompt).toContain(`- desktop-app: provider (${PALETTE}); source of truth (${PALETTE}). not cloned: not checked.`);
+      expect(json.calls[0]!.prompt).toContain(
+        `- desktop-app: provider (${PALETTE}); source of truth (${PALETTE}). not cloned: not checked.`,
+      );
       expect(json.result.workspaceContractsApplied).toContain("palette");
       expect(json.result).not.toHaveProperty("privateContext");
     });

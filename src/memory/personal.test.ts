@@ -3,7 +3,19 @@
  * the URL of `origin`. Every Wachiman home here is a temporary directory; nothing touches a network.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, renameSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  renameSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { emptyRepo, git, commit, removeTempRepos } from "../../test/support/temp-repo";
@@ -38,7 +50,12 @@ function cli(dir: string, home: string, deps = {}, extra: { ask?: (question: str
     let stderr = "";
     let code: number;
     try {
-      code = runMemory(argv, dir, { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) }, { env: { WACHIMAN_HOME: home }, now: () => new Date("2026-11-18T10:00:00Z"), deps, ...extra });
+      code = runMemory(
+        argv,
+        dir,
+        { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) },
+        { env: { WACHIMAN_HOME: home }, now: () => new Date("2026-11-18T10:00:00Z"), deps, ...extra },
+      );
     } catch (error) {
       code = 2;
       stderr += (error as Error).message;
@@ -51,7 +68,12 @@ describe("personalMemoryDir", () => {
   test("is <home>/memory/<host>/<owner>/<repository>, the same for https, ssh and scp-style remotes and for credentials in the URL", () => {
     const home = "/h/.wachiman";
     const want = join(home, "memory", "github.com", "acme", "widgets");
-    for (const url of ["https://github.com/acme/widgets.git", "git@github.com:acme/widgets.git", "ssh://git@github.com/acme/widgets", "https://user:token@GitHub.com/acme/widgets/"]) {
+    for (const url of [
+      "https://github.com/acme/widgets.git",
+      "git@github.com:acme/widgets.git",
+      "ssh://git@github.com/acme/widgets",
+      "https://user:token@GitHub.com/acme/widgets/",
+    ]) {
       expect(personalMemoryDir(home, repoWithOrigin(url))).toBe(want);
     }
   });
@@ -81,7 +103,9 @@ describe("personalMemoryDir", () => {
 
   test("a clone with no origin, or a different repository, has no shared dir with another", () => {
     expect(personalMemoryDir("/h", repoWithOrigin(""))).toBeUndefined();
-    expect(personalMemoryDir("/h", repoWithOrigin("https://github.com/acme/other.git"))).not.toBe(personalMemoryDir("/h", repoWithOrigin()));
+    expect(personalMemoryDir("/h", repoWithOrigin("https://github.com/acme/other.git"))).not.toBe(
+      personalMemoryDir("/h", repoWithOrigin()),
+    );
   });
 
   test("a remote whose path would climb out of the folder is not trusted", () => {
@@ -146,7 +170,19 @@ describe("memory propose --personal", () => {
     const dir = repoWithOrigin();
     const home = temp("wachiman-home-");
     const run = cli(dir, home);
-    const added = run("add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "Greppable.", "--pr", "7");
+    const added = run(
+      "add",
+      "--kind",
+      "convention",
+      "--scope",
+      "src/**",
+      "--rule",
+      "Prefer named exports.",
+      "--why",
+      "Greppable.",
+      "--pr",
+      "7",
+    );
     expect(added.code).toBe(0);
     const id = added.stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
     const shown = run("show", id).stdout;
@@ -179,7 +215,19 @@ describe("memory propose --personal", () => {
     const dir = repoWithOrigin();
     const home = temp("wachiman-home-");
     const run = cli(dir, home);
-    const candidate = run("add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "Greppable.", "--pr", "7").stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
+    const candidate = run(
+      "add",
+      "--kind",
+      "convention",
+      "--scope",
+      "src/**",
+      "--rule",
+      "Prefer named exports.",
+      "--why",
+      "Greppable.",
+      "--pr",
+      "7",
+    ).stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
     expect(run("propose", candidate, "--personal").code).toBe(0);
     run("add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "Greppable.", "--pr", "9");
     const again = run("propose", candidate, "--personal");
@@ -194,7 +242,19 @@ describe("memory propose --personal", () => {
     const dir = repoWithOrigin("");
     const home = temp("wachiman-home-");
     const run = cli(dir, home);
-    const id = run("add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "Greppable.", "--pr", "7").stdout.match(/candidate ([0-9a-f]{7})/)![1];
+    const id = run(
+      "add",
+      "--kind",
+      "convention",
+      "--scope",
+      "src/**",
+      "--rule",
+      "Prefer named exports.",
+      "--why",
+      "Greppable.",
+      "--pr",
+      "7",
+    ).stdout.match(/candidate ([0-9a-f]{7})/)![1];
     const r = run("propose", id, "--personal");
     expect(r.code).toBe(1);
     expect(r.stderr).toContain("no remote named origin");
@@ -225,8 +285,14 @@ describe("the first propose in a repository whose team has not adopted memory", 
     return { bare, dir, pulls, created, asGithub, asBare };
   }
   const NO_TEAM_MEMORY = () => false;
-  const add = (run: ReturnType<typeof cli>, rule: string) => run("add", "--kind", "convention", "--scope", "src/**", "--rule", rule, "--why", "Because.", "--pr", "7").stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
-  const choices = (home: string) => (existsSync(join(home, "memory-choice")) ? readdirSync(join(home, "memory-choice")).map((f) => JSON.parse(readFileSync(join(home, "memory-choice", f), "utf8"))) : []);
+  const add = (run: ReturnType<typeof cli>, rule: string) =>
+    run("add", "--kind", "convention", "--scope", "src/**", "--rule", rule, "--why", "Because.", "--pr", "7").stdout.match(
+      /candidate ([0-9a-f]{7}) saved/,
+    )![1];
+  const choices = (home: string) =>
+    existsSync(join(home, "memory-choice"))
+      ? readdirSync(join(home, "memory-choice")).map((f) => JSON.parse(readFileSync(join(home, "memory-choice", f), "utf8")))
+      : [];
   const onlyMain = (bare: string) => git(bare, "branch", "--list").trim() === "main" || git(bare, "branch", "--list").trim() === "* main";
 
   test("without a way to ask, and without --personal or --team, it refuses and pushes nothing", () => {
@@ -293,7 +359,16 @@ describe("the first propose in a repository whose team has not adopted memory", 
   test("--personal and --team never ask, and do not store an answer", () => {
     const w = teamWorld();
     const home = temp("wachiman-home-");
-    const run = cli(w.dir, home, { teamMemory: NO_TEAM_MEMORY, pulls: w.pulls }, { ask: () => { throw new Error("must not ask"); } });
+    const run = cli(
+      w.dir,
+      home,
+      { teamMemory: NO_TEAM_MEMORY, pulls: w.pulls },
+      {
+        ask: () => {
+          throw new Error("must not ask");
+        },
+      },
+    );
     w.asGithub();
     expect(run("propose", add(run, "Prefer named exports."), "--personal").code).toBe(0);
     expect(onlyMain(w.bare)).toBe(true);
@@ -308,7 +383,11 @@ describe("the first propose in a repository whose team has not adopted memory", 
     const w = teamWorld();
     const home = temp("wachiman-home-");
     const remember = () => writeMemoryChoice(home, repositoryKey(w.dir).key, "personal", new Date("2026-11-01T00:00:00Z"));
-    const noAsk = { ask: () => { throw new Error("must not ask"); } };
+    const noAsk = {
+      ask: () => {
+        throw new Error("must not ask");
+      },
+    };
 
     // The team has not adopted memory yet: the remembered answer holds.
     const solo = cli(w.dir, home, { teamMemory: NO_TEAM_MEMORY, pulls: w.pulls }, noAsk);
@@ -338,7 +417,16 @@ describe("the first propose in a repository whose team has not adopted memory", 
   test("a repository whose default branch already has memory is not asked", () => {
     const w = teamWorld();
     const home = temp("wachiman-home-");
-    const run = cli(w.dir, home, { teamMemory: () => true, pulls: w.pulls }, { ask: () => { throw new Error("must not ask"); } });
+    const run = cli(
+      w.dir,
+      home,
+      { teamMemory: () => true, pulls: w.pulls },
+      {
+        ask: () => {
+          throw new Error("must not ask");
+        },
+      },
+    );
     expect(run("propose", add(run, "Prefer named exports.")).code).toBe(0);
     expect(git(w.bare, "branch", "--list").includes("wachiman/memory")).toBe(true);
   }, 30_000);
@@ -360,14 +448,29 @@ describe("memory propose --from-personal", () => {
     git(dir, "config", "commit.gpgsign", "false");
     const home = temp("wachiman-home-");
     const created: string[] = [];
-    const pulls = { list: () => (created.length > 0 ? [{ number: 1, state: "OPEN" as const, url: "https://example.test/pr/1" }] : []), createDraft: () => (created.push("pr"), "https://example.test/pr/1") };
+    const pulls = {
+      list: () => (created.length > 0 ? [{ number: 1, state: "OPEN" as const, url: "https://example.test/pr/1" }] : []),
+      createDraft: () => (created.push("pr"), "https://example.test/pr/1"),
+    };
     const run = cli(dir, home, { teamMemory: () => false, pulls });
     // Personal entries are written under a GitHub-shaped origin, then origin points at the bare repository for the push.
     git(dir, "remote", "set-url", "origin", "https://github.com/acme/widgets.git");
     // Git still reaches the bare repository through a rewrite, as on a machine that rewrites https to ssh; the personal folder is keyed by the URL as written.
     git(dir, "config", `url.${bare}.insteadOf`, "https://github.com/acme/widgets.git");
     const ids = ["Prefer named exports.", "Keep modules small."].map((rule, i) => {
-      const id = run("add", "--kind", "convention", "--scope", "src/**", "--rule", rule, "--why", "Because.", "--pr", String(7 + i)).stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
+      const id = run(
+        "add",
+        "--kind",
+        "convention",
+        "--scope",
+        "src/**",
+        "--rule",
+        rule,
+        "--why",
+        "Because.",
+        "--pr",
+        String(7 + i),
+      ).stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
       expect(run("propose", id, "--personal").code).toBe(0);
       return id;
     });
@@ -492,8 +595,15 @@ describe("first-propose routing branches", () => {
     const key = repositoryKey(dir).key;
     const probes: number[] = [];
     const probe = (answer: boolean | undefined) => () => (probes.push(1), answer);
-    const add = (run: ReturnType<typeof cli>, rule: string) => run("add", "--kind", "convention", "--scope", "src/**", "--rule", rule, "--why", "Because.", "--pr", "7").stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
-    const noAsk = { ask: () => { throw new Error("must not ask"); } };
+    const add = (run: ReturnType<typeof cli>, rule: string) =>
+      run("add", "--kind", "convention", "--scope", "src/**", "--rule", rule, "--why", "Because.", "--pr", "7").stdout.match(
+        /candidate ([0-9a-f]{7}) saved/,
+      )![1];
+    const noAsk = {
+      ask: () => {
+        throw new Error("must not ask");
+      },
+    };
     return { dir, home, key, probes, probe, add, noAsk, pulls, teamTaken };
   };
 
@@ -567,7 +677,19 @@ describe("the personal folder reader", () => {
     const dir = repoWithOrigin();
     const home = temp("wachiman-home-");
     const run = cli(dir, home);
-    const id = run("add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "Because.", "--pr", "7").stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
+    const id = run(
+      "add",
+      "--kind",
+      "convention",
+      "--scope",
+      "src/**",
+      "--rule",
+      "Prefer named exports.",
+      "--why",
+      "Because.",
+      "--pr",
+      "7",
+    ).stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
     const target = temp("wachiman-target-");
     mkdirSync(join(home, "memory", "github.com", "acme"), { recursive: true });
     symlinkSync(target, join(home, "memory", "github.com", "acme", "widgets"));
@@ -599,7 +721,19 @@ describe("personal files in a review and in --from-personal", () => {
     const dir = repoWithOrigin();
     const home = temp("wachiman-home-");
     const run = cli(dir, home);
-    const id = run("add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "Because.", "--pr", "7").stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
+    const id = run(
+      "add",
+      "--kind",
+      "convention",
+      "--scope",
+      "src/**",
+      "--rule",
+      "Prefer named exports.",
+      "--why",
+      "Because.",
+      "--pr",
+      "7",
+    ).stdout.match(/candidate ([0-9a-f]{7}) saved/)![1];
     expect(run("propose", id, "--personal").code).toBe(0);
     const folder = personalMemoryDir(home, dir)!;
     expect(candidatesFromPersonal(folder, []).candidates.map((c) => c.id)).toEqual([id]);

@@ -20,7 +20,15 @@ describe("the terminal session on a scripted Ui", () => {
     expect(await p.text("Base", "origin/main")).toBe("origin/main");
     expect(await p.text("Name", undefined)).toBe("typed");
     expect(await p.confirm("Go?", false)).toBe(true);
-    expect(ui.of("select")[0]).toMatchObject({ message: "Pick", initial: 0, options: [{ value: 0, label: "alpha", hint: "first" }, { value: 1, label: "beta" }, { value: 2, label: "gamma" }] });
+    expect(ui.of("select")[0]).toMatchObject({
+      message: "Pick",
+      initial: 0,
+      options: [
+        { value: 0, label: "alpha", hint: "first" },
+        { value: 1, label: "beta" },
+        { value: 2, label: "gamma" },
+      ],
+    });
     expect(ui.of("autocomplete")[0].initial).toBe(1);
     expect(ui.of("text")[0]).toMatchObject({ placeholder: "origin/main", defaultValue: "origin/main" });
     expect(ui.of("confirm")[0].initial).toBe(false);
@@ -29,7 +37,10 @@ describe("the terminal session on a scripted Ui", () => {
   test("a disabled choice is passed to the Ui as disabled, and the initial option is never on it", async () => {
     const ui = fakeUi([1]);
     const p = createPrompter(streams(), {}, ui);
-    const list = [{ label: "alpha", value: "a", disabled: true }, { label: "beta", value: "b" }];
+    const list = [
+      { label: "alpha", value: "a", disabled: true },
+      { label: "beta", value: "b" },
+    ];
     expect(await p.select("Pick", list, 0)).toBe("b");
     expect(ui.of("select")[0].initial).toBe(1);
     expect(ui.of("select")[0].options).toEqual([
@@ -91,8 +102,18 @@ describe("the terminal session on a scripted Ui", () => {
     const ui = fakeUi();
     const p = createPrompter(streams(), {}, ui);
     expect(await p.task("Checking", async () => 1)).toBe(1);
-    expect(await p.task("Probing", async () => "bad", (r) => r !== "bad")).toBe("bad");
-    await expect(p.task("Crashing", async () => { throw new Error("boom"); })).rejects.toThrow("boom");
+    expect(
+      await p.task(
+        "Probing",
+        async () => "bad",
+        (r) => r !== "bad",
+      ),
+    ).toBe("bad");
+    await expect(
+      p.task("Crashing", async () => {
+        throw new Error("boom");
+      }),
+    ).rejects.toThrow("boom");
     expect(ui.of("spinner").map((e) => [e.action, e.message])).toEqual([
       ["start", "Checking"],
       ["stop", "Checking"],
@@ -134,7 +155,10 @@ describe("the terminal session on a scripted Ui", () => {
   });
 
   test("a cancelled or failed run ends with the cancel line, not the outro", () => {
-    for (const [outcome, text] of [["cancelled", "Cancelled."], ["failed", "Stopped."]] as const) {
+    for (const [outcome, text] of [
+      ["cancelled", "Cancelled."],
+      ["failed", "Stopped."],
+    ] as const) {
       const ui = fakeUi();
       createPrompter(streams(), {}, ui).close(outcome);
       expect(ui.of("cancel")[0].message).toBe(text);

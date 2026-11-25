@@ -94,13 +94,22 @@ console.log(envelope({ files_reviewed: files, files_skipped: [], findings: [], c
   chmodSync(join(bin, "gh"), 0o755);
   chmodSync(join(bin, "claude"), 0o755);
   const answer = (value: object) => writeFileSync(join(bin, "answer.json"), JSON.stringify(value));
-  answer({ sections: [{ title: "What the change does", body: "It changes the brand colour.", refs: [{ path: TRIGGER, line: 1 }] }], not_answered: "" });
+  answer({
+    sections: [{ title: "What the change does", body: "It changes the brand colour.", refs: [{ path: TRIGGER, line: 1 }] }],
+    not_answered: "",
+  });
   return {
     bin,
     canary,
     answer,
-    asks: (): { prompt: string; dirs: string[]; snapshot: string | null; palette: string | null; hasGit: boolean | null; schema: string | null }[] =>
-      readdirSync(join(bin, "asks")).map((f) => JSON.parse(readFileSync(join(bin, "asks", f), "utf8"))),
+    asks: (): {
+      prompt: string;
+      dirs: string[];
+      snapshot: string | null;
+      palette: string | null;
+      hasGit: boolean | null;
+      schema: string | null;
+    }[] => readdirSync(join(bin, "asks")).map((f) => JSON.parse(readFileSync(join(bin, "asks", f), "utf8"))),
   };
 }
 
@@ -130,7 +139,11 @@ function site(options: { visibility?: "public" | "private"; userFile?: Record<st
   const reviewed = commit(desktopApp, { "Assets/palette.json": '{"brand":"#0a7"}\n' }, "second palette");
   writeFileSync(join(parent, MANIFEST_FILE), JSON.stringify(manifest(options.visibility ?? "private")));
   const home = temp("wachiman-home-");
-  if (options.userFile) writeFileSync(userFilePath(home), JSON.stringify({ version: 1, workspaces: [{ manifest: join(parent, MANIFEST_FILE), ...options.userFile }] }));
+  if (options.userFile)
+    writeFileSync(
+      userFilePath(home),
+      JSON.stringify({ version: 1, workspaces: [{ manifest: join(parent, MANIFEST_FILE), ...options.userFile }] }),
+    );
   return { parent, webSite, desktopApp, home, before, reviewed };
 }
 
@@ -211,7 +224,9 @@ describe("ask on a stored review that read a sibling", () => {
     const plain = ask(s, stub, "what is the palette?");
     expect(plain.code).toBe(0);
     expect(plain.stdout).toContain(`Refs: ${TRIGGER}:1, desktop-app@${sha7}:Assets/palette.json:1`);
-    expect(plain.stdout).toContain("desktop-app@" + sha7 + ":Assets/palette.json:1 and not [sibling reference removed: it could not be checked].");
+    expect(plain.stdout).toContain(
+      "desktop-app@" + sha7 + ":Assets/palette.json:1 and not [sibling reference removed: it could not be checked].",
+    );
     expect(plain.stdout).toContain("3 references could not be checked and were removed.");
     expect(plain.stdout).not.toContain("wachiman-sibling");
 
@@ -241,7 +256,9 @@ describe("ask on a stored review that read a sibling", () => {
     const [call] = stub.asks();
     expect(call.snapshot).toBeNull();
     expect(call.prompt).toContain(`desktop-app@${sha7}: could not be read`);
-    expect(r.stdout).toContain(`Could not read sibling desktop-app@${sha7}: the commit ${sha7} is gone from its clone; Wachiman never fetches.`);
+    expect(r.stdout).toContain(
+      `Could not read sibling desktop-app@${sha7}: the commit ${sha7} is gone from its clone; Wachiman never fetches.`,
+    );
     expect(r.stdout).toContain("1 reference could not be checked and was removed.");
     expect(r.stdout).not.toContain(`desktop-app@${sha7}:Assets/palette.json:1`);
     expect(existsSync(stub.canary)).toBe(false);

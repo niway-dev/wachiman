@@ -12,7 +12,18 @@ import { UsageError } from "../config";
 import { spawnGit, type GitRunner } from "../evidence";
 import { parseFlags } from "../flags";
 import { repositoryKey } from "../history/store";
-import { CHECKS, detectInstall, PROFILE_SCOPED, realDoctorFs, tierOf, type DoctorContext, type DoctorFs, type DoctorReport, type InstallKind, type Target } from "./checks";
+import {
+  CHECKS,
+  detectInstall,
+  PROFILE_SCOPED,
+  realDoctorFs,
+  tierOf,
+  type DoctorContext,
+  type DoctorFs,
+  type DoctorReport,
+  type InstallKind,
+  type Target,
+} from "./checks";
 import { redactReport, renderJson, renderText } from "./render";
 
 export interface DoctorOptions {
@@ -28,7 +39,11 @@ export const doctorUsage = "wachiman doctor [--json] [--profile <name> | --all-p
 /** The arguments after `doctor` (`--repo-dir` is already taken out and arrives as `repoDir`). */
 export function parseDoctorArgs(argv: string[], repoDir: string): DoctorOptions | { help: true } {
   if (argv.includes("--help") || argv.includes("-h")) return { help: true };
-  const { positionals, values, booleans } = parseFlags(argv, { values: ["--profile"], booleans: ["--json", "--all-profiles", "--redact-paths"] }, "doctor");
+  const { positionals, values, booleans } = parseFlags(
+    argv,
+    { values: ["--profile"], booleans: ["--json", "--all-profiles", "--redact-paths"] },
+    "doctor",
+  );
   if (positionals.length > 0) throw new UsageError(`doctor takes no argument "${positionals[0]}".`);
   const profile = values["--profile"];
   if (profile !== undefined && booleans["--all-profiles"]) throw new UsageError("--profile and --all-profiles cannot be used together.");
@@ -80,10 +95,15 @@ export function buildDoctorReport(opts: DoctorOptions, env: Record<string, strin
   const top = (deps.git ?? spawnGit)(["rev-parse", "--show-toplevel"], { cwd: opts.repoDir, timeoutMs: 15_000 });
   const root = top.status === 0 && top.stdout.trim() !== "" ? top.stdout.trim() : undefined;
   // Runs read the committed file, so an edit not committed yet does not apply to them.
-  const pending = root === undefined ? undefined : (deps.git ?? spawnGit)(["status", "--porcelain", "--", ".wachiman.yml"], { cwd: root, timeoutMs: 15_000 });
+  const pending =
+    root === undefined
+      ? undefined
+      : (deps.git ?? spawnGit)(["status", "--porcelain", "--", ".wachiman.yml"], { cwd: root, timeoutMs: 15_000 });
   const settingsUncommitted = pending !== undefined && pending.status === 0 && pending.stdout.trim() !== "";
   const binding =
-    repository.ok && accounts && Object.hasOwn(accounts.projects, repository.value.key) ? accounts.projects[repository.value.key] : undefined;
+    repository.ok && accounts && Object.hasOwn(accounts.projects, repository.value.key)
+      ? accounts.projects[repository.value.key]
+      : undefined;
 
   /** Resolves one spelling (or the full precedence when `flag` is undefined) and confirms the result. */
   const resolve = (flag: string | undefined) =>
@@ -133,7 +153,9 @@ export function buildDoctorReport(opts: DoctorOptions, env: Record<string, strin
   }
 
   const checks = CHECKS.flatMap((check) =>
-    PROFILE_SCOPED.includes(check.id) ? targets.map((target) => check.run({ ...base, target })) : [check.run({ ...base, target: targets[0] })],
+    PROFILE_SCOPED.includes(check.id)
+      ? targets.map((target) => check.run({ ...base, target }))
+      : [check.run({ ...base, target: targets[0] })],
   );
   const failedRequired = checks.filter((r) => r.level === "required" && r.status === "fail").length;
   const install = base.install.kind;
@@ -144,7 +166,13 @@ export function buildDoctorReport(opts: DoctorOptions, env: Record<string, strin
     platform: `${platform}-${arch}`,
     tier: tierOf(platform, arch),
     ...(primary
-      ? { profile: { name: primary.profile.kind === "default" ? "default" : primary.profile.name, kind: primary.profile.kind, rung: primary.rung } }
+      ? {
+          profile: {
+            name: primary.profile.kind === "default" ? "default" : primary.profile.name,
+            kind: primary.profile.kind,
+            rung: primary.rung,
+          },
+        }
       : {}),
     checks,
     failedRequired,

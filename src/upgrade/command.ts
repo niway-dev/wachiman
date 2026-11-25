@@ -127,14 +127,20 @@ export function planCliUpgrade(
   npmPrefix: () => string | undefined = () => undefined,
 ): CliPlan {
   if (install.kind === "source") {
-    return { kind: "refused", reason: "this is a clone or a development build (wachiman-dev); update a clone with `git pull` (then `bun install`), and rebuild a dev build with scripts/dev-build.sh" };
+    return {
+      kind: "refused",
+      reason:
+        "this is a clone or a development build (wachiman-dev); update a clone with `git pull` (then `bun install`), and rebuild a dev build with scripts/dev-build.sh",
+    };
   }
   if (install.kind === "exe") return { kind: "refused", reason: "this is a standalone executable; download the newer one" };
   const custom = env.BUN_INSTALL ? `${slashes(env.BUN_INSTALL)}/install/global/` : undefined;
-  const bun = /[\\/]\.bun[\\/]install[\\/]global[\\/]/.test(install.root) || (custom !== undefined && `${slashes(install.root)}/`.startsWith(custom));
+  const bun =
+    /[\\/]\.bun[\\/]install[\\/]global[\\/]/.test(install.root) || (custom !== undefined && `${slashes(install.root)}/`.startsWith(custom));
   if (bun) return { kind: "command", manager: "bun", command: "bun", args: ["add", "-g", `wachiman@${spec}`] };
   const prefix = npmPrefix();
-  if (prefix !== undefined && under(install.root, prefix)) return { kind: "command", manager: "npm", command: "npm", args: ["install", "-g", `wachiman@${spec}`] };
+  if (prefix !== undefined && under(install.root, prefix))
+    return { kind: "command", manager: "npm", command: "npm", args: ["install", "-g", `wachiman@${spec}`] };
   return {
     kind: "refused",
     reason: `Wachiman was installed with a package manager this command does not drive (${install.root}): update it with that tool, then run \`wachiman upgrade --repo-only\``,
@@ -156,7 +162,9 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
       return 1;
     }
     if (current === undefined) {
-      io.stdout(`Latest:    v${found}\nThe installed version "${deps.version}" is not a release version, so it cannot be compared with v${found}.\n`);
+      io.stdout(
+        `Latest:    v${found}\nThe installed version "${deps.version}" is not a release version, so it cannot be compared with v${found}.\n`,
+      );
       return 0;
     }
     const newer = compareVersions(parseTag(found)!, current) > 0;
@@ -179,7 +187,12 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
     // install kind looks like a normal npm install; the version is the reliable marker.
     const plan: CliPlan = isDevBuild(deps.version)
       ? { kind: "refused", reason: "a development build: update it with scripts/dev-build.sh" }
-      : planCliUpgrade(install, opts.to === undefined ? "latest" : opts.to.slice(1), deps.env ?? process.env, deps.npmPrefix ?? defaultNpmPrefix);
+      : planCliUpgrade(
+          install,
+          opts.to === undefined ? "latest" : opts.to.slice(1),
+          deps.env ?? process.env,
+          deps.npmPrefix ?? defaultNpmPrefix,
+        );
     if (plan.kind === "refused") {
       io.stdout(`The CLI is not upgraded: ${plan.reason}.\n`);
     } else {
@@ -202,16 +215,22 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
           io.stderr(`wachiman: ${shown} ${status === null ? "could not start" : `failed with exit ${status}`}; the CLI is unchanged.`);
           // The pins would name a release the CLI could not install (with --to it may not exist).
           if (opts.to !== undefined) {
-            io.stdout(`The repository pin was not touched: installing ${opts.to} failed. Use \`wachiman upgrade --repo-only --to ${opts.to}\` to pin it without installing.\n`);
+            io.stdout(
+              `The repository pin was not touched: installing ${opts.to} failed. Use \`wachiman upgrade --repo-only --to ${opts.to}\` to pin it without installing.\n`,
+            );
           } else {
-            io.stdout(`The repository pin was not touched: installing v${found} failed. After upgrading the CLI by other means, run \`wachiman upgrade --repo-only\`.\n`);
+            io.stdout(
+              `The repository pin was not touched: installing v${found} failed. After upgrading the CLI by other means, run \`wachiman upgrade --repo-only\`.\n`,
+            );
           }
           return 1;
         }
       }
     }
     if (target === undefined) {
-      io.stdout(`The repository pin was not touched: there is no new version to move it to. After upgrading the CLI by other means, run \`wachiman upgrade --repo-only\`, or pass --to vX.Y.Z.\n`);
+      io.stdout(
+        `The repository pin was not touched: there is no new version to move it to. After upgrading the CLI by other means, run \`wachiman upgrade --repo-only\`, or pass --to vX.Y.Z.\n`,
+      );
       return code;
     }
   }
@@ -236,7 +255,9 @@ function repoStep(opts: UpgradeOptions, target: string, io: Io, deps: UpgradeDep
     return 1;
   };
   if (files.length === 0) {
-    io.stdout(`No ${unreadable.length > 0 ? "readable " : ""}workflow in .github/workflows calls a Wachiman reusable workflow; nothing to pin.\n`);
+    io.stdout(
+      `No ${unreadable.length > 0 ? "readable " : ""}workflow in .github/workflows calls a Wachiman reusable workflow; nothing to pin.\n`,
+    );
     return warnUnreadable();
   }
   const changed: string[] = [];
@@ -272,7 +293,9 @@ function repoStep(opts: UpgradeOptions, target: string, io: Io, deps: UpgradeDep
   }
   if (left.length > 0) io.stdout(`Left as it was:\n${left.join("\n")}\n`);
   if (changed.length > 0) {
-    io.stdout(`\nNothing is committed. To commit it:\n  git add ${changed.join(" ")}\n  git commit -m "chore: pin Wachiman to ${target}"\n`);
+    io.stdout(
+      `\nNothing is committed. To commit it:\n  git add ${changed.join(" ")}\n  git commit -m "chore: pin Wachiman to ${target}"\n`,
+    );
   }
   if (failed.length > 0) io.stderr(`wachiman: could not rewrite, so these were not changed:\n${failed.join("\n")}`);
   return warnUnreadable() || (failed.length > 0 ? 1 : 0);

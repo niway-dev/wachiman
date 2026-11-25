@@ -38,8 +38,7 @@ for (let i = 0; i < argv.length; i++) {
       process.exit(2);
     }
     runs = Number(value);
-  }
-  else {
+  } else {
     console.error(`Unknown argument ${argv[i]}. Usage: bun run bench [--json] [--runs N]`);
     process.exit(2);
   }
@@ -83,7 +82,17 @@ const REVIEW = {
   structured_output: {
     files_reviewed: ["CLAUDE.md", "img.png", "src/a.ts", "src/b.ts", "src/new.ts"],
     files_skipped: [],
-    findings: [{ path: "src/a.ts", line: 2, severity: "fix", topic: "bug", confidence: "high", title: "Fake finding", body: "Body of the fake finding." }],
+    findings: [
+      {
+        path: "src/a.ts",
+        line: 2,
+        severity: "fix",
+        topic: "bug",
+        confidence: "high",
+        title: "Fake finding",
+        body: "Body of the fake finding.",
+      },
+    ],
     contracts: [],
     thread_replies: [],
     summary: "Reviewed by the fake provider.",
@@ -177,7 +186,13 @@ try {
       if (i >= c.warmup) times.push(ms);
     }
     if (failure) break;
-    rows.push({ case: c.name, runs: c.runs, median_ms: round(quantile(times, 0.5)), min_ms: round(Math.min(...times)), p90_ms: round(quantile(times, 0.9)) });
+    rows.push({
+      case: c.name,
+      runs: c.runs,
+      median_ms: round(quantile(times, 0.5)),
+      min_ms: round(Math.min(...times)),
+      p90_ms: round(quantile(times, 0.9)),
+    });
   }
 } finally {
   cleanup();
@@ -189,7 +204,9 @@ if (failure) {
 
 const meta = {
   date: new Date().toISOString().slice(0, 10),
-  commit: (spawnSync("git", ["rev-parse", "--short", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim() || "unknown") + (spawnSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).stdout.trim() ? "-dirty" : ""),
+  commit:
+    (spawnSync("git", ["rev-parse", "--short", "HEAD"], { cwd: root, encoding: "utf8" }).stdout.trim() || "unknown") +
+    (spawnSync("git", ["status", "--porcelain"], { cwd: root, encoding: "utf8" }).stdout.trim() ? "-dirty" : ""),
   bun: spawnSync(pinned, ["--version"], { encoding: "utf8" }).stdout.trim(),
   node: node ? spawnSync(node, ["--version"], { encoding: "utf8" }).stdout.trim() : null,
   cpu: cpus()[0]?.model ?? "unknown",
@@ -203,5 +220,6 @@ if (asJson) {
   const fmt = (n: number) => `${n.toFixed(1)} ms`.padStart(11);
   console.log(`${meta.commit}  bun ${meta.bun}  node ${meta.node ?? "none"}  ${meta.cpu}  ${meta.platform}`);
   console.log(`${"case".padEnd(w)} ${"median".padStart(11)} ${"min".padStart(11)} ${"p90".padStart(11)} ${"runs".padStart(5)}`);
-  for (const r of rows) console.log(`${r.case.padEnd(w)} ${fmt(r.median_ms)} ${fmt(r.min_ms)} ${fmt(r.p90_ms)} ${String(r.runs).padStart(5)}`);
+  for (const r of rows)
+    console.log(`${r.case.padEnd(w)} ${fmt(r.median_ms)} ${fmt(r.min_ms)} ${fmt(r.p90_ms)} ${String(r.runs).padStart(5)}`);
 }

@@ -33,11 +33,30 @@ interface EntryBase {
   /** For a custom entry: the id it was placed after. */
   after?: string;
 }
-export interface StatusRowEntry extends EntryBase { kind: "status-row"; label: string }
-export interface SectionEntry extends EntryBase { kind: "section"; heading: string; body: string[] }
-export interface DetailsEntry extends EntryBase { kind: "details"; summary: string; summarySuffix: string; body: string[] }
-export interface BlockEntry extends EntryBase { kind: "block"; start: string; end: string }
-export interface FooterEntry extends EntryBase { kind: "footer"; text: string }
+export interface StatusRowEntry extends EntryBase {
+  kind: "status-row";
+  label: string;
+}
+export interface SectionEntry extends EntryBase {
+  kind: "section";
+  heading: string;
+  body: string[];
+}
+export interface DetailsEntry extends EntryBase {
+  kind: "details";
+  summary: string;
+  summarySuffix: string;
+  body: string[];
+}
+export interface BlockEntry extends EntryBase {
+  kind: "block";
+  start: string;
+  end: string;
+}
+export interface FooterEntry extends EntryBase {
+  kind: "footer";
+  text: string;
+}
 export type CatalogEntry = StatusRowEntry | SectionEntry | DetailsEntry | BlockEntry | FooterEntry;
 
 export interface Catalog {
@@ -219,13 +238,15 @@ export function parseCatalog(text: string): Catalog {
     } else if (kind === "section") {
       entries.push(clean({ ...base, kind, heading: str(item, "heading", where) as string, body: strings(item, "body", where) }));
     } else if (kind === "details") {
-      entries.push(clean({
-        ...base,
-        kind,
-        summary: str(item, "summary", where) as string,
-        summarySuffix: str(item, "summarySuffix", where, { optional: true, nonEmpty: false }) ?? "",
-        body: strings(item, "body", where),
-      }));
+      entries.push(
+        clean({
+          ...base,
+          kind,
+          summary: str(item, "summary", where) as string,
+          summarySuffix: str(item, "summarySuffix", where, { optional: true, nonEmpty: false }) ?? "",
+          body: strings(item, "body", where),
+        }),
+      );
     } else if (kind === "block") {
       const start = str(item, "start", where) as string;
       const end = str(item, "end", where) as string;
@@ -291,14 +312,18 @@ const LINE_BREAKING_OR_CONTROL = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/;
  */
 export function checkCustomName(name: string, nameKey: string, kind: CustomKind, where: string) {
   if (name.trim() === "") throw new PrTemplateConfigError(`${where}: the ${nameKey} must not be empty.`);
-  if (LINE_BREAKING_OR_CONTROL.test(name)) throw new PrTemplateConfigError(`${where}: the ${nameKey} must be one line without control characters.`);
+  if (LINE_BREAKING_OR_CONTROL.test(name))
+    throw new PrTemplateConfigError(`${where}: the ${nameKey} must be one line without control characters.`);
   if (name !== name.trim() || / {2,}/.test(name)) {
-    throw new PrTemplateConfigError(`${where}: the ${nameKey} must not start or end with whitespace or contain a run of spaces; the checker reads headings and cells trimmed and collapsed.`);
+    throw new PrTemplateConfigError(
+      `${where}: the ${nameKey} must not start or end with whitespace or contain a run of spaces; the checker reads headings and cells trimmed and collapsed.`,
+    );
   }
   if (name.length > MAX_NAME_LENGTH) {
     throw new PrTemplateConfigError(`${where}: the ${nameKey} is ${name.length} characters; the limit is ${MAX_NAME_LENGTH}.`);
   }
-  if (kind === "status-row" && name.includes("|")) throw new PrTemplateConfigError(`${where}: the ${nameKey} must not contain "|"; it is a table cell.`);
+  if (kind === "status-row" && name.includes("|"))
+    throw new PrTemplateConfigError(`${where}: the ${nameKey} must not contain "|"; it is a table cell.`);
   if (name.includes("-->")) throw new PrTemplateConfigError(`${where}: the ${nameKey} must not contain "-->".`);
   if (/[<>]/.test(name)) throw new PrTemplateConfigError(`${where}: the ${nameKey} must not contain "<" or ">".`);
 }
@@ -372,7 +397,10 @@ export function loadRepoChoice(text: string, catalog: Catalog = loadCatalog()): 
   const customRaw = (raw.custom ?? []) as unknown[];
   const custom: CustomEntry[] = [];
   const customIds = new Set<string>();
-  const lockedNames = catalog.sections.filter((e) => e.locked).map((e) => entryName(e)).filter((n): n is string => n !== undefined);
+  const lockedNames = catalog.sections
+    .filter((e) => e.locked)
+    .map((e) => entryName(e))
+    .filter((n): n is string => n !== undefined);
   const included = catalog.sections.filter((e) => e.locked || add.includes(e.id) || (e.default && !drop.includes(e.id)));
 
   customRaw.forEach((item, i) => {
@@ -401,12 +429,19 @@ export function loadRepoChoice(text: string, catalog: Catalog = loadCatalog()): 
     const after = str(item, "after", where, { optional: true });
     if (after !== undefined) {
       const targetKind: SectionKind | undefined = byId.get(after)?.kind ?? custom.find((c) => c.id === after)?.kind;
-      if (!targetKind) throw new PrTemplateConfigError(`${where}: "after" names the unknown id "${after}" (it must be a catalog id or a custom entry listed before this one).`);
+      if (!targetKind)
+        throw new PrTemplateConfigError(
+          `${where}: "after" names the unknown id "${after}" (it must be a catalog id or a custom entry listed before this one).`,
+        );
       if (targetKind === "block" || targetKind === "footer") {
-        throw new PrTemplateConfigError(`${where}: nothing can be placed after "${after}"; the marked block and the footer close the template.`);
+        throw new PrTemplateConfigError(
+          `${where}: nothing can be placed after "${after}"; the marked block and the footer close the template.`,
+        );
       }
       if ((kind === "status-row") !== (targetKind === "status-row")) {
-        throw new PrTemplateConfigError(`${where}: a ${kind} cannot be placed after "${after}", which is ${kind === "status-row" ? "not a status row" : "a status row"}.`);
+        throw new PrTemplateConfigError(
+          `${where}: a ${kind} cannot be placed after "${after}", which is ${kind === "status-row" ? "not a status row" : "a status row"}.`,
+        );
       }
     }
     customIds.add(id);
@@ -421,9 +456,11 @@ export function loadRepoChoice(text: string, catalog: Catalog = loadCatalog()): 
       throw new PrTemplateConfigError(`${here}: a preamble line must not contain a Wachiman marker.`);
     }
     const problem = commentProblem(line);
-    if (problem !== undefined) throw new PrTemplateConfigError(`${here}: preamble[${i}] ${problem}; the rest of the template would be hidden or broken.`);
+    if (problem !== undefined)
+      throw new PrTemplateConfigError(`${here}: preamble[${i}] ${problem}; the rest of the template would be hidden or broken.`);
   });
   const open = fenceProblem(preamble);
-  if (open !== undefined) throw new PrTemplateConfigError(`${here}: the preamble ${open}; the rest of the template would be rendered as code.`);
+  if (open !== undefined)
+    throw new PrTemplateConfigError(`${here}: the preamble ${open}; the rest of the template would be rendered as code.`);
   return { base: "default", add, drop, custom, preamble };
 }

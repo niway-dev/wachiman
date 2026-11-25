@@ -65,7 +65,9 @@ describe("checkSiblingReferences", () => {
   });
 
   test("a range is kept only when both ends exist, and records its first line", () => {
-    expect(check("desktop-app@3f2a9c1:Assets/palette.json:2-3 differs").finding.references).toEqual([{ member: "desktop-app", sha: SHA, path: "Assets/palette.json", line: 2 }]);
+    expect(check("desktop-app@3f2a9c1:Assets/palette.json:2-3 differs").finding.references).toEqual([
+      { member: "desktop-app", sha: SHA, path: "Assets/palette.json", line: 2 },
+    ]);
     const bad = check("desktop-app@3f2a9c1:Assets/palette.json:2-9 differs");
     expect(bad.removed).toBe(1);
     expect(bad.finding.references).toBeUndefined();
@@ -136,7 +138,9 @@ describe("checkSiblingReferences", () => {
     const outside = snapshot({ "secret.txt": "one\ntwo\n" });
     const dir = snapshot({ "Assets/palette.json": "{}\n" });
     symlinkSync(join(outside, "secret.txt"), join(dir, "Assets/link.json"));
-    const { removed } = check("desktop-app@3f2a9c1:Assets/link.json:1", [sibling({ dir, paths: ["Assets/palette.json", "Assets/link.json"] })]);
+    const { removed } = check("desktop-app@3f2a9c1:Assets/link.json:1", [
+      sibling({ dir, paths: ["Assets/palette.json", "Assets/link.json"] }),
+    ]);
     expect(removed).toBe(1);
   });
 
@@ -193,7 +197,11 @@ describe("checkSiblingReferences", () => {
     });
 
     test("one that names no member of the run is removed and counted, however many components it has", () => {
-      for (const token of ["apps/mobile@3f2a9c1:Assets/palette.json:2", "a/b/c@3f2a9c1:Assets/palette.json:2", "apps/desktop/extra@3f2a9c1:Assets/palette.json:2"]) {
+      for (const token of [
+        "apps/mobile@3f2a9c1:Assets/palette.json:2",
+        "a/b/c@3f2a9c1:Assets/palette.json:2",
+        "apps/desktop/extra@3f2a9c1:Assets/palette.json:2",
+      ]) {
         const { finding: f, removed } = check(`Look at ${token}.`, [nested()]);
         expect(removed).toBe(1);
         expect(f.body).toBe(`Look at ${REMOVED_REFERENCE}.`);
@@ -227,22 +235,34 @@ describe("settleModelText", () => {
     const out = settleModelText([sibling()], {
       findings: [{ title: `t ${bad}`, body: `b ${good}` }],
       summary: `s ${bad}`,
-      contracts: [{ action: "a", before_after: `x ${bad}`, open_question: `y ${bad}`, location: `src/a.ts:1 ${bad}` } as Record<string, string>],
+      contracts: [
+        { action: "a", before_after: `x ${bad}`, open_question: `y ${bad}`, location: `src/a.ts:1 ${bad}` } as Record<string, string>,
+      ],
       riskFacts: [{ why: `r ${bad}`, path: `${bad}` }],
       judgement: [{ why: `j ${bad}` }],
-      verification: { status: "verified", entries: [{ title: `e ${bad}`, reason: `er ${bad}`, originReason: `eo ${bad}`, path: "src/a.ts" }] },
+      verification: {
+        status: "verified",
+        entries: [{ title: `e ${bad}`, reason: `er ${bad}`, originReason: `eo ${bad}`, path: "src/a.ts" }],
+      },
       muted: [{ title: `m ${bad}`, reason: `mr ${bad}`, entry: "id" }],
       threadReplies: [{ reply: `p ${bad}`, comment_id: 1 }],
       skipped: [{ path: "x", reason: `k ${bad}` }],
       texts: [`n ${bad}`],
     });
     const gone = REMOVED_REFERENCE;
-    expect(out.findings[0]).toMatchObject({ title: `t ${gone}`, body: `b ${good}`, references: [{ member: "desktop-app", sha: SHA, path: "Assets/palette.json", line: 2 }] });
+    expect(out.findings[0]).toMatchObject({
+      title: `t ${gone}`,
+      body: `b ${good}`,
+      references: [{ member: "desktop-app", sha: SHA, path: "Assets/palette.json", line: 2 }],
+    });
     expect(out.summary).toBe(`s ${gone}`);
     expect(out.contracts[0]).toEqual({ action: "a", before_after: `x ${gone}`, open_question: `y ${gone}`, location: `src/a.ts:1 ${bad}` });
     expect(out.riskFacts[0]).toEqual({ why: `r ${gone}`, path: bad });
     expect(out.judgement[0]).toEqual({ why: `j ${gone}` });
-    expect(out.verification).toEqual({ status: "verified", entries: [{ title: `e ${gone}`, reason: `er ${gone}`, originReason: `eo ${gone}`, path: "src/a.ts" }] });
+    expect(out.verification).toEqual({
+      status: "verified",
+      entries: [{ title: `e ${gone}`, reason: `er ${gone}`, originReason: `eo ${gone}`, path: "src/a.ts" }],
+    });
     expect(out.muted[0]).toEqual({ title: `m ${gone}`, reason: `mr ${gone}`, entry: "id" });
     expect(out.threadReplies[0]).toEqual({ reply: `p ${gone}`, comment_id: 1 });
     expect(out.skipped[0]).toEqual({ path: "x", reason: `k ${gone}` });
@@ -270,7 +290,16 @@ describe("settleModelText", () => {
   });
 
   test("a result with nothing to settle comes back with no verification invented", () => {
-    const out = settleModelText([sibling()], { findings: [], summary: "", contracts: [], riskFacts: [], judgement: [], muted: [], threadReplies: [], skipped: [] });
+    const out = settleModelText([sibling()], {
+      findings: [],
+      summary: "",
+      contracts: [],
+      riskFacts: [],
+      judgement: [],
+      muted: [],
+      threadReplies: [],
+      skipped: [],
+    });
     expect(out.verification).toBeUndefined();
     expect(out.removed).toBe(0);
   });
@@ -331,7 +360,14 @@ describe("a snapshot's temporary directory in the model's text", () => {
     const out = settleModelText([one], {
       findings: [],
       summary: "",
-      contracts: [{ action: "a", evidence: [`${dir}/Assets/palette.json:2`, "src/a.ts:12", `x ${dir}/y:99`], candidates: [`${dir}/z`], evidence_checked: true } as unknown as Record<string, string>],
+      contracts: [
+        {
+          action: "a",
+          evidence: [`${dir}/Assets/palette.json:2`, "src/a.ts:12", `x ${dir}/y:99`],
+          candidates: [`${dir}/z`],
+          evidence_checked: true,
+        } as unknown as Record<string, string>,
+      ],
       riskFacts: [],
       judgement: [],
       muted: [],

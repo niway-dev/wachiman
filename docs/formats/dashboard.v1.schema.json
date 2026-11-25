@@ -5,16 +5,7 @@
   "description": "What `wachiman dashboard --json` prints: figures read from the local index, which is rebuilt from the history run files (ADR 0035). Local runs only, plus the `usage` section when a ledger is connected or was pulled. A figure the run files do not record is marked `not recorded`, never guessed. Local-run spend is Claude Code's API-equivalent estimate, not a bill; `usage` splits billed (API key) from estimated dollars.",
   "type": "object",
   "additionalProperties": false,
-  "required": [
-    "format",
-    "generatedAt",
-    "scope",
-    "totals",
-    "spend",
-    "findings",
-    "loops",
-    "prConfidence"
-  ],
+  "required": ["format", "generatedAt", "scope", "totals", "spend", "findings", "loops", "prConfidence"],
   "properties": {
     "format": {
       "const": "wachiman.dashboard/1"
@@ -29,11 +20,7 @@
     "totals": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "repositories",
-        "runs",
-        "costUsdEstimate"
-      ],
+      "required": ["repositories", "runs", "costUsdEstimate"],
       "properties": {
         "repositories": {
           "type": "integer",
@@ -52,10 +39,7 @@
     "spend": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "byDay",
-        "byRepository"
-      ],
+      "required": ["byDay", "byRepository"],
       "properties": {
         "byDay": {
           "type": "array",
@@ -76,11 +60,7 @@
     "findings": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "total",
-        "bySeverity",
-        "byVerdict"
-      ],
+      "required": ["total", "bySeverity", "byVerdict"],
       "properties": {
         "total": {
           "type": "integer",
@@ -90,12 +70,7 @@
         "bySeverity": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "blocker",
-            "fix",
-            "consider",
-            "info"
-          ],
+          "required": ["blocker", "fix", "consider", "info"],
           "properties": {
             "blocker": {
               "type": "integer",
@@ -118,12 +93,7 @@
         "byVerdict": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "correct",
-            "partial",
-            "wrong",
-            "unjudged"
-          ],
+          "required": ["correct", "partial", "wrong", "unjudged"],
           "properties": {
             "correct": {
               "type": "integer",
@@ -156,10 +126,7 @@
     "loops": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "branches",
-        "totals"
-      ],
+      "required": ["branches", "totals"],
       "properties": {
         "branches": {
           "type": "array",
@@ -170,12 +137,7 @@
         "totals": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "branches",
-            "rounds",
-            "converged",
-            "open"
-          ],
+          "required": ["branches", "rounds", "converged", "open"],
           "properties": {
             "branches": {
               "type": "integer",
@@ -210,10 +172,7 @@
     "usage": {
       "type": "object",
       "description": "Present only when a ledger is connected or was pulled (ADR 0039): the one spend report for laptop and GitHub Actions runs (`src/spend/report.ts`). Top-level keys of `report`: `filters`, `coverage`, `pulledAt`, `limits`, `totals`, `aside`, `days`, `weeks`, `groups`, `unknownCostCalls`. Dollars are split by source and by credential; reservations that never settled and runs that were not reserved are reported apart from spend; a period outside the downloaded data is marked `known: false`, never zero.",
-      "required": [
-        "report",
-        "pulled"
-      ],
+      "required": ["report", "pulled"],
       "properties": {
         "report": {
           "type": "object"
@@ -228,11 +187,7 @@
     "SpendDay": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "day",
-        "runs",
-        "costUsdEstimate"
-      ],
+      "required": ["day", "runs", "costUsdEstimate"],
       "properties": {
         "day": {
           "type": "string",
@@ -251,12 +206,7 @@
     "SpendRepository": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "key",
-        "name",
-        "runs",
-        "costUsdEstimate"
-      ],
+      "required": ["key", "name", "runs", "costUsdEstimate"],
       "properties": {
         "key": {
           "type": "string"
@@ -277,16 +227,7 @@
     "LoopBranch": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "repositoryKey",
-        "repository",
-        "branch",
-        "base",
-        "outcome",
-        "exitReason",
-        "rounds",
-        "ledger"
-      ],
+      "required": ["repositoryKey", "repository", "branch", "base", "outcome", "exitReason", "rounds", "ledger"],
       "properties": {
         "repositoryKey": {
           "type": "string"
@@ -301,15 +242,10 @@
           "type": "string"
         },
         "outcome": {
-          "enum": [
-            "open",
-            "converged"
-          ]
+          "enum": ["open", "converged"]
         },
         "exitReason": {
-          "enum": [
-            "not recorded"
-          ],
+          "enum": ["not recorded"],
           "description": "The loop state keeps only open or converged; the round-cap and review-failed stops are printed by `wachiman loop` and never saved."
         },
         "rounds": {
@@ -325,10 +261,7 @@
         "ledger": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "total",
-            "byStatus"
-          ],
+          "required": ["total", "byStatus"],
           "properties": {
             "total": {
               "type": "integer",
@@ -337,13 +270,7 @@
             "byStatus": {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "new",
-                "open",
-                "probably-fixed",
-                "not-repeated",
-                "unknown"
-              ],
+              "required": ["new", "open", "probably-fixed", "not-repeated", "unknown"],
               "properties": {
                 "new": {
                   "type": "integer",
@@ -374,10 +301,7 @@
     "PrConfidenceNotRecorded": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "status",
-        "note"
-      ],
+      "required": ["status", "note"],
       "properties": {
         "status": {
           "const": "not recorded"
@@ -390,11 +314,7 @@
     "PrConfidenceRecorded": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "status",
-        "gradedRuns",
-        "byGrade"
-      ],
+      "required": ["status", "gradedRuns", "byGrade"],
       "properties": {
         "status": {
           "const": "recorded"
@@ -406,13 +326,7 @@
         "byGrade": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "A",
-            "A-",
-            "B",
-            "C",
-            "cannot say"
-          ],
+          "required": ["A", "A-", "B", "C", "cannot say"],
           "properties": {
             "A": {
               "type": "integer",

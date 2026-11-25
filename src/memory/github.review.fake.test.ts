@@ -22,8 +22,20 @@ class FakeProvider implements ProviderAdapter {
     return false;
   }
   async run(request: ProviderRequest): Promise<ProviderResult> {
-    const files = [...request.prompt.split("This part holds exactly these files")[1].split("\n\n")[0].matchAll(/^- (\S+) \+/gm)].map((m) => m[1]);
-    const output: ReviewOutput = { files_reviewed: files, files_skipped: [], findings: [], contracts: [], thread_replies: [], summary: "ok" };
+    const files = [
+      ...request.prompt
+        .split("This part holds exactly these files")[1]
+        .split("\n\n")[0]
+        .matchAll(/^- (\S+) \+/gm),
+    ].map((m) => m[1]);
+    const output: ReviewOutput = {
+      files_reviewed: files,
+      files_skipped: [],
+      findings: [],
+      contracts: [],
+      thread_replies: [],
+      summary: "ok",
+    };
     return { costUsd: 0.1, turns: 1, durationMs: 1, terminalReason: "success", isError: false, raw: {}, structuredOutput: output };
   }
 }

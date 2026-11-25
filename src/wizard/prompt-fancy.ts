@@ -13,7 +13,12 @@ type Terminal = NodeJS.ReadableStream & { isTTY?: boolean; isRaw?: boolean; setR
 type TerminalOut = NodeJS.WritableStream & { isTTY?: boolean; columns?: number };
 
 const toOptions = <T>(choices: Choice<T>[]) =>
-  choices.map((c, i) => ({ value: i, label: c.disabled ? `${c.label} (coming soon)` : c.label, hint: c.description, ...(c.disabled ? { disabled: true } : {}) }));
+  choices.map((c, i) => ({
+    value: i,
+    label: c.disabled ? `${c.label} (coming soon)` : c.label,
+    hint: c.description,
+    ...(c.disabled ? { disabled: true } : {}),
+  }));
 
 /** The requested default, or the first choice that can be picked when it points at a disabled one. */
 export function usableDefault<T>(choices: Choice<T>[], index: number): number {
@@ -61,7 +66,8 @@ export function createFancyPrompter(io: PromptIO, env: Record<string, string | u
     // Clack owns the terminal only while a question is open, so there is nothing to hand back.
     suspend() {},
     select: (label, choices, defaultIndex) => pick((o) => ui.select(o), label, choices, defaultIndex),
-    autocomplete: (label, choices, defaultIndex) => pick((o) => ui.autocomplete({ ...o, placeholder: "Type to filter" }), label, choices, defaultIndex),
+    autocomplete: (label, choices, defaultIndex) =>
+      pick((o) => ui.autocomplete({ ...o, placeholder: "Type to filter" }), label, choices, defaultIndex),
     async text(label, defaultValue, validate) {
       if (cancelled) return null;
       const answer = await ui.text({
@@ -107,7 +113,13 @@ export function createFancyPrompter(io: PromptIO, env: Record<string, string | u
     nextStep(command, note) {
       // On Windows one step arrives once per shell: keep it as one step with both commands.
       const last = next.at(-1);
-      if (!note && last && last.commands.length > 0 && withoutShell(last.commands[0]) === withoutShell(command) && last.commands[0] !== command) {
+      if (
+        !note &&
+        last &&
+        last.commands.length > 0 &&
+        withoutShell(last.commands[0]) === withoutShell(command) &&
+        last.commands[0] !== command
+      ) {
         last.commands.push(command);
         return;
       }
@@ -121,9 +133,7 @@ export function createFancyPrompter(io: PromptIO, env: Record<string, string | u
       closed = true;
       if (next.length > 0) {
         ui.note(
-          next
-            .flatMap((n, i) => [`${i + 1}. ${n.note}`, ...n.commands.map((c) => `     ${paint(c, "accent")}`)])
-            .join("\n"),
+          next.flatMap((n, i) => [`${i + 1}. ${n.note}`, ...n.commands.map((c) => `     ${paint(c, "accent")}`)]).join("\n"),
           "Next steps",
         );
       }

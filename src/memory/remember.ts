@@ -107,7 +107,11 @@ export function remember(deps: RememberDeps, repo: string, pr: number, request: 
     .at(-1);
   if (!shown) return refuse(`No reply of Wachiman in this thread proposes an entry with the id \`${command.id}\`.`);
   const built = candidateFromShown(shown.text, command.id);
-  if (!built.candidate) return refuse("The text shown does not match the id. The id is the digest of the entry text, and only text that hashes to it is written. The problem:", built.problem);
+  if (!built.candidate)
+    return refuse(
+      "The text shown does not match the id. The id is the digest of the entry text, and only text that hashes to it is written. The problem:",
+      built.problem,
+    );
 
   if (dryRun) {
     deps.log(`dry run: would record entry ${command.id} on wachiman/memory.`);
@@ -119,7 +123,12 @@ export function remember(deps: RememberDeps, repo: string, pr: number, request: 
   const errors: string[] = [];
   let result: ProposeResult;
   try {
-    result = (deps.propose ?? proposeCandidate)(built.candidate, repoDir, { stdout: (text) => void out.push(text.trim()), stderr: (line) => void errors.push(line) }, { pulls: deps.pulls });
+    result = (deps.propose ?? proposeCandidate)(
+      built.candidate,
+      repoDir,
+      { stdout: (text) => void out.push(text.trim()), stderr: (line) => void errors.push(line) },
+      { pulls: deps.pulls },
+    );
   } catch (error) {
     return refuse("The write failed:", String(error instanceof Error ? error.message : error));
   }
@@ -145,7 +154,9 @@ export function remember(deps: RememberDeps, repo: string, pr: number, request: 
   post([
     headline,
     recorded,
-    ...(change === "on-default" ? [] : ["It is not active until a person merges the draft pull request. Reviews read the memory from the base commit."]),
+    ...(change === "on-default"
+      ? []
+      : ["It is not active until a person merges the draft pull request. Reviews read the memory from the base commit."]),
   ]);
   return 0;
 }
@@ -161,7 +172,12 @@ export interface RememberContext {
  * environment the workflow sets (`REQUEST`, `WACHIMAN_COMMENT_AUTHOR`, `WACHIMAN_COMMENT_IN_REPLY_TO`),
  * the same variables `comment` reads; the token and the repository are `GH_TOKEN` and `GITHUB_REPOSITORY`.
  */
-export function runRemember(argv: string[], repoDir: string, io: { stdout: (text: string) => void; stderr: (line: string) => void }, ctx: RememberContext = {}): number {
+export function runRemember(
+  argv: string[],
+  repoDir: string,
+  io: { stdout: (text: string) => void; stderr: (line: string) => void },
+  ctx: RememberContext = {},
+): number {
   const env = ctx.env ?? process.env;
   const [prArg, ...extra] = argv;
   if (!/^[1-9]\d*$/.test(prArg ?? "")) throw new UsageError("memory remember needs a pull request number.");
@@ -178,7 +194,13 @@ export function runRemember(argv: string[], repoDir: string, io: { stdout: (text
   if (raw !== "" && !/^\d+$/.test(raw)) throw new UsageError(`WACHIMAN_COMMENT_IN_REPLY_TO must be a comment id, got "${raw}".`);
   const config = loadConfig(env);
   return remember(
-    { gh: ctx.gh ?? defaultGh, config: { operator: config.operator, mention: config.mention, dryRun: config.dryRun }, log: (line) => io.stdout(`${line}\n`), warn: io.stderr, pulls: ctx.pulls },
+    {
+      gh: ctx.gh ?? defaultGh,
+      config: { operator: config.operator, mention: config.mention, dryRun: config.dryRun },
+      log: (line) => io.stdout(`${line}\n`),
+      warn: io.stderr,
+      pulls: ctx.pulls,
+    },
     repo,
     Number(prArg),
     { body, author: env.WACHIMAN_COMMENT_AUTHOR || undefined, replyTo: raw === "" ? null : Number(raw) },

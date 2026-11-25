@@ -51,7 +51,5 @@ export function getProvider(
       codexHome: options.dryRun ? (process.env.CODEX_HOME ?? `${process.env.HOME}/.codex`) : undefined,
     });
   }
-  throw new UnknownProviderError(
-    `Unknown provider "${name}". Accepted values: ${PROVIDER_NAMES.join(", ")}.`,
-  );
+  throw new UnknownProviderError(`Unknown provider "${name}". Accepted values: ${PROVIDER_NAMES.join(", ")}.`);
 }

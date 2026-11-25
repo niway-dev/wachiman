@@ -100,7 +100,8 @@ interface PullInfo {
 function readPull(gh: GhFn, repo: string, pr: number): PullInfo {
   const jq = "{state, head: .head.sha} | @json";
   const raw = jsonLines<{ state?: unknown; head?: unknown }>(gh(["api", `repos/${repo}/pulls/${pr}`, "--jq", jq]))[0];
-  if (!raw || typeof raw.head !== "string" || raw.head === "") throw new GhError(`GitHub answered no head commit for ${repo}#${pr}.`, null, "");
+  if (!raw || typeof raw.head !== "string" || raw.head === "")
+    throw new GhError(`GitHub answered no head commit for ${repo}#${pr}.`, null, "");
   return { open: raw.state === "open", head: raw.head };
 }
 
@@ -126,7 +127,9 @@ function readOwnReviews(gh: GhFn, repo: string, pr: number): OwnReview[] {
 /** What the "Wachiman review" check runs on the head say: none, one still queued or in progress, or all finished. */
 function readCheck(gh: GhFn, repo: string, head: string): "none" | "running" | "finished" {
   const jq = ".check_runs[] | {name, status} | @json";
-  const runs = jsonLines<{ name?: string; status?: string }>(gh(["api", "--paginate", `repos/${repo}/commits/${head}/check-runs`, "--jq", jq])).filter(
+  const runs = jsonLines<{ name?: string; status?: string }>(
+    gh(["api", "--paginate", `repos/${repo}/commits/${head}/check-runs`, "--jq", jq]),
+  ).filter(
     // A caller workflow that calls the reusable one reports the job as `<caller job> / Wachiman review`.
     (r) => typeof r.name === "string" && (r.name === REVIEW_CHECK_NAME || r.name.endsWith(` / ${REVIEW_CHECK_NAME}`)),
   );
@@ -168,7 +171,19 @@ function readThreads(gh: GhFn, repo: string, pr: number): ThreadNode[] {
   const out: ThreadNode[] = [];
   let after: string | null = null;
   for (let page = 0; page < MAX_THREAD_PAGES; page++) {
-    const raw = gh(["api", "graphql", "-f", `query=${query}`, "-F", `owner=${owner}`, "-F", `name=${name}`, "-F", `pr=${pr}`, ...(after === null ? [] : ["-F", `after=${after}`])]);
+    const raw = gh([
+      "api",
+      "graphql",
+      "-f",
+      `query=${query}`,
+      "-F",
+      `owner=${owner}`,
+      "-F",
+      `name=${name}`,
+      "-F",
+      `pr=${pr}`,
+      ...(after === null ? [] : ["-F", `after=${after}`]),
+    ]);
     const threads = JSON.parse(raw)?.data?.repository?.pullRequest?.reviewThreads;
     if (!threads || !Array.isArray(threads.nodes)) throw new GhError(`GitHub answered no review threads for ${repo}#${pr}.`, null, "");
     out.push(...threads.nodes);
@@ -206,7 +221,15 @@ export function readReviews(reviews: OwnReview[]): ReadReview[] {
     if (r.body.includes(SIGNATURE.review)) {
       const block = readSignedStateBlock(r.body);
       if (block) {
-        out.push({ head: block.head, status: block.status, reason: block.reason, attempt: block.attempt, engine: block.engine, source: "block", block });
+        out.push({
+          head: block.head,
+          status: block.status,
+          reason: block.reason,
+          attempt: block.attempt,
+          engine: block.engine,
+          source: "block",
+          block,
+        });
         return;
       }
       const sha = readSignedMarker(r.body);
@@ -222,7 +245,15 @@ export function readReviews(reviews: OwnReview[]): ReadReview[] {
   return out;
 }
 
-const legacy = (head: string, status: "complete" | "partial"): ReadReview => ({ head, status, reason: null, attempt: null, engine: null, source: "legacy-markers", block: null });
+const legacy = (head: string, status: "complete" | "partial"): ReadReview => ({
+  head,
+  status,
+  reason: null,
+  attempt: null,
+  engine: null,
+  source: "legacy-markers",
+  block: null,
+});
 
 // ----- Reading the threads ----------------------------------------------------------------------
 
@@ -319,9 +350,9 @@ export function readPrState(gh: GhFn, repo: string, pr: number): PrState {
   let state: ReviewKind;
   let shown: ReadReview | null = deciding;
   if (deciding) state = deciding.status;
-  else if (check === "running") (state = "running", (shown = older));
-  else if (scoped) (state = "scoped", (shown = scoped));
-  else if (older) (state = "stale", (shown = older));
+  else if (check === "running") ((state = "running"), (shown = older));
+  else if (scoped) ((state = "scoped"), (shown = scoped));
+  else if (older) ((state = "stale"), (shown = older));
   else state = "none";
 
   const f = deciding?.block?.findings;
@@ -379,15 +410,18 @@ export function parsePrStateArgs(argv: string[]): PrStateArgs | { help: true } {
     if (arg === "--help" || arg === "-h") return { help: true };
     if (arg === "--json") continue;
     if (arg === "--wait") args.wait = true;
-    else if (arg === "--timeout" || arg.startsWith("--timeout=")) args.timeoutS = seconds("--timeout", arg === "--timeout" ? argv[++i] : arg.slice("--timeout=".length), 1);
-    else if (arg === "--interval" || arg.startsWith("--interval=")) args.intervalS = seconds("--interval", arg === "--interval" ? argv[++i] : arg.slice("--interval=".length), MIN_INTERVAL_S);
+    else if (arg === "--timeout" || arg.startsWith("--timeout="))
+      args.timeoutS = seconds("--timeout", arg === "--timeout" ? argv[++i] : arg.slice("--timeout=".length), 1);
+    else if (arg === "--interval" || arg.startsWith("--interval="))
+      args.intervalS = seconds("--interval", arg === "--interval" ? argv[++i] : arg.slice("--interval=".length), MIN_INTERVAL_S);
     else if (arg === "--repo" || arg.startsWith("--repo=")) {
       const v = arg === "--repo" ? argv[++i] : arg.slice("--repo=".length);
       if (v === undefined || !/^[\w.-]+\/[\w.-]+$/.test(v)) throw new UsageError(`--repo must be <owner>/<repo>, got "${v ?? ""}".`);
       args.repo = v;
     } else if (arg.startsWith("-")) throw new UsageError(`Unknown option "${arg}" for pr-state.`);
     else if (args.pr !== undefined) throw new UsageError(`pr-state takes one pull request number, got a second argument "${arg}".`);
-    else if (!/^[1-9]\d*$/.test(arg) || !Number.isSafeInteger(Number(arg))) throw new UsageError(`pr-state needs a pull request number, got "${arg}".`);
+    else if (!/^[1-9]\d*$/.test(arg) || !Number.isSafeInteger(Number(arg)))
+      throw new UsageError(`pr-state needs a pull request number, got "${arg}".`);
     else args.pr = Number(arg);
   }
   if (!args.wait) {
@@ -407,7 +441,10 @@ export function resolveTarget(args: PrStateArgs, gh: GhFn): { repo: string; pr: 
     if (!/^[\w.-]+\/[\w.-]+$/.test(repo)) throw new GhError("Could not tell which repository to read; pass --repo <owner/repo>.", null, "");
     return { repo, pr: args.pr };
   }
-  const view = JSON.parse(gh(["pr", "view", "--json", "number,url", ...(args.repo ? ["--repo", args.repo] : [])])) as { number?: unknown; url?: unknown };
+  const view = JSON.parse(gh(["pr", "view", "--json", "number,url", ...(args.repo ? ["--repo", args.repo] : [])])) as {
+    number?: unknown;
+    url?: unknown;
+  };
   const fromUrl = /^https?:\/\/[^/]+\/([^/]+\/[^/]+)\/pull\//.exec(String(view.url ?? ""))?.[1];
   const repo = args.repo ?? fromUrl;
   if (typeof view.number !== "number" || !repo) throw new GhError("Could not tell which pull request to read; pass its number.", null, "");

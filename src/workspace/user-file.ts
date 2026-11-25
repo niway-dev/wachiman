@@ -53,10 +53,12 @@ const refuse = (message: string) => new UserFileError(`${USER_FILE_NAME}: ${mess
 function parseWorkspace(raw: unknown, index: number): UserWorkspace {
   const where = `workspaces[${index}]`;
   if (!isRecord(raw)) throw refuse(`${where} must be an object.`);
-  if (typeof raw.manifest !== "string" || raw.manifest === "") throw refuse(`${where}.manifest must be the absolute path of a manifest file.`);
+  if (typeof raw.manifest !== "string" || raw.manifest === "")
+    throw refuse(`${where}.manifest must be the absolute path of a manifest file.`);
   if (!isAbsolute(raw.manifest)) throw refuse(`${where}.manifest must be an absolute path, got "${raw.manifest}".`);
   const distributedRepo = raw.distributedRepo ?? "off";
-  if (distributedRepo !== "on" && distributedRepo !== "off") throw refuse(`${where}.distributedRepo must be "on" or "off", got ${JSON.stringify(raw.distributedRepo)}.`);
+  if (distributedRepo !== "on" && distributedRepo !== "off")
+    throw refuse(`${where}.distributedRepo must be "on" or "off", got ${JSON.stringify(raw.distributedRepo)}.`);
   const members: Record<string, UserMember> = Object.create(null);
   if (raw.members !== undefined) {
     if (!isRecord(raw.members)) throw refuse(`${where}.members must be an object keyed by member dir.`);
@@ -65,7 +67,8 @@ function parseWorkspace(raw: unknown, index: number): UserWorkspace {
       if (!isRecord(value)) throw refuse(`${at} must be an object.`);
       const member: UserMember = {};
       if (value.dir !== undefined) {
-        if (typeof value.dir !== "string" || !isAbsolute(value.dir)) throw refuse(`${at}.dir must be an absolute path, got ${JSON.stringify(value.dir)}.`);
+        if (typeof value.dir !== "string" || !isAbsolute(value.dir))
+          throw refuse(`${at}.dir must be an absolute path, got ${JSON.stringify(value.dir)}.`);
         member.dir = value.dir;
       }
       if (value.watch !== undefined) {

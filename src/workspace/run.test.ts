@@ -69,7 +69,10 @@ function fixture(userWorkspace: Record<string, unknown> | undefined = undefined)
   git(webSite, "remote", "add", "origin", "https://github.com/acme/web-site.git");
   const home = tmp("wachiman-home-");
   if (userWorkspace) {
-    writeFileSync(userFilePath(home), JSON.stringify({ version: 1, workspaces: [{ manifest: join(coordinator, MANIFEST_FILE), ...userWorkspace }] }));
+    writeFileSync(
+      userFilePath(home),
+      JSON.stringify({ version: 1, workspaces: [{ manifest: join(coordinator, MANIFEST_FILE), ...userWorkspace }] }),
+    );
   }
   return { coordinator, home, webSite, desktopApp, desktopSha, webHead };
 }
@@ -179,7 +182,12 @@ describe("prepareDistributed", () => {
 
   test("a change to the consumer side reads the provider at its commit, as a snapshot with only the contract's paths", () => {
     const f = fixture(local);
-    const prepared = prepareDistributed(decideOn(f), { files: [file("packages/tokens/src/palette.ts")], headSha: f.webHead, siblings: [], warn: () => {} });
+    const prepared = prepareDistributed(decideOn(f), {
+      files: [file("packages/tokens/src/palette.ts")],
+      headSha: f.webHead,
+      siblings: [],
+      warn: () => {},
+    });
     try {
       const [contract] = prepared.context.contracts;
       expect(contract).toMatchObject({
@@ -218,7 +226,12 @@ describe("prepareDistributed", () => {
 
   test("release removes every snapshot, and is safe to call twice", () => {
     const f = fixture(local);
-    const prepared = prepareDistributed(decideOn(f), { files: [file("packages/tokens/src/palette.ts")], headSha: f.webHead, siblings: [], warn: () => {} });
+    const prepared = prepareDistributed(decideOn(f), {
+      files: [file("packages/tokens/src/palette.ts")],
+      headSha: f.webHead,
+      siblings: [],
+      warn: () => {},
+    });
     const dir = prepared.context.siblings[0]!.dir!;
     expect(existsSync(dir)).toBe(true);
     prepared.release();
@@ -228,7 +241,12 @@ describe("prepareDistributed", () => {
 
   test("with the default rule the pin cannot be resolved, so it falls back, and the context says why", () => {
     const f = fixture({ distributedRepo: "off" });
-    const prepared = prepareDistributed(decideOn(f), { files: [file("packages/tokens/src/palette.ts")], headSha: f.webHead, siblings: [], warn: () => {} });
+    const prepared = prepareDistributed(decideOn(f), {
+      files: [file("packages/tokens/src/palette.ts")],
+      headSha: f.webHead,
+      siblings: [],
+      warn: () => {},
+    });
     try {
       const [sibling] = prepared.context.siblings;
       expect(sibling).toMatchObject({ rule: "pinned", ruleSource: "default", readAs: "local", status: "read", sha: f.desktopSha });
@@ -243,9 +261,19 @@ describe("prepareDistributed", () => {
     // Reviewing desktop-app: the palette moved. The consumer, web-site, is read.
     const decision = decideDistributed(request(f, { flag: true, repoDir: f.desktopApp }));
     if (!decision.on) throw new Error("on");
-    const prepared = prepareDistributed(decision, { files: [file("Assets/colors.json", { previous_filename: "Assets/palette.json" })], headSha: f.desktopSha, siblings: [], warn: () => {} });
+    const prepared = prepareDistributed(decision, {
+      files: [file("Assets/colors.json", { previous_filename: "Assets/palette.json" })],
+      headSha: f.desktopSha,
+      siblings: [],
+      warn: () => {},
+    });
     try {
-      expect(prepared.context.contracts[0]).toMatchObject({ name: "brand-palette", triggerPaths: ["Assets/palette.json"], holdsSource: true, reviewedRoles: ["provider"] });
+      expect(prepared.context.contracts[0]).toMatchObject({
+        name: "brand-palette",
+        triggerPaths: ["Assets/palette.json"],
+        holdsSource: true,
+        reviewedRoles: ["provider"],
+      });
       expect(prepared.context.siblings.map((s) => [s.member, s.status])).toEqual([["web-site", "read"]]);
     } finally {
       prepared.release();
@@ -256,7 +284,12 @@ describe("prepareDistributed", () => {
     const f = fixture(local);
     const decision = decideDistributed(request(f, { flag: true, repoDir: f.desktopApp }));
     if (!decision.on) throw new Error("on");
-    const prepared = prepareDistributed(decision, { files: [file("Assets/palette.json", { additions: 0, deletions: 1 })], headSha: f.desktopSha, siblings: [], warn: () => {} });
+    const prepared = prepareDistributed(decision, {
+      files: [file("Assets/palette.json", { additions: 0, deletions: 1 })],
+      headSha: f.desktopSha,
+      siblings: [],
+      warn: () => {},
+    });
     try {
       expect(prepared.context.contracts.map((c) => c.name)).toEqual(["brand-palette"]);
     } finally {
@@ -267,7 +300,12 @@ describe("prepareDistributed", () => {
   test("a change no contract covers reads nothing and says so", () => {
     const f = fixture(local);
     const warnings: string[] = [];
-    const prepared = prepareDistributed(decideOn(f), { files: [file("docs/readme.md")], headSha: f.webHead, siblings: [], warn: (w) => warnings.push(w) });
+    const prepared = prepareDistributed(decideOn(f), {
+      files: [file("docs/readme.md")],
+      headSha: f.webHead,
+      siblings: [],
+      warn: (w) => warnings.push(w),
+    });
     expect(prepared.context.contracts).toEqual([]);
     expect(prepared.context.siblings).toEqual([]);
     expect(warnings).toEqual([]);
@@ -277,10 +315,20 @@ describe("prepareDistributed", () => {
   test("a sibling that is not cloned is listed as not cloned, with no snapshot", () => {
     const f = fixture(local);
     rmSync(join(f.desktopApp, ".git"), { recursive: true, force: true });
-    const prepared = prepareDistributed(decideOn(f), { files: [file("packages/tokens/src/palette.ts")], headSha: f.webHead, siblings: [], warn: () => {} });
+    const prepared = prepareDistributed(decideOn(f), {
+      files: [file("packages/tokens/src/palette.ts")],
+      headSha: f.webHead,
+      siblings: [],
+      warn: () => {},
+    });
     try {
       expect(prepared.context.siblings).toHaveLength(1);
-      expect(prepared.context.siblings[0]).toMatchObject({ member: "desktop-app", status: "not-cloned", contracts: ["brand-palette"], paths: [] });
+      expect(prepared.context.siblings[0]).toMatchObject({
+        member: "desktop-app",
+        status: "not-cloned",
+        contracts: ["brand-palette"],
+        paths: [],
+      });
       expect(prepared.context.siblings[0]!.dir).toBeUndefined();
       expect(prepared.context.siblings[0]!.sha).toBeUndefined();
     } finally {
@@ -290,7 +338,12 @@ describe("prepareDistributed", () => {
 
   test("a member the per-user file does not watch is listed as not watched, with no snapshot", () => {
     const f = fixture({ ...local, members: { "desktop-app": { watch: false } } });
-    const prepared = prepareDistributed(decideOn(f), { files: [file("packages/tokens/src/palette.ts")], headSha: f.webHead, siblings: [], warn: () => {} });
+    const prepared = prepareDistributed(decideOn(f), {
+      files: [file("packages/tokens/src/palette.ts")],
+      headSha: f.webHead,
+      siblings: [],
+      warn: () => {},
+    });
     try {
       expect(prepared.context.siblings[0]).toMatchObject({ member: "desktop-app", status: "not-watched" });
       expect(prepared.context.siblings[0]!.dir).toBeUndefined();
@@ -302,7 +355,12 @@ describe("prepareDistributed", () => {
   test("uncommitted changes of a local sibling are not read, and the context says so", () => {
     const f = fixture(local);
     writeFileSync(join(f.desktopApp, "Assets/palette.json"), '{"brand":"#f00"}\n');
-    const prepared = prepareDistributed(decideOn(f), { files: [file("packages/tokens/src/palette.ts")], headSha: f.webHead, siblings: [], warn: () => {} });
+    const prepared = prepareDistributed(decideOn(f), {
+      files: [file("packages/tokens/src/palette.ts")],
+      headSha: f.webHead,
+      siblings: [],
+      warn: () => {},
+    });
     try {
       const [sibling] = prepared.context.siblings;
       expect(sibling).toMatchObject({ status: "uncommitted-not-read", sha: f.desktopSha });
@@ -314,9 +372,16 @@ describe("prepareDistributed", () => {
 
   test("a sibling whose snapshot cannot be taken is unreadable, the review goes on, and the others are kept", () => {
     const f = fixture(local);
-    const failing: typeof spawnGit = (args, opts) => (args.includes("ls-tree") ? { status: 128, stdout: "", error: "boom" } : spawnGit(args, opts));
+    const failing: typeof spawnGit = (args, opts) =>
+      args.includes("ls-tree") ? { status: 128, stdout: "", error: "boom" } : spawnGit(args, opts);
     const warnings: string[] = [];
-    const prepared = prepareDistributed(decideOn(f), { files: [file("packages/tokens/src/palette.ts")], headSha: f.webHead, siblings: [], warn: (w) => warnings.push(w), git: failing });
+    const prepared = prepareDistributed(decideOn(f), {
+      files: [file("packages/tokens/src/palette.ts")],
+      headSha: f.webHead,
+      siblings: [],
+      warn: (w) => warnings.push(w),
+      git: failing,
+    });
     try {
       expect(prepared.context.siblings[0]).toMatchObject({ member: "desktop-app", status: "unreadable" });
       expect(prepared.context.siblings[0]!.unreadable).toBeTruthy();
@@ -329,12 +394,21 @@ describe("prepareDistributed", () => {
 
   test("a sibling whose git status fails is read as committed, with a warning that names the member", () => {
     const f = fixture(local);
-    const failing: GitRunner = (args, opts) => (args[0] === "status" ? { status: null, stdout: "", error: "timed out", timedOut: true } : workspaceGit(args, opts));
+    const failing: GitRunner = (args, opts) =>
+      args[0] === "status" ? { status: null, stdout: "", error: "timed out", timedOut: true } : workspaceGit(args, opts);
     const warnings: string[] = [];
-    const prepared = prepareDistributed(decideOn(f), { files: [file("packages/tokens/src/palette.ts")], headSha: f.webHead, siblings: [], warn: (w) => warnings.push(w), git: failing });
+    const prepared = prepareDistributed(decideOn(f), {
+      files: [file("packages/tokens/src/palette.ts")],
+      headSha: f.webHead,
+      siblings: [],
+      warn: (w) => warnings.push(w),
+      git: failing,
+    });
     try {
       expect(prepared.context.siblings[0]).toMatchObject({ member: "desktop-app", status: "read", sha: f.desktopSha });
-      expect(warnings.join("\n")).toContain(`could not check desktop-app for uncommitted changes; read ${f.desktopSha.slice(0, 7)} as committed`);
+      expect(warnings.join("\n")).toContain(
+        `could not check desktop-app for uncommitted changes; read ${f.desktopSha.slice(0, 7)} as committed`,
+      );
     } finally {
       prepared.release();
     }
@@ -366,7 +440,12 @@ describe("prepareDistributed", () => {
 
   test("--sibling reads that member's whole tracked tree, marked as added by hand, even when no contract applied", () => {
     const f = fixture(local);
-    const prepared = prepareDistributed(decideOn(f, { siblings: ["desktop-app"] }), { files: [file("docs/readme.md")], headSha: f.webHead, siblings: ["desktop-app"], warn: () => {} });
+    const prepared = prepareDistributed(decideOn(f, { siblings: ["desktop-app"] }), {
+      files: [file("docs/readme.md")],
+      headSha: f.webHead,
+      siblings: ["desktop-app"],
+      warn: () => {},
+    });
     try {
       expect(prepared.context.contracts).toEqual([]);
       const [sibling] = prepared.context.siblings;
@@ -379,7 +458,12 @@ describe("prepareDistributed", () => {
 
   test("--sibling on a member a contract already reads widens it to the whole tree and keeps the contract's name", () => {
     const f = fixture(local);
-    const prepared = prepareDistributed(decideOn(f, { siblings: ["desktop-app"] }), { files: [file("packages/tokens/src/palette.ts")], headSha: f.webHead, siblings: ["desktop-app"], warn: () => {} });
+    const prepared = prepareDistributed(decideOn(f, { siblings: ["desktop-app"] }), {
+      files: [file("packages/tokens/src/palette.ts")],
+      headSha: f.webHead,
+      siblings: ["desktop-app"],
+      warn: () => {},
+    });
     try {
       expect(prepared.context.siblings).toHaveLength(1);
       expect(prepared.context.siblings[0]).toMatchObject({ member: "desktop-app", byHand: true, contracts: ["brand-palette"] });
@@ -396,7 +480,13 @@ describe("prepareDistributed", () => {
       seen.push(args);
       return spawnGit(args, opts);
     };
-    const prepared = prepareDistributed(decideOn(f, { git: spy }), { files: [file("packages/tokens/src/palette.ts")], headSha: f.webHead, siblings: [], warn: () => {}, git: spy });
+    const prepared = prepareDistributed(decideOn(f, { git: spy }), {
+      files: [file("packages/tokens/src/palette.ts")],
+      headSha: f.webHead,
+      siblings: [],
+      warn: () => {},
+      git: spy,
+    });
     prepared.release();
     expect(seen.length).toBeGreaterThan(0);
     for (const args of seen) expect(args.some((a) => ["fetch", "pull", "clone", "ls-remote"].includes(a))).toBe(false);

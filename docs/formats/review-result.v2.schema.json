@@ -29,9 +29,7 @@
     "engine": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "version"
-      ],
+      "required": ["version"],
       "properties": {
         "version": {
           "type": "string"
@@ -41,12 +39,7 @@
     "provider": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "label",
-        "model",
-        "effort",
-        "profile"
-      ],
+      "required": ["label", "model", "effort", "profile"],
       "properties": {
         "label": {
           "type": "string"
@@ -58,40 +51,22 @@
           "type": "string"
         },
         "profile": {
-          "enum": [
-            "ci",
-            "default",
-            "isolated"
-          ]
+          "enum": ["ci", "default", "isolated"]
         },
         "account": {
           "description": "Which account ran the review: a label, a kind and the rung that chose it. Never a directory, an executable path, an e-mail or a URL.",
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "name",
-            "kind",
-            "rung"
-          ],
+          "required": ["name", "kind", "rung"],
           "properties": {
             "name": {
               "type": "string"
             },
             "kind": {
-              "enum": [
-                "default",
-                "managed",
-                "external"
-              ]
+              "enum": ["default", "managed", "external"]
             },
             "rung": {
-              "enum": [
-                "flag",
-                "binding",
-                "env",
-                "configDefault",
-                "builtIn"
-              ]
+              "enum": ["flag", "binding", "env", "configDefault", "builtIn"]
             }
           }
         }
@@ -100,13 +75,7 @@
     "coverage": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "expected",
-        "reviewed",
-        "skipped",
-        "excluded",
-        "partial"
-      ],
+      "required": ["expected", "reviewed", "skipped", "excluded", "partial"],
       "properties": {
         "expected": {
           "description": "The files kept for review, after the excludes and the scope.",
@@ -127,10 +96,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "path",
-              "reason"
-            ],
+            "required": ["path", "reason"],
             "properties": {
               "path": {
                 "type": "string"
@@ -152,18 +118,13 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "path",
-              "reason"
-            ],
+            "required": ["path", "reason"],
             "properties": {
               "path": {
                 "type": "string"
               },
               "reason": {
-                "enum": [
-                  "binary"
-                ]
+                "enum": ["binary"]
               }
             }
           }
@@ -192,14 +153,7 @@
       "description": "The repository's memory this review loaded (ADR 0056): the base commit it was read at, the files loaded in load order, the area files left out for lack of room and whether the memory was over budget. Absent when the repository has no .wachiman/memory/ folder, unless a laptop review loaded the developer's personal memory (then it describes only that). A review in GitHub Actions never has personal memory. Only version 2 has it.",
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "revision",
-        "files",
-        "leftOut",
-        "overBudget",
-        "indexOverBudget",
-        "budget"
-      ],
+      "required": ["revision", "files", "leftOut", "overBudget", "indexOverBudget", "budget"],
       "properties": {
         "revision": {
           "type": "string"
@@ -209,10 +163,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "path",
-              "lines"
-            ],
+            "required": ["path", "lines"],
             "properties": {
               "path": {
                 "type": "string"
@@ -253,11 +204,7 @@
         "budget": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "maxIndexLines",
-            "maxLoadedLines",
-            "loadedLines"
-          ],
+          "required": ["maxIndexLines", "maxLoadedLines", "loadedLines"],
           "properties": {
             "maxIndexLines": {
               "type": "integer",
@@ -281,15 +228,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "path",
-          "line",
-          "severity",
-          "topic",
-          "title",
-          "entry",
-          "reason"
-        ],
+        "required": ["path", "line", "severity", "topic", "title", "entry", "reason"],
         "properties": {
           "path": {
             "type": "string"
@@ -299,22 +238,10 @@
             "minimum": 0
           },
           "severity": {
-            "enum": [
-              "consider",
-              "info"
-            ]
+            "enum": ["consider", "info"]
           },
           "topic": {
-            "enum": [
-              "bug",
-              "rules",
-              "adr",
-              "docs",
-              "tests",
-              "perf",
-              "cleanup",
-              "question"
-            ]
+            "enum": ["bug", "rules", "adr", "docs", "tests", "perf", "cleanup", "question"]
           },
           "title": {
             "type": "string"
@@ -334,23 +261,10 @@
       "description": "The risk map (ADR 0031): the level, the checked facts and judgement items behind it, the files to read first. Only version 2 has it.",
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "level",
-        "floor",
-        "facts",
-        "judgement",
-        "pathReasons",
-        "readFirst",
-        "unreadFiles",
-        "droppedFacts"
-      ],
+      "required": ["level", "floor", "facts", "judgement", "pathReasons", "readFirst", "unreadFiles", "droppedFacts"],
       "properties": {
         "level": {
-          "enum": [
-            "low",
-            "medium",
-            "high"
-          ]
+          "enum": ["low", "medium", "high"]
         },
         "floor": {
           "type": "boolean",
@@ -361,24 +275,10 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "kind",
-              "path",
-              "line",
-              "why"
-            ],
+            "required": ["kind", "path", "line", "why"],
             "properties": {
               "kind": {
-                "enum": [
-                  "data-migration",
-                  "irreversible",
-                  "auth",
-                  "money",
-                  "concurrency",
-                  "public-contract",
-                  "config-or-ci",
-                  "dependency"
-                ]
+                "enum": ["data-migration", "irreversible", "auth", "money", "concurrency", "public-contract", "config-or-ci", "dependency"]
               },
               "path": {
                 "type": "string"
@@ -399,19 +299,10 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "kind",
-              "path",
-              "line",
-              "why"
-            ],
+            "required": ["kind", "path", "line", "why"],
             "properties": {
               "kind": {
-                "enum": [
-                  "direction",
-                  "pattern-others-will-copy",
-                  "tradeoff"
-                ]
+                "enum": ["direction", "pattern-others-will-copy", "tradeoff"]
               },
               "path": {
                 "type": "string"
@@ -431,10 +322,7 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "path",
-              "why"
-            ],
+            "required": ["path", "why"],
             "properties": {
               "path": {
                 "type": "string"
@@ -488,32 +376,20 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "text",
-              "status",
-              "evidence"
-            ],
+            "required": ["text", "status", "evidence"],
             "properties": {
               "text": {
                 "type": "string"
               },
               "status": {
-                "enum": [
-                  "confirmed",
-                  "contradicted",
-                  "unverified",
-                  "vague"
-                ]
+                "enum": ["confirmed", "contradicted", "unverified", "vague"]
               },
               "evidence": {
                 "type": "array",
                 "items": {
                   "type": "object",
                   "additionalProperties": false,
-                  "required": [
-                    "path",
-                    "line"
-                  ],
+                  "required": ["path", "line"],
                   "properties": {
                     "path": {
                       "type": "string"
@@ -539,13 +415,7 @@
           }
         },
         "grade": {
-          "enum": [
-            "cannot say",
-            "C",
-            "B",
-            "A-",
-            "A"
-          ]
+          "enum": ["cannot say", "C", "B", "A-", "A"]
         },
         "reasons": {
           "type": "array",
@@ -568,20 +438,10 @@
           "items": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "kind",
-              "path",
-              "text"
-            ],
+            "required": ["kind", "path", "text"],
             "properties": {
               "kind": {
-                "enum": [
-                  "contradicted-claim",
-                  "unexplained",
-                  "finding",
-                  "risk-fact",
-                  "judgement"
-                ]
+                "enum": ["contradicted-claim", "unexplained", "finding", "risk-fact", "judgement"]
               },
               "path": {
                 "type": "string"
@@ -594,12 +454,7 @@
                 "type": "string"
               },
               "severity": {
-                "enum": [
-                  "blocker",
-                  "fix",
-                  "consider",
-                  "info"
-                ]
+                "enum": ["blocker", "fix", "consider", "info"]
               }
             }
           }
@@ -630,20 +485,13 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": [
-          "comment_id",
-          "status",
-          "reply"
-        ],
+        "required": ["comment_id", "status", "reply"],
         "properties": {
           "comment_id": {
             "type": "integer"
           },
           "status": {
-            "enum": [
-              "addressed",
-              "still_open"
-            ]
+            "enum": ["addressed", "still_open"]
           },
           "reply": {
             "type": "string"
@@ -653,10 +501,7 @@
     },
     "arm": {
       "description": "The trial arm of this pull request while WACHIMAN_PRIORITY_TRIAL=1 runs: `word` shows the Important/Nit word, `priority` the priority row. Absent otherwise.",
-      "enum": [
-        "word",
-        "priority"
-      ]
+      "enum": ["word", "priority"]
     },
     "pathPolicyChanged": {
       "description": "True when the change edits the path rules in `.wachiman.yml`; the review ran under the rules at change.base.sha. Optional; absent otherwise.",
@@ -683,9 +528,7 @@
     "privateContext": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "members"
-      ],
+      "required": ["members"],
       "properties": {
         "members": {
           "type": "array",
@@ -705,10 +548,7 @@
     "instructionChanges": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "files",
-        "baseSha"
-      ],
+      "required": ["files", "baseSha"],
       "properties": {
         "files": {
           "type": "array",
@@ -724,16 +564,7 @@
     "execution": {
       "type": "object",
       "additionalProperties": true,
-      "required": [
-        "costUsdEstimate",
-        "usage",
-        "calls",
-        "callsWithOutput",
-        "turns",
-        "durationMs",
-        "stop",
-        "notices"
-      ],
+      "required": ["costUsdEstimate", "usage", "calls", "callsWithOutput", "turns", "durationMs", "stop", "notices"],
       "properties": {
         "costUsdEstimate": {
           "description": "total_cost_usd summed: an API-equivalent estimate, never a bill on a subscription.",
@@ -762,31 +593,16 @@
           "minimum": 0
         },
         "stop": {
-          "enum": [
-            "complete",
-            "budget",
-            "turns",
-            "timeout",
-            "quota",
-            "error"
-          ]
+          "enum": ["complete", "budget", "turns", "timeout", "quota", "error"]
         },
         "rejection": {
           "description": "The first provider rejection, when a call was refused.",
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "kind",
-            "text"
-          ],
+          "required": ["kind", "text"],
           "properties": {
             "kind": {
-              "enum": [
-                "billing",
-                "auth",
-                "rate_limit",
-                "other"
-              ]
+              "enum": ["billing", "auth", "rate_limit", "other"]
             },
             "text": {
               "type": "string"
@@ -811,19 +627,10 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "kind",
-            "describe",
-            "repository",
-            "base",
-            "head"
-          ],
+          "required": ["kind", "describe", "repository", "base", "head"],
           "properties": {
             "kind": {
-              "enum": [
-                "pull-request",
-                "branch"
-              ]
+              "enum": ["pull-request", "branch"]
             },
             "describe": {
               "type": "string"
@@ -831,9 +638,7 @@
             "repository": {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "name"
-              ],
+              "required": ["name"],
               "properties": {
                 "name": {
                   "type": "string"
@@ -870,14 +675,7 @@
         {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "kind",
-            "describe",
-            "repository",
-            "base",
-            "head",
-            "workingTree"
-          ],
+          "required": ["kind", "describe", "repository", "base", "head", "workingTree"],
           "properties": {
             "kind": {
               "const": "working-tree"
@@ -888,9 +686,7 @@
             "repository": {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "name"
-              ],
+              "required": ["name"],
               "properties": {
                 "name": {
                   "type": "string"
@@ -925,17 +721,10 @@
             "workingTree": {
               "type": "object",
               "additionalProperties": false,
-              "required": [
-                "mode",
-                "baseCommit",
-                "tree"
-              ],
+              "required": ["mode", "baseCommit", "tree"],
               "properties": {
                 "mode": {
-                  "enum": [
-                    "staged",
-                    "all"
-                  ]
+                  "enum": ["staged", "all"]
                 },
                 "baseCommit": {
                   "type": "string"
@@ -952,9 +741,7 @@
     "Commit": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "sha"
-      ],
+      "required": ["sha"],
       "properties": {
         "sha": {
           "type": "string"
@@ -967,18 +754,7 @@
     "ResultFinding": {
       "type": "object",
       "additionalProperties": true,
-      "required": [
-        "path",
-        "line",
-        "severity",
-        "topic",
-        "title",
-        "body",
-        "anchor",
-        "origin",
-        "verification",
-        "tier"
-      ],
+      "required": ["path", "line", "severity", "topic", "title", "body", "anchor", "origin", "verification", "tier"],
       "properties": {
         "path": {
           "type": "string"
@@ -989,32 +765,13 @@
           "minimum": 0
         },
         "severity": {
-          "enum": [
-            "blocker",
-            "fix",
-            "consider",
-            "info"
-          ]
+          "enum": ["blocker", "fix", "consider", "info"]
         },
         "topic": {
-          "enum": [
-            "bug",
-            "security",
-            "rules",
-            "adr",
-            "docs",
-            "tests",
-            "perf",
-            "cleanup",
-            "question"
-          ]
+          "enum": ["bug", "security", "rules", "adr", "docs", "tests", "perf", "cleanup", "question"]
         },
         "confidence": {
-          "enum": [
-            "high",
-            "medium",
-            "low"
-          ]
+          "enum": ["high", "medium", "low"]
         },
         "title": {
           "type": "string"
@@ -1024,21 +781,14 @@
         },
         "anchor": {
           "description": "Whether a diff-anchored comment can target the line.",
-          "enum": [
-            "diff",
-            "outside"
-          ]
+          "enum": ["diff", "outside"]
         },
         "verification": {
           "$ref": "#/$defs/FindingVerification"
         },
         "origin": {
           "description": "Unknown unless base or head evidence establishes it.",
-          "enum": [
-            "introduced",
-            "pre-existing",
-            "unknown"
-          ]
+          "enum": ["introduced", "pre-existing", "unknown"]
         },
         "originReason": {
           "type": "string"
@@ -1051,20 +801,11 @@
         },
         "tier": {
           "description": "Deprecated: use `priority`. The display word, derived from severity and origin by the engine; never taken from a model.",
-          "enum": [
-            "Important",
-            "Nit",
-            "Pre-existing"
-          ]
+          "enum": ["Important", "Nit", "Pre-existing"]
         },
         "priority": {
           "description": "The finding priority, derived by the engine from the final severity, confidence and topic after verification (ADR 0059); never taken from a model. Optional: a result written before it existed has none.",
-          "enum": [
-            "must",
-            "should",
-            "could",
-            "fyi"
-          ]
+          "enum": ["must", "should", "could", "fyi"]
         },
         "rank": {
           "description": "0-100; recorded for each finding and not used to order findings yet. Never displayed, never a gate.",
@@ -1088,12 +829,7 @@
     "Contract": {
       "type": "object",
       "additionalProperties": true,
-      "required": [
-        "action",
-        "location",
-        "status",
-        "evidence"
-      ],
+      "required": ["action", "location", "status", "evidence"],
       "properties": {
         "action": {
           "type": "string"
@@ -1114,10 +850,7 @@
           "type": "string"
         },
         "status": {
-          "enum": [
-            "closed",
-            "open"
-          ]
+          "enum": ["closed", "open"]
         },
         "evidence": {
           "type": "array",
@@ -1142,15 +875,7 @@
     "BatchReport": {
       "type": "object",
       "additionalProperties": true,
-      "required": [
-        "label",
-        "files",
-        "lines",
-        "maxRisk",
-        "status",
-        "turns",
-        "costUsd"
-      ],
+      "required": ["label", "files", "lines", "maxRisk", "status", "turns", "costUsd"],
       "properties": {
         "label": {
           "type": "string"
@@ -1182,12 +907,7 @@
     "TokenUsage": {
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "input",
-        "output",
-        "cacheRead",
-        "cacheWrite"
-      ],
+      "required": ["input", "output", "cacheRead", "cacheWrite"],
       "properties": {
         "input": {
           "type": "integer",
@@ -1211,17 +931,10 @@
       "description": "A line the verifier read, in the snapshot it names. Line 0 is not evidence.",
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "snapshot",
-        "path",
-        "line"
-      ],
+      "required": ["snapshot", "path", "line"],
       "properties": {
         "snapshot": {
-          "enum": [
-            "base",
-            "head"
-          ]
+          "enum": ["base", "head"]
         },
         "path": {
           "description": "Repository-relative, forward slashes, inside that snapshot.",
@@ -1242,34 +955,21 @@
         }
       },
       "dependentRequired": {
-        "member": [
-          "sha"
-        ],
-        "sha": [
-          "member"
-        ]
+        "member": ["sha"],
+        "sha": ["member"]
       }
     },
     "FindingVerification": {
       "type": "object",
       "additionalProperties": true,
-      "required": [
-        "status",
-        "reason",
-        "checked"
-      ],
+      "required": ["status", "reason", "checked"],
       "properties": {
         "candidateId": {
           "description": "Absent when the finding was not selected for verification.",
           "type": "string"
         },
         "status": {
-          "enum": [
-            "supported",
-            "refuted",
-            "inconclusive",
-            "unverified"
-          ]
+          "enum": ["supported", "refuted", "inconclusive", "unverified"]
         },
         "reason": {
           "description": "A short rationale tied to the evidence, not hidden reasoning.",
@@ -1285,12 +985,7 @@
           "$ref": "#/$defs/Citation"
         },
         "claimed": {
-          "enum": [
-            "supported",
-            "refuted",
-            "inconclusive",
-            "none"
-          ]
+          "enum": ["supported", "refuted", "inconclusive", "none"]
         },
         "unreached": {
           "description": "True when the verifier never reached this candidate (set by the engine, never by a model).",
@@ -1302,24 +997,10 @@
       "description": "The verifier's record, present only when it was turned on. `verified` means every candidate got a usable verdict, not that every bug was proved. `findings` holds what survived it; a dropped finding appears only here.",
       "type": "object",
       "additionalProperties": true,
-      "required": [
-        "status",
-        "model",
-        "effort",
-        "costUsd",
-        "entries",
-        "dropped",
-        "inconclusive"
-      ],
+      "required": ["status", "model", "effort", "costUsd", "entries", "dropped", "inconclusive"],
       "properties": {
         "status": {
-          "enum": [
-            "verified",
-            "partial",
-            "failed",
-            "nothing",
-            "skipped"
-          ]
+          "enum": ["verified", "partial", "failed", "nothing", "skipped"]
         },
         "model": {
           "type": "string"
@@ -1338,19 +1019,10 @@
         "stop": {
           "type": "object",
           "additionalProperties": false,
-          "required": [
-            "kind",
-            "detail"
-          ],
+          "required": ["kind", "detail"],
           "properties": {
             "kind": {
-              "enum": [
-                "budget",
-                "turns",
-                "timeout",
-                "quota",
-                "error"
-              ]
+              "enum": ["budget", "turns", "timeout", "quota", "error"]
             },
             "detail": {
               "type": "string"
@@ -1376,19 +1048,7 @@
     "VerificationEntry": {
       "type": "object",
       "additionalProperties": true,
-      "required": [
-        "id",
-        "path",
-        "line",
-        "title",
-        "topic",
-        "severity",
-        "status",
-        "origin",
-        "reason",
-        "checked",
-        "outcome"
-      ],
+      "required": ["id", "path", "line", "title", "topic", "severity", "status", "origin", "reason", "checked", "outcome"],
       "properties": {
         "id": {
           "type": "string"
@@ -1404,52 +1064,23 @@
           "type": "string"
         },
         "topic": {
-          "enum": [
-            "bug",
-            "security",
-            "rules",
-            "adr",
-            "docs",
-            "tests",
-            "perf",
-            "cleanup",
-            "question"
-          ]
+          "enum": ["bug", "security", "rules", "adr", "docs", "tests", "perf", "cleanup", "question"]
         },
         "severity": {
-          "enum": [
-            "blocker",
-            "fix",
-            "consider",
-            "info"
-          ]
+          "enum": ["blocker", "fix", "consider", "info"]
         },
         "status": {
-          "enum": [
-            "supported",
-            "refuted",
-            "inconclusive",
-            "unverified"
-          ]
+          "enum": ["supported", "refuted", "inconclusive", "unverified"]
         },
         "claimed": {
-          "enum": [
-            "supported",
-            "refuted",
-            "inconclusive",
-            "none"
-          ]
+          "enum": ["supported", "refuted", "inconclusive", "none"]
         },
         "unreached": {
           "description": "True when the verifier never reached this candidate (set by the engine, never by a model).",
           "const": true
         },
         "origin": {
-          "enum": [
-            "introduced",
-            "pre-existing",
-            "unknown"
-          ]
+          "enum": ["introduced", "pre-existing", "unknown"]
         },
         "originReason": {
           "type": "string"
@@ -1473,20 +1104,10 @@
           "$ref": "#/$defs/Citation"
         },
         "outcome": {
-          "enum": [
-            "dropped",
-            "kept",
-            "degraded",
-            "moved"
-          ]
+          "enum": ["dropped", "kept", "degraded", "moved"]
         },
         "severityAfter": {
-          "enum": [
-            "blocker",
-            "fix",
-            "consider",
-            "info"
-          ]
+          "enum": ["blocker", "fix", "consider", "info"]
         }
       }
     },
@@ -1494,12 +1115,7 @@
       "description": "A reference into a sibling repository of a distributed-repo review, rendered `member@sha:path:line` (short commit in text, full commit here). It is here only if that line exists in that member's snapshot at that commit.",
       "type": "object",
       "additionalProperties": false,
-      "required": [
-        "member",
-        "sha",
-        "path",
-        "line"
-      ],
+      "required": ["member", "sha", "path", "line"],
       "properties": {
         "member": {
           "type": "string",
@@ -1547,10 +1163,7 @@
           "description": "`owner/name`, as the manifest lists it."
         },
         "visibility": {
-          "enum": [
-            "public",
-            "private"
-          ],
+          "enum": ["public", "private"],
           "description": "A member the manifest does not mark `public` is `private` (ADR 0042 decision 3)."
         },
         "contracts": {
@@ -1572,27 +1185,15 @@
           "description": "The contracts of `contracts` whose source of truth is this member. Absent when none is. A not-cloned sibling with it is reported as \"source of truth not cloned: not checked\"."
         },
         "rule": {
-          "enum": [
-            "pinned",
-            "local",
-            "tip"
-          ],
+          "enum": ["pinned", "local", "tip"],
           "description": "The version rule that applied by precedence."
         },
         "ruleSource": {
-          "enum": [
-            "default",
-            "manifest",
-            "user-file"
-          ],
+          "enum": ["default", "manifest", "user-file"],
           "description": "Where the rule came from. `user-file` is the per-user override."
         },
         "readAs": {
-          "enum": [
-            "pinned",
-            "local",
-            "tip"
-          ],
+          "enum": ["pinned", "local", "tip"],
           "description": "The rule actually read; it differs from `rule` after a fallback."
         },
         "fallback": {
@@ -1615,13 +1216,7 @@
           "description": "The tracked paths extracted into the snapshot."
         },
         "status": {
-          "enum": [
-            "read",
-            "not-cloned",
-            "not-watched",
-            "uncommitted-not-read",
-            "unreadable"
-          ],
+          "enum": ["read", "not-cloned", "not-watched", "uncommitted-not-read", "unreadable"],
           "description": "`read`: read at `sha`. `not-cloned` and `not-watched`: nothing was read, and the report says \"not checked\". `uncommitted-not-read`: the `local` rule read the HEAD commit and the sibling has uncommitted changes that were not read. `unreadable`: cloned, but no commit or file could be read."
         },
         "unreadable": {
