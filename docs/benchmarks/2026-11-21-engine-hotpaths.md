@@ -157,8 +157,14 @@ head, from fresh clones:
 The review row improves by about 30% (146 to 167 ms) and the unchanged rows do not move. `git` spawns
 per review, counted with a `git` wrapper on the fake `claude`'s PATH over the 7 runs of the case (2
 warm-ups and 5 measured): 259 on main (37 per review) and 168 on the head (24 per review), the same
-37 and 24 as before the merge. Main's new settings read at the merge-base goes through the same
-one-listing `ls-tree` as the instruction files, so no spawn was given up for it.
+37 and 24 as before the merge. Main's new review-policy read at the merge-base goes through the
+same one-listing `ls-tree` as the instruction files, so it adds no spawn. The settings stage's own
+read of `.wachiman.yml` (model and effort, `withLocalSettings`) still runs its own `ls-tree`, on main
+and on the head alike; sharing one reader across the two stages would save one more process.
+
+A fourth change came after these measurements: `--commit` and `--from` read each revision with one
+`git rev-parse` instead of a probe and a read. The benchmark reviews with `--base`, so it does not
+touch these numbers, and the "after" tree above does not include it.
 
 ## Left unchanged
 

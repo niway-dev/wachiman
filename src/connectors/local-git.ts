@@ -207,11 +207,13 @@ function resolveCommit(repoDir: string, rev: string, git: GitRunner): LocalRefs 
 function resolveFrom(repoDir: string, rev: string, git: GitRunner, maxDepth: number): LocalRefs {
   const headRef = branchOfHead(git, repoDir);
   if (headRef === undefined) throw new UsageError("HEAD is detached; check out a branch, or pass --input");
-  if (!ok(git, repoDir, ["rev-parse", "--verify", "-q", "HEAD"])) {
+  // One run probes and reads, as in `resolveRefs`.
+  const headProbe = git(["rev-parse", "--verify", "-q", "HEAD^{commit}"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+  if (headProbe.status !== 0) {
     throw new UsageError(`HEAD (${headRef}) has no commit yet; commit the change first, or pass --input`);
   }
   const from = commitOf(git, repoDir, "--from", rev);
-  const headSha = run(git, repoDir, ["rev-parse", "--verify", "HEAD^{commit}"]).trim();
+  const headSha = headProbe.stdout.trim();
   if (!ok(git, repoDir, ["merge-base", "--is-ancestor", from, headSha])) {
     throw new UsageError(`--from ${short(from)} is not an ancestor of HEAD (${headRef}, ${short(headSha)}); pick a commit of this branch.`);
   }
