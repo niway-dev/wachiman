@@ -16,4 +16,10 @@ describe("usageDataAllowed", () => {
   test("is false whatever the environment says, because Wachiman collects nothing", () => {
     for (const v of [undefined, "", "0", "false", "1", "true", "yes"]) expect(usageDataAllowed({ DO_NOT_TRACK: v })).toBe(false);
   });
+
+  test("when collection exists, DO_NOT_TRACK still wins", () => {
+    expect(usageDataAllowed({ DO_NOT_TRACK: "1" }, true)).toBe(false);
+    expect(usageDataAllowed({}, true)).toBe(true);
+    expect(usageDataAllowed({ DO_NOT_TRACK: "0" }, true)).toBe(true);
+  });
 });

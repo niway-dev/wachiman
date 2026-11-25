@@ -434,6 +434,10 @@ describe("data collection notices", () => {
       const r = rig({});
       expect(r.go({}, { dataCollection })).toBe(0);
       expect(r.out.join("")).not.toContain("Data collection");
+      const c = rig({});
+      expect(c.go({ check: true }, { dataCollection })).toBe(0);
+      expect(c.out.join("")).toContain("Latest:    v1.3.0");
+      expect(c.out.join("")).not.toContain("Data collection");
     }
   });
 

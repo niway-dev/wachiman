@@ -14,6 +14,6 @@ export function doNotTrack(env: Record<string, string | undefined> = process.env
 const COLLECTS_USAGE_DATA = false;
 
 /** Whether usage data may be collected: never when `DO_NOT_TRACK` is set, whatever was opted into. */
-export function usageDataAllowed(env: Record<string, string | undefined> = process.env): boolean {
-  return COLLECTS_USAGE_DATA && !doNotTrack(env);
+export function usageDataAllowed(env: Record<string, string | undefined> = process.env, collects = COLLECTS_USAGE_DATA): boolean {
+  return collects && !doNotTrack(env);
 }
