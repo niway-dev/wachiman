@@ -8,7 +8,8 @@ Last checked against the code: 2026-11-25, version 1.20.1.
 The model reviews every text file in the diff, whatever the language. Binary files are not
 reviewed. A few paths are left out by default whatever the language: lock files (`*.lock`,
 `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`, `bun.lock`), `dist/`, `build/`, `out/`,
-`*.min.js`, `*.map`, `*.snap` and `*.generated.*` (`DEFAULT_EXCLUDE` in `src/engine.ts`).
+`*.min.js`, `*.map`, `*.snap`, `*.generated.*` and `worker-configuration.d.ts`
+(`DEFAULT_EXCLUDE` in `src/engine.ts`).
 
 What changes by language is the **evidence** Wachiman gathers before the model runs
 ([Call-site evidence](architecture.md#call-site-evidence-evidencejson)). It takes four steps, all in
@@ -29,8 +30,8 @@ Evidence is text matching. It is a lead for the model, not a resolved call graph
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | JavaScript | `js` `jsx` `mjs` `cjs` | ✅ | ✅ | ✅ | ⚠️ [1] | ✅ | generic regex |
 | TypeScript | `ts` `tsx` | ✅ | ✅ | ✅ | ⚠️ [1] | ✅ | generic regex |
-| Vue | `vue` | ✅ | ✅ | ✅ | ⚠️ [1] | ⚠️ [6] | generic regex, whole file |
-| Svelte | `svelte` | ✅ | ✅ | ✅ | ⚠️ [1] | ⚠️ [6] | generic regex, whole file |
+| Vue | `vue` | ✅ | ✅ | ✅ | ⚠️ [1] | ⚠️ [6] | generic regex, added lines |
+| Svelte | `svelte` | ✅ | ✅ | ✅ | ⚠️ [1] | ⚠️ [6] | generic regex, added lines |
 | Go | `go` | ✅ | ✅ | ✅ | ⚠️ [2] | ✅ | generic regex |
 | Python | `py` | ✅ | ✅ | ✅ | ⚠️ [3] | ⚠️ [7] | generic regex |
 | Rust | `rs` | ✅ | ✅ | ✅ | ⚠️ [4] | ⚠️ [6] | generic regex |
@@ -58,8 +59,9 @@ Notes:
    and the parameters of a `def`. A call through `self.` is treated as the class's own call.
 4. Recognized: `fn`, `struct`, `trait` and `enum` names, and `let name`. Not recognized:
    `let mut name`. The extractor records the word `mut` instead of the variable.
-5. Recognized: `class`, `interface` and `enum` names. Kotlin also: `val` and `var`. Not recognized:
-   Java methods and local variables, and Kotlin `fun`. For a Java method such as
+5. Recognized: `class`, `interface` and `enum` names, and `var name` (Java 10 and later, and
+   Kotlin). Kotlin also: `val`. Not recognized: Java methods and locals with an explicit type
+   (`int count = 1;`), and Kotlin `fun`. For a Java method such as
    `public void run(int count) {` the extractor records the parameter type (`int`), not a name.
 6. Test files are recognized only inside a directory named `test`, `tests`, `__tests__`, `e2e` or
    `fixtures`. A file such as `FooTest.java`, or a directory such as Swift's `Tests/`, is not.
@@ -71,7 +73,9 @@ What recognizing a test file changes: evidence ranks a call site in a test file 
 production code. The model still reviews test files.
 
 Extensions not in the list get no evidence even when the language looks close: `mts`, `cts` and
-`kts`. Declaration files (`*.d.ts`) are read, but the call-site search skips them.
+`kts`. Declaration files (`*.d.ts`) are read, but the call-site search skips them. The search also skips
+`node_modules/`, `dist/`, `build/`, `.next/` and `vendor/` (at any depth) and `*.min.js`
+(`EXCLUDED_PATHS` in `src/evidence.ts`).
 
 ## Known gaps
 
