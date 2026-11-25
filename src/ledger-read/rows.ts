@@ -55,6 +55,11 @@ export function readLedgerFromFiles(home: string, warn: (line: string) => void):
     rows,
     ranges: mergeRanges(accounts.flatMap((a) => a.meta.ranges)),
     limits: accounts.length ? accounts[0].meta.limits : null,
-    pulledAt: accounts.length ? accounts.map((a) => a.meta.pulledAt).sort().at(-1)! : null,
+    pulledAt: accounts.length
+      ? accounts
+          .map((a) => a.meta.pulledAt)
+          .sort()
+          .at(-1)!
+      : null,
   };
 }

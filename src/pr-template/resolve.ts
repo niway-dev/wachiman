@@ -42,7 +42,8 @@ export function resolveTemplate(catalog: Catalog, choice: RepoChoice | null): Re
     let at: number;
     if (custom.after !== undefined) {
       const anchor = all.findIndex((e) => e.id === custom.after);
-      if (anchor === -1) throw new PrTemplateConfigError(`.github/pr-template.json: custom entry "${custom.id}" names the unknown id "${custom.after}".`);
+      if (anchor === -1)
+        throw new PrTemplateConfigError(`.github/pr-template.json: custom entry "${custom.id}" names the unknown id "${custom.after}".`);
       at = anchor + 1;
       // Skip what is already attached to this anchor, directly or through a chain of custom entries.
       const attached = new Set([custom.after]);
@@ -58,8 +59,6 @@ export function resolveTemplate(catalog: Catalog, choice: RepoChoice | null): Re
     all.splice(at, 0, entry);
   }
 
-  const sections = all.filter(
-    (e) => e.custom || e.locked || choice.add.includes(e.id) || (e.default && !choice.drop.includes(e.id)),
-  );
+  const sections = all.filter((e) => e.custom || e.locked || choice.add.includes(e.id) || (e.default && !choice.drop.includes(e.id)));
   return { intro: catalog.intro, sections, preamble: [...choice.preamble] };
 }

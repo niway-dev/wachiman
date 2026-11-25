@@ -29,7 +29,10 @@ import {
   type HistoryAnnotation,
 } from "./common";
 
-export function renderTerminal(result: ReviewResult, opts: { profileNote?: string; agentPrompt: boolean; history?: HistoryAnnotation; settingsFrom?: SettingsFrom }): string {
+export function renderTerminal(
+  result: ReviewResult,
+  opts: { profileNote?: string; agentPrompt: boolean; history?: HistoryAnnotation; settingsFrom?: SettingsFrom },
+): string {
   const blocks: string[] = [];
   blocks.push(
     [
@@ -55,12 +58,16 @@ export function renderTerminal(result: ReviewResult, opts: { profileNote?: strin
     return `${location(f)}  ${plainLabel(f)}${entry ? `  ${historyLabel(entry)}` : ""}\n${indent([neutralise(f.body), ...(refs.length > 0 ? [`Sibling references: ${refs.join(", ")}`] : []), ...notes].join("\n"), "    ")}`;
   };
   blocks.push(...grouped.main.map(finding));
-  if (grouped.inconclusive.length > 0) blocks.push("Inconclusive (the verifier could not settle these):", ...grouped.inconclusive.map(finding));
-  if (grouped["pre-existing"].length > 0) blocks.push("Pre-existing (true, but not introduced by this change):", ...grouped["pre-existing"].map(finding));
+  if (grouped.inconclusive.length > 0)
+    blocks.push("Inconclusive (the verifier could not settle these):", ...grouped.inconclusive.map(finding));
+  if (grouped["pre-existing"].length > 0)
+    blocks.push("Pre-existing (true, but not introduced by this change):", ...grouped["pre-existing"].map(finding));
   if (opts.history) blocks.push(sinceLastRunText(opts.history));
   const missing = notReviewed(result);
   if (missing.length > 0) {
-    blocks.push(`Not reviewed:\n${missing.map((f) => `  - ${neutralise(f.path)}${f.reason ? ` (${neutralise(f.reason)})` : ""}`).join("\n")}`);
+    blocks.push(
+      `Not reviewed:\n${missing.map((f) => `  - ${neutralise(f.path)}${f.reason ? ` (${neutralise(f.reason)})` : ""}`).join("\n")}`,
+    );
   }
   if (result.summary) blocks.push(`Summary:\n${indent(neutralise(result.summary), "    ")}`);
   blocks.push([estimateLine(result), stopLine(result), providerLine(result, opts.settingsFrom)].join("\n"));

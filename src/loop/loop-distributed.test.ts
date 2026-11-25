@@ -83,14 +83,21 @@ function site(userFile?: Record<string, unknown>) {
   commit(desktopApp, { "Assets/palette.json": '{"brand":"#0a7"}\n' }, "palette");
   writeFileSync(join(parent, MANIFEST_FILE), JSON.stringify(MANIFEST));
   const home = temp("wachiman-home-");
-  if (userFile) writeFileSync(userFilePath(home), JSON.stringify({ version: 1, workspaces: [{ manifest: join(parent, MANIFEST_FILE), ...userFile }] }));
+  if (userFile)
+    writeFileSync(userFilePath(home), JSON.stringify({ version: 1, workspaces: [{ manifest: join(parent, MANIFEST_FILE), ...userFile }] }));
   return { webSite, home };
 }
 
 function loop(userFile: Record<string, unknown> | undefined, args: string[]) {
   const s = site(userFile);
   const claude = stub();
-  const env = { PATH: `${claude.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-user-"), USER: "dev", WACHIMAN_HOME: s.home, WACHIMAN_VERIFY: "0" };
+  const env = {
+    PATH: `${claude.bin}:${process.env.PATH ?? ""}`,
+    HOME: temp("wachiman-user-"),
+    USER: "dev",
+    WACHIMAN_HOME: s.home,
+    WACHIMAN_VERIFY: "0",
+  };
   const out = Bun.spawnSync([process.execPath, cli, "loop", "--repo-dir", s.webSite, "--base", "main", ...args], { env, stdin: "ignore" });
   return { code: out.exitCode, stdout: out.stdout.toString(), stderr: out.stderr.toString(), prompts: claude.prompts() };
 }
@@ -122,7 +129,11 @@ describe("wachiman loop and the distributed-repo mode", () => {
   }, 60_000);
 
   test("exit-2 combinations of local are refused: both flags, --sibling with --no-distributed-repo, --sibling that is no member", () => {
-    for (const args of [["--distributed-repo", "--no-distributed-repo"], ["--no-distributed-repo", "--sibling", "desktop-app"], ["--distributed-repo", "--sibling", "nowhere"]]) {
+    for (const args of [
+      ["--distributed-repo", "--no-distributed-repo"],
+      ["--no-distributed-repo", "--sibling", "desktop-app"],
+      ["--distributed-repo", "--sibling", "nowhere"],
+    ]) {
       const r = loop(undefined, args);
       expect(r.code, args.join(" ")).toBe(2);
       expect(r.prompts).toHaveLength(0);

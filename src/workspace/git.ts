@@ -16,6 +16,7 @@ export const workspaceGitEnv = () => ({ ...gitEnv(), GIT_NO_LAZY_FETCH: "1", GIT
 export const workspaceGit: GitRunner = (args, opts) => spawnGit(args, opts, workspaceGitEnv());
 
 /** True when git's message says an object is absent locally (for instance a blob a partial clone never downloaded). */
-export const isMissingObject = (message: string) => /could not fetch .* from promisor remote|lazy fetching disabled|unable to read/i.test(message);
+export const isMissingObject = (message: string) =>
+  /could not fetch .* from promisor remote|lazy fetching disabled|unable to read/i.test(message);
 
 export const MISSING_OBJECT_MESSAGE = "object not present locally; Wachiman never fetches";

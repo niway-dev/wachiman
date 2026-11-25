@@ -27,7 +27,18 @@ import {
   type ReviewInput,
 } from "../engine";
 import { GIT_BASE_ARGS, gitEnv, spawnGit, type GitRunner } from "../evidence";
-import { ignoredSettingsNote, parseRepoSettings, pathsEdited, SETTINGS_PATH, touchesSettingsFile, withPolicyEditRule, type PathRule, type RepoSettings } from "../repo-settings";
+import {
+  ignoredSettingsNote,
+  parseRepoSettings,
+  pathsEdited,
+  reviewPolicyOf,
+  SETTINGS_PATH,
+  touchesSettingsFile,
+  withPolicyEditRule,
+  type PathRule,
+  type RepoSettings,
+  type ReviewPolicy,
+} from "../repo-settings";
 import { MEMORY_DIR, cutMemoryNote, loadMemory, type MemoryLoad, type MemorySource } from "../memory/load";
 
 const TIMEOUT_MS = 60_000;
@@ -177,7 +188,8 @@ function resolveCommit(repoDir: string, rev: string, git: GitRunner): LocalRefs 
   const headSha = commitOf(git, repoDir, "--commit", rev);
   const { start, baseRef, merge } = startOf(git, repoDir, headSha);
   const branch = branchOfHead(git, repoDir);
-  const onBranch = branch !== undefined && git(["rev-parse", "-q", "--verify", "HEAD"], { cwd: repoDir, timeoutMs: TIMEOUT_MS }).stdout.trim() === headSha;
+  const onBranch =
+    branch !== undefined && git(["rev-parse", "-q", "--verify", "HEAD"], { cwd: repoDir, timeoutMs: TIMEOUT_MS }).stdout.trim() === headSha;
   return {
     baseRef,
     baseSha: start,
@@ -285,7 +297,7 @@ export function localFiles(repoDir: string, mergeBase: string, head: string, git
   const rawSections = splitPatches(run(git, repoDir, [...DIFF, ...PATCH, ...range], DIFF_MAX_BYTES));
 
   const entries: { status: string; dstSha: string; from?: string; to: string }[] = [];
-  for (let i = 0; i < raw.length; ) {
+  for (let i = 0; i < raw.length;) {
     const meta = raw[i++];
     if (meta === "") continue;
     const [, , , dstSha, status] = meta.slice(1).split(" ");
@@ -305,11 +317,11 @@ export function localFiles(repoDir: string, mergeBase: string, head: string, git
         throw new Error(`git diff sections are out of order: expected ${e.to}, got "${part.header}".`);
       }
     }
-    const patches = parts.flatMap((p) => p.patch === undefined ? [] : [p.patch]);
+    const patches = parts.flatMap((p) => (p.patch === undefined ? [] : [p.patch]));
     return { header: parts[0]?.header ?? "", patch: patches.length ? patches.join("\n") : undefined };
   });
   const counts: { additions: number; deletions: number }[] = [];
-  for (let i = 0; i < numstat.length; ) {
+  for (let i = 0; i < numstat.length;) {
     const meta = numstat[i++];
     if (meta === "") continue;
     const [added, deleted, path] = meta.split("\t");
@@ -382,7 +394,12 @@ const START_COMMIT_PATHS: readonly string[] = [...INSTRUCTION_PATHS, ...OLD_FOCU
  * read, where `blobAt` runs one per file; other paths still take their own. A listing that fails
  * (a `sha` this clone does not have) fails every read, as the separate runs did.
  */
-export function blobReader(repoDir: string, sha: string, git: GitRunner = spawnGit, paths: readonly string[] = START_COMMIT_PATHS): BlobReader {
+export function blobReader(
+  repoDir: string,
+  sha: string,
+  git: GitRunner = spawnGit,
+  paths: readonly string[] = START_COMMIT_PATHS,
+): BlobReader {
   let listing: Map<string, TreeEntry> | Error | undefined;
   return (path) => {
     if (!paths.includes(path)) return blobAt(repoDir, sha, path, git);
@@ -435,7 +452,12 @@ export interface SettingsScope {
  * Undefined when the scope does not resolve; the review's own ref checks report that, with their
  * message, a moment later.
  */
-export function localSettingsCommit(repoDir: string, scope: SettingsScope, git: GitRunner = spawnGit, resolved?: ResolvedRefs): string | undefined {
+export function localSettingsCommit(
+  repoDir: string,
+  scope: SettingsScope,
+  git: GitRunner = spawnGit,
+  resolved?: ResolvedRefs,
+): string | undefined {
   if (scope.inputBase !== undefined) return scope.inputBase;
   try {
     if (scope.workingTree) return run(git, repoDir, ["rev-parse", "--verify", "HEAD^{commit}"]).trim();
@@ -451,7 +473,12 @@ export function localSettingsCommit(repoDir: string, scope: SettingsScope, git: 
  * `.wachiman.yml` as it is at `sha`, parsed, or undefined when there is none there (or `sha` is
  * not in this clone: an `--input` file can name one that is not). An invalid file is a usage error.
  */
-export function localRepoSettings(repoDir: string, sha: string, git: GitRunner = spawnGit, read: BlobReader = (path) => blobAt(repoDir, sha, path, git)): RepoSettings | undefined {
+export function localRepoSettings(
+  repoDir: string,
+  sha: string,
+  git: GitRunner = spawnGit,
+  read: BlobReader = (path) => blobAt(repoDir, sha, path, git),
+): RepoSettings | undefined {
   let bytes: Buffer | null;
   try {
     bytes = read(SETTINGS_PATH);
@@ -459,23 +486,31 @@ export function localRepoSettings(repoDir: string, sha: string, git: GitRunner =
     return undefined;
   }
   if (!bytes) return undefined;
-  if (bytes.length > MAX_INSTRUCTION_BYTES) throw new UsageError(`${SETTINGS_PATH} at ${short(sha)} is over ${MAX_INSTRUCTION_BYTES / 1024} KB, too large for a settings file.`);
+  if (bytes.length > MAX_INSTRUCTION_BYTES)
+    throw new UsageError(`${SETTINGS_PATH} at ${short(sha)} is over ${MAX_INSTRUCTION_BYTES / 1024} KB, too large for a settings file.`);
   return parseRepoSettings(bytes.toString("utf8"));
 }
 
 /**
- * The `paths` rules of the `.wachiman.yml` at `sha` (ADR 0058), or undefined when it has none. Read
- * at the commit the instruction files are read at, never at the head. A broken file is ignored with
- * one warning naming `where`, like the model and effort read: the change that fixes it must be
- * reviewable.
+ * The review policy of the `.wachiman.yml` at `sha`: the `paths` rules (ADR 0058) and the opt-in
+ * `review` behaviors (ADR 0064); empty when the file has none. Read at the commit the instruction
+ * files are read at, never at the head. A broken file is ignored with one warning naming `where`,
+ * like the model and effort read: the change that fixes it must be reviewable.
  */
-export function localPathRules(repoDir: string, sha: string, where: string, warn: (line: string) => void, git: GitRunner = spawnGit, read?: BlobReader): PathRule[] | undefined {
+export function localReviewPolicy(
+  repoDir: string,
+  sha: string,
+  where: string,
+  warn: (line: string) => void,
+  git: GitRunner = spawnGit,
+  read?: BlobReader,
+): ReviewPolicy {
   try {
-    return localRepoSettings(repoDir, sha, git, read)?.paths;
+    return reviewPolicyOf(localRepoSettings(repoDir, sha, git, read), warn);
   } catch (error) {
     if (!(error instanceof UsageError)) throw error;
     warn(ignoredSettingsNote(error.message, `${where} ${short(sha)}`));
-    return undefined;
+    return {};
   }
 }
 
@@ -493,8 +528,12 @@ export function localPathPolicy(
 ): { pathRules: PathRule[] | undefined; pathPolicyChanged: boolean } {
   if (!touchesSettingsFile(files)) return { pathRules: baseRules, pathPolicyChanged: false };
   const bytes = readHead();
-  const edited = bytes ? bytes.length > MAX_INSTRUCTION_BYTES || pathsEdited(baseRules, bytes.toString("utf8")) : pathsEdited(baseRules, null);
-  return edited ? { pathRules: withPolicyEditRule(baseRules), pathPolicyChanged: true } : { pathRules: baseRules, pathPolicyChanged: false };
+  const edited = bytes
+    ? bytes.length > MAX_INSTRUCTION_BYTES || pathsEdited(baseRules, bytes.toString("utf8"))
+    : pathsEdited(baseRules, null);
+  return edited
+    ? { pathRules: withPolicyEditRule(baseRules), pathPolicyChanged: true }
+    : { pathRules: baseRules, pathPolicyChanged: false };
 }
 
 /**
@@ -502,7 +541,12 @@ export function localPathPolicy(
  * branch, never the head, so a branch cannot change the memory it is reviewed under (ADR 0056).
  * A `sha` that is not in this clone (an `--input` file can name one) has no memory.
  */
-export function localMemorySource(repoDir: string, sha: string, git: GitRunner = spawnGit, warn: (line: string) => void = () => {}): MemorySource {
+export function localMemorySource(
+  repoDir: string,
+  sha: string,
+  git: GitRunner = spawnGit,
+  warn: (line: string) => void = () => {},
+): MemorySource {
   return {
     list: () => {
       const out = git(["ls-tree", "-z", sha, "--", `${MEMORY_DIR}/`], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
@@ -513,7 +557,9 @@ export function localMemorySource(repoDir: string, sha: string, git: GitRunner =
         .flatMap((line) => {
           const [meta, path] = line.split("\t");
           const [mode, type] = meta.split(" ");
-          return type === "blob" && (mode === "100644" || mode === "100755") && path.startsWith(`${MEMORY_DIR}/`) ? [path.slice(MEMORY_DIR.length + 1)] : [];
+          return type === "blob" && (mode === "100644" || mode === "100755") && path.startsWith(`${MEMORY_DIR}/`)
+            ? [path.slice(MEMORY_DIR.length + 1)]
+            : [];
         });
     },
     read: (name) => {
@@ -532,7 +578,14 @@ export function localMemorySource(repoDir: string, sha: string, git: GitRunner =
  * `personal` is the developer's own folder for this repository (`personalSourceFor`): only a laptop
  * review passes it, so a review in Actions never has it.
  */
-export function localMemory(repoDir: string, sha: string, changedPaths: string[], warn: (line: string) => void, git: GitRunner = spawnGit, personal?: MemorySource): MemoryLoad | undefined {
+export function localMemory(
+  repoDir: string,
+  sha: string,
+  changedPaths: string[],
+  warn: (line: string) => void,
+  git: GitRunner = spawnGit,
+  personal?: MemorySource,
+): MemoryLoad | undefined {
   return loadMemory(localMemorySource(repoDir, sha, git, warn), sha, changedPaths, warn, personal);
 }
 
@@ -542,7 +595,11 @@ const names = (out: string) => out.split("\0").filter(Boolean);
  * The `tar` that extracts the archive. On Windows that is the system's bsdtar: a GNU `tar` earlier
  * on PATH (Git for Windows ships one) reads `C:\dir\x.tar` as a file on a remote host named `C`.
  */
-export function tarCommand(platform: string = process.platform, env: Record<string, string | undefined> = process.env, exists: (path: string) => boolean = existsSync) {
+export function tarCommand(
+  platform: string = process.platform,
+  env: Record<string, string | undefined> = process.env,
+  exists: (path: string) => boolean = existsSync,
+) {
   if (platform !== "win32") return "tar";
   const root = Object.entries(env).find(([name]) => name.toUpperCase() === "SYSTEMROOT")?.[1];
   if (!root) return "tar";
@@ -577,7 +634,11 @@ function snapshotTimeout(step: string, ms: number, fileCount: number) {
  * the snapshot with `git ls-tree` of the head (export-ignore and submodules make them differ).
  * Steps get `snapshotTimeoutMs` of the head's file count.
  */
-export function snapshotHead(repoDir: string, head: string, git: GitRunner = spawnGit): { dir: string; missing: string[]; extra: string[] } {
+export function snapshotHead(
+  repoDir: string,
+  head: string,
+  git: GitRunner = spawnGit,
+): { dir: string; missing: string[]; extra: string[] } {
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "wachiman-snapshot-")));
   // Beside the snapshot, not inside it: a file of the same name in the head would collide.
   const tar = `${dir}.tar`;
@@ -643,7 +704,8 @@ export function snapshotHead(repoDir: string, head: string, git: GitRunner = spa
 function trimIndex(dir: string, git: GitRunner, limit: number, files: number) {
   const listing = git(["ls-files", "-s", "-z"], { cwd: dir, timeoutMs: limit, maxBytes: DIFF_MAX_BYTES });
   if (listing.timedOut) throw snapshotTimeout("git ls-files -s", limit, files);
-  if (listing.status !== 0 || listing.error || listing.outputCut) throw new Error(`git ls-files -s failed in ${dir}: ${listing.error ?? listing.stderr?.trim() ?? `status ${listing.status}`}`);
+  if (listing.status !== 0 || listing.error || listing.outputCut)
+    throw new Error(`git ls-files -s failed in ${dir}: ${listing.error ?? listing.stderr?.trim() ?? `status ${listing.status}`}`);
   const drop: string[] = [];
   for (const entry of names(listing.stdout)) {
     // `<mode> <sha> <stage>\t<path>`
@@ -698,7 +760,8 @@ function subjectRange(refs: LocalRefs) {
 /** The change's one sentence (the first line of the prompt and every report's headline). */
 function describeRange(refs: LocalRefs, name: string) {
   const start = refs.baseRef === EMPTY_TREE_LABEL ? EMPTY_TREE_LABEL : short(refs.mergeBase);
-  if (refs.mode?.kind === "commit") return `commit ${short(refs.headSha)} of ${name} against its ${refs.mode.merge ? "first parent" : "parent"} (${start})`;
+  if (refs.mode?.kind === "commit")
+    return `commit ${short(refs.headSha)} of ${name} against its ${refs.mode.merge ? "first parent" : "parent"} (${start})`;
   if (refs.mode?.kind === "from") return `branch \`${refs.headRef}\` of ${name} from commit ${short(refs.mode.rev)} (start ${start})`;
   return `branch \`${refs.headRef}\` of ${name} against ${refs.baseRef} (merge-base ${start})`;
 }
@@ -731,10 +794,11 @@ export function buildLocalInput(p: {
   // The instruction files and the settings file at the merge-base come from one listing of its tree.
   const atStart = blobReader(p.repoDir, refs.mergeBase, git);
   const instructions = localInstructions(p.repoDir, refs.mergeBase, p.warn, git, atStart);
+  const policy = localReviewPolicy(p.repoDir, refs.mergeBase, "the merge-base", p.warn, git, atStart);
   const { pathRules, pathPolicyChanged } = localPathPolicy(
     () => blobAt(p.repoDir, refs.headSha, SETTINGS_PATH, git),
     files,
-    localPathRules(p.repoDir, refs.mergeBase, "the merge-base", p.warn, git, atStart),
+    policy.pathRules,
   );
   const top = run(git, p.repoDir, ["rev-parse", "--show-toplevel"]).trim();
   const name = basename(top);
@@ -760,6 +824,7 @@ export function buildLocalInput(p: {
     scope: paths,
     ...(pathRules?.length ? { pathRules } : {}),
     ...(pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
+    ...(policy.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
   };
   return { input, snapshotDir: snapshot.dir, refs };
 }

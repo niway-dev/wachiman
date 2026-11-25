@@ -133,7 +133,13 @@ describe("localFiles", () => {
     const files = localFiles(r.dir, r.mergeBase, r.head);
     const blob = (path: string) => git(r.dir, "rev-parse", `${r.head}:${path}`).trim();
     expect(files).toEqual([
-      { filename: "CLAUDE.md", additions: 1, deletions: 1, patch: gitPatch(r.dir, r.mergeBase, r.head, "CLAUDE.md"), sha: blob("CLAUDE.md") },
+      {
+        filename: "CLAUDE.md",
+        additions: 1,
+        deletions: 1,
+        patch: gitPatch(r.dir, r.mergeBase, r.head, "CLAUDE.md"),
+        sha: blob("CLAUDE.md"),
+      },
       { filename: "img.png", additions: 0, deletions: 0, sha: blob("img.png") },
       { filename: "src/a.ts", additions: 2, deletions: 1, patch: gitPatch(r.dir, r.mergeBase, r.head, "src/a.ts"), sha: blob("src/a.ts") },
       { filename: "src/b.ts", additions: 1, deletions: 0, patch: gitPatch(r.dir, r.mergeBase, r.head, "src/b.ts"), sha: blob("src/b.ts") },
@@ -247,7 +253,12 @@ describe("localInstructions", () => {
     const long = `${"x".repeat(MAX_INSTRUCTION_BYTES)}é and more`;
     const base = commit(
       dir,
-      { ".github/claude-review.md": "focus\n", "AGENTS.md": long, "CLAUDE.md/inner.md": "a directory, not a file\n", ".wachiman.yml": "effort: high\n" },
+      {
+        ".github/claude-review.md": "focus\n",
+        "AGENTS.md": long,
+        "CLAUDE.md/inner.md": "a directory, not a file\n",
+        ".wachiman.yml": "effort: high\n",
+      },
       "base",
     );
     const calls: string[][] = [];
@@ -258,7 +269,9 @@ describe("localInstructions", () => {
     const read = blobReader(dir, base, counting);
     const separate: string[] = [];
     const shared: string[] = [];
-    expect(localInstructions(dir, base, (l) => shared.push(l), counting, read)).toEqual(localInstructions(dir, base, (l) => separate.push(l)));
+    expect(localInstructions(dir, base, (l) => shared.push(l), counting, read)).toEqual(
+      localInstructions(dir, base, (l) => separate.push(l)),
+    );
     expect(shared).toEqual(separate);
     expect(localRepoSettings(dir, base, counting, read)).toEqual(localRepoSettings(dir, base));
     expect(read(".wachiman.yml")?.toString()).toBe("effort: high\n");
@@ -462,6 +475,54 @@ describe("snapshotHead", () => {
   });
 });
 
+describe("the comment rule in buildLocalInput (ADR 0064)", () => {
+  const ON = "review:\n  comments_point_to_docs: true\n";
+  const OFF = "review:\n  comments_point_to_docs: false\n";
+  const repoWith = (base: string | undefined, head: string | undefined) => {
+    const dir = emptyRepo();
+    commit(dir, { "src/a.ts": "a\n", ...(base !== undefined ? { ".wachiman.yml": base } : {}) }, "base");
+    git(dir, "switch", "-q", "-c", "feat/x");
+    commit(dir, { "src/a.ts": "b\n", ...(head !== undefined ? { ".wachiman.yml": head } : {}) }, "change");
+    return dir;
+  };
+  const build = (dir: string) => {
+    const warnings: string[] = [];
+    const built = buildLocalInput({ repoDir: dir, paths: [], log: () => {}, warn: (l) => warnings.push(l) });
+    snapshots.push(built.snapshotDir);
+    return { input: built.input, warnings };
+  };
+
+  test("on at the merge-base: the input says so, and still validates against the schema", () => {
+    const { input, warnings } = build(repoWith(ON, undefined));
+    expect(input.commentsPointToDocs).toBe(true);
+    expect(warnings).toEqual([]);
+    const schema = JSON.parse(readFileSync(join(import.meta.dir, "../../docs/formats/review-input.v1.schema.json"), "utf8"));
+    const { headDir: _, ...onDisk } = input;
+    expect(validate(schema, JSON.parse(JSON.stringify(onDisk)))).toEqual([]);
+  });
+
+  test("absent, false, and a file with other keys leave the input without the field", () => {
+    expect(build(repoWith(undefined, undefined)).input).not.toHaveProperty("commentsPointToDocs");
+    expect(build(repoWith(OFF, undefined)).input).not.toHaveProperty("commentsPointToDocs");
+    expect(build(repoWith("effort: high\n", undefined)).input).not.toHaveProperty("commentsPointToDocs");
+  });
+
+  test("the branch's own copy is never applied: turning it on does not activate it, turning it off does not escape it", () => {
+    expect(build(repoWith(undefined, ON)).input).not.toHaveProperty("commentsPointToDocs");
+    expect(build(repoWith(OFF, ON)).input).not.toHaveProperty("commentsPointToDocs");
+    expect(build(repoWith(ON, OFF)).input.commentsPointToDocs).toBe(true);
+    expect(build(repoWith(ON, undefined)).input.commentsPointToDocs).toBe(true);
+  });
+
+  test("an invalid value is ignored with one warning and the rule stays off", () => {
+    const { input, warnings } = build(repoWith("review:\n  comments_point_to_docs: yes please\n", undefined));
+    expect(input).not.toHaveProperty("commentsPointToDocs");
+    expect(warnings).toEqual([
+      expect.stringContaining('review.comments_point_to_docs must be true or false, got "yes please"; using false'),
+    ]);
+  });
+});
+
 describe("path rules in buildLocalInput", () => {
   const RULES = 'paths:\n  - match: "src/billing/**"\n    severity: critical\n    reason: charges customers\n';
   const repoWith = (base: string | undefined, head: string | undefined) => {
@@ -539,7 +600,12 @@ describe("buildLocalInput", () => {
   test("the change, the scope and the cleanup", () => {
     const r = branchRepo();
     const logs: string[] = [];
-    const { input, snapshotDir, refs } = buildLocalInput({ repoDir: r.dir, paths: ["src", "nope"], log: (l) => logs.push(l), warn: () => {} });
+    const { input, snapshotDir, refs } = buildLocalInput({
+      repoDir: r.dir,
+      paths: ["src", "nope"],
+      log: (l) => logs.push(l),
+      warn: () => {},
+    });
     snapshots.push(snapshotDir);
     expect(refs.mergeBase).toBe(r.mergeBase);
     expect(input.format).toBe("wachiman.review-input/1");
@@ -591,9 +657,7 @@ describe("buildLocalInput", () => {
     git(r.dir, "switch", "-q", "--detach", "feat/x");
     const before = new Set(readdirSync(tmpdir()));
     expect(() => buildLocalInput({ repoDir: r.dir, paths: [], log: () => {}, warn: () => {} })).toThrow(UsageError);
-    const after = readdirSync(tmpdir()).filter(
-      (n) => n.startsWith("wachiman-snapshot-") && !before.has(n),
-    );
+    const after = readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-") && !before.has(n));
     expect(after).toEqual([]);
   });
 });
@@ -636,7 +700,13 @@ describe("the commit and from modes", () => {
     const r = branchRepo();
     const first = sha(r.dir, "HEAD~1");
     const refs = resolveRefs(r.dir, undefined, undefined, 50, { from: first });
-    expect(refs).toMatchObject({ mergeBase: r.mergeBase, headSha: r.head, headRef: "feat/x", depth: 2, mode: { kind: "from", rev: first } });
+    expect(refs).toMatchObject({
+      mergeBase: r.mergeBase,
+      headSha: r.head,
+      headRef: "feat/x",
+      depth: 2,
+      mode: { kind: "from", rev: first },
+    });
     expect(() => resolveRefs(r.dir, undefined, undefined, 1, { from: first })).toThrow(/is 2 commits, more than the maximum depth of 1/);
     expect(resolveRefs(r.dir, undefined, undefined, 50, { from: r.mergeBase }).mergeBase).toBe(EMPTY_TREE);
     expect(() => resolveRefs(r.dir, undefined, undefined, 50, { from: r.mainTip })).toThrow(UsageError);
@@ -677,7 +747,16 @@ describe("localMemory", () => {
     const dir = emptyRepo();
     const base = commit(dir, { ".wachiman/memory/index.md": INDEX, ".wachiman/memory/src.md": "BASE RULES\n", "src/a.ts": "a\n" }, "base");
     git(dir, "switch", "-q", "-c", "feat/x");
-    commit(dir, { ".wachiman/memory/index.md": `${INDEX}\nHEAD ADDITION\n`, ".wachiman/memory/src.md": "HEAD RULES\n", ".wachiman/memory/extra.md": "NEW\n", "src/a.ts": "b\n" }, "change memory and code");
+    commit(
+      dir,
+      {
+        ".wachiman/memory/index.md": `${INDEX}\nHEAD ADDITION\n`,
+        ".wachiman/memory/src.md": "HEAD RULES\n",
+        ".wachiman/memory/extra.md": "NEW\n",
+        "src/a.ts": "b\n",
+      },
+      "change memory and code",
+    );
     const source = localMemorySource(dir, base);
     expect(source.list().sort()).toEqual(["index.md", "src.md"]);
     expect(source.read("src.md")).toBe("BASE RULES\n");
@@ -707,7 +786,11 @@ describe("localMemory", () => {
 
   test("memory settings come from .wachiman.yml at the merge-base", () => {
     const dir = emptyRepo();
-    const base = commit(dir, { ".wachiman/memory/index.md": "one\ntwo\nthree\n", ".wachiman.yml": "memory:\n  max_loaded_lines: 2\n" }, "base");
+    const base = commit(
+      dir,
+      { ".wachiman/memory/index.md": "one\ntwo\nthree\n", ".wachiman.yml": "memory:\n  max_loaded_lines: 2\n" },
+      "base",
+    );
     const load = localMemory(dir, base, [], () => {})!;
     expect(load.files).toEqual([{ path: ".wachiman/memory/index.md", lines: 2, truncated: true }]);
     expect(load.overBudget).toBe(true);
@@ -716,7 +799,8 @@ describe("localMemory", () => {
 
 describe("localMemory with personal memory", () => {
   const INDEX = "# Memory\n\n";
-  const entryText = (id: string, rule: string) => `### ${id} ${rule}\n\n- kind: convention\n- scope: src/**\n- rule: ${rule}\n- why: because\n- evidence:\n  - 2026-11-18 instruction, branch x\n- added: 2026-11-18\n`;
+  const entryText = (id: string, rule: string) =>
+    `### ${id} ${rule}\n\n- kind: convention\n- scope: src/**\n- rule: ${rule}\n- why: because\n- evidence:\n  - 2026-11-18 instruction, branch x\n- added: 2026-11-18\n`;
   const withOrigin = (url: string) => {
     const dir = emptyRepo();
     const base = commit(dir, { "src/a.ts": "a\n" }, "base");
@@ -765,7 +849,10 @@ describe("localMemory with personal memory", () => {
     git(dir, "remote", "add", "origin", "https://github.com/acme/widgets.git");
     writePersonal(h, dir, "Same.", "Only mine.");
     const load = localMemory(dir, base, ["src/a.ts"], () => {}, spawnGit, personalSourceFor(h, dir))!;
-    expect(load.entries.map((e) => [e.rule, e.personal === true])).toEqual([["Same.", false], ["Only mine.", true]]);
+    expect(load.entries.map((e) => [e.rule, e.personal === true])).toEqual([
+      ["Same.", false],
+      ["Only mine.", true],
+    ]);
     rmSync(h, { recursive: true, force: true });
   });
 });

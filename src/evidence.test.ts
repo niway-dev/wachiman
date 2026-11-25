@@ -51,10 +51,7 @@ describe("extractCalledSymbols", () => {
       'const label = t("save-button");',
       'const cls = cn("flex-col");',
     ]);
-    expect(found.filter((s) => s.kind === "channel").map((s) => s.name)).toEqual([
-      "recording-ready:show",
-      "recording-ready:hide",
-    ]);
+    expect(found.filter((s) => s.kind === "channel").map((s) => s.name)).toEqual(["recording-ready:show", "recording-ready:hide"]);
     // The verb of the channel call is not a symbol: the channel string is.
     expect(names(['ipcRenderer.invoke("a-b:c")'])).not.toContain("invoke");
   });
@@ -127,10 +124,7 @@ describe("planEvidence", () => {
   });
 
   test("drops a name that another file of the batch defines", () => {
-    const plan = planEvidence([
-      file("lib.ts", "export function makeThing(a) { return a; }"),
-      file("use.ts", "makeThing(1);", "other(2);"),
-    ]);
+    const plan = planEvidence([file("lib.ts", "export function makeThing(a) { return a; }"), file("use.ts", "makeThing(1);", "other(2);")]);
     expect(plan.symbols.map((s) => s.name)).toEqual(["other"]);
   });
 
@@ -178,14 +172,9 @@ const planOf = (...symbols: string[]) => ({
 });
 
 describe("collectEvidence", () => {
-  const sibling = [
-    "function Toast() {",
-    "  const onDrag = () => {",
-    "    markCopySeen(id);",
-    "    startFileDrag(path);",
-    "  };",
-    "}",
-  ].join("\n");
+  const sibling = ["function Toast() {", "  const onDrag = () => {", "    markCopySeen(id);", "    startFileDrag(path);", "  };", "}"].join(
+    "\n",
+  );
 
   test("lists sibling call sites with an excerpt, a definition guess, and skips the batch's own files", () => {
     const io = fakeIo(
@@ -259,11 +248,7 @@ describe("collectEvidence", () => {
 
   test("the time box stops the search and marks the rest not searched", () => {
     let clock = 0;
-    const io = fakeIo(
-      { a: { status: 0, stdout: "x.ts:1:  a();" }, b: { status: 0, stdout: "y.ts:1:  b();" } },
-      {},
-      { now: () => clock },
-    );
+    const io = fakeIo({ a: { status: 0, stdout: "x.ts:1:  a();" }, b: { status: 0, stdout: "y.ts:1:  b();" } }, {}, { now: () => clock });
     const slow = io.git;
     io.git = (args, opts) => {
       clock += 15_000;

@@ -91,16 +91,28 @@ export async function runLedger(args: LedgerArgs, env: Record<string, string | u
     const token = (await (io.readToken ?? (() => readSecretLine(io.stderr)))()).trim();
     if (token === "") throw new UsageError("No token was given.");
     writeCredentials(home, { url, token });
-    io.stdout(`Connected to ${url}. Credentials kept in ${credentialsPath(home)} (mode 0600). Run \`wachiman ledger pull\` to download entries.\n`);
+    io.stdout(
+      `Connected to ${url}. Credentials kept in ${credentialsPath(home)} (mode 0600). Run \`wachiman ledger pull\` to download entries.\n`,
+    );
     return 0;
   }
   if (args.action === "disconnect") {
-    io.stdout(deleteCredentials(home) ? "Disconnected: the stored credentials were deleted. Downloaded entries stay on disk.\n" : "No stored credentials to delete.\n");
-    if (resolveCredentials(home, env)) io.stderr("wachiman: WACHIMAN_LEDGER_URL and WACHIMAN_LEDGER_TOKEN are still set in the environment.\n");
+    io.stdout(
+      deleteCredentials(home)
+        ? "Disconnected: the stored credentials were deleted. Downloaded entries stay on disk.\n"
+        : "No stored credentials to delete.\n",
+    );
+    if (resolveCredentials(home, env))
+      io.stderr("wachiman: WACHIMAN_LEDGER_URL and WACHIMAN_LEDGER_TOKEN are still set in the environment.\n");
     return 0;
   }
   const result = await pullLedger(home, env, args.sinceDays, io.pull ?? realPullDeps);
-  io.stdout(`Pulled ${result.entries} entr${result.entries === 1 ? "y" : "ies"} for ${result.from} to ${result.to} from account ${result.account} (${result.daysWritten} day file${result.daysWritten === 1 ? "" : "s"} written).\n`);
-  if (result.daysRemoved > 0) io.stdout(`${result.daysRemoved} day file${result.daysRemoved === 1 ? "" : "s"} deleted: the ledger no longer returns entries for ${result.daysRemoved === 1 ? "that day" : "those days"} (days outside this pull are kept).\n`);
+  io.stdout(
+    `Pulled ${result.entries} entr${result.entries === 1 ? "y" : "ies"} for ${result.from} to ${result.to} from account ${result.account} (${result.daysWritten} day file${result.daysWritten === 1 ? "" : "s"} written).\n`,
+  );
+  if (result.daysRemoved > 0)
+    io.stdout(
+      `${result.daysRemoved} day file${result.daysRemoved === 1 ? "" : "s"} deleted: the ledger no longer returns entries for ${result.daysRemoved === 1 ? "that day" : "those days"} (days outside this pull are kept).\n`,
+    );
   return 0;
 }

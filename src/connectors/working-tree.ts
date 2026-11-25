@@ -23,7 +23,7 @@ import { GIT_BASE_ARGS, gitEnv, spawnGit, type GitRunner } from "../evidence";
 import { REVIEW_INPUT_V2, type ReviewInput } from "../formats";
 import { resolveScope } from "../engine";
 import { SETTINGS_PATH } from "../repo-settings";
-import { blobReader, localFiles, localInstructions, localPathPolicy, localPathRules } from "./local-git";
+import { blobReader, localFiles, localInstructions, localPathPolicy, localReviewPolicy } from "./local-git";
 
 type Spawn = typeof spawnSync;
 const hash = (bytes: Buffer) => createHash("sha256").update(bytes).digest("hex");
@@ -45,7 +45,9 @@ function indexRawSnapshot(dir: string, entries: string[], exec: (args: string[],
     const tab = entry.indexOf("\t");
     const mode = entry.slice(0, tab).split(" ")[0];
     const path = entry.slice(tab + 1);
-    const sha = exec(["hash-object", "-w", "--stdin", "--no-filters"], readFileSync(join(dir, path))).toString().trim();
+    const sha = exec(["hash-object", "-w", "--stdin", "--no-filters"], readFileSync(join(dir, path)))
+      .toString()
+      .trim();
     // Links are materialized as regular text for evidence, never as live links.
     exec(["update-index", "--add", "--cacheinfo", mode === "100755" ? mode : "100644", sha, path]);
   }
@@ -277,6 +279,7 @@ export function workingTreeInput(p: {
     const name = basename(top);
     // The instruction files and the settings file at the base commit come from one listing of its tree.
     const atBase = blobReader(top, base, git);
+    const policy = localReviewPolicy(top, base, "HEAD", p.warn, git, atBase);
     const { pathRules, pathPolicyChanged } = localPathPolicy(
       () => {
         // The snapshot holds the working tree's blobs as plain files, so a link is its target text.
@@ -284,7 +287,7 @@ export function workingTreeInput(p: {
         return readSnapshotFile(file);
       },
       files,
-      localPathRules(top, base, "HEAD", p.warn, git, atBase),
+      policy.pathRules,
     );
     const input: ReviewInput = {
       format: REVIEW_INPUT_V2,
@@ -302,6 +305,7 @@ export function workingTreeInput(p: {
       scope: paths,
       ...(pathRules?.length ? { pathRules } : {}),
       ...(pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
+      ...(policy.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
     };
     return { input, release };
   } catch (e) {

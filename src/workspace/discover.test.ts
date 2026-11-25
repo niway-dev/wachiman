@@ -76,7 +76,13 @@ const change = (path: string, extra: Partial<Change> = {}): Change => ({ path, s
 
 describe("repoSlug", () => {
   test("is owner/name, lower case, for https, ssh and scp-style remotes", () => {
-    for (const url of ["https://github.com/Acme/Web-Site.git", "git@github.com:acme/web-site.git", "ssh://git@github.com/acme/web-site", "https://u:t@github.com/acme/web-site/", "acme/web-site"]) {
+    for (const url of [
+      "https://github.com/Acme/Web-Site.git",
+      "git@github.com:acme/web-site.git",
+      "ssh://git@github.com/acme/web-site",
+      "https://u:t@github.com/acme/web-site/",
+      "acme/web-site",
+    ]) {
       expect(repoSlug(url)).toBe("acme/web-site");
     }
     expect(repoSlug("")).toBeUndefined();
@@ -98,7 +104,12 @@ describe("findWorkspace", () => {
 
   test("by the per-user file, matching dir when origin does not match", () => {
     const coordinator = workspace();
-    const found = findWorkspace(join(coordinator, "web-site"), "https://github.com/fork/web-site.git", { version: 1, workspaces: [userWorkspace(coordinator)] }, []);
+    const found = findWorkspace(
+      join(coordinator, "web-site"),
+      "https://github.com/fork/web-site.git",
+      { version: 1, workspaces: [userWorkspace(coordinator)] },
+      [],
+    );
     expect(found?.reviewed.dir).toBe("web-site");
   });
 
@@ -145,7 +156,9 @@ describe("findWorkspace", () => {
     expect(findWorkspace(join(coordinator, "web-site"), undefined, noUserFile, [], { walkUp: false })).toBeUndefined();
     // The per-user entries still count.
     const user = userWorkspace(coordinator);
-    expect(findWorkspace(join(coordinator, "web-site"), undefined, { version: 1, workspaces: [user] }, [], { walkUp: false })?.reviewed.dir).toBe("web-site");
+    expect(
+      findWorkspace(join(coordinator, "web-site"), undefined, { version: 1, workspaces: [user] }, [], { walkUp: false })?.reviewed.dir,
+    ).toBe("web-site");
   });
 
   test("no manifest anywhere is none", () => {
@@ -172,7 +185,12 @@ describe("findWorkspace", () => {
     const coordinator = workspace();
     const gone = userWorkspace(join(tmp(), "nowhere"));
     const warnings: string[] = [];
-    const found = findWorkspace(join(coordinator, "web-site"), undefined, { version: 1, workspaces: [gone, userWorkspace(coordinator)] }, warnings);
+    const found = findWorkspace(
+      join(coordinator, "web-site"),
+      undefined,
+      { version: 1, workspaces: [gone, userWorkspace(coordinator)] },
+      warnings,
+    );
     expect(found?.reviewed.dir).toBe("web-site");
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain(gone.manifest);
@@ -183,7 +201,12 @@ describe("findWorkspace", () => {
     const broken = tmp();
     writeFileSync(join(broken, MANIFEST_FILE), "{}");
     const warnings: string[] = [];
-    const found = findWorkspace(join(coordinator, "web-site"), undefined, { version: 1, workspaces: [userWorkspace(broken), userWorkspace(coordinator)] }, warnings);
+    const found = findWorkspace(
+      join(coordinator, "web-site"),
+      undefined,
+      { version: 1, workspaces: [userWorkspace(broken), userWorkspace(coordinator)] },
+      warnings,
+    );
     expect(found?.coordinator).toBe(coordinator);
     expect(warnings).toHaveLength(1);
     expect(warnings[0]).toContain(join(broken, MANIFEST_FILE));
@@ -200,7 +223,12 @@ describe("findWorkspace", () => {
   test("the per-user entry wins over a manifest found by walking up", () => {
     const coordinator = workspace();
     const other = workspace();
-    const found = findWorkspace(join(coordinator, "web-site"), "https://github.com/acme/web-site.git", { version: 1, workspaces: [userWorkspace(other)] }, []);
+    const found = findWorkspace(
+      join(coordinator, "web-site"),
+      "https://github.com/acme/web-site.git",
+      { version: 1, workspaces: [userWorkspace(other)] },
+      [],
+    );
     expect(found?.coordinator).toBe(other);
   });
 });
@@ -239,7 +267,11 @@ describe("matchContracts", () => {
   });
 
   test("lists every contract a change touches, with each triggering path once", () => {
-    const result = matchContracts(manifest, "billing-service", [change("src/routes/a.ts"), change("src/routes/b.ts"), change("src/invoice/x.ts")]);
+    const result = matchContracts(manifest, "billing-service", [
+      change("src/routes/a.ts"),
+      change("src/routes/b.ts"),
+      change("src/invoice/x.ts"),
+    ]);
     expect(result.map((a) => a.contract.name)).toEqual(["billing-api", "invoice-format"]);
     expect(result[0].triggers.map((t) => t.path)).toEqual(["src/routes/a.ts", "src/routes/b.ts"]);
   });
@@ -253,7 +285,13 @@ describe("matchContracts", () => {
 describe("planReads", () => {
   const plan = (coordinator: string, reviewed: string, changes: Change[], user?: UserWorkspace) => {
     const manifest = manifestAt(coordinator);
-    const found = { coordinator, manifestPath: join(coordinator, MANIFEST_FILE), manifest, reviewed: manifest.members.find((m) => m.dir === reviewed)!, user };
+    const found = {
+      coordinator,
+      manifestPath: join(coordinator, MANIFEST_FILE),
+      manifest,
+      reviewed: manifest.members.find((m) => m.dir === reviewed)!,
+      user,
+    };
     return { found, reads: planReads(found, matchContracts(manifest, reviewed, changes)) };
   };
 
@@ -284,7 +322,10 @@ describe("planReads", () => {
     const coordinator = workspace(["billing-service"]);
     mkdirSync(join(coordinator, "web-site"));
     const { reads } = plan(coordinator, "billing-service", [change("src/invoice/x.ts")]);
-    expect(Object.fromEntries(reads.map((r) => [r.member.dir, r.status]))).toEqual({ "web-site": "not-cloned", "api-client": "not-cloned" });
+    expect(Object.fromEntries(reads.map((r) => [r.member.dir, r.status]))).toEqual({
+      "web-site": "not-cloned",
+      "api-client": "not-cloned",
+    });
   });
 
   test("watch: false is not-watched, and the per-user dir override is where it looks", () => {

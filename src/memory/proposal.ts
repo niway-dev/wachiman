@@ -63,7 +63,8 @@ export interface FromShown {
  */
 export function candidateFromShown(text: string, id: string): FromShown {
   const parsed = parseMemoryFile("index.md", text);
-  if (parsed.problems.length > 0) return { problem: `the shown text is not a valid entry (${parsed.problems[0].message}); its digest does not match ${id}.` };
+  if (parsed.problems.length > 0)
+    return { problem: `the shown text is not a valid entry (${parsed.problems[0].message}); its digest does not match ${id}.` };
   if (parsed.entries.length !== 1) return { problem: `the shown text holds ${parsed.entries.length} entries, not one.` };
   const entry = parsed.entries[0];
   if (entry.id !== id) return { problem: `the shown text has the digest ${entry.id}, not ${id}.` };

@@ -27,18 +27,36 @@ class FakeProvider implements ProviderAdapter {
   }
   async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
-    return { costUsd: 0, turns: 1, durationMs: 1, terminalReason: "success", isError: false, raw: {}, ...this.answer(request, this.requests.length) };
+    return {
+      costUsd: 0,
+      turns: 1,
+      durationMs: 1,
+      terminalReason: "success",
+      isError: false,
+      raw: {},
+      ...this.answer(request, this.requests.length),
+    };
   }
 }
 
-const out = (over: Partial<ReviewOutput>): ReviewOutput => ({ files_reviewed: [], files_skipped: [], findings: [], thread_replies: [], summary: "", ...over });
+const out = (over: Partial<ReviewOutput>): ReviewOutput => ({
+  files_reviewed: [],
+  files_skipped: [],
+  findings: [],
+  thread_replies: [],
+  summary: "",
+  ...over,
+});
 
 /** The files the prompt lists, so a fake reviewer can answer for exactly what it was given. */
 const filesIn = (prompt: string) => {
   const part = prompt.split("This part holds exactly these files")[1]?.split("Each diff line")[0] ?? "";
   return [...part.matchAll(/^- (\S+) \+\d+ −\d+/gm)].map((m) => m[1]);
 };
-const answersForItsFiles = (request: ProviderRequest) => ({ costUsd: 0.1, structuredOutput: out({ files_reviewed: filesIn(request.prompt), summary: "s" }) });
+const answersForItsFiles = (request: ProviderRequest) => ({
+  costUsd: 0.1,
+  structuredOutput: out({ files_reviewed: filesIn(request.prompt), summary: "s" }),
+});
 
 const SHA_A = "3f2a9c1".padEnd(40, "0");
 const SHA_B = "9d8e7f6".padEnd(40, "0");
@@ -182,7 +200,11 @@ describe("the batches of a distributed-repo run", () => {
         ? answersForItsFiles(request)
         : { costUsd: 0.1, structuredOutput: out({ files_reviewed: ["src/a.ts"], summary: "s" }) },
     );
-    await reviewChange(input(headDir, TWO_FILES), options({ batchLines: 1000, distributed: context([desktop], [palette(desktop)]) }), coreDeps(provider));
+    await reviewChange(
+      input(headDir, TWO_FILES),
+      options({ batchLines: 1000, distributed: context([desktop], [palette(desktop)]) }),
+      coreDeps(provider),
+    );
     expect(provider.requests).toHaveLength(2);
     expect(provider.requests[0].addDirs).toContain(desktop.dir!);
     expect(provider.requests[0].prompt).toContain("brand-palette");
@@ -214,7 +236,13 @@ describe("the batches of a distributed-repo run", () => {
 
   test("a member added by hand with --sibling reaches every batch", async () => {
     const headDir = reviewedHead();
-    const hand = sibling({ member: "api-client", contracts: ["--sibling"], byHand: true, paths: ["src/index.ts"], dir: snapshotDir("src/index.ts", "export {};\n") });
+    const hand = sibling({
+      member: "api-client",
+      contracts: ["--sibling"],
+      byHand: true,
+      paths: ["src/index.ts"],
+      dir: snapshotDir("src/index.ts", "export {};\n"),
+    });
     const provider = new FakeProvider(answersForItsFiles);
     await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([hand], []) }), coreDeps(provider));
     for (const file of ["src/a.ts", "src/b.ts"]) {
@@ -228,12 +256,20 @@ describe("the batches of a distributed-repo run", () => {
 
 describe("the verifier of a distributed-repo run", () => {
   const finding = { path: "src/b.ts", line: 1, severity: "fix", topic: "bug", confidence: "high", title: "t", body: "b" } as const;
-  const verdicts = { verdicts: [{ id: "c1", verdict: "supported", reason: "yes", checked: [{ snapshot: "head", path: "src/b.ts", line: 1 }] }] };
+  const verdicts = {
+    verdicts: [{ id: "c1", verdict: "supported", reason: "yes", checked: [{ snapshot: "head", path: "src/b.ts", line: 1 }] }],
+  };
 
   test("gets every snapshot of the run, also those of contracts that no finding came from", async () => {
     const headDir = reviewedHead();
     const desktop = sibling({ member: "desktop-app", dir: snapshotDir("Assets/palette.json", "{}\n") });
-    const billing = sibling({ member: "billing-service", contracts: ["billing-api"], sha: SHA_B, paths: ["src/routes/x.ts"], dir: snapshotDir("src/routes/x.ts", "export {};\n") });
+    const billing = sibling({
+      member: "billing-service",
+      contracts: ["billing-api"],
+      sha: SHA_B,
+      paths: ["src/routes/x.ts"],
+      dir: snapshotDir("src/routes/x.ts", "export {};\n"),
+    });
     const billingContract: ContractReading = {
       name: "billing-api",
       triggerPaths: ["src/a.ts"],
@@ -247,11 +283,22 @@ describe("the verifier of a distributed-repo run", () => {
       sourceOfTruth: { member: "billing-service", paths: ["src/routes/**"] },
     };
     // The finding is in src/b.ts, which triggered nothing; both snapshots still reach the verifier.
-    const provider = new FakeProvider((request) => ({ costUsd: 0.1, structuredOutput: out({ files_reviewed: filesIn(request.prompt), findings: filesIn(request.prompt).includes("src/b.ts") ? [finding] : [], summary: "s" }) }));
+    const provider = new FakeProvider((request) => ({
+      costUsd: 0.1,
+      structuredOutput: out({
+        files_reviewed: filesIn(request.prompt),
+        findings: filesIn(request.prompt).includes("src/b.ts") ? [finding] : [],
+        summary: "s",
+      }),
+    }));
     const verifier = new FakeProvider(() => ({ costUsd: 0.1, structuredOutput: verdicts }));
     const result = await reviewChange(
       input(headDir, TWO_FILES),
-      options({ ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 5), batchLines: 1, distributed: context([desktop, billing], [palette(desktop), billingContract]) }),
+      options({
+        ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 5),
+        batchLines: 1,
+        distributed: context([desktop, billing], [palette(desktop), billingContract]),
+      }),
       coreDeps(provider, verifier),
     );
     expect(result.findings).toHaveLength(1);
@@ -265,26 +312,65 @@ describe("the verifier of a distributed-repo run", () => {
 
   test("a disproof found only in a sibling snapshot can be cited, and drops the finding; the schema and prompt say how", async () => {
     const headDir = reviewedHead();
-    const billing = sibling({ member: "billing-service", contracts: ["billing-api"], sha: SHA_B, paths: ["src/routes/x.ts"], dir: snapshotDir("src/routes/x.ts", "export {};\nexport const guard = 1;\n") });
+    const billing = sibling({
+      member: "billing-service",
+      contracts: ["billing-api"],
+      sha: SHA_B,
+      paths: ["src/routes/x.ts"],
+      dir: snapshotDir("src/routes/x.ts", "export {};\nexport const guard = 1;\n"),
+    });
     const contract: ContractReading = {
       name: "billing-api",
       triggerPaths: ["src/a.ts"],
       reviewedMember: "web-site",
       reviewedRoles: ["consumer"],
       holdsSource: false,
-      sides: [{ member: "billing-service", role: "provider", paths: ["src/routes/**"] }, { member: "web-site", role: "consumer", paths: ["src/**"] }],
+      sides: [
+        { member: "billing-service", role: "provider", paths: ["src/routes/**"] },
+        { member: "web-site", role: "consumer", paths: ["src/**"] },
+      ],
       sourceOfTruth: { member: "billing-service", paths: ["src/routes/**"] },
     };
-    const cite = (line: number, over: Record<string, unknown> = {}) => ({ snapshot: "head", member: "billing-service", sha: "9d8e7f6", path: "src/routes/x.ts", line, ...over });
+    const cite = (line: number, over: Record<string, unknown> = {}) => ({
+      snapshot: "head",
+      member: "billing-service",
+      sha: "9d8e7f6",
+      path: "src/routes/x.ts",
+      line,
+      ...over,
+    });
     const run = async (disproof: object) => {
-      const provider = new FakeProvider((request) => ({ costUsd: 0.1, structuredOutput: out({ files_reviewed: filesIn(request.prompt), findings: filesIn(request.prompt).includes("src/b.ts") ? [finding] : [], summary: "s" }) }));
-      const verifier = new FakeProvider(() => ({ costUsd: 0.1, structuredOutput: { verdicts: [{ id: "c1", verdict: "refuted", reason: "guarded in billing-service", checked: [cite(2)], disproof }] } }));
-      const result = await reviewChange(input(headDir, TWO_FILES), options({ ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 5), batchLines: 1, distributed: context([billing], [contract]) }), coreDeps(provider, verifier));
+      const provider = new FakeProvider((request) => ({
+        costUsd: 0.1,
+        structuredOutput: out({
+          files_reviewed: filesIn(request.prompt),
+          findings: filesIn(request.prompt).includes("src/b.ts") ? [finding] : [],
+          summary: "s",
+        }),
+      }));
+      const verifier = new FakeProvider(() => ({
+        costUsd: 0.1,
+        structuredOutput: {
+          verdicts: [{ id: "c1", verdict: "refuted", reason: "guarded in billing-service", checked: [cite(2)], disproof }],
+        },
+      }));
+      const result = await reviewChange(
+        input(headDir, TWO_FILES),
+        options({
+          ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 5),
+          batchLines: 1,
+          distributed: context([billing], [contract]),
+        }),
+        coreDeps(provider, verifier),
+      );
       return { result, call: verifier.requests[0] };
     };
     const good = await run(cite(2));
     expect(good.result.findings).toHaveLength(0);
-    expect(good.result.verification?.entries[0]).toMatchObject({ outcome: "dropped", disproof: { member: "billing-service", sha: SHA_B, path: "src/routes/x.ts", line: 2 } });
+    expect(good.result.verification?.entries[0]).toMatchObject({
+      outcome: "dropped",
+      disproof: { member: "billing-service", sha: SHA_B, path: "src/routes/x.ts", line: 2 },
+    });
     expect(good.call.outputSchema).toEqual(verifySchema(true));
     expect(good.call.prompt).toContain('"member"');
     // The same citation with a line the sibling does not have, or a commit that is not its snapshot's, is not evidence: the finding stays, inconclusive.
@@ -298,9 +384,20 @@ describe("the verifier of a distributed-repo run", () => {
   test("without siblings read, the verifier's prompt and directories are the usual ones", async () => {
     const headDir = reviewedHead();
     const run = async (distributed?: DistributedContext) => {
-      const provider = new FakeProvider((request) => ({ costUsd: 0.1, structuredOutput: out({ files_reviewed: filesIn(request.prompt), findings: filesIn(request.prompt).includes("src/b.ts") ? [finding] : [], summary: "s" }) }));
+      const provider = new FakeProvider((request) => ({
+        costUsd: 0.1,
+        structuredOutput: out({
+          files_reviewed: filesIn(request.prompt),
+          findings: filesIn(request.prompt).includes("src/b.ts") ? [finding] : [],
+          summary: "s",
+        }),
+      }));
       const verifier = new FakeProvider(() => ({ costUsd: 0.1, structuredOutput: verdicts }));
-      await reviewChange(input(headDir, TWO_FILES), options({ ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 5), batchLines: 1, ...(distributed ? { distributed } : {}) }), coreDeps(provider, verifier));
+      await reviewChange(
+        input(headDir, TWO_FILES),
+        options({ ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 5), batchLines: 1, ...(distributed ? { distributed } : {}) }),
+        coreDeps(provider, verifier),
+      );
       return verifier.requests[0];
     };
     const missing = sibling({ member: "desktop-app", status: "not-cloned", sha: undefined, paths: [] });
@@ -315,17 +412,36 @@ describe("the verifier of a distributed-repo run", () => {
 });
 
 describe("the result of a distributed-repo run", () => {
-  const cited = (body: string) => ({ path: "src/a.ts", line: 1, severity: "fix", topic: "bug", confidence: "high", title: "The accent drifts", body }) as const;
+  const cited = (body: string) =>
+    ({ path: "src/a.ts", line: 1, severity: "fix", topic: "bug", confidence: "high", title: "The accent drifts", body }) as const;
   const reviewer = (body: string) =>
-    new FakeProvider((request) => ({ costUsd: 0.1, structuredOutput: out({ files_reviewed: filesIn(request.prompt), findings: filesIn(request.prompt).includes("src/a.ts") ? [cited(body)] : [], summary: "s" }) }));
+    new FakeProvider((request) => ({
+      costUsd: 0.1,
+      structuredOutput: out({
+        files_reviewed: filesIn(request.prompt),
+        findings: filesIn(request.prompt).includes("src/a.ts") ? [cited(body)] : [],
+        summary: "s",
+      }),
+    }));
   const palette2 = '{\n  "accent": "#112233"\n}\n';
 
   test("carries the siblings without their directories, the contracts, the private-context label and the checked references", async () => {
     const headDir = reviewedHead();
-    const desktop = sibling({ member: "desktop-app", ruleSource: "user-file", fetchedAt: "2026-11-18T09:30:00.000Z", dir: snapshotDir("Assets/palette.json", palette2) });
+    const desktop = sibling({
+      member: "desktop-app",
+      ruleSource: "user-file",
+      fetchedAt: "2026-11-18T09:30:00.000Z",
+      dir: snapshotDir("Assets/palette.json", palette2),
+    });
     const missing = sibling({ member: "brand-assets", visibility: "public", status: "not-cloned", sha: undefined, paths: [] });
-    const provider = reviewer("The source says desktop-app@3f2a9c1:Assets/palette.json:2, and also desktop-app@3f2a9c1:Assets/palette.json:30.");
-    const result = await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([desktop, missing], [palette(desktop)]) }), coreDeps(provider));
+    const provider = reviewer(
+      "The source says desktop-app@3f2a9c1:Assets/palette.json:2, and also desktop-app@3f2a9c1:Assets/palette.json:30.",
+    );
+    const result = await reviewChange(
+      input(headDir, TWO_FILES),
+      options({ distributed: context([desktop, missing], [palette(desktop)]) }),
+      coreDeps(provider),
+    );
 
     expect(result.format).toBe("wachiman.review-result/2");
     expect(result.siblings?.map((s) => [s.member, s.status, s.ruleSource, s.sha?.slice(0, 7), s.fetchedAt])).toEqual([
@@ -357,7 +473,18 @@ describe("the result of a distributed-repo run", () => {
           files_reviewed: filesIn(request.prompt),
           findings: hasA ? [cited("Plain.")] : [],
           contracts: hasA
-            ? [{ action: "Paint the accent", location: "src/a.ts:1", status: "closed", evidence: ["src/a.ts:1"], before_after: `Before ${bad}, after ${good}.`, visible_effect: `Seen at ${bad}`, failure_mode: `Fails at ${bad}`, open_question: `Ask ${bad}` }]
+            ? [
+                {
+                  action: "Paint the accent",
+                  location: "src/a.ts:1",
+                  status: "closed",
+                  evidence: ["src/a.ts:1"],
+                  before_after: `Before ${bad}, after ${good}.`,
+                  visible_effect: `Seen at ${bad}`,
+                  failure_mode: `Fails at ${bad}`,
+                  open_question: `Ask ${bad}`,
+                },
+              ]
             : [],
           risk_facts: hasA ? [{ kind: "public-contract", path: "src/a.ts", line: 1, why: `Shared with ${bad}` }] : [],
           judgement: hasA ? [{ kind: "direction", path: "src/a.ts", line: 1, why: `Decide at ${bad}` }] : [],
@@ -367,18 +494,37 @@ describe("the result of a distributed-repo run", () => {
     });
     const verifier = new FakeProvider(() => ({
       costUsd: 0.1,
-      structuredOutput: { verdicts: [{ id: "c1", verdict: "refuted", reason: `Guarded at ${bad}`, checked: [{ snapshot: "head", path: "src/a.ts", line: 1 }], disproof: { snapshot: "head", path: "src/a.ts", line: 2 } }] },
+      structuredOutput: {
+        verdicts: [
+          {
+            id: "c1",
+            verdict: "refuted",
+            reason: `Guarded at ${bad}`,
+            checked: [{ snapshot: "head", path: "src/a.ts", line: 1 }],
+            disproof: { snapshot: "head", path: "src/a.ts", line: 2 },
+          },
+        ],
+      },
     }));
     const result = await reviewChange(
       input(headDir, TWO_FILES),
-      options({ ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 5), batchLines: 1, distributed: context([desktop], [palette(desktop)]) }),
+      options({
+        ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "1" }), 5),
+        batchLines: 1,
+        distributed: context([desktop], [palette(desktop)]),
+      }),
       coreDeps(provider, verifier),
     );
     const gone = REMOVED_REFERENCE;
     expect(result.findings).toHaveLength(0);
     expect(result.verification?.entries[0]).toMatchObject({ outcome: "dropped", reason: `Guarded at ${gone}` });
     expect(result.summary).toBe(`Summary ${gone}`);
-    expect(result.contracts[0]).toMatchObject({ before_after: `Before ${gone}, after ${good}.`, visible_effect: `Seen at ${gone}`, failure_mode: `Fails at ${gone}`, open_question: `Ask ${gone}` });
+    expect(result.contracts[0]).toMatchObject({
+      before_after: `Before ${gone}, after ${good}.`,
+      visible_effect: `Seen at ${gone}`,
+      failure_mode: `Fails at ${gone}`,
+      open_question: `Ask ${gone}`,
+    });
     expect(result.riskMap.facts[0]?.why).toBe(`Shared with ${gone}`);
     expect(result.riskMap.judgement[0]?.why).toBe(`Decide at ${gone}`);
     // summary, entry reason, four contract fields, one fact, one judgement item
@@ -389,9 +535,17 @@ describe("the result of a distributed-repo run", () => {
   test("a snapshot's temporary directory the model repeats never reaches the result", async () => {
     const headDir = reviewedHead();
     const desktop = sibling({ member: "desktop-app", dir: snapshotDir("Assets/palette.json", palette2) });
-    const provider = reviewer(`The source is in ${desktop.dir}/Assets/palette.json:2 and ${desktop.dir}/Assets/palette.json:50; the folder is ${desktop.dir}.`);
-    const result = await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([desktop], [palette(desktop)]) }), coreDeps(provider));
-    expect(result.findings[0]!.body).toBe(`The source is in desktop-app@3f2a9c1:Assets/palette.json:2 and ${REMOVED_REFERENCE}; the folder is desktop-app@3f2a9c1.`);
+    const provider = reviewer(
+      `The source is in ${desktop.dir}/Assets/palette.json:2 and ${desktop.dir}/Assets/palette.json:50; the folder is ${desktop.dir}.`,
+    );
+    const result = await reviewChange(
+      input(headDir, TWO_FILES),
+      options({ distributed: context([desktop], [palette(desktop)]) }),
+      coreDeps(provider),
+    );
+    expect(result.findings[0]!.body).toBe(
+      `The source is in desktop-app@3f2a9c1:Assets/palette.json:2 and ${REMOVED_REFERENCE}; the folder is desktop-app@3f2a9c1.`,
+    );
     expect(result.findings[0]!.references).toEqual([{ member: "desktop-app", sha: SHA_A, path: "Assets/palette.json", line: 2 }]);
     expect(result.removedSiblingReferences).toBe(1);
     expect(JSON.stringify(result)).not.toContain(desktop.dir!);
@@ -400,17 +554,29 @@ describe("the result of a distributed-repo run", () => {
   test("a result that read only public siblings, or none, has no private-context label", async () => {
     const headDir = reviewedHead();
     const open = sibling({ member: "desktop-app", visibility: "public", dir: snapshotDir("Assets/palette.json", palette2) });
-    const publicOnly = await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([open], [palette(open)]) }), coreDeps(new FakeProvider(answersForItsFiles)));
+    const publicOnly = await reviewChange(
+      input(headDir, TWO_FILES),
+      options({ distributed: context([open], [palette(open)]) }),
+      coreDeps(new FakeProvider(answersForItsFiles)),
+    );
     expect(publicOnly.siblings).toHaveLength(1);
     expect(publicOnly).not.toHaveProperty("privateContext");
     const missing = sibling({ member: "desktop-app", status: "not-cloned", sha: undefined, paths: [] });
-    const notRead = await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([missing], [palette(missing)]) }), coreDeps(new FakeProvider(answersForItsFiles)));
+    const notRead = await reviewChange(
+      input(headDir, TWO_FILES),
+      options({ distributed: context([missing], [palette(missing)]) }),
+      coreDeps(new FakeProvider(answersForItsFiles)),
+    );
     expect(notRead).not.toHaveProperty("privateContext");
   });
 
   test("a run that applied no contract says so, and still lists its siblings and the removed count", async () => {
     const headDir = reviewedHead();
-    const result = await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([], []) }), coreDeps(new FakeProvider(answersForItsFiles)));
+    const result = await reviewChange(
+      input(headDir, TWO_FILES),
+      options({ distributed: context([], []) }),
+      coreDeps(new FakeProvider(answersForItsFiles)),
+    );
     expect(result.siblings).toEqual([]);
     expect(result.workspaceContractsApplied).toEqual([]);
     expect(result.noWorkspaceContractApplied).toBe(true);
@@ -421,7 +587,11 @@ describe("the result of a distributed-repo run", () => {
   test("a finding whose only sibling reference was removed stays, without the reference", async () => {
     const headDir = reviewedHead();
     const desktop = sibling({ member: "desktop-app", dir: snapshotDir("Assets/palette.json", palette2) });
-    const result = await reviewChange(input(headDir, TWO_FILES), options({ distributed: context([desktop], [palette(desktop)]) }), coreDeps(reviewer("Compare with desktop-app@3f2a9c1:Assets/nowhere.json:1.")));
+    const result = await reviewChange(
+      input(headDir, TWO_FILES),
+      options({ distributed: context([desktop], [palette(desktop)]) }),
+      coreDeps(reviewer("Compare with desktop-app@3f2a9c1:Assets/nowhere.json:1.")),
+    );
     expect(result.findings).toHaveLength(1);
     expect(result.findings[0]).not.toHaveProperty("references");
     expect(result.findings[0]!.body).toBe(`Compare with ${REMOVED_REFERENCE}.`);
@@ -433,11 +603,26 @@ describe("the result of a distributed-repo run", () => {
     // The text a model could write is left alone too: nothing is checked, nothing is removed.
     const body = "Compare with desktop-app@3f2a9c1:Assets/palette.json:2.";
     const result = await reviewChange(input(headDir, TWO_FILES), options(), coreDeps(reviewer(body)));
-    for (const key of ["siblings", "workspaceContractsApplied", "noWorkspaceContractApplied", "privateContext", "removedSiblingReferences"]) expect(result, key).not.toHaveProperty(key);
+    for (const key of ["siblings", "workspaceContractsApplied", "noWorkspaceContractApplied", "privateContext", "removedSiblingReferences"])
+      expect(result, key).not.toHaveProperty(key);
     expect(result.findings[0]!.body).toBe(body);
     expect(result.findings[0]).not.toHaveProperty("references");
     expect(Object.keys(JSON.parse(JSON.stringify(result))).sort()).toEqual(
-      ["batches", "change", "contracts", "coverage", "engine", "execution", "findings", "format", "instructionChanges", "provider", "riskMap", "summary", "threadReplies"].sort(),
+      [
+        "batches",
+        "change",
+        "contracts",
+        "coverage",
+        "engine",
+        "execution",
+        "findings",
+        "format",
+        "instructionChanges",
+        "provider",
+        "riskMap",
+        "summary",
+        "threadReplies",
+      ].sort(),
     );
   });
 });

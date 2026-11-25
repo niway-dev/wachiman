@@ -99,7 +99,9 @@ describe("wachiman-platform.yml", () => {
 describe("review-platform.yml, the old name", () => {
   test("exists, starts with the deprecation comment and is what the generator writes", () => {
     expect(existsSync(join(root, ".github/workflows/review-platform.yml"))).toBe(true);
-    expect(alias.startsWith("# Deprecated name, kept so existing callers keep working. New callers use wachiman-platform.yml.\n")).toBe(true);
+    expect(alias.startsWith("# Deprecated name, kept so existing callers keep working. New callers use wachiman-platform.yml.\n")).toBe(
+      true,
+    );
     expect(alias).toBe(generateAliasWorkflow(review));
   });
 
@@ -114,17 +116,23 @@ describe("model and effort inputs (ADR 0049)", () => {
     ["review.yml", review],
     ["wachiman-platform.yml", platform],
     ["review-platform.yml", alias],
-  ])("%s: both inputs default to empty, so .wachiman.yml can apply, and every job that passes them passes the input as is", (_name, text) => {
-    const inputs = inputsOf(text);
-    expect(inputs.model.default).toBe("");
-    expect(inputs.effort.default).toBe("");
-    const jobs = Object.values(parse(text).jobs);
-    const envs = jobs.flatMap((job) => job.steps ?? []).map((step) => step.env).filter((env): env is Record<string, string> => env?.WACHIMAN_MODEL !== undefined);
-    // review, comment and threads each run the engine with the model and the effort.
-    expect(envs.length).toBeGreaterThanOrEqual(3);
-    for (const env of envs) {
-      expect(env.WACHIMAN_MODEL).toBe("${{ inputs.model }}");
-      expect(env.WACHIMAN_EFFORT).toBe("${{ inputs.effort }}");
-    }
-  });
+  ])(
+    "%s: both inputs default to empty, so .wachiman.yml can apply, and every job that passes them passes the input as is",
+    (_name, text) => {
+      const inputs = inputsOf(text);
+      expect(inputs.model.default).toBe("");
+      expect(inputs.effort.default).toBe("");
+      const jobs = Object.values(parse(text).jobs);
+      const envs = jobs
+        .flatMap((job) => job.steps ?? [])
+        .map((step) => step.env)
+        .filter((env): env is Record<string, string> => env?.WACHIMAN_MODEL !== undefined);
+      // review, comment and threads each run the engine with the model and the effort.
+      expect(envs.length).toBeGreaterThanOrEqual(3);
+      for (const env of envs) {
+        expect(env.WACHIMAN_MODEL).toBe("${{ inputs.model }}");
+        expect(env.WACHIMAN_EFFORT).toBe("${{ inputs.effort }}");
+      }
+    },
+  );
 });

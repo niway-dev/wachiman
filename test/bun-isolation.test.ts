@@ -60,10 +60,7 @@ describe(`Bun ${Bun.version}: the head's runtime files`, () => {
 
   test("the real CLI, started from the hostile directory with those flags, loads neither", () => {
     const head = hostileHead();
-    const out = bun(
-      ["--no-env-file", `--config=${engineConfig}`, join(root, "src", "cli.ts"), "--version"],
-      head,
-    );
+    const out = bun(["--no-env-file", `--config=${engineConfig}`, join(root, "src", "cli.ts"), "--version"], head);
     expect(out.code).toBe(0);
     expect(existsSync(join(head, "BUN_PRELOAD_RAN"))).toBe(false);
   });

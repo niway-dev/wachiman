@@ -30,7 +30,8 @@ requests are skipped by the automatic review too. See [install.md](install.md) a
 
 ### Where does my code go?
 
-To the model provider you chose, and to nobody else on this project's side. Concretely:
+To the model provider you chose. Wachiman has no server that receives your code; the optional
+spend ledger receives spend figures and one short error string ([on-your-machine.md](on-your-machine.md#the-spend-ledger)). Concretely:
 
 - The job runs in **your** GitHub Actions. The engine and your pull request's head are checked out
   on the runner.
@@ -47,18 +48,22 @@ for the agent's environment.
 
 ### What does this project run? Does it see my code or my key?
 
-The engine's code contains no network calls of its own. It talks to GitHub through the `gh` CLI
-and to the model through the provider's CLI (`claude`, or `codex`). The only download its scripts
-make is the pinned Claude Code binary, fetched from the publisher and checked against a SHA-256
-([providers/claude-code.md](providers/claude-code.md)); the workflow also uses GitHub's checkout
-and Bun setup actions. GitHub stores the key as a secret and supplies it to the provider CLI during the run. A search of the engine's source
-found no analytics or telemetry sender. That says nothing about the project's website, GitHub or
-your model provider, which have their own policies.
+It runs on your machine or your runner, and it does see your code: it builds the prompt from your
+diff and files. It handles your key only to pass it to the provider's CLI (`claude`, or
+`codex`), which sends the request. Its own network traffic is small and listed: calls to GitHub
+through `gh`, the optional spend ledger (off unless you set `ledger_url`; it receives spend
+figures, never code), a `curl` download of the pinned Claude Code binary in the workflow, and the
+npm registry for `wachiman upgrade`, plus your git remote for `wachiman memory propose` and
+`memory remember`. A search of the source found no analytics or telemetry
+sender, but Claude Code, Codex and Bun may send their own. Every network call, file written and
+program started is on [on-your-machine.md](on-your-machine.md), with the file that shows it, and
+`test/egress.test.ts` fails when a source file with a network call site, or a URL host, is not on the page. It checks per file, not per call.
 
 ### Does it learn from my reviews or store anything?
 
-It does not learn by itself and keeps no server-side database. Nothing persists outside your repository
-and the pull request, except the optional local history: off by default for `wachiman local`, where you enable it with `--history`, and always written by `wachiman loop`. Either way it
+It does not learn by itself and keeps no server-side database of its own. Nothing persists outside your repository
+and the pull request, except the optional spend ledger (only when you set `ledger_url`; see
+[on-your-machine.md](on-your-machine.md#the-spend-ledger)), the settings and profiles you create under the Wachiman home, and the optional local history: off by default for `wachiman local`, where you enable it with `--history`, and always written by `wachiman loop`. Either way it
 is saved under the Wachiman home (`~/.wachiman/history`) on your machine only, with a rebuildable SQLite index beside the run files. What persists between runs is:
 
 - Each complete review ends with a hidden line recording the commit it covered; the next review

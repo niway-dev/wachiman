@@ -16,13 +16,12 @@ describe("classifyProviderError", () => {
     expect(classifyProviderError(CREDIT)).toBe("billing");
   });
 
-  test.each([
-    "You have reached your usage limit",
-    "Your workspace hit its spend limit for this month",
-    "Purchase credits to continue",
-  ])("billing: %s", (text) => {
-    expect(classifyProviderError(text)).toBe("billing");
-  });
+  test.each(["You have reached your usage limit", "Your workspace hit its spend limit for this month", "Purchase credits to continue"])(
+    "billing: %s",
+    (text) => {
+      expect(classifyProviderError(text)).toBe("billing");
+    },
+  );
 
   test.each([
     'API Error: 401 {"type":"error","error":{"type":"authentication_error","message":"invalid x-api-key"}}',

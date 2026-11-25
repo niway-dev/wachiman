@@ -13,16 +13,7 @@
  */
 import type { RiskKind, RiskLevel, RiskMap } from "../risk";
 import { unexplainedFiles } from "./claims";
-import type {
-  Assignment,
-  Attention,
-  AttentionGroup,
-  ChangedFile,
-  Claim,
-  Fidelity,
-  Grade,
-  OpenFinding,
-} from "./types";
+import type { Assignment, Attention, AttentionGroup, ChangedFile, Claim, Fidelity, Grade, OpenFinding } from "./types";
 
 /**
  * The level each risk fact kind sets. A copy of `KIND_LEVEL` in `risk.ts`, kept here so this module
@@ -82,8 +73,7 @@ const SEVERITY_EMOJI = { blocker: "🔴", fix: "🟠", consider: "🟡", info: "
 
 const count = (n: number, one: string, many: string) => (n === 1 ? `One ${one}` : `${n} ${many}`);
 
-const byPathThenLine = (a: Attention, b: Attention) =>
-  a.path < b.path ? -1 : a.path > b.path ? 1 : (a.line ?? 0) - (b.line ?? 0);
+const byPathThenLine = (a: Attention, b: Attention) => (a.path < b.path ? -1 : a.path > b.path ? 1 : (a.line ?? 0) - (b.line ?? 0));
 
 /**
  * The places that need a person, one entry each, ordered by file then line. Nothing here caps the
@@ -177,9 +167,7 @@ export function computeGrade(input: GradeInput): GradeResult {
   if (blockers.length > 0) c.push(count(blockers.length, "open Blocker", "open Blockers"));
   if (c.length > 0) return result("C", c);
 
-  const highFacts = [
-    ...new Set(riskMap.facts.filter((f) => FACT_LEVEL[f.kind] === "high").map((f) => f.kind)),
-  ];
+  const highFacts = [...new Set(riskMap.facts.filter((f) => FACT_LEVEL[f.kind] === "high").map((f) => f.kind))];
   const high = riskMap.level === "high" || highFacts.length > 0;
   const b: string[] = [];
   for (const claim of unverified) b.push(`Claim not verified: ${claim.text}`);
@@ -192,18 +180,10 @@ export function computeGrade(input: GradeInput): GradeResult {
   const aMinus: string[] = [];
   if (mediumFacts.length > 0) aMinus.push(count(mediumFacts.length, "medium-risk fact", "medium-risk facts"));
   if (riskMap.droppedFacts > 0) {
-    aMinus.push(
-      count(
-        riskMap.droppedFacts,
-        "risk fact could not be placed in the change",
-        "risk facts could not be placed in the change",
-      ),
-    );
+    aMinus.push(count(riskMap.droppedFacts, "risk fact could not be placed in the change", "risk facts could not be placed in the change"));
   }
   if (riskMap.judgement.length > 0) {
-    aMinus.push(
-      riskMap.judgement.length === 1 ? "One place needs a person" : `${riskMap.judgement.length} places need a person`,
-    );
+    aMinus.push(riskMap.judgement.length === 1 ? "One place needs a person" : `${riskMap.judgement.length} places need a person`);
   }
   if (considers.length > 0) aMinus.push(count(considers.length, "open Consider finding", "open Consider findings"));
   if (aMinus.length > 0) return result("A-", aMinus);

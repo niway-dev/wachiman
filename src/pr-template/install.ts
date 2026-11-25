@@ -96,7 +96,11 @@ export function parseShowArgs(argv: string[]): ShowOptions | Help {
 export function parseInstallArgs(argv: string[]): InstallOptions | Help {
   if (wantsHelp(argv)) return { help: true };
   const { values, booleans } = parse(argv, "install", { values: ["--from"], booleans: ["--force", "--commit"] });
-  return { ...(values["--from"] !== undefined ? { from: values["--from"] } : {}), force: booleans["--force"] === true, commit: booleans["--commit"] === true };
+  return {
+    ...(values["--from"] !== undefined ? { from: values["--from"] } : {}),
+    force: booleans["--force"] === true,
+    commit: booleans["--commit"] === true,
+  };
 }
 
 /** The arguments after `pr-template status`. */
@@ -168,15 +172,19 @@ export function runStatus(opts: StatusOptions, repoDir: string, io: Io, deps: De
     return state.state === "current" ? 0 : 1;
   }
   const name = HUMAN[state.state] ?? state.state;
-  const installed = state.installedVersion === null ? "" : ` (installed version ${state.installedVersion}, this Wachiman generates version ${state.version})`;
+  const installed =
+    state.installedVersion === null
+      ? ""
+      : ` (installed version ${state.installedVersion}, this Wachiman generates version ${state.version})`;
   const lines: Record<string, string> = {
     missing: `missing: ${TEMPLATE_FILE} does not exist.\nNext: run \`wachiman pr-template install\`.`,
     current: `current: ${TEMPLATE_FILE} matches what ${CHOICE_FILE} and version ${state.version} generate.\nNothing to do.`,
     outdated: `outdated: ${TEMPLATE_FILE} is not what this Wachiman generates${installed}.\nNext: run \`wachiman pr-template install\`; it rewrites the file and keeps no backup, because the file is regenerable.`,
     "edited-by-hand": `edited by hand: ${TEMPLATE_FILE} no longer matches its stamp${installed}.\nNext: move the change into ${CHOICE_FILE} (a "preamble" line or a custom section), then run \`wachiman pr-template install --force\`; the edited file is kept as a backup.`,
-    unmanaged: choiceText === null
-      ? `unmanaged: ${TEMPLATE_FILE} has no Wachiman stamp.\nNext: run \`wachiman pr-template install\`; it adopts the file, keeps a backup and prints what moved.`
-      : `unmanaged: ${TEMPLATE_FILE} has no Wachiman stamp.\nNext: run \`wachiman pr-template install --force\`; plain install refuses because ${CHOICE_FILE} already exists. With --force both files get a backup and what the old file adds is merged into ${CHOICE_FILE}.`,
+    unmanaged:
+      choiceText === null
+        ? `unmanaged: ${TEMPLATE_FILE} has no Wachiman stamp.\nNext: run \`wachiman pr-template install\`; it adopts the file, keeps a backup and prints what moved.`
+        : `unmanaged: ${TEMPLATE_FILE} has no Wachiman stamp.\nNext: run \`wachiman pr-template install --force\`; plain install refuses because ${CHOICE_FILE} already exists. With --force both files get a backup and what the old file adds is merged into ${CHOICE_FILE}.`,
     invalid: `invalid: ${state.problem ?? `${CHOICE_FILE} is not a valid definition`}\nNext: fix ${CHOICE_FILE}, or remove it to use the default template. Nothing falls back on its own.`,
   };
   io.stdout(`${lines[state.state] ?? name}\n`);
@@ -227,7 +235,9 @@ export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: 
   if (fromText !== null) {
     loadRepoChoice(fromText, catalog);
     if (json.text !== null && !sameJson(json.text, fromText) && !opts.force) {
-      throw new UsageError(`${CHOICE_FILE} already exists and differs from ${opts.from}. Re-run with --force to replace it (a backup is kept), or edit it by hand.`);
+      throw new UsageError(
+        `${CHOICE_FILE} already exists and differs from ${opts.from}. Re-run with --force to replace it (a backup is kept), or edit it by hand.`,
+      );
     }
   }
   let choiceText = fromText ?? json.text;
@@ -241,7 +251,9 @@ export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: 
 
   if (state.state === "edited-by-hand") {
     if (!opts.force) {
-      throw new UsageError(`${TEMPLATE_FILE} was edited by hand, so it is not replaced. Move the change into ${CHOICE_FILE}, or re-run with --force (a backup is kept).`);
+      throw new UsageError(
+        `${TEMPLATE_FILE} was edited by hand, so it is not replaced. Move the change into ${CHOICE_FILE}, or re-run with --force (a backup is kept).`,
+      );
     }
     backupTemplate = true;
   } else if (state.state === "unmanaged") {
@@ -251,11 +263,18 @@ export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: 
       );
     }
     const baseChoice = choiceText === null ? null : loadRepoChoice(choiceText, catalog);
-    const adoption = analyzeUnmanaged(template.text!, { catalog, existingCustom: baseChoice?.custom ?? [], existingDrop: baseChoice?.drop ?? [] });
+    const adoption = analyzeUnmanaged(template.text!, {
+      catalog,
+      existingCustom: baseChoice?.custom ?? [],
+      existingDrop: baseChoice?.drop ?? [],
+    });
     const merged = mergeAdoption(choiceText === null ? null : (JSON.parse(choiceText) as Record<string, unknown>), adoption);
     const contributes = adoption.custom.length > 0 || adoption.preamble.length > 0 || adoption.add.length > 0;
     if (choiceText !== null || contributes) choiceText = `${JSON.stringify(merged, null, 2)}\n`;
-    notes.push(`adopting the unmanaged ${TEMPLATE_FILE}; the old file is kept as a backup (the path is printed when it is written).`, ...adoption.report.map((l) => `  ${l}`));
+    notes.push(
+      `adopting the unmanaged ${TEMPLATE_FILE}; the old file is kept as a backup (the path is printed when it is written).`,
+      ...adoption.report.map((l) => `  ${l}`),
+    );
     backupTemplate = true;
   }
 
@@ -273,10 +292,36 @@ export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: 
     io.stderr(`wrote ${relativePath}${result.backup ? `; the earlier file is kept as ${result.backup}` : ""}.`);
   };
   if (writeJson && choiceText !== null) {
-    report(CHOICE_FILE, writeManagedFile({ repoDir, relativePath: CHOICE_FILE, content: choiceText, inspected: json.inspected, now, label: LABEL, backup: json.text !== null, backupDir, hooks: deps.hooks }));
+    report(
+      CHOICE_FILE,
+      writeManagedFile({
+        repoDir,
+        relativePath: CHOICE_FILE,
+        content: choiceText,
+        inspected: json.inspected,
+        now,
+        label: LABEL,
+        backup: json.text !== null,
+        backupDir,
+        hooks: deps.hooks,
+      }),
+    );
   }
   if (writeTemplate) {
-    report(TEMPLATE_FILE, writeManagedFile({ repoDir, relativePath: TEMPLATE_FILE, content, inspected: template.inspected, now, label: LABEL, backup: backupTemplate, backupDir, hooks: deps.hooks }));
+    report(
+      TEMPLATE_FILE,
+      writeManagedFile({
+        repoDir,
+        relativePath: TEMPLATE_FILE,
+        content,
+        inspected: template.inspected,
+        now,
+        label: LABEL,
+        backup: backupTemplate,
+        backupDir,
+        hooks: deps.hooks,
+      }),
+    );
   } else {
     io.stderr(`${TEMPLATE_FILE} is already current; nothing to do.`);
   }
@@ -287,7 +332,9 @@ export function runInstall(opts: InstallOptions, repoDir: string, io: Io, deps: 
     return 0;
   }
   const hadStamp = template.text !== null && parseStamp(lf(template.text)) !== null;
-  const message = hadStamp ? `docs: update the PR description template to version ${catalog.version}` : "docs: install the Wachiman PR description template";
+  const message = hadStamp
+    ? `docs: update the PR description template to version ${catalog.version}`
+    : "docs: install the Wachiman PR description template";
   return commitFiles(written, message, repoDir, io, deps.git ?? defaultGit);
 }
 

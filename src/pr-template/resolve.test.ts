@@ -4,8 +4,7 @@ import { renderTemplate } from "./render";
 import { resolveTemplate } from "./resolve";
 
 const catalog = loadCatalog();
-const ids = (choice: unknown) =>
-  resolveTemplate(catalog, loadRepoChoice(JSON.stringify(choice), catalog)).sections.map((e) => e.id);
+const ids = (choice: unknown) => resolveTemplate(catalog, loadRepoChoice(JSON.stringify(choice), catalog)).sections.map((e) => e.id);
 const render = (choice: unknown) =>
   renderTemplate(resolveTemplate(catalog, choice === null ? null : loadRepoChoice(JSON.stringify(choice), catalog)), catalog.version);
 
@@ -78,8 +77,10 @@ describe("resolveTemplate", () => {
   });
 
   test("custom entries are optional unless they say so and are never locked", () => {
-    const entry = resolveTemplate(catalog, loadRepoChoice(JSON.stringify({ custom: [{ id: "m", kind: "section", heading: "M", required: true }] }), catalog))
-      .sections.find((e) => e.id === "m")!;
+    const entry = resolveTemplate(
+      catalog,
+      loadRepoChoice(JSON.stringify({ custom: [{ id: "m", kind: "section", heading: "M", required: true }] }), catalog),
+    ).sections.find((e) => e.id === "m")!;
     expect(entry).toMatchObject({ custom: true, locked: false, required: true });
   });
 });

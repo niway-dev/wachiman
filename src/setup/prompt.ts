@@ -16,8 +16,7 @@ import type { RawSetupFlags } from "./options";
 
 /** A profile the wizard proposes to register, written only together with the binding. */
 export type PendingProfile =
-  | { kind: "external"; name: string; configDir: string; binary?: string }
-  | { kind: "managed"; name: string; configDir: string };
+  { kind: "external"; name: string; configDir: string; binary?: string } | { kind: "managed"; name: string; configDir: string };
 
 export interface SetupPromptContext {
   repo: HistoryRepository;
@@ -53,7 +52,8 @@ interface DetectedPick {
  * From init, which already showed Project, Project type and Review mode: local has 5 in all (the
  * account and the checks follow), and both has 6 (the GitHub workflow comes before the account).
  */
-export const setupStepTotal = (fromInit: boolean | undefined, initMode: "local" | "both" | undefined) => (fromInit ? (initMode === "both" ? 6 : 5) : 3);
+export const setupStepTotal = (fromInit: boolean | undefined, initMode: "local" | "both" | undefined) =>
+  fromInit ? (initMode === "both" ? 6 : 5) : 3;
 
 /** A profile name proposed from a directory: `.claude-work` becomes `claude-work`; taken or reserved names get a number. */
 export function suggestProfileName(configDir: string, taken: (name: string) => boolean) {
@@ -105,16 +105,24 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
   while (name === undefined) {
     const list = buildProfileList(home, config);
     const profiles: ProfileListEntry[] = [{ name: "default", kind: "default", registered: true, usedBy: [] }, ...list.profiles];
-    const rows: { label: string; description?: string; value: string | typeof REGISTER | typeof CREATE | DetectedPick }[] = profiles.map((p) => {
-      const marks = [
-        ctx.current && (ctx.current.profile === p.name || refersTo(ctx.current.profile, p.name)) ? "(current)" : "",
-        list.defaultProfile !== undefined && (list.defaultProfile === p.name || refersTo(list.defaultProfile, p.name)) ? "(global default)" : "",
-        p.registered ? "" : "(unregistered)",
-      ].filter(Boolean);
-      const where = p.kind === "external" ? `${p.configDir}, ${p.binary ? `binary ${p.binary}` : "claude from PATH"}` : p.configDir;
-      const label = p.kind === "default" ? "Use my current Claude session" : `${p.name}  ${p.kind}`;
-      return { label: `${label}${marks.length ? `  ${marks.join(" ")}` : ""}`, description: p.kind === "default" ? "Shares your normal Claude settings." : where, value: p.name };
-    });
+    const rows: { label: string; description?: string; value: string | typeof REGISTER | typeof CREATE | DetectedPick }[] = profiles.map(
+      (p) => {
+        const marks = [
+          ctx.current && (ctx.current.profile === p.name || refersTo(ctx.current.profile, p.name)) ? "(current)" : "",
+          list.defaultProfile !== undefined && (list.defaultProfile === p.name || refersTo(list.defaultProfile, p.name))
+            ? "(global default)"
+            : "",
+          p.registered ? "" : "(unregistered)",
+        ].filter(Boolean);
+        const where = p.kind === "external" ? `${p.configDir}, ${p.binary ? `binary ${p.binary}` : "claude from PATH"}` : p.configDir;
+        const label = p.kind === "default" ? "Use my current Claude session" : `${p.name}  ${p.kind}`;
+        return {
+          label: `${label}${marks.length ? `  ${marks.join(" ")}` : ""}`,
+          description: p.kind === "default" ? "Shares your normal Claude settings." : where,
+          value: p.name,
+        };
+      },
+    );
     // Wachiman starts the claude binary itself, so a shell alias or function that points claude at another directory is invisible to it.
     // These directories are the likely place the person's real session lives.
     const detected = detectClaudeDirs(ctx.userHome, config).filter(
@@ -123,7 +131,12 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
         problemOf(() => checkNewProfileName(d.name, home)) === undefined &&
         problemOf(() => checkExternalConfigDir(d.configDir, home, ctx.userHome, "Configuration directory")) === undefined,
     );
-    for (const d of detected) rows.push({ label: `${tildePath(d.configDir, ctx.userHome)} (your own Claude directory, used in place)`, description: `registers the profile ${d.name}`, value: { detected: d } });
+    for (const d of detected)
+      rows.push({
+        label: `${tildePath(d.configDir, ctx.userHome)} (your own Claude directory, used in place)`,
+        description: `registers the profile ${d.name}`,
+        value: { detected: d },
+      });
     rows.push({ label: "Create a new isolated profile (managed)", value: CREATE });
     rows.push({ label: "Register an existing Claude configuration directory (external)", value: REGISTER });
     const indexOf = (ref: string) => profiles.findIndex((p) => ref === p.name || refersTo(ref, p.name));
@@ -162,7 +175,8 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
       const claudePrefixProblem = (v: string) => {
         if (!v.startsWith("claude-")) return undefined;
         const bare = v.slice("claude-".length);
-        if (registered(bare)) return `The directory is already named claude-<name>, and "${bare}" is registered: pick it from the list instead.`;
+        if (registered(bare))
+          return `The directory is already named claude-<name>, and "${bare}" is registered: pick it from the list instead.`;
         const usable = bare !== "default" && problemOf(() => checkProfileName(bare)) === undefined;
         return usable
           ? `The directory is already named claude-<name>: type "${bare}" for ${managedDir(home, bare)}.`
@@ -194,6 +208,8 @@ export async function promptForSetup(flags: RawSetupFlags, ctx: SetupPromptConte
   const p = pending;
   // Picking the account is the confirmation. One plain line says what was chosen and where it is saved.
   const scope = repo.keyedBy === "remote" ? `every clone of ${repo.remote ?? "this origin"}` : "this repository and its worktrees";
-  say(`local reviews of ${repo.name} (${scope}) will use the account "${name}"${p ? `, registered from ${p.configDir}` : ""}; saved in ${join(home, "config.json")}, nothing in the repository`);
+  say(
+    `local reviews of ${repo.name} (${scope}) will use the account "${name}"${p ? `, registered from ${p.configDir}` : ""}; saved in ${join(home, "config.json")}, nothing in the repository`,
+  );
   return { kind: "confirmed", flags: { ...flags, profile: name }, ...(p ? { pending: p } : {}) };
 }

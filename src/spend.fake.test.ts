@@ -121,11 +121,21 @@ function fakeLedger(events: string[], opts: LedgerOpts = {}) {
       const wanted = data!.wantedUsd as number;
       const answered = opts.reserve?.(wanted) ?? {
         status: 200,
-        body: { reservationId: "res-1", grantedUsd: wanted, accountLeftUsd: 10, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: null },
+        body: {
+          reservationId: "res-1",
+          grantedUsd: wanted,
+          accountLeftUsd: 10,
+          repositoryLeftUsd: null,
+          day: DAY,
+          week: WEEK,
+          weekLeftUsd: null,
+        },
       };
       reserved = answered.status === 200;
       // `raw` sends the body as is (a firewall page, an empty body) instead of as JSON.
-      return answered.raw ? { status: 0, stdout: `${String(answered.body)}\n${answered.status}`, stderr: "" } : reply(answered.status, answered.body);
+      return answered.raw
+        ? { status: 0, stdout: `${String(answered.body)}\n${answered.status}`, stderr: "" }
+        : reply(answered.status, answered.body);
     }
     if (url === `${LEDGER}/v1/settle`) {
       events.push("settle");
@@ -147,7 +157,11 @@ function fakeLedger(events: string[], opts: LedgerOpts = {}) {
   return { curl, reserves, settles, records, urls };
 }
 
-const TOKEN_ENV = { GITHUB_ACTIONS: "true", ACTIONS_ID_TOKEN_REQUEST_URL: "https://tokens.test/token?api=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer" };
+const TOKEN_ENV = {
+  GITHUB_ACTIONS: "true",
+  ACTIONS_ID_TOKEN_REQUEST_URL: "https://tokens.test/token?api=1",
+  ACTIONS_ID_TOKEN_REQUEST_TOKEN: "bearer",
+};
 
 interface Opts {
   env?: Record<string, string>;
@@ -213,7 +227,8 @@ function setup(opts: Opts = {}) {
   const notes: string[] = [];
   const failing = opts.ledger?.failAfterReserve;
   const guarded: GhFn = (args, input) => {
-    if (failing && events.includes("reserve") && args.join(" ").includes(failing)) throw new GhError("gh: Bad Gateway (HTTP 502)", 502, "Bad Gateway");
+    if (failing && events.includes("reserve") && args.join(" ").includes(failing))
+      throw new GhError("gh: Bad Gateway (HTTP 502)", 502, "Bad Gateway");
     return gh(args, input);
   };
   const deps: Deps = {
@@ -231,7 +246,6 @@ function setup(opts: Opts = {}) {
   };
   return { deps, provider, events, posted, replies, comments, logs, notes, costs, ...fake };
 }
-
 
 const ANSWER = { sections: [{ title: "Answer", body: "Because of the guard.", refs: [] }], not_answered: "" };
 const WITH_LEDGER = { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "opened" };
@@ -277,7 +291,12 @@ describe("review() with no ledger_url", () => {
   });
 
   test("the same for a thread run and an answer", async () => {
-    const thread = setup({ env: { WACHIMAN_TRIGGER: "thread" }, reviewedAt: HEAD, threads: [THREAD], script: [() => ({ costUsd: 0.1, structuredOutput: THREAD_REPLY })] });
+    const thread = setup({
+      env: { WACHIMAN_TRIGGER: "thread" },
+      reviewedAt: HEAD,
+      threads: [THREAD],
+      script: [() => ({ costUsd: 0.1, structuredOutput: THREAD_REPLY })],
+    });
     await threadReplies(thread.deps, "o/r", 7, "owner");
     expect(thread.urls).toEqual([]);
     const asked = setup({ env: { WACHIMAN_TRIGGER: "comment" }, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })] });
@@ -313,7 +332,12 @@ describe("a laptop with WACHIMAN_LEDGER_URL set (not GitHub Actions)", () => {
     await answer(asked.t.deps, "o/r", 7, "why?");
     expect(asked.t.events).toEqual(["model"]);
     expect(asked.t.urls).toEqual([]);
-    const thread = laptop({ env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" }, reviewedAt: HEAD, threads: [THREAD], script: [() => ({ costUsd: 0.1, structuredOutput: THREAD_REPLY })] });
+    const thread = laptop({
+      env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" },
+      reviewedAt: HEAD,
+      threads: [THREAD],
+      script: [() => ({ costUsd: 0.1, structuredOutput: THREAD_REPLY })],
+    });
     await threadReplies(thread.t.deps, "o/r", 7, "owner");
     expect(thread.t.events).toEqual(["model"]);
     expect(thread.t.urls).toEqual([]);
@@ -347,7 +371,7 @@ describe("review() with the spend ledger", () => {
     expect(readReceipt(body)?.receipt).toMatchObject({ account: "acme", usd: 0.1, day: DAY });
     const lines = body.split("\n\n");
     const receiptAt = lines.findIndex((l) => l.startsWith("<!-- wachi:receipt "));
-    const costAt = lines.findIndex((l) => l.startsWith("<sub>"));
+    const costAt = lines.findIndex((l) => l.startsWith("<sub>") && !l.startsWith("<sub>Answer a finding"));
     expect(receiptAt).toBeGreaterThan(-1);
     expect(receiptAt + 1).toBe(costAt);
     expect(lines.slice(costAt + 1, costAt + 3)).toEqual([SIGNATURE.auto, SIGNATURE.review]);
@@ -377,7 +401,15 @@ describe("review() with the spend ledger", () => {
       ledger: {
         reserve: () => ({
           status: 200,
-          body: { reservationId: "res-1", grantedUsd: 0.3, accountLeftUsd: 0.3, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: 0.3 },
+          body: {
+            reservationId: "res-1",
+            grantedUsd: 0.3,
+            accountLeftUsd: 0.3,
+            repositoryLeftUsd: null,
+            day: DAY,
+            week: WEEK,
+            weekLeftUsd: 0.3,
+          },
         }),
       },
     });
@@ -395,7 +427,9 @@ describe("review() with the spend ledger", () => {
     expect(calls.length).toBeGreaterThan(0);
     for (const call of calls) expect(Object.keys(call).sort()).toEqual(CALL_KEYS);
     // Same names and values as the line the engine printed for the call, minus where it ran.
-    const printed = t.logs.filter((l) => l.startsWith("wachiman-cost ")).map((l) => JSON.parse(l.slice("wachiman-cost ".length)) as Record<string, unknown>);
+    const printed = t.logs
+      .filter((l) => l.startsWith("wachiman-cost "))
+      .map((l) => JSON.parse(l.slice("wachiman-cost ".length)) as Record<string, unknown>);
     expect(printed).toHaveLength(calls.length);
     printed.forEach((line, i) => {
       for (const key of ["repo", "pr", "trigger", "countedUsd"]) delete line[key];
@@ -403,7 +437,7 @@ describe("review() with the spend ledger", () => {
     });
     // Nothing of the pull request travels: not its title, body, a path, nor a credential.
     const sent = JSON.stringify([t.reserves, t.settles]);
-    for (const secret of ["\"t\"", "src/a.ts", "a.ts", "jwt", "bearer", "row 1"]) expect(sent).not.toContain(secret);
+    for (const secret of ['"t"', "src/a.ts", "a.ts", "jwt", "bearer", "row 1"]) expect(sent).not.toContain(secret);
   });
 
   test("a subscription-token run and an API-key run both settle with the auth of each call", async () => {
@@ -418,7 +452,10 @@ describe("review() with the spend ledger", () => {
   test("a call whose cost is unknown settles as cost_usd null and costKnown false, counted at its cap in spentUsd", async () => {
     const t = setup({
       env: WITH_LEDGER,
-      script: [() => ({ costUsd: 0.5, costKnown: false, terminalReason: "timeout", isError: true }), () => ({ costUsd: 0.5, costKnown: false, terminalReason: "timeout", isError: true })],
+      script: [
+        () => ({ costUsd: 0.5, costKnown: false, terminalReason: "timeout", isError: true }),
+        () => ({ costUsd: 0.5, costKnown: false, terminalReason: "timeout", isError: true }),
+      ],
     });
     await review(t.deps, "o/r", 7, []);
     const calls = t.settles[0]!.calls as { cost_usd: number | null; costKnown: boolean }[];
@@ -433,7 +470,13 @@ describe("a limit refuses the run", () => {
     body: { reason, accountSpentUsd: 6.12, accountLimitUsd: 6, day: DAY, week: WEEK, resetsAt: inHours(5 + 12 / 60), ...over },
   });
   const CASES = [
-    { reason: "limit", period: "day", over: {}, says: ["daily spend limit", "$6.12 of $6.00", "today", "(in 5 h 12 min)"], key: `limit:${DAY}` },
+    {
+      reason: "limit",
+      period: "day",
+      over: {},
+      says: ["daily spend limit", "$6.12 of $6.00", "today", "(in 5 h 12 min)"],
+      key: `limit:${DAY}`,
+    },
     {
       reason: "weekly_limit",
       period: "week",
@@ -548,7 +591,10 @@ describe("an unreachable ledger", () => {
   for (const unavailable of ["run", "stop"]) {
     test(`a 403 HTML page from a firewall is an unreachable ledger, not "not linked" (ledger_unavailable: ${unavailable})`, async () => {
       const env = { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: unavailable };
-      const t = setup({ env, ledger: { reserve: () => ({ status: 403, body: "<html>Just a moment...</html>", raw: true }), recordFails: true } });
+      const t = setup({
+        env,
+        ledger: { reserve: () => ({ status: 403, body: "<html>Just a moment...</html>", raw: true }), recordFails: true },
+      });
       if (unavailable === "stop") {
         const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
         expect(thrown).toBeInstanceOf(LedgerStopped);
@@ -570,7 +616,10 @@ describe("an unreachable ledger", () => {
 
   for (const unavailable of ["run", "stop"]) {
     test(`a 402 with a reason this client does not know stops the review, ledger_unavailable: ${unavailable}`, async () => {
-      const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: unavailable }, ledger: { reserve: () => ({ status: 402, body: { reason: "suspended" } }) } });
+      const t = setup({
+        env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: unavailable },
+        ledger: { reserve: () => ({ status: 402, body: { reason: "suspended" } }) },
+      });
       const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
       expect(thrown).toBeInstanceOf(LedgerStopped);
       expect((thrown as Error).message).toContain("(reason: suspended)");
@@ -580,7 +629,10 @@ describe("an unreachable ledger", () => {
   }
 
   test("a 401 with an empty body is unreachable, not unauthorized", async () => {
-    const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: "stop" }, ledger: { reserve: () => ({ status: 401, body: "", raw: true }) } });
+    const t = setup({
+      env: { ...WITH_LEDGER, WACHIMAN_LEDGER_UNAVAILABLE: "stop" },
+      ledger: { reserve: () => ({ status: 401, body: "", raw: true }) },
+    });
     const thrown = await thrownBy(() => review(t.deps, "o/r", 7, []));
     expect(thrown).toBeInstanceOf(LedgerStopped);
     expect((thrown as Error).message).toContain("could not be reached");
@@ -729,7 +781,10 @@ describe("the operator's --force, a bypass and a failed run", () => {
   test("a failed run (no batch output) still settles and its notice carries the receipt", async () => {
     const t = setup({
       env: WITH_LEDGER,
-      script: [() => ({ costUsd: 0.6, terminalReason: "budget", isError: true }), () => ({ costUsd: 0.4, terminalReason: "budget", isError: true })],
+      script: [
+        () => ({ costUsd: 0.6, terminalReason: "budget", isError: true }),
+        () => ({ costUsd: 0.4, terminalReason: "budget", isError: true }),
+      ],
     });
     await review(t.deps, "o/r", 7, []);
     expect(t.events.filter((e) => e === "settle")).toHaveLength(1);
@@ -743,7 +798,10 @@ describe("the operator's --force, a bypass and a failed run", () => {
   test("a failed manual --force review keeps its receipt and forced footer, and does not count toward the ceiling", async () => {
     const t = setup({
       env: COMMENT,
-      script: [() => ({ costUsd: 0.6, terminalReason: "budget", isError: true }), () => ({ costUsd: 0.4, terminalReason: "budget", isError: true })],
+      script: [
+        () => ({ costUsd: 0.6, terminalReason: "budget", isError: true }),
+        () => ({ costUsd: 0.4, terminalReason: "budget", isError: true }),
+      ],
     });
     await comment(t.deps, "o/r", 7, "/wachiman review --force", "owner");
     expect(t.posted).toHaveLength(1);
@@ -774,7 +832,12 @@ const FINDING: RawThread["comments"]["nodes"][number] = {
   authorAssociation: "NONE",
   body: `🟠🐛 **Fix · bug: X**\n\nbody\n\n${SIGNATURE.finding}`,
 };
-const OWNER: RawThread["comments"]["nodes"][number] = { databaseId: 900, author: { login: "owner" }, authorAssociation: "OWNER", body: "Fixed" };
+const OWNER: RawThread["comments"]["nodes"][number] = {
+  databaseId: 900,
+  author: { login: "owner" },
+  authorAssociation: "OWNER",
+  body: "Fixed",
+};
 const THREAD: RawThread = { isResolved: false, path: "src/a.ts", line: 3, comments: { nodes: [FINDING, OWNER] } };
 const THREAD_REPLY = { thread_replies: [{ comment_id: 7, status: "addressed", reply: "The guard runs first.", cites: ["src/a.ts:3"] }] };
 
@@ -873,7 +936,11 @@ describe("a reservation never outlives a step that fails after it", () => {
   });
 
   test("answer: every read happens before the reserve, and a failing post still follows a settle", async () => {
-    const t = setup({ env: COMMENT, script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })], ledger: { failAfterReserve: "pr comment" } });
+    const t = setup({
+      env: COMMENT,
+      script: [() => ({ costUsd: 0.2, structuredOutput: ANSWER })],
+      ledger: { failAfterReserve: "pr comment" },
+    });
     await expect(answer(t.deps, "o/r", 7, "why?")).rejects.toThrow(/502/);
     expect(t.reserves).toHaveLength(1);
     expect(t.settles).toHaveLength(1);
@@ -922,7 +989,12 @@ describe("a provider that dies after the reserve still settles, in the thread an
     const wrong = { reserve: () => ({ status: 404, body: "Not Found" }) };
     const b = setup({ env: COMMENT, ledger: wrong });
     await expect(answer(b.deps, "o/r", 7, "why?")).rejects.toThrow(LedgerStopped);
-    const c = setup({ env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" }, reviewedAt: HEAD, threads: [THREAD], ledger: wrong });
+    const c = setup({
+      env: { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" },
+      reviewedAt: HEAD,
+      threads: [THREAD],
+      ledger: wrong,
+    });
     await expect(threadReplies(c.deps, "o/r", 7, "owner")).rejects.toThrow(LedgerStopped);
     expect(c.provider.requests).toHaveLength(0);
     expect(c.settles).toHaveLength(0);
@@ -968,7 +1040,12 @@ describe("an answer that is not the ledger's stops the run, whatever ledger_unav
   test("a grant that is negative stops the run as a malformed answer", async () => {
     const t = setup({
       env: WITH_LEDGER,
-      ledger: { reserve: () => ({ status: 200, body: { reservationId: "r", grantedUsd: -1, accountLeftUsd: 1, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: null } }) },
+      ledger: {
+        reserve: () => ({
+          status: 200,
+          body: { reservationId: "r", grantedUsd: -1, accountLeftUsd: 1, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: null },
+        }),
+      },
     });
     await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow(LedgerStopped);
     expect(t.provider.requests).toHaveLength(0);
@@ -979,7 +1056,15 @@ describe("a grant below the minimum a call needs", () => {
   const small = {
     reserve: () => ({
       status: 200,
-      body: { reservationId: "res-1", grantedUsd: 0.01, accountLeftUsd: 0.01, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: 0.01 },
+      body: {
+        reservationId: "res-1",
+        grantedUsd: 0.01,
+        accountLeftUsd: 0.01,
+        repositoryLeftUsd: null,
+        day: DAY,
+        week: WEEK,
+        weekLeftUsd: 0.01,
+      },
     }),
   };
   const threadEnv = { WACHIMAN_LEDGER_URL: LEDGER, WACHIMAN_TRIGGER: "thread" };
@@ -1018,7 +1103,20 @@ describe("a grant below the minimum a call needs", () => {
     const t = setup({
       env: COMMENT,
       script: [() => ({ costUsd: 0.04, structuredOutput: ANSWER })],
-      ledger: { reserve: () => ({ status: 200, body: { reservationId: "res-1", grantedUsd: 0.05, accountLeftUsd: 1, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: null } }) },
+      ledger: {
+        reserve: () => ({
+          status: 200,
+          body: {
+            reservationId: "res-1",
+            grantedUsd: 0.05,
+            accountLeftUsd: 1,
+            repositoryLeftUsd: null,
+            day: DAY,
+            week: WEEK,
+            weekLeftUsd: null,
+          },
+        }),
+      },
     });
     await answer(t.deps, "o/r", 7, "why?");
     expect(t.provider.requests).toHaveLength(1);
@@ -1036,7 +1134,15 @@ describe("the job summary on a subscription token says its dollars are estimates
   const small = {
     reserve: () => ({
       status: 200,
-      body: { reservationId: "res-1", grantedUsd: 0.01, accountLeftUsd: 0.01, repositoryLeftUsd: null, day: DAY, week: WEEK, weekLeftUsd: 0.01 },
+      body: {
+        reservationId: "res-1",
+        grantedUsd: 0.01,
+        accountLeftUsd: 0.01,
+        repositoryLeftUsd: null,
+        day: DAY,
+        week: WEEK,
+        weekLeftUsd: 0.01,
+      },
     }),
   };
 

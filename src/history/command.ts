@@ -98,14 +98,26 @@ function table(l: Listed) {
     verdict: f.verdict ? `   verdict: ${f.verdict.verdict}` : "",
   }));
   const w = (pick: (r: (typeof rows)[number]) => string, title: string) => Math.max(title.length, ...rows.map((r) => pick(r).length));
-  const [ws, wf, wl, wr, wi] = [w((r) => r.status, "status"), w((r) => r.first, "first"), w((r) => r.last, "last"), w((r) => r.runs, "runs"), w((r) => r.id, "id")];
+  const [ws, wf, wl, wr, wi] = [
+    w((r) => r.status, "status"),
+    w((r) => r.first, "first"),
+    w((r) => r.last, "last"),
+    w((r) => r.runs, "runs"),
+    w((r) => r.id, "id"),
+  ];
   const lines = [header, `  ${pad("status", ws)}  ${pad("first", wf)}  ${pad("last", wl)}  ${pad("runs", wr)}  ${pad("id", wi)}  finding`];
   for (const r of rows) {
-    lines.push(`  ${pad(r.status, ws)}  ${pad(r.first, wf)}  ${pad(r.last, wl)}  ${pad(r.runs, wr)}  ${pad(r.id, wi)}  ${r.text}${r.verdict}`);
+    lines.push(
+      `  ${pad(r.status, ws)}  ${pad(r.first, wf)}  ${pad(r.last, wl)}  ${pad(r.runs, wr)}  ${pad(r.id, wi)}  ${r.text}${r.verdict}`,
+    );
   }
   const c = l.state.counts;
-  const extra = [c.intentional ? `${c.intentional} intentional` : "", c.notImportant ? `${c.notImportant} not-important` : ""].filter(Boolean);
-  lines.push(`verdicts: ${[`${c.correct} correct`, `${c.partial} partial`, `${c.wrong} wrong`, `${c.unjudged} unjudged`, ...extra].join(", ")}`);
+  const extra = [c.intentional ? `${c.intentional} intentional` : "", c.notImportant ? `${c.notImportant} not-important` : ""].filter(
+    Boolean,
+  );
+  lines.push(
+    `verdicts: ${[`${c.correct} correct`, `${c.partial} partial`, `${c.wrong} wrong`, `${c.unjudged} unjudged`, ...extra].join(", ")}`,
+  );
   return lines.join("\n");
 }
 
@@ -129,7 +141,12 @@ export function runHistory(
     const { id, word } = args.verdict;
     const known = replay(readRuns(root, key, warn), new Map()).findings.some((f) => f.firstId === id);
     if (!known) throw new UsageError(`No finding with id ${id} in the history of ${key}; \`wachiman history\` lists the ids.`);
-    appendVerdict(root, key, { at: (io.now?.() ?? new Date()).toISOString(), firstId: id, verdict: word, ...(args.reason ? { reason: args.reason } : {}) });
+    appendVerdict(root, key, {
+      at: (io.now?.() ?? new Date()).toISOString(),
+      firstId: id,
+      verdict: word,
+      ...(args.reason ? { reason: args.reason } : {}),
+    });
     io.stdout(`Recorded: ${id} is ${word}.\n`);
     return 0;
   }

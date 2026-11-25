@@ -90,17 +90,35 @@ function coreDeps(provider: FakeProvider) {
   return { deps, warnings };
 }
 
-const options = (over: Partial<ReviewOptions> = {}): ReviewOptions => ({ ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "0" }), 5), ...over });
+const options = (over: Partial<ReviewOptions> = {}): ReviewOptions => ({
+  ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "0" }), 5),
+  ...over,
+});
 
 /** The files a part's prompt lists, so a fake answer accounts for exactly them. */
 const partFiles = (prompt: string) =>
-  [...prompt.split("This part holds exactly these files")[1].split("\n\n")[0].matchAll(/^- (\S+) \+/gm)].map((m) => m[1]);
+  [
+    ...prompt
+      .split("This part holds exactly these files")[1]
+      .split("\n\n")[0]
+      .matchAll(/^- (\S+) \+/gm),
+  ].map((m) => m[1]);
 
 describe("the priority trial arm (spec decision 13 and 20)", () => {
   const prFixture = JSON.parse(readFileSync(join(ROOT, "test/fixtures/formats/review-input.pull-request.json"), "utf8"));
-  const finding = { path: "src/a.ts", line: 2, severity: "fix" as const, topic: "bug" as const, confidence: "high" as const, title: "b is wrong", body: "It should be 3." };
+  const finding = {
+    path: "src/a.ts",
+    line: 2,
+    severity: "fix" as const,
+    topic: "bug" as const,
+    confidence: "high" as const,
+    title: "b is wrong",
+    body: "It should be 3.",
+  };
   const review = async (change: ReviewInput["change"], over: Partial<ReviewOptions>) => {
-    const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: ["src/a.ts"], findings: [finding], summary: "s" }) })]);
+    const provider = new FakeProvider([
+      () => ({ structuredOutput: out({ files_reviewed: ["src/a.ts"], findings: [finding], summary: "s" }) }),
+    ]);
     const input = { ...branchInput(), change };
     return reviewChange(input, options(over), coreDeps(provider).deps);
   };
@@ -140,20 +158,62 @@ describe("the priority changes nothing the review decides (AC15)", () => {
   const prFixture = JSON.parse(readFileSync(join(ROOT, "test/fixtures/formats/review-input.pull-request.json"), "utf8"));
   // Illustrative findings that land on every priority, including a blocker the confidence caps.
   const findings = [
-    { path: "src/a.ts", line: 1, severity: "blocker" as const, topic: "bug" as const, confidence: "high" as const, title: "one", body: "b" },
-    { path: "src/a.ts", line: 2, severity: "blocker" as const, topic: "security" as const, confidence: "low" as const, title: "two", body: "b" },
-    { path: "src/a.ts", line: 3, severity: "fix" as const, topic: "bug" as const, confidence: "medium" as const, title: "three", body: "b" },
-    { path: "src/b.ts", line: 1, severity: "consider" as const, topic: "tests" as const, confidence: "low" as const, title: "four", body: "b" },
+    {
+      path: "src/a.ts",
+      line: 1,
+      severity: "blocker" as const,
+      topic: "bug" as const,
+      confidence: "high" as const,
+      title: "one",
+      body: "b",
+    },
+    {
+      path: "src/a.ts",
+      line: 2,
+      severity: "blocker" as const,
+      topic: "security" as const,
+      confidence: "low" as const,
+      title: "two",
+      body: "b",
+    },
+    {
+      path: "src/a.ts",
+      line: 3,
+      severity: "fix" as const,
+      topic: "bug" as const,
+      confidence: "medium" as const,
+      title: "three",
+      body: "b",
+    },
+    {
+      path: "src/b.ts",
+      line: 1,
+      severity: "consider" as const,
+      topic: "tests" as const,
+      confidence: "low" as const,
+      title: "four",
+      body: "b",
+    },
     { path: "src/b.ts", line: 2, severity: "info" as const, topic: "docs" as const, title: "five", body: "b" },
   ];
   const run = async (identifier: string, over: Partial<ReviewOptions>) => {
-    const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: ["src/a.ts", "src/b.ts"], findings, summary: "s" }) })]);
+    const provider = new FakeProvider([
+      () => ({ structuredOutput: out({ files_reviewed: ["src/a.ts", "src/b.ts"], findings, summary: "s" }) }),
+    ]);
     const input = { ...branchInput(), change: { ...prFixture.change, identifier } };
     const result = await reviewChange(input, options(over), coreDeps(provider).deps);
-    return { result, requests: provider.requests.map(({ prompt, allowedTools, maxBudgetUsd, maxTurns, outputSchema }) => ({ prompt: prompt.replace(/wachiman-review-\w+/g, "wachiman-review-TMP"), allowedTools, maxBudgetUsd, maxTurns, outputSchema })) };
+    return {
+      result,
+      requests: provider.requests.map(({ prompt, allowedTools, maxBudgetUsd, maxTurns, outputSchema }) => ({
+        prompt: prompt.replace(/wachiman-review-\w+/g, "wachiman-review-TMP"),
+        allowedTools,
+        maxBudgetUsd,
+        maxTurns,
+        outputSchema,
+      })),
+    };
   };
-  const withoutPriority = (r: Awaited<ReturnType<typeof run>>["result"]) =>
-    r.findings.map(({ priority: _p, rank: _r, ...rest }) => rest);
+  const withoutPriority = (r: Awaited<ReturnType<typeof run>>["result"]) => r.findings.map(({ priority: _p, rank: _r, ...rest }) => rest);
   const decisionOf = (r: Awaited<ReturnType<typeof run>>["result"]) => {
     const loop: LoopFinding[] = r.findings.map((f) => ({
       id: `${f.path}:${f.line}`,
@@ -349,9 +409,7 @@ describe("reviewChange from a ReviewInput", () => {
 // evidence.json) holds the reviewed change's text and is removed after its call, on every path.
 describe("the run directory", () => {
   const twoFiles = (): Partial<ReviewInput> => ({
-    files: [
-      { filename: "src/a.ts", additions: 2, deletions: 0, patch: "@@ -1,1 +1,3 @@\n const a = 1;\n+const b = 2;\n+const c = 3;" },
-    ],
+    files: [{ filename: "src/a.ts", additions: 2, deletions: 0, patch: "@@ -1,1 +1,3 @@\n const a = 1;\n+const b = 2;\n+const c = 3;" }],
   });
 
   test("the run directory is removed after the call, on success", async () => {

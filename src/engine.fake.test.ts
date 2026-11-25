@@ -213,11 +213,13 @@ describe("the batch loop against a fake provider", () => {
     // Every comment opens with the brand, so a reader sees it is Wachi's despite the bot account.
     expect(body.startsWith("👮 **Wachiman** · ")).toBe(true);
     expect(posted.review?.comments[0].body.startsWith("| 👮 **Wachiman** | ")).toBe(true);
-    expect(posted.review?.comments[0].body).toContain("| **Priority** | **Should** · a change is expected; answer if you disagree |\n| **Severity** | 🟠 Fix |");
-    expect(body.split("\n")[0]).not.toContain("Partial review");
-    expect(body.split("\n")[0]).toContain(`all 3 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
+    expect(posted.review?.comments[0].body).toContain(
+      "| **Priority** | **Should** · a change is expected; answer if you disagree |\n| **Severity** | 🟠 Fix |",
+    );
+    expect(body.split("\n")[0]).not.toContain("Partial");
+    expect(body).toContain(`| **Coverage** | 3 of 3 files reviewed, whole pull request; 1 not reviewable: \`${LOGO}\` (binary) |`);
     expect(body).toContain("wachiman sha=");
-    expect(body).toContain("1 finding(s): 1 to fix; 1 on their lines");
+    expect(body.split("\n")[0]).toContain("🟠 **1 to fix in this PR**");
     expect(body).toContain("| Batch 1 of 2 | 2 | 9 | 5 | reviewed after a retry | 6 | $0.40 |");
     expect(body).toContain("| Batch 2 of 2 | 1 | 4 | 1 | reviewed | 3 | $0.20 |");
     expect(body).toContain("**Batch 1 of 2.** Manager looks mostly fine.");
@@ -346,10 +348,7 @@ describe("the turn cap and the wall-clock kill", () => {
   });
 
   test("when every batch stops at a limit, a notice says so instead of throwing", async () => {
-    const turns = setup([
-      () => ({ terminalReason: "turns", isError: true }),
-      () => ({ terminalReason: "turns", isError: true }),
-    ]);
+    const turns = setup([() => ({ terminalReason: "turns", isError: true }), () => ({ terminalReason: "turns", isError: true })]);
     await review(turns.deps, "o/r", 7, []);
     expect(turns.posted.review?.body).toContain("hit its turn limit (12 turns a call)");
     const late = setup([() => ({ terminalReason: "timeout", isError: true })]);
@@ -581,9 +580,27 @@ describe("flow questions and contracts against a fake provider", () => {
         {
           structuredOutput: {
             ...everything,
-            contracts: [closed(), closed({ action: "export finishes", location: `${STORE}:1`, status: "open", evidence: [], open_question: "Who re-lists?", candidates: [GUIDE] })],
+            contracts: [
+              closed(),
+              closed({
+                action: "export finishes",
+                location: `${STORE}:1`,
+                status: "open",
+                evidence: [],
+                open_question: "Who re-lists?",
+                candidates: [GUIDE],
+              }),
+            ],
             findings: [
-              { path: MANAGER, line: 2, severity: "fix", topic: "bug", confidence: "high", title: "Seen flag skipped", body: "The toast sets it; this path does not." },
+              {
+                path: MANAGER,
+                line: 2,
+                severity: "fix",
+                topic: "bug",
+                confidence: "high",
+                title: "Seen flag skipped",
+                body: "The toast sets it; this path does not.",
+              },
             ],
           },
         },
@@ -714,13 +731,10 @@ describe("one review carries its inline comments (issue #17)", () => {
 
     const reviews = posts.filter((p) => p.url.endsWith("/pulls/7/reviews"));
     expect(reviews).toHaveLength(1);
-    expect(reviews[0].payload.body).toContain("3 on their lines");
+    expect(reviews[0].payload.body.split("\n")[0]).toContain("2 to fix in this PR");
     expect(reviews[0].payload.comments).toHaveLength(3);
     const replies = posts.filter((p) => p.url.includes("/comments/"));
-    expect(replies.map((p) => p.url)).toEqual([
-      "repos/o/r/pulls/7/comments/101/replies",
-      "repos/o/r/pulls/7/comments/102/replies",
-    ]);
+    expect(replies.map((p) => p.url)).toEqual(["repos/o/r/pulls/7/comments/101/replies", "repos/o/r/pulls/7/comments/102/replies"]);
     // Nothing else is posted: no per-finding review, no empty review from the engine itself.
     expect(posts).toHaveLength(3);
   });
@@ -787,8 +801,24 @@ describe("the confidence rule through review()", () => {
           files_reviewed: [MANAGER, STORE, GUIDE, LOGO],
           files_skipped: [{ path: LOGO, reason: "binary" }],
           findings: [
-            { path: MANAGER, line: 2, severity: "fix", topic: "bug", confidence: "low", title: "Maybe leaks", body: "Is the handle closed on error?" },
-            { path: MANAGER, line: 3, severity: "fix", topic: "bug", confidence: "high", title: "Off by one", body: "Fails for an empty list." },
+            {
+              path: MANAGER,
+              line: 2,
+              severity: "fix",
+              topic: "bug",
+              confidence: "low",
+              title: "Maybe leaks",
+              body: "Is the handle closed on error?",
+            },
+            {
+              path: MANAGER,
+              line: 3,
+              severity: "fix",
+              topic: "bug",
+              confidence: "high",
+              title: "Off by one",
+              body: "Fails for an empty list.",
+            },
             { path: STORE, line: 1, severity: "consider", topic: "cleanup", confidence: "low", title: "Name", body: "Rename?" },
           ],
           summary: "ok",
@@ -851,10 +881,7 @@ describe("the ADR notice", () => {
       }),
     ]);
     const deps: Deps = {
-      gh: (args, input) =>
-        args.join(" ").includes("/pulls/7/files")
-          ? withAdr.map((f) => JSON.stringify(f)).join("\n")
-          : gh(args, input),
+      gh: (args, input) => (args.join(" ").includes("/pulls/7/files") ? withAdr.map((f) => JSON.stringify(f)).join("\n") : gh(args, input)),
       provider,
       config: loadConfig(exclude ? { WACHIMAN_EXCLUDE: exclude } : {}),
       log: () => {},
@@ -865,16 +892,13 @@ describe("the ADR notice", () => {
   };
 
   test("goes in the body once, collapsed with the model's own, and opens no thread", async () => {
-    const posted = await run(
-      [],
-      [{ path: ADR, line: 0, severity: "info", topic: "adr", title: "ADR edited", body: "Model says so." }],
-    );
+    const posted = await run([], [{ path: ADR, line: 0, severity: "info", topic: "adr", title: "ADR edited", body: "Model says so." }]);
     const body = posted?.body ?? "";
     expect(posted?.comments).toEqual([]);
-    expect(body).toContain("### For your information");
-    expect(body).toContain(`FYI · ⚪🏛️ **Info · adr: Edits an accepted decision record** (\`${ADR}\`)`);
+    expect(body).toContain("<details><summary>For your information (1)</summary>");
+    expect(body).toMatch(/\| ⚪ Info · FYI · 🏛️ adr \| [^|]*\| Edits an accepted decision record \|/);
     expect(body).not.toContain("ADR edited");
-    expect(body).toContain("1 finding(s); 0 on their lines");
+    expect(body).toContain("⚪ 1 for your information (1)");
   });
 
   test("is not added for a decision record outside the requested paths or excluded", async () => {
@@ -907,9 +931,7 @@ describe("review instructions come from the base commit", () => {
     mkdirSync(join(headDir, ".github"));
     for (const [path, text] of Object.entries(head)) writeFileSync(join(headDir, path), text);
     const posted: { review?: { body: string; comments: unknown[] } } = {};
-    const provider = new FakeProvider([
-      () => ({ structuredOutput: out({ files_reviewed: files.map((f) => f.filename), summary: "ok" }) }),
-    ]);
+    const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: files.map((f) => f.filename), summary: "ok" }) })]);
     const warnings: string[] = [];
     const deps: Deps = {
       gh: fakeGh(posted, base, files),
@@ -945,9 +967,7 @@ describe("review instructions come from the base commit", () => {
       () => ({
         structuredOutput: out({
           files_reviewed: [join(headDir, MANAGER)],
-          findings: [
-            { path: join(headDir, MANAGER), line: 2, severity: "fix", topic: "bug", title: "Off by one", body: "Empty list." },
-          ],
+          findings: [{ path: join(headDir, MANAGER), line: 2, severity: "fix", topic: "bug", title: "Off by one", body: "Empty list." }],
           summary: "ok",
         }),
       }),
@@ -1033,7 +1053,9 @@ describe("the answer path reads the instructions from the base commit", () => {
     const headDir = mkdtempSync(join(tmpdir(), "head-"));
     writeFileSync(join(headDir, "CLAUDE.md"), "RULES-FROM-HEAD");
     const posted: string[] = [];
-    const provider = new FakeProvider([() => ({ structuredOutput: { sections: [{ title: "Answer", body: "the answer", refs: [] }], not_answered: "" } })]);
+    const provider = new FakeProvider([
+      () => ({ structuredOutput: { sections: [{ title: "Answer", body: "the answer", refs: [] }], not_answered: "" } }),
+    ]);
     const base: BaseFiles = { "CLAUDE.md": "RULES-FROM-BASE" };
     const deps: Deps = {
       gh: (args, input) => {
@@ -1070,7 +1092,14 @@ describe("the on-demand answer reports its cost", () => {
   test("the footer names the operation and the tokens, and the call is recorded as on-demand", async () => {
     const posted: string[] = [];
     const usage = { input: 50, output: 60, cacheRead: 7000, cacheWrite: 800 };
-    const provider = new FakeProvider([() => ({ structuredOutput: { sections: [{ title: "Answer", body: "the answer", refs: [] }], not_answered: "" }, costUsd: 0.07, usage, model: "claude-sonnet-5-5" })]);
+    const provider = new FakeProvider([
+      () => ({
+        structuredOutput: { sections: [{ title: "Answer", body: "the answer", refs: [] }], not_answered: "" },
+        costUsd: 0.07,
+        usage,
+        model: "claude-sonnet-5-5",
+      }),
+    ]);
     const costs: NonNullable<Deps["costs"]> = [];
     const deps: Deps = {
       gh: (args, input) => {
@@ -1140,8 +1169,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     { ...prFiles[3], patch: "@@ -0,0 +1,4 @@\n+w\n+x\n+y\n+z" },
   ];
   /** The logo has no patch (binary): only its blob says whether it changed. */
-  const withLogoBlob = (files: typeof prFiles, sha: string | undefined) =>
-    files.map((f) => (f.filename === LOGO ? { ...f, sha } : f));
+  const withLogoBlob = (files: typeof prFiles, sha: string | undefined) => files.map((f) => (f.filename === LOGO ? { ...f, sha } : f));
   const oldFiles = withLogoBlob(prFiles, "logo-blob");
 
   interface World {
@@ -1249,9 +1277,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     expect(prompt).not.toContain(`- ${MANAGER} +6 −0`);
     expect(prompt).toContain("the branch was rebased since");
     const first = r.posted?.body.split("\n")[0] ?? "";
-    expect(first).toBe(
-      `👮 **Wachiman** · review of the changes since \`old1111\` (after a rebase), at \`head123\`: all 1 files reviewed.`,
-    );
+    expect(first).toContain("changes since `old1111` (after a rebase) at `head123`");
     expect(r.posted?.body).toContain(`<!-- wachiman sha=${HEAD} -->`);
   });
 
@@ -1274,7 +1300,11 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     expect(r.posted?.body).not.toContain(SIGNATURE.auto);
     expect(r.posted?.body).not.toContain("<sub>");
     // GitHub sent no blob for either side: nothing proves the logo is the same, so it is in the delta again.
-    const unknown = await run({ status: "diverged", old: withLogoBlob(prFiles, undefined), current: withLogoBlob(rebasedFiles, undefined) });
+    const unknown = await run({
+      status: "diverged",
+      old: withLogoBlob(prFiles, undefined),
+      current: withLogoBlob(rebasedFiles, undefined),
+    });
     expect(unknown.provider.requests).toHaveLength(0);
     expect(unknown.posted?.body).toContain(`\`${LOGO}\` (binary)`);
   });
@@ -1284,11 +1314,16 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     expect(r.provider.requests).toHaveLength(1);
     expect(r.logs.join("\n")).toContain("cannot be compared");
     expect(r.prompts[0]).toContain("the whole pull request");
-    expect(r.posted?.body.split("\n")[0]).toContain("review of the whole pull request");
+    expect(r.posted?.body.split("\n")[0]).toContain("whole PR at `head123`");
   });
 
   test("a list that may be cut short is not trusted: full review", async () => {
-    const many = Array.from({ length: 300 }, (_, i) => ({ filename: `f${i}.ts`, additions: 1, deletions: 0, patch: "@@ -0,0 +1,1 @@\n+x" }));
+    const many = Array.from({ length: 300 }, (_, i) => ({
+      filename: `f${i}.ts`,
+      additions: 1,
+      deletions: 0,
+      patch: "@@ -0,0 +1,1 @@\n+x",
+    }));
     const r = await run({ status: "diverged", old: many, current: rebasedFiles });
     expect(r.provider.requests).toHaveLength(1);
     expect(r.prompts[0]).toContain("the whole pull request");
@@ -1299,7 +1334,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     const r = await run({ status: "ahead", old: "throws", current: rebasedFiles });
     expect(r.provider.requests).toHaveLength(1);
     const first = r.posted?.body.split("\n")[0] ?? "";
-    expect(first).toContain("review of the changes since `old1111`, at `head123`");
+    expect(first).toContain("changes since `old1111` at `head123`");
     expect(first).not.toContain("after a rebase");
     // The old change is known and one file's change differs: only that file is reviewed.
     const edited = rebasedFiles.map((f) =>
@@ -1422,9 +1457,7 @@ describe("a push after a review (incremental, rebase-aware)", () => {
     // kaipu-record#483 at 0253fd7: the merge brought main's relocate handler into index.ts, which
     // the pull request also changes, and the author resolved it with one line of their own. compare
     // lists index.ts with the base's lines as added; only the author's line may reach the model.
-    const merged = [
-      { ...prFiles[0], additions: 4, patch: "@@ -6,0 +7,4 @@\n+fromBase1\n+fromBase2\n+fromBase3\n+ownFix" },
-    ];
+    const merged = [{ ...prFiles[0], additions: 4, patch: "@@ -6,0 +7,4 @@\n+fromBase1\n+fromBase2\n+fromBase3\n+ownFix" }];
     const current = oldFiles.map((f) =>
       f.filename === MANAGER
         ? { ...f, additions: 7, patch: "@@ -1,4 +1,11 @@\n ctx\n+a\n+b\n+c\n+d\n+e\n fromBase1\n fromBase2\n fromBase3\n+ownFix" }
@@ -1464,7 +1497,13 @@ describe("changeSignature and rebaseDelta", () => {
 
   test("a file that left the pull request is reported, not reviewed", () => {
     const gh: GhFn = () => JSON.stringify({ status: "ahead", files: prFiles });
-    const delta = rebaseDelta(gh, "o/r", BASE, "old1111111", [prFiles[0], prFiles[1], prFiles[3]].map((f) => ({ ...f })));
+    const delta = rebaseDelta(
+      gh,
+      "o/r",
+      BASE,
+      "old1111111",
+      [prFiles[0], prFiles[1], prFiles[3]].map((f) => ({ ...f })),
+    );
     expect(delta).toEqual({ kind: "unchanged", removed: [LOGO] });
   });
 });
@@ -1501,9 +1540,7 @@ describe("ownChangeSince", () => {
   });
 
   test("lines the merge brought from the base are not sent", () => {
-    expect(ownChangeSince(since, now, then)).toBe(
-      "@@ -1,6 +1,7 @@ function top\n a\n b\n GUARD\n+FIX\n c\n d\n e",
-    );
+    expect(ownChangeSince(since, now, then)).toBe("@@ -1,6 +1,7 @@ function top\n a\n b\n GUARD\n+FIX\n c\n d\n e");
   });
 
   test("a base line next to the author's own is context, not an addition, and far context is cut", () => {
@@ -1541,9 +1578,7 @@ describe("ownChangeSince", () => {
     // With the base's rows beside it, only the restored row and not the base's are sent.
     const withMerge = "@@ -1,3 +1,5 @@\n+guard()\n extra()\n work()\n end()\n+B1";
     const nowMerge = "@@ -1,3 +1,4 @@\n guard()\n+extra()\n work()\n end()\n B1";
-    expect(ownChangeSince(withMerge, nowMerge, reviewed)).toBe(
-      "@@ -1,3 +1,4 @@\n+guard()\n extra()\n work()\n end()",
-    );
+    expect(ownChangeSince(withMerge, nowMerge, reviewed)).toBe("@@ -1,3 +1,4 @@\n+guard()\n extra()\n work()\n end()");
     // The same text added when nothing was deleted before is still the base's.
     expect(ownChangeSince(withMerge, nowMerge, "")).not.toContain("+guard()");
   });
@@ -1579,10 +1614,7 @@ describe("call-site evidence reaches the batch", () => {
   const run = async (git: Deps["git"], onCall?: (request: ProviderRequest) => void) => {
     const headDir = mkdtempSync(join(tmpdir(), "head-"));
     mkdirSync(join(headDir, "src"));
-    writeFileSync(
-      join(headDir, SIBLING),
-      "const onDrag = () => {\n  markCopySeen(id);\n  window.electronAPI.startFileDrag(path);\n};\n",
-    );
+    writeFileSync(join(headDir, SIBLING), "const onDrag = () => {\n  markCopySeen(id);\n  window.electronAPI.startFileDrag(path);\n};\n");
     const posted: { review?: { body: string; comments: unknown[] } } = {};
     const provider = new FakeProvider([
       (request) => {
@@ -1632,7 +1664,9 @@ describe("call-site evidence reaches the batch", () => {
     // After the file-accounting paragraph, before the rules.
     expect(prompt.indexOf("<evidence")).toBeGreaterThan(prompt.indexOf("Review every file of this part"));
     expect(prompt.indexOf("<evidence")).toBeLessThan(prompt.indexOf("<diff>"));
-    expect(r.logs.some((l) => /^batch 1\/1: evidence: 1 symbol\(s\) found, 1 call site\(s\), \d+ bytes, \d+ ms, complete$/.test(l))).toBe(true);
+    expect(r.logs.some((l) => /^batch 1\/1: evidence: 1 symbol\(s\) found, 1 call site\(s\), \d+ bytes, \d+ ms, complete$/.test(l))).toBe(
+      true,
+    );
     expect(request.allowedTools).toEqual(["read", "glob", "grep"]);
   });
 
@@ -1741,8 +1775,7 @@ describe("a pull request with a PNG, over three pushes", () => {
     const files = [prFiles[0], prFiles[2], prFiles[3]]; // two text files and the logo
     const gh: GhFn = (args, input) => {
       const line = args.join(" ");
-      if (line.startsWith("pr view"))
-        return JSON.stringify({ headRefOid: state.head, title: "t", body: "b", author: { login: "u" } });
+      if (line.startsWith("pr view")) return JSON.stringify({ headRefOid: state.head, title: "t", body: "b", author: { login: "u" } });
       if (line.includes("/contents/")) throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
       if (line.startsWith("api repos/o/r/pulls/7 ")) return BASE;
       if (line.includes("/pulls/7/files")) return files.map((f) => JSON.stringify(f)).join("\n");
@@ -1770,8 +1803,7 @@ describe("a pull request with a PNG, over three pushes", () => {
           commits: COMMITS.map((sha) => ({ sha, parents: 1 })),
           files: [prFiles[0]],
         });
-      if (line.startsWith("api graphql"))
-        return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes } } } } });
+      if (line.startsWith("api graphql")) return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes } } } } });
       throw new Error(`unexpected gh call: ${line}`);
     };
     return { gh, reviews, replies, nodes, state };
@@ -1813,7 +1845,7 @@ describe("a pull request with a PNG, over three pushes", () => {
     // Push 1: the PNG is not expected, so the review is complete and carries the marker.
     await review(deps("opened"), "o/r", 7, []);
     expect(w.reviews).toHaveLength(1);
-    expect(w.reviews[0].split("\n")[0]).toContain(`all 2 files reviewed, not reviewable: \`${LOGO}\` (binary).`);
+    expect(w.reviews[0]).toContain(`| **Coverage** | 2 of 2 files reviewed, whole pull request; 1 not reviewable: \`${LOGO}\` (binary) |`);
     expect(w.reviews[0]).toContain(`wachiman sha=${SHA[0]}`);
     expect(readAutoCost(w.reviews[0])).toBeCloseTo(0.1, 10);
 
@@ -1824,7 +1856,7 @@ describe("a pull request with a PNG, over three pushes", () => {
     expect(prompts[1]).toContain("only the changes since commit");
     expect(prompts[1]).toContain("threads.json");
     const second = w.reviews[1];
-    expect(second.split("\n")[0]).toContain("(2 commits: `c0ffee1`, `c0ffee2`)");
+    expect(second).toMatch(/\| \*\*Coverage\*\* \|[^\n]*changes since `head111` \(2 commits: `c0ffee1`, `c0ffee2`\)/);
     expect(second).toContain("PR so far $0.30 over 2 automatic runs");
     expect(second).toContain(`wachiman sha=${SHA[1]}`);
     expect(w.replies.map((r) => r.id)).toEqual([THREAD_ID]);
@@ -1847,21 +1879,17 @@ describe("path rules come from the base commit", () => {
   const SCRIPT = "scripts/x.sh";
   const OTHER = "src/other/a.ts";
   const patch = "@@ -0,0 +1,2 @@\n+a\n+b";
-  const defaultFiles: { filename: string; additions: number; deletions: number; patch: string; previous_filename?: string | null }[] = [SCRIPT, OTHER, BILLING].map((filename) => ({ filename, additions: 2, deletions: 0, patch }));
-  const RULES = [
-    "paths:",
-    '  - match: "docs/billing.md"',
-    "    severity: high",
-    "    reason: prices customers see",
-    "",
-  ].join("\n");
+  const defaultFiles: { filename: string; additions: number; deletions: number; patch: string; previous_filename?: string | null }[] = [
+    SCRIPT,
+    OTHER,
+    BILLING,
+  ].map((filename) => ({ filename, additions: 2, deletions: 0, patch }));
+  const RULES = ["paths:", '  - match: "docs/billing.md"', "    severity: high", "    reason: prices customers see", ""].join("\n");
 
   const run = async (base: BaseFiles, env: Record<string, string | undefined> = {}, record = false, files = defaultFiles) => {
     const headDir = mkdtempSync(join(tmpdir(), "head-"));
     const posted: { review?: { body: string; comments: unknown[] } } = {};
-    const provider = new FakeProvider([
-      () => ({ structuredOutput: out({ files_reviewed: files.map((f) => f.filename), summary: "ok" }) }),
-    ]);
+    const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: files.map((f) => f.filename), summary: "ok" }) })]);
     // Only the main acceptance test pins its prompt; the others leave the golden files as they are.
     provider.record = record;
     const warnings: string[] = [];
@@ -1877,7 +1905,10 @@ describe("path rules come from the base commit", () => {
     const prompt = provider.requests[0].prompt;
     // The part's own list follows "This part holds exactly these files".
     const part = prompt.split("This part holds exactly these files")[1].split("\n\n")[0];
-    const order = part.split("\n").filter((l) => l.startsWith("- ")).map((l) => l.split(" ")[1]);
+    const order = part
+      .split("\n")
+      .filter((l) => l.startsWith("- "))
+      .map((l) => l.split(" ")[1]);
     return { provider, posted, warnings, prompt, order };
   };
 
@@ -1889,19 +1920,27 @@ describe("path rules come from the base commit", () => {
     expect(r.prompt).not.toContain(`${SCRIPT} +2 −0 — path rule`);
     const body = r.posted.review!.body;
     expect(body).toContain(`path rule high ("docs/billing.md"): prices customers see — a person should approve this change`);
-    expect(body).toMatch(/\*\*High\.\*\*/);
+    expect(body).toContain("| **Risk** | High: ");
     expect(body).not.toContain("blocks");
   });
 
   test("a file renamed out of a rule keeps the rule: ordered first and quoted", async () => {
     const MOVED = "docs/moved.md";
     // GitHub sends `previous_filename: null` for every file that was not renamed.
-    const renamed = [SCRIPT, OTHER, MOVED].map((filename) => ({ filename, additions: 2, deletions: 0, patch, previous_filename: filename === MOVED ? BILLING : null }));
+    const renamed = [SCRIPT, OTHER, MOVED].map((filename) => ({
+      filename,
+      additions: 2,
+      deletions: 0,
+      patch,
+      previous_filename: filename === MOVED ? BILLING : null,
+    }));
     const r = await run({ ".wachiman.yml": RULES }, {}, false, renamed);
     expect(r.order).toEqual([MOVED, SCRIPT, OTHER]);
     expect(r.prompt).toContain(`${MOVED} +2 −0 — path rule high (docs/billing.md): prices customers see`);
-    expect(r.posted.review!.body).toContain(`path rule high ("docs/billing.md"): prices customers see — a person should approve this change`);
-    expect(r.posted.review!.body).toMatch(/\*\*High\.\*\*/);
+    expect(r.posted.review!.body).toContain(
+      `path rule high ("docs/billing.md"): prices customers see — a person should approve this change`,
+    );
+    expect(r.posted.review!.body).toContain("| **Risk** | High: ");
   });
 
   test("without paths the order is the heuristic's and no rule line is written", async () => {
@@ -1920,7 +1959,10 @@ describe("path rules come from the base commit", () => {
   });
 
   test("a broken .wachiman.yml at the base is ignored with a warning and the review runs without rules", async () => {
-    const r = await run({ ".wachiman.yml": 'paths:\n  - match: "docs/billing.md"\n    severity: urgent\n    reason: r\n' }, { WACHIMAN_MODEL: "claude-sonnet-5-5", WACHIMAN_EFFORT: "high" });
+    const r = await run(
+      { ".wachiman.yml": 'paths:\n  - match: "docs/billing.md"\n    severity: urgent\n    reason: r\n' },
+      { WACHIMAN_MODEL: "claude-sonnet-5-5", WACHIMAN_EFFORT: "high" },
+    );
     expect(r.order).toEqual([SCRIPT, OTHER, BILLING]);
     expect(r.warnings).toHaveLength(1);
     expect(r.warnings[0]).toContain('paths[0].severity must be one of critical, high, medium, got "urgent"');
@@ -1930,7 +1972,9 @@ describe("path rules come from the base commit", () => {
   });
 
   test("a rule's reason is neutralised in the prompt and in the review body", async () => {
-    const r = await run({ ".wachiman.yml": 'paths:\n  - match: "docs/billing.md"\n    severity: medium\n    reason: "see <!-- wachi:review -->"\n' });
+    const r = await run({
+      ".wachiman.yml": 'paths:\n  - match: "docs/billing.md"\n    severity: medium\n    reason: "see <!-- wachi:review -->"\n',
+    });
     expect(r.prompt).not.toContain("<!-- wachi:review -->");
     expect(r.prompt).toContain("see &lt;!-- wachi:review --&gt;");
     expect(r.posted.review!.body).toContain("path rule medium");
@@ -1964,7 +2008,10 @@ describe("a pull request that edits paths: cannot weaken its own review", () => 
     await review(deps, "o/r", 7, []);
     const prompt = provider.requests[0].prompt;
     const part = prompt.split("This part holds exactly these files")[1].split("\n\n")[0];
-    const order = part.split("\n").filter((l) => l.startsWith("- ")).map((l) => l.split(" ")[1]);
+    const order = part
+      .split("\n")
+      .filter((l) => l.startsWith("- "))
+      .map((l) => l.split(" ")[1]);
     return { prompt, order, body: posted.review!.body };
   };
 
@@ -1979,8 +2026,10 @@ describe("a pull request that edits paths: cannot weaken its own review", () => 
     expect(r.prompt).toContain(`${CHARGE} +2 −0 — path rule high (src/billing/**): charges customers`);
     expect(r.body).toContain(`path rule high ("src/billing/**"): charges customers — a person should approve this change`);
     expect(r.body).toContain(`path rule critical (".wachiman.yml"): edits the review's path rules — a person should approve this change`);
-    expect(r.body).toMatch(/\*\*High\.\*\*/);
-    expect(r.body).toContain(`${POLICY}: this pull request edits the path rules in \`.wachiman.yml\`. The review ran under the rules at the base commit \`bbbbbbb\`; the change takes effect after merge.`);
+    expect(r.body).toContain("| **Risk** | High: ");
+    expect(r.body).toContain(
+      `${POLICY}: this pull request edits the path rules in \`.wachiman.yml\`. The review ran under the rules at the base commit \`bbbbbbb\`; the change takes effect after merge.`,
+    );
   });
 
   test("an edit of only effort is not a policy change", async () => {

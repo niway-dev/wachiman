@@ -24,7 +24,8 @@ export function normaliseLedgerUrl(raw: string): string {
     throw new UsageError(`"${raw}" is not a URL.`);
   }
   const loopback = u.hostname === "localhost" || u.hostname === "127.0.0.1" || u.hostname === "[::1]";
-  if (u.protocol !== "https:" && !(u.protocol === "http:" && loopback)) throw new UsageError("The ledger URL must be https (http is accepted only for localhost).");
+  if (u.protocol !== "https:" && !(u.protocol === "http:" && loopback))
+    throw new UsageError("The ledger URL must be https (http is accepted only for localhost).");
   if (u.username !== "" || u.password !== "") throw new UsageError("The ledger URL must not carry a user name or password.");
   u.hash = "";
   u.search = "";

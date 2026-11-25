@@ -5,6 +5,27 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.20.1](https://github.com/niway-dev/wachiman/compare/v1.20.0...v1.20.1) (2026-11-24)
+
+
+### Bug Fixes
+
+* **docs:** make installation data flow auditable before setup ([f7b8762](https://github.com/niway-dev/wachiman/commit/f7b87628e35303925d254cffb08ca89431746736))
+
+## [1.20.0](https://github.com/niway-dev/wachiman/compare/v1.19.0...v1.20.0) (2026-11-23)
+
+
+### Features
+
+* **review:** opt-in comment rule, review.comments_point_to_docs ([#301](https://github.com/niway-dev/wachiman/issues/301)) ([ab24061](https://github.com/niway-dev/wachiman/commit/ab24061ab1d7c8695e2f5f94683dd4ae4398d473))
+
+## [1.19.0](https://github.com/niway-dev/wachiman/compare/v1.18.0...v1.19.0) (2026-11-21)
+
+
+### Features
+
+* **review:** open every review summary with one status line and a fixed, scannable layout ([#288](https://github.com/niway-dev/wachiman/issues/288)) ([47a70b5](https://github.com/niway-dev/wachiman/commit/47a70b5be89056d6529bc6a63a99da3409e9909c))
+
 ## [1.18.0](https://github.com/niway-dev/wachiman/compare/v1.17.0...v1.18.0) (2026-11-21)
 
 

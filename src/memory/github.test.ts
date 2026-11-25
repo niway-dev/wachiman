@@ -15,8 +15,16 @@ const notFound = () => new GhError("gh: Not Found (HTTP 404)", 404, "Not Found")
 function repo() {
   const calls: string[] = [];
   const files: Record<string, Record<string, string>> = {
-    [BASE]: { ".wachiman/memory/index.md": INDEX, ".wachiman/memory/apps.md": "BASE RULE\n", ".wachiman.yml": "memory:\n  max_loaded_lines: 50\n" },
-    [HEAD]: { ".wachiman/memory/index.md": `${INDEX}HEAD ADDITION\n`, ".wachiman/memory/apps.md": "HEAD RULE\n", ".wachiman/memory/new.md": "HEAD ONLY\n" },
+    [BASE]: {
+      ".wachiman/memory/index.md": INDEX,
+      ".wachiman/memory/apps.md": "BASE RULE\n",
+      ".wachiman.yml": "memory:\n  max_loaded_lines: 50\n",
+    },
+    [HEAD]: {
+      ".wachiman/memory/index.md": `${INDEX}HEAD ADDITION\n`,
+      ".wachiman/memory/apps.md": "HEAD RULE\n",
+      ".wachiman/memory/new.md": "HEAD ONLY\n",
+    },
   };
   const gh: GhFn = (args) => {
     const url = args[1];
@@ -59,7 +67,11 @@ describe("readBaseMemory", () => {
   });
 
   test("a file longer than the read limit loads its start and warns; one GitHub does not return is not loaded", () => {
-    const big = (text: string, content = true) => ({ type: "file", encoding: content ? "base64" : "none", content: content ? Buffer.from(text).toString("base64") : "" });
+    const big = (text: string, content = true) => ({
+      type: "file",
+      encoding: content ? "base64" : "none",
+      content: content ? Buffer.from(text).toString("base64") : "",
+    });
     const tree: Record<string, unknown> = { "index.md": big(INDEX + "x\n".repeat(40_000)), "apps.md": big("", false) };
     const gh: GhFn = (args) => {
       const path = args[1].replace("repos/o/r/contents/", "").split("?ref=")[0];
@@ -84,7 +96,8 @@ describe("readBaseMemory", () => {
 });
 
 describe("a review in Actions never loads personal memory", () => {
-  const entry = (id: string) => `### ${id} Personal rule.\n\n- kind: convention\n- scope: apps/**\n- rule: Personal rule.\n- why: because\n- evidence:\n  - 2026-11-18 instruction, branch x\n- added: 2026-11-18\n`;
+  const entry = (id: string) =>
+    `### ${id} Personal rule.\n\n- kind: convention\n- scope: apps/**\n- rule: Personal rule.\n- why: because\n- evidence:\n  - 2026-11-18 instruction, branch x\n- added: 2026-11-18\n`;
 
   /** A Wachiman home that holds personal memory for github.com/o/r, the repository `repo()` answers for. */
   const withPersonalMemory = (run: () => void) => {

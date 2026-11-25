@@ -3,13 +3,36 @@
  * and `wachiman memory archive`. Deterministic; no model, no network.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { git } from "../../test/support/temp-repo";
 import { runMemory } from "./command";
 import { entryId, parseMemoryFile, type MemoryEntry } from "./entries";
-import { archiveEntry, archiveSuggestions, DUPLICATE_THRESHOLD, entriesUsed, findDuplicates, memoryUsePath, readMemoryUse, recordMemoryUse, scopesOverlap, similarity } from "./hygiene";
+import {
+  archiveEntry,
+  archiveSuggestions,
+  DUPLICATE_THRESHOLD,
+  entriesUsed,
+  findDuplicates,
+  memoryUsePath,
+  readMemoryUse,
+  recordMemoryUse,
+  scopesOverlap,
+  similarity,
+} from "./hygiene";
 import { repositoryKey } from "../history/store";
 
 const temps: string[] = [];
@@ -25,7 +48,10 @@ afterAll(() => {
 function block(rule: string, over: { kind?: "convention" | "exception"; scope?: string; added?: string; holdsWhile?: string } = {}) {
   const f = { kind: over.kind ?? "convention", scope: over.scope ?? "src/**", rule, why: "because" };
   const id = entryId({ ...f, ...(over.holdsWhile ? { holdsWhile: over.holdsWhile } : {}) });
-  return { id, text: `### ${id} ${rule}\n\n- kind: ${f.kind}\n- scope: ${f.scope}\n- rule: ${rule}\n- why: because\n${over.holdsWhile ? `- holds while: ${over.holdsWhile}\n` : ""}- evidence:\n  - 2026-01-01 operator instruction, branch x\n- added: ${over.added ?? "2026-11-01"}\n` };
+  return {
+    id,
+    text: `### ${id} ${rule}\n\n- kind: ${f.kind}\n- scope: ${f.scope}\n- rule: ${rule}\n- why: because\n${over.holdsWhile ? `- holds while: ${over.holdsWhile}\n` : ""}- evidence:\n  - 2026-01-01 operator instruction, branch x\n- added: ${over.added ?? "2026-11-01"}\n`,
+  };
 }
 const entriesOf = (...texts: string[]): MemoryEntry[] => parseMemoryFile("index.md", `# Memory\n\n${texts.join("\n")}`).entries;
 
@@ -94,7 +120,10 @@ describe("archive suggestions", () => {
     expect(archiveSuggestions([x], {}, 90, "2026-11-18", "2026-11-10")).toEqual([]);
     expect(archiveSuggestions([x], {}, 90, "2026-11-18", "2026-02-01")[0]).toMatchObject({ since: "2026-02-01", usedEver: false });
     expect(archiveSuggestions([x], {}, 90, "2026-11-18", "2025-12-01")[0]).toMatchObject({ since: "2026-01-01" });
-    expect(archiveSuggestions([x], { [x.id]: "2026-03-01" }, 90, "2026-11-18", "2026-11-10")[0]).toMatchObject({ since: "2026-03-01", usedEver: true });
+    expect(archiveSuggestions([x], { [x.id]: "2026-03-01" }, 90, "2026-11-18", "2026-11-10")[0]).toMatchObject({
+      since: "2026-03-01",
+      usedEver: true,
+    });
   });
 
   test("a use older than the added date does not make the entry look older", () => {
@@ -110,7 +139,11 @@ describe("last use", () => {
     recordMemoryUse(home, "repo-1", ["aaaaaaa", "bbbbbbb"], "2026-11-10");
     recordMemoryUse(home, "repo-1", ["aaaaaaa"], "2026-11-05");
     recordMemoryUse(home, "repo-1", ["bbbbbbb"], "2026-11-12");
-    expect(readMemoryUse(home, "repo-1")).toEqual({ known: true, since: "2026-11-05", used: { aaaaaaa: "2026-11-10", bbbbbbb: "2026-11-12" } });
+    expect(readMemoryUse(home, "repo-1")).toEqual({
+      known: true,
+      since: "2026-11-05",
+      used: { aaaaaaa: "2026-11-10", bbbbbbb: "2026-11-12" },
+    });
     expect(readMemoryUse(home, "repo-2").known).toBe(false);
     expect(memoryUsePath(home, "repo-1")).toBe(join(home, "history", "repo-1", "memory-use.json"));
     expect(statSync(memoryUsePath(home, "repo-1")).mode & 0o777).toBe(0o600);
@@ -227,7 +260,10 @@ describe("archiveEntry", () => {
     const r = archiveEntry({ "index.md": `# M\n\n${a.text}`, "archive.md": `# Archive\n\n${b.text}` }, a.id);
     expect(r.ok && r.files["archive.md"]).toBe(`# Archive\n\n${b.text}\n${a.text}`);
     expect(archiveEntry({ "index.md": "# M\n" }, "0000000")).toEqual({ ok: false, reason: "no entry 0000000 in .wachiman/memory/." });
-    expect(archiveEntry({ "index.md": "# M\n", "archive.md": `# A\n\n${b.text}` }, b.id)).toEqual({ ok: false, reason: `entry ${b.id} is already in archive.md.` });
+    expect(archiveEntry({ "index.md": "# M\n", "archive.md": `# A\n\n${b.text}` }, b.id)).toEqual({
+      ok: false,
+      reason: `entry ${b.id} is already in archive.md.`,
+    });
   });
 });
 
@@ -245,7 +281,12 @@ describe("wachiman memory check suggestions and memory archive", () => {
     const run = (argv: string[], env: Record<string, string | undefined> = {}) => {
       let stdout = "";
       let stderr = "";
-      const code = runMemory(argv, dir, { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) }, { env: { WACHIMAN_HOME: home, ...env }, now: () => NOW });
+      const code = runMemory(
+        argv,
+        dir,
+        { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) },
+        { env: { WACHIMAN_HOME: home, ...env }, now: () => NOW },
+      );
       return { code, stdout, stderr };
     };
     return { dir, home, run, key: () => repositoryKey(dir).key };
@@ -277,7 +318,9 @@ describe("wachiman memory check suggestions and memory archive", () => {
     expect(r.stdout).not.toContain("suggestion:");
     expect(r.stdout).not.toContain("never used");
     expect(r.stdout).not.toContain("no use recorded");
-    expect(r.stdout).toContain("note: 1 entry is older than memory.archive_after_days (90) by added date, but whether it was used is unknown");
+    expect(r.stdout).toContain(
+      "note: 1 entry is older than memory.archive_after_days (90) by added date, but whether it was used is unknown",
+    );
     expect(r.stdout).toContain("no use record at");
     expect(setup([fresh.text]).run(["check"]).stdout).toBe(`memory ok: 1 file, 1 entry\n`);
   });
@@ -373,7 +416,11 @@ describe("wachiman memory check suggestions and memory archive", () => {
     expect(readFileSync(join(dir, "archive.md"), "utf8")).toContain(a.text);
     expect(lstatSync(join(dir, "archive.md")).isSymbolicLink()).toBe(false);
     expect(readFileSync(join(dir, "index.md"), "utf8")).not.toContain(a.id);
-    expect(readdirSync(dir).filter((n) => n.endsWith(".tmp")).sort()).toEqual(["archive.md.tmp", "index.md.tmp"]);
+    expect(
+      readdirSync(dir)
+        .filter((n) => n.endsWith(".tmp"))
+        .sort(),
+    ).toEqual(["archive.md.tmp", "index.md.tmp"]);
   });
 
   test("archive refuses an archive.md that is a symbolic link and writes nothing", () => {

@@ -3,15 +3,16 @@
  *
  * `init` writes it with plain string handling (`src/init/settings.ts`); everything that reads it
  * goes through `parseRepoSettings`, so what counts as valid is decided in one place. The keys are
- * `kind` (metadata), `model`, `effort`, `paths` (the maintainer's path rules, ADR 0058) and
- * `memory`. Unknown keys are ignored.
+ * `kind` (metadata), `model`, `effort`, `paths` (the maintainer's path rules, ADR 0058), `memory`
+ * and `review` (opt-in review behavior, ADR 0064). Unknown keys are ignored.
  *
  * Where the file is read from is a spend decision, not a convenience: in Actions it comes from the
  * pull request's base commit and locally from the merge-base, never from the head, so a change
  * cannot raise the model or the effort it is reviewed under (`readBaseSettings` in engine.ts,
  * `localRepoSettings` in connectors/local-git.ts). The values lose to an explicit
  * `WACHIMAN_MODEL` / `WACHIMAN_EFFORT` (a workflow input or the environment) and win over the
- * built-in defaults. `paths` is read whatever those say: it is review policy, not a spend choice.
+ * built-in defaults. `paths` and `review` are read whatever those say: they are review policy, not
+ * a spend choice.
  */
 import { UsageError, type EngineConfig, type SettingSource } from "./config";
 import { PER_BATCH_USD } from "./estimate";
@@ -49,7 +50,23 @@ export const MEMORY_DEFAULTS: MemorySettings = { minEvidence: 2, maxIndexLines: 
 /** The engine's ceiling for `max_loaded_lines`: it sets prompt size, so a merged change cannot raise the bill without limit. */
 export const MAX_LOADED_LINES_CEILING = 1000;
 
-const MEMORY_KEYS = { min_evidence: "minEvidence", max_index_lines: "maxIndexLines", max_loaded_lines: "maxLoadedLines", archive_after_days: "archiveAfterDays" } as const;
+const MEMORY_KEYS = {
+  min_evidence: "minEvidence",
+  max_index_lines: "maxIndexLines",
+  max_loaded_lines: "maxLoadedLines",
+  archive_after_days: "archiveAfterDays",
+} as const;
+
+/**
+ * The `review` settings: behaviors a repository opts into, each off unless the file says `true`
+ * (ADR 0064). A new key here needs an off-state test.
+ */
+export interface ReviewSettings {
+  /** Report comments added in the diff that are not a pointer to a document or a tool directive. */
+  commentsPointToDocs?: boolean;
+}
+
+const REVIEW_KEYS = { comments_point_to_docs: "commentsPointToDocs" } as const;
 
 export interface RepoSettings {
   /** `monorepo` or `single` when `init` wrote it; any text a person typed otherwise. Metadata only. */
@@ -62,6 +79,10 @@ export interface RepoSettings {
   memoryNotices?: string[];
   /** The maintainer's path rules; absent when the file has none. */
   paths?: PathRule[];
+  /** The `review` values that were valid; absent when the file sets none. */
+  review?: ReviewSettings;
+  /** Why a `review` value was ignored, one line each. Set only when something was. */
+  reviewNotices?: string[];
 }
 
 /**
@@ -171,11 +192,15 @@ export function parseRepoSettings(content: string): RepoSettings {
   try {
     doc = Bun.YAML.parse(content);
   } catch (error) {
-    throw new UsageError(`${SETTINGS_PATH} is not valid YAML (${oneLine(error instanceof Error ? error.message : String(error))}). Fix it, or remove the file to use the defaults.`);
+    throw new UsageError(
+      `${SETTINGS_PATH} is not valid YAML (${oneLine(error instanceof Error ? error.message : String(error))}). Fix it, or remove the file to use the defaults.`,
+    );
   }
   if (doc === null || doc === undefined) return {};
   if (typeof doc !== "object" || Array.isArray(doc)) {
-    throw new UsageError(`${SETTINGS_PATH} must be a mapping of settings (kind, model, effort, paths, memory), like \`effort: high\`.`);
+    throw new UsageError(
+      `${SETTINGS_PATH} must be a mapping of settings (kind, model, effort, paths, memory, review), like \`effort: high\`.`,
+    );
   }
   const map = doc as Record<string, unknown>;
   const settings: RepoSettings = {};
@@ -201,20 +226,63 @@ export function parseRepoSettings(content: string): RepoSettings {
   const memory = parseMemorySettings(map.memory);
   if (memory.values) settings.memory = memory.values;
   if (memory.notices.length > 0) settings.memoryNotices = memory.notices;
+  const review = parseReviewSettings(map.review);
+  if (review.values) settings.review = review.values;
+  if (review.notices.length > 0) settings.reviewNotices = review.notices;
   return settings;
+}
+
+/**
+ * The `review` map: a value that is not `true` or `false` is ignored with a notice, never an
+ * error, and the behavior stays off. An opt-in that cannot be read is the safe direction to fail
+ * in, and an error would discard the file's `model` and `effort` with it.
+ */
+function parseReviewSettings(raw: unknown): { values?: ReviewSettings; notices: string[] } {
+  if (raw === undefined || raw === null) return { notices: [] };
+  if (typeof raw !== "object" || Array.isArray(raw))
+    return { notices: [`${SETTINGS_PATH}: review must be a mapping of settings; ignored`] };
+  const values: ReviewSettings = {};
+  const notices: string[] = [];
+  for (const [key, name] of Object.entries(REVIEW_KEYS)) {
+    const value = (raw as Record<string, unknown>)[key];
+    if (value === undefined || value === null) continue;
+    if (typeof value === "boolean") values[name] = value;
+    else notices.push(`${SETTINGS_PATH}: review.${key} must be true or false, got ${JSON.stringify(value)}; using false`);
+  }
+  return { ...(Object.keys(values).length > 0 ? { values } : {}), notices };
+}
+
+/** The review policy of a settings file, as the connectors hand it to the core: `paths` and the opt-in behaviors that are on. */
+export interface ReviewPolicy {
+  pathRules?: PathRule[];
+  /** True only when the file says so; absent means off. */
+  commentsPointToDocs?: true;
+}
+
+/** `settings` as a `ReviewPolicy`; `warn` gets the notices for ignored `review` values. Undefined settings are an empty policy. */
+export function reviewPolicyOf(settings: RepoSettings | undefined, warn: (line: string) => void): ReviewPolicy {
+  for (const notice of settings?.reviewNotices ?? []) warn(notice);
+  return {
+    ...(settings?.paths ? { pathRules: settings.paths } : {}),
+    ...(settings?.review?.commentsPointToDocs === true ? { commentsPointToDocs: true as const } : {}),
+  };
 }
 
 /** The `memory` map: a value that is not a positive whole number is ignored with a notice, never an error. */
 function parseMemorySettings(raw: unknown): { values?: Partial<MemorySettings>; notices: string[] } {
   if (raw === undefined || raw === null) return { notices: [] };
-  if (typeof raw !== "object" || Array.isArray(raw)) return { notices: [`${SETTINGS_PATH}: memory must be a mapping of settings; ignored`] };
+  if (typeof raw !== "object" || Array.isArray(raw))
+    return { notices: [`${SETTINGS_PATH}: memory must be a mapping of settings; ignored`] };
   const values: Partial<MemorySettings> = {};
   const notices: string[] = [];
   for (const [key, name] of Object.entries(MEMORY_KEYS)) {
     const value = (raw as Record<string, unknown>)[key];
     if (value === undefined || value === null) continue;
     if (typeof value === "number" && Number.isInteger(value) && value > 0) values[name] = value;
-    else notices.push(`${SETTINGS_PATH}: memory.${key} must be a positive whole number, got ${JSON.stringify(value)}; using ${MEMORY_DEFAULTS[name]}`);
+    else
+      notices.push(
+        `${SETTINGS_PATH}: memory.${key} must be a positive whole number, got ${JSON.stringify(value)}; using ${MEMORY_DEFAULTS[name]}`,
+      );
   }
   return { ...(Object.keys(values).length > 0 ? { values } : {}), notices };
 }
@@ -224,14 +292,17 @@ export function resolveMemorySettings(settings: RepoSettings | undefined): { set
   const notices = [...(settings?.memoryNotices ?? [])];
   const merged = { ...MEMORY_DEFAULTS, ...settings?.memory };
   if (merged.maxLoadedLines > MAX_LOADED_LINES_CEILING) {
-    notices.push(`${SETTINGS_PATH}: memory.max_loaded_lines ${merged.maxLoadedLines} is above the limit; using ${MAX_LOADED_LINES_CEILING}`);
+    notices.push(
+      `${SETTINGS_PATH}: memory.max_loaded_lines ${merged.maxLoadedLines} is above the limit; using ${MAX_LOADED_LINES_CEILING}`,
+    );
     merged.maxLoadedLines = MAX_LOADED_LINES_CEILING;
   }
   return { settings: merged, notices };
 }
 
 /** The warning for a broken file that a run ignores (it never blocks a review): what was wrong, and that defaults apply. */
-export const ignoredSettingsNote = (reason: string, where: string) => `ignored ${SETTINGS_PATH} at ${where}: ${reason.trim().replace(/\.$/, "")}; using defaults`;
+export const ignoredSettingsNote = (reason: string, where: string) =>
+  `ignored ${SETTINGS_PATH} at ${where}: ${reason.trim().replace(/\.$/, "")}; using defaults`;
 
 const oneLine = (text: string) => text.replace(/\s+/g, " ").trim().slice(0, 200);
 
@@ -258,7 +329,11 @@ export function skippedFileModel(provider: string, model: string): string | unde
  * preflight never checks the model, so it would fail every batch, including the pull request that
  * fixes the file); Codex checks its own price table in preflight.
  */
-export function applyRepoSettings(config: EngineConfig, settings: RepoSettings, opts: { where: string; warn: (line: string) => void }): EngineConfig {
+export function applyRepoSettings(
+  config: EngineConfig,
+  settings: RepoSettings,
+  opts: { where: string; warn: (line: string) => void },
+): EngineConfig {
   const next = { ...config };
   if (config.modelSource === "default" && settings.model !== undefined) {
     const skipped = skippedFileModel(config.provider, settings.model);
@@ -281,7 +356,10 @@ export const wantsRepoSettings = (config: Pick<EngineConfig, "modelSource" | "ef
   config.modelSource === "default" || config.effortSource === "default";
 
 /** `model` and `effort` that came from the file, for a log line; undefined when neither did. */
-export function fileSettingsNote(config: Pick<EngineConfig, "model" | "modelSource" | "effort" | "effortSource">, where: string): string | undefined {
+export function fileSettingsNote(
+  config: Pick<EngineConfig, "model" | "modelSource" | "effort" | "effortSource">,
+  where: string,
+): string | undefined {
   const parts = [
     ...(config.modelSource === "file" ? [`model ${config.model}`] : []),
     ...(config.effortSource === "file" ? [`effort ${config.effort}`] : []),
@@ -317,6 +395,11 @@ export function effectiveSettings(
         : settings?.model !== undefined && skipped === undefined
           ? { value: settings.model, source: "file" }
           : { value: defaultModel, source: "default", ...(skipped !== undefined ? { skipped } : {}) },
-    effort: effort !== undefined ? { value: effort, source: "env" } : settings?.effort !== undefined ? { value: settings.effort, source: "file" } : { value: DEFAULT_EFFORT, source: "default" },
+    effort:
+      effort !== undefined
+        ? { value: effort, source: "env" }
+        : settings?.effort !== undefined
+          ? { value: settings.effort, source: "file" }
+          : { value: DEFAULT_EFFORT, source: "default" },
   };
 }

@@ -25,7 +25,17 @@ import { chmodSync, lstatSync, readFileSync, renameSync, unlinkSync, writeFileSy
 import { basename, dirname, join, resolve } from "node:path";
 import { UsageError } from "../config";
 import { parseFlags } from "../flags";
-import { CHOICE_FILE, loadCatalog, loadRepoChoice, type Catalog, type CatalogEntry, type DetailsEntry, type FooterEntry, type SectionEntry, type StatusRowEntry } from "./catalog";
+import {
+  CHOICE_FILE,
+  loadCatalog,
+  loadRepoChoice,
+  type Catalog,
+  type CatalogEntry,
+  type DetailsEntry,
+  type FooterEntry,
+  type SectionEntry,
+  type StatusRowEntry,
+} from "./catalog";
 import { withLockedFromCatalog } from "./check";
 import type { PrTemplateDeps, PrTemplateIo } from "./check-run";
 import { parseDescription, type ParsedDescription } from "./describe";
@@ -92,7 +102,10 @@ function footerMatcher(template: ResolvedTemplate): (text: string) => boolean {
   const entry = template.sections.find((e): e is FooterEntry => e.kind === "footer");
   const at = entry === undefined ? -1 : entry.text.indexOf("{sha}");
   const prefix = (entry === undefined ? "" : at === -1 ? entry.text : entry.text.slice(0, at)).trim() || "Describes commit";
-  const words = prefix.split(/\s+/).map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("\\s+");
+  const words = prefix
+    .split(/\s+/)
+    .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"))
+    .join("\\s+");
   const re = new RegExp(`^\\s*${words}`);
   return (text) => re.test(text);
 }
@@ -117,7 +130,13 @@ function unitsOf(parsed: ParsedDescription, isFooter: (text: string) => boolean)
       }
       case "details": {
         const d = parsed.details.find((x) => x.startLine === seg.startLine);
-        units.push({ kind: "details", start: seg.startLine, end: seg.endLine, name: d?.name ?? null, ...(d ? { closeLine: d.endLine } : {}) });
+        units.push({
+          kind: "details",
+          start: seg.startLine,
+          end: seg.endLine,
+          name: d?.name ?? null,
+          ...(d ? { closeLine: d.endLine } : {}),
+        });
         break;
       }
       case "wachiman":
@@ -145,7 +164,13 @@ const SEPARATOR = /^\s*\|?\s*:?-{3,}:?\s*\|\s*:?-{3,}:?\s*\|?\s*$/;
  * the lines they already occupy; added rows go right after the last of them (or the table's
  * separator line, or in a new table at the end of the preface).
  */
-function arrangeRows(lines: string[], first: number, rows: ParsedDescription["statusRows"], entries: StatusRowEntry[], parsed: ParsedDescription): string[] {
+function arrangeRows(
+  lines: string[],
+  first: number,
+  rows: ParsedDescription["statusRows"],
+  entries: StatusRowEntry[],
+  parsed: ParsedDescription,
+): string[] {
   const order = new Map<string, number>();
   entries.forEach((e, i) => {
     if (!order.has(e.label)) order.set(e.label, i);
@@ -253,7 +278,8 @@ export function formatDescription(text: string, template: ResolvedTemplate): str
         seq.push({ lines: [`<details><summary><b>${(entry as DetailsEntry).summary}</b></summary>`, "", ...movedLines, "", "</details>"] });
       } else if (isRequired(entry)) {
         seq.push({
-          lines: entry.kind === "section" ? [`## ${entry.heading}`] : [`<details><summary><b>${entry.summary}</b></summary>`, "", "</details>"],
+          lines:
+            entry.kind === "section" ? [`## ${entry.heading}`] : [`<details><summary><b>${entry.summary}</b></summary>`, "", "</details>"],
         });
       }
       return;
@@ -319,7 +345,13 @@ function templateFor(catalog: Catalog, choiceText: string | null): ResolvedTempl
 }
 
 /** Replaces the file through a temporary file in the same directory, if it is still the file that was read. */
-function rewrite(target: string, shown: string, content: string, before: ReturnType<typeof lstatSync>, writeTemp?: (path: string, content: string) => void) {
+function rewrite(
+  target: string,
+  shown: string,
+  content: string,
+  before: ReturnType<typeof lstatSync>,
+  writeTemp?: (path: string, content: string) => void,
+) {
   const tmp = join(dirname(target), `.${basename(target)}.${process.pid}-${randomBytes(4).toString("hex")}.tmp`);
   try {
     (writeTemp ?? ((path, text) => writeFileSync(path, text, { flag: "wx" })))(tmp, content);

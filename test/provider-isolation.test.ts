@@ -69,7 +69,11 @@ const SENTINELS = ["SENTINEL_CLAUDE", "SENTINEL_AGENTS", "SENTINEL_DOTCLAUDE", "
 function run(head: string, prompt: string, read: string | null) {
   writeFileSync(logFile, "");
   writeFileSync(controlFile, read ?? "");
-  const provider = new ClaudeCodeProvider({ model: "claude-sonnet-5-5", requireApiKey: false, binary: wrapper(`http://127.0.0.1:${port}`) });
+  const provider = new ClaudeCodeProvider({
+    model: "claude-sonnet-5-5",
+    requireApiKey: false,
+    binary: wrapper(`http://127.0.0.1:${port}`),
+  });
   const request: ProviderRequest = {
     prompt,
     cwd: head,
@@ -81,7 +85,10 @@ function run(head: string, prompt: string, read: string | null) {
   const result = provider.run(request);
   const before = new Set<string>();
   const after = new Set<string>();
-  const requests = readFileSync(logFile, "utf8").split("\n").filter(Boolean).map((l) => JSON.parse(l) as string);
+  const requests = readFileSync(logFile, "utf8")
+    .split("\n")
+    .filter(Boolean)
+    .map((l) => JSON.parse(l) as string);
   for (const body of requests) {
     const bucket = body.includes("tool_result") ? after : before;
     for (const s of SENTINELS) if (body.includes(s)) bucket.add(s);

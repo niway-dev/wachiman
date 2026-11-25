@@ -59,14 +59,27 @@ export function gitHead(run: CommandRunner, cwd: string): string {
 /** What the branch changed since it left `base`: the diff from the merge base, one entry per file with its hunk lines. */
 export function changesFromGit(run: CommandRunner, cwd: string, base: string): { mergeBase: string; changes: ChangedFile[] } {
   const mergeBase = git(run, cwd, ["merge-base", base, "HEAD"]).trim();
-  const patch = git(run, cwd, ["diff", "-M", "-U0", "--no-color", "--no-ext-diff", "--src-prefix=a/", "--dst-prefix=b/", mergeBase, "HEAD"]);
+  const patch = git(run, cwd, [
+    "diff",
+    "-M",
+    "-U0",
+    "--no-color",
+    "--no-ext-diff",
+    "--src-prefix=a/",
+    "--dst-prefix=b/",
+    mergeBase,
+    "HEAD",
+  ]);
   return { mergeBase, changes: parsePatch(patch) };
 }
 
 /** The message of every commit in `base..HEAD`. */
 export function commitMessagesFromGit(run: CommandRunner, cwd: string, base: string): string[] {
   const out = git(run, cwd, ["log", "--format=%B%x00", `${base}..HEAD`]);
-  return out.split("\0").map((m) => m.trim()).filter((m) => m !== "");
+  return out
+    .split("\0")
+    .map((m) => m.trim())
+    .filter((m) => m !== "");
 }
 
 /**
@@ -107,7 +120,11 @@ const repoFlag = (repo: string | undefined) => (repo ? ["--repo", repo] : []);
 /** Title, body, head, commits and changed paths of a PR, through `gh pr view`. */
 export function ghPrView(run: CommandRunner, number: number, repo?: string): PrInfo {
   const text = runOrThrow(run, [
-    "gh", "pr", "view", String(number), "--json",
+    "gh",
+    "pr",
+    "view",
+    String(number),
+    "--json",
     "title,body,headRefOid,baseRefName,commits,files,url,isCrossRepository,headRepository,headRepositoryOwner",
     ...repoFlag(repo),
   ]);
@@ -117,7 +134,8 @@ export function ghPrView(run: CommandRunner, number: number, repo?: string): PrI
   } catch {
     throw new ToolError("gh pr view did not answer JSON");
   }
-  if (typeof info.headRefOid !== "string" || typeof info.baseRefName !== "string") throw new ToolError("gh pr view answered no head commit or base branch");
+  if (typeof info.headRefOid !== "string" || typeof info.baseRefName !== "string")
+    throw new ToolError("gh pr view answered no head commit or base branch");
   const fromUrl = /^https?:\/\/[^/]+\/([^/]+\/[^/]+)\/pull\//.exec(String(info.url ?? ""))?.[1];
   const baseRepo = repo ?? fromUrl;
   if (!baseRepo) throw new ToolError("cannot tell which repository the PR is in; pass --repo <owner/name>");
@@ -131,7 +149,9 @@ export function ghPrView(run: CommandRunner, number: number, repo?: string): PrI
     baseRef: info.baseRefName,
     baseRepo,
     headRepo,
-    commitMessages: ((info.commits ?? []) as Record<string, string>[]).map((c) => `${c.messageHeadline ?? ""}\n${c.messageBody ?? ""}`.trim()),
+    commitMessages: ((info.commits ?? []) as Record<string, string>[]).map((c) =>
+      `${c.messageHeadline ?? ""}\n${c.messageBody ?? ""}`.trim(),
+    ),
     paths: ((info.files ?? []) as Record<string, string>[]).map((f) => String(f.path)),
   };
 }
@@ -147,7 +167,13 @@ export function ghPrDiff(run: CommandRunner, number: number, repo?: string): Cha
  * looked up through the same API family, and if that fails too the error is raised.
  */
 export function ghFileAt(run: CommandRunner, repo: string, path: string, ref: string): string | null {
-  const cmd = ["gh", "api", "-H", "Accept: application/vnd.github.raw+json", `repos/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`];
+  const cmd = [
+    "gh",
+    "api",
+    "-H",
+    "Accept: application/vnd.github.raw+json",
+    `repos/${repo}/contents/${path}?ref=${encodeURIComponent(ref)}`,
+  ];
   const r = run(cmd);
   if (r.code === 0) return r.stdout;
   if (!/\b404\b|not found/i.test(r.stderr)) throw new ToolError(`gh api ${repo}/${path}@${ref} failed: ${firstLine(r.stderr)}`);

@@ -13,7 +13,16 @@ import { parseFlags } from "../flags";
 import { CHOICE_FILE, loadCatalog, loadRepoChoice, type Catalog } from "./catalog";
 import { checkDescription, type CheckResult, type Finding } from "./check";
 import {
-  changesFromGit, commitMessagesFromGit, defaultRunner, ghFileAt, ghPrDiff, ghPrView, gitFileAt, gitHead, ToolError, type CommandRunner,
+  changesFromGit,
+  commitMessagesFromGit,
+  defaultRunner,
+  ghFileAt,
+  ghPrDiff,
+  ghPrView,
+  gitFileAt,
+  gitHead,
+  ToolError,
+  type CommandRunner,
 } from "./gh";
 import { computeRisk, formatRisk, parseRiskExtension, RISK_EXTENSION_FILE, type ChangedFile, type RiskExtension } from "./pr-risk";
 import { resolveTemplate, type ResolvedTemplate } from "./resolve";
@@ -37,8 +46,12 @@ export interface CheckOptions {
   base: string;
   allowBreaking: boolean;
 }
-export interface StripOptions { file: string }
-export interface RiskOptions { base: string }
+export interface StripOptions {
+  file: string;
+}
+export interface RiskOptions {
+  base: string;
+}
 
 export interface PrTemplateIo {
   stdout: (text: string) => void;
@@ -73,7 +86,8 @@ export function parseCheckArgs(argv: string[]): CheckOptions | { help: true } {
     if (!/^[1-9][0-9]*$/.test(prText)) throw new UsageError(`--pr must be a pull request number, got "${prText}".`);
     pr = Number(prText);
     for (const flag of ["--title", "--head", "--base"]) {
-      if (values[flag] !== undefined) throw new UsageError(`${flag} goes with a file; with --pr the title, head and base come from the pull request.`);
+      if (values[flag] !== undefined)
+        throw new UsageError(`${flag} goes with a file; with --pr the title, head and base come from the pull request.`);
     }
   } else {
     if (values["--repo"] !== undefined) throw new UsageError("--repo goes with --pr.");

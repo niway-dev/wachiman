@@ -58,7 +58,15 @@ export function versionAtLeast(a, b = MIN_BUN) {
 export function probeBun(binary, { env, cwd, spawnSync = nodeSpawnSync, timeout = 15000 }) {
   let result;
   try {
-    result = spawnSync(binary, ["--version"], { shell: false, timeout, env, cwd, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"], windowsHide: true });
+    result = spawnSync(binary, ["--version"], {
+      shell: false,
+      timeout,
+      env,
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+    });
   } catch {
     return { ok: false, reason: "unusable" };
   }
@@ -82,11 +90,13 @@ export function resolveBun(platform, env, exists = existsSync) {
   const windows = platform === "win32";
   const path = windows ? win32 : posix;
   const key = Object.keys(env).find((name) => (windows ? name.toLowerCase() === "path" : name === "PATH"));
-  const value = key === undefined ? "" : env[key] ?? "";
+  const value = key === undefined ? "" : (env[key] ?? "");
   for (const raw of value.split(windows ? ";" : ":")) {
     const entry = windows ? raw.trim().replace(/^"(.*)"$/, "$1") : raw;
     if (entry === "" || !path.isAbsolute(entry)) continue;
-    const candidates = windows ? [path.join(entry, "bun.exe"), path.join(entry, "node_modules", "bun", "bin", "bun.exe")] : [path.join(entry, "bun")];
+    const candidates = windows
+      ? [path.join(entry, "bun.exe"), path.join(entry, "node_modules", "bun", "bin", "bun.exe")]
+      : [path.join(entry, "bun")];
     for (const candidate of candidates) if (exists(candidate)) return candidate;
   }
   return null;
@@ -141,7 +151,17 @@ export function missingBunLines(found, platform) {
  * which is forwarded. The Bun comes from the package's own `bun` dependency or from the absolute
  * PATH entries only (see `findBun`), so a `bun` in the reviewed repository (the cwd) is never run.
  */
-export function launch({ pkgDir, argv, platform = process.platform, env = process.env, spawn = nodeSpawn, stderr = (line) => console.error(line), exists = existsSync, spawnSync = nodeSpawnSync, bundled = bundledBunPath }) {
+export function launch({
+  pkgDir,
+  argv,
+  platform = process.platform,
+  env = process.env,
+  spawn = nodeSpawn,
+  stderr = (line) => console.error(line),
+  exists = existsSync,
+  spawnSync = nodeSpawnSync,
+  bundled = bundledBunPath,
+}) {
   return new Promise((resolve) => {
     const { binary, old, failed } = findBun({ platform, env, cwd: pkgDir, exists, spawnSync, bundled });
     if (binary === null) {

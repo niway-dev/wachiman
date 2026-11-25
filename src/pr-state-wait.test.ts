@@ -6,7 +6,22 @@ import { join } from "node:path";
 import { GhTimeoutError, SIGNATURE, ghWithin, marker, type GhFn } from "./engine";
 import { buildStateBlock, encodeStateBlock, noFindings } from "./review-state";
 import { parsePrStateArgs, type PrState } from "./pr-state";
-import { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, MIN_INTERVAL_S, listenerOver, makeGhProbe, openGhEventListener, processSignals, realGhProbe, realWaitDeps, runPrStateWait, type GhProbe, type Listener, type WaitDeps, type WaitSignal } from "./pr-state-wait";
+import {
+  DEFAULT_INTERVAL_S,
+  DEFAULT_TIMEOUT_S,
+  MIN_INTERVAL_S,
+  listenerOver,
+  makeGhProbe,
+  openGhEventListener,
+  processSignals,
+  realGhProbe,
+  realWaitDeps,
+  runPrStateWait,
+  type GhProbe,
+  type Listener,
+  type WaitDeps,
+  type WaitSignal,
+} from "./pr-state-wait";
 
 const REPO = "o/r";
 const HEAD = "a".repeat(40);
@@ -21,27 +36,58 @@ function world(opts: { reviewAtMs: number; closedAtMs?: number }) {
     const joined = args.join(" ");
     if (args[1] === "graphql") {
       readsAt.push(now);
-      return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] } } } } });
+      return JSON.stringify({
+        data: { repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage: false, endCursor: null }, nodes: [] } } } },
+      });
     }
-    if (joined.includes("/reviews")) return now >= opts.reviewAtMs ? JSON.stringify({ login: "github-actions[bot]", body: completeReview, submitted_at: "2026-11-19T00:01:00Z" }) : "";
-    if (joined.includes("/check-runs")) return JSON.stringify({ name: "Wachiman review", status: now >= opts.reviewAtMs ? "completed" : "in_progress" });
-    if (joined.includes("pulls/")) return JSON.stringify({ state: opts.closedAtMs !== undefined && now >= opts.closedAtMs ? "closed" : "open", head: HEAD });
+    if (joined.includes("/reviews"))
+      return now >= opts.reviewAtMs
+        ? JSON.stringify({ login: "github-actions[bot]", body: completeReview, submitted_at: "2026-11-19T00:01:00Z" })
+        : "";
+    if (joined.includes("/check-runs"))
+      return JSON.stringify({ name: "Wachiman review", status: now >= opts.reviewAtMs ? "completed" : "in_progress" });
+    if (joined.includes("pulls/"))
+      return JSON.stringify({ state: opts.closedAtMs !== undefined && now >= opts.closedAtMs ? "closed" : "open", head: HEAD });
     throw new Error(`unexpected gh call: ${joined}`);
   };
   const sleeps: number[] = [];
   const base: WaitDeps = {
     now: () => now,
-    sleep: async (ms) => { sleeps.push(ms); now += ms; },
+    sleep: async (ms) => {
+      sleeps.push(ms);
+      now += ms;
+    },
     openListener: () => null,
     signals: { install: () => () => {} },
     // A read that never settles loses to this timer, which then moves the fake clock to the deadline; a read that settles cancels it first.
     timeout: (ms) => {
       let live = true;
-      const promise = new Promise<null>((resolve) => setTimeout(() => { if (live) { now += ms; resolve(null); } }, 5));
-      return { promise, cancel: () => { live = false; } };
+      const promise = new Promise<null>((resolve) =>
+        setTimeout(() => {
+          if (live) {
+            now += ms;
+            resolve(null);
+          }
+        }, 5),
+      );
+      return {
+        promise,
+        cancel: () => {
+          live = false;
+        },
+      };
     },
   };
-  return { gh, readsAt, sleeps, base, advance: (ms: number) => { now += ms; }, clock: () => now };
+  return {
+    gh,
+    readsAt,
+    sleeps,
+    base,
+    advance: (ms: number) => {
+      now += ms;
+    },
+    clock: () => now,
+  };
 }
 
 async function run(w: ReturnType<typeof world>, args: Parameters<typeof runPrStateWait>[0], deps: Partial<WaitDeps> = {}) {
@@ -94,7 +140,17 @@ describe("AC13: --wait returns as soon as next is not wait, or times out", () =>
 
   test("the flags are validated: bad values are usage errors", () => {
     expect(parsePrStateArgs(["--wait", "--timeout", "90", "--interval=25"])).toEqual({ wait: true, timeoutS: 90, intervalS: 25 });
-    for (const bad of [["--interval", "10"], ["--interval", "19"], ["--interval", "abc"], ["--interval", "30.5"], ["--interval"], ["--timeout", "0"], ["--timeout", "-5"], ["--timeout", "x"], ["--timeout"]]) {
+    for (const bad of [
+      ["--interval", "10"],
+      ["--interval", "19"],
+      ["--interval", "abc"],
+      ["--interval", "30.5"],
+      ["--interval"],
+      ["--timeout", "0"],
+      ["--timeout", "-5"],
+      ["--timeout", "x"],
+      ["--timeout"],
+    ]) {
       expect(() => parsePrStateArgs(["--wait", ...bad])).toThrow(UsageError);
     }
     expect(() => parsePrStateArgs(["--timeout", "60"])).toThrow(/--wait/);
@@ -102,9 +158,16 @@ describe("AC13: --wait returns as soon as next is not wait, or times out", () =>
   });
 
   test("a timeout while only finding the repository is exit 1 with nothing on stdout, not a timeout document", async () => {
-    for (const args of [{ ...ARGS, repo: undefined }, { ...ARGS, pr: undefined }]) {
+    for (const args of [
+      { ...ARGS, repo: undefined },
+      { ...ARGS, pr: undefined },
+    ]) {
       const w = world({ reviewAtMs: 10 ** 9 });
-      const r = await run(w, args, { limitGh: () => () => { throw new GhTimeoutError(["repo", "view"]); } });
+      const r = await run(w, args, {
+        limitGh: () => () => {
+          throw new GhTimeoutError(["repo", "view"]);
+        },
+      });
       expect(r.code).toBe(1);
       expect(r.out).toEqual([]);
       expect(r.err[0]).toContain("pr-state");
@@ -114,7 +177,10 @@ describe("AC13: --wait returns as soon as next is not wait, or times out", () =>
   test("a GitHub error while waiting is exit 1 with nothing on stdout", async () => {
     const w = world({ reviewAtMs: 10 ** 9 });
     let n = 0;
-    const flaky: GhFn = (a) => { if (a[1] === "graphql" && ++n === 2) throw new Error("HTTP 502"); return w.gh(a); };
+    const flaky: GhFn = (a) => {
+      if (a[1] === "graphql" && ++n === 2) throw new Error("HTTP 502");
+      return w.gh(a);
+    };
     const out: string[] = [];
     const err: string[] = [];
     const code = await runPrStateWait(ARGS, flaky, { stdout: (t) => out.push(t), stderr: (l) => err.push(l) }, w.base);
@@ -125,7 +191,10 @@ describe("AC13: --wait returns as soon as next is not wait, or times out", () =>
 });
 
 /** A fake `gh event listen`: an event every `everyMs` of fake time, or a failure after `failAfterMs`. */
-function fakeListener(w: ReturnType<typeof world>, o: { everyMs?: number; failAfterMs?: number }): { listener: Listener; closed: () => boolean } {
+function fakeListener(
+  w: ReturnType<typeof world>,
+  o: { everyMs?: number; failAfterMs?: number },
+): { listener: Listener; closed: () => boolean } {
   let closed = false;
   let last = 0;
   return {
@@ -141,7 +210,9 @@ function fakeListener(w: ReturnType<typeof world>, o: { everyMs?: number; failAf
         if (step === failIn && failIn <= eventIn) return "failed";
         return step === eventIn && eventIn <= ms ? "event" : "elapsed";
       },
-      close: () => { closed = true; },
+      close: () => {
+        closed = true;
+      },
     },
   };
 }
@@ -171,7 +242,11 @@ describe("AC14: at most one state read per interval, however many events arrive"
     let fired = false;
     const listener: Listener = {
       wake: async (ms) => {
-        if (!fired) { fired = true; w.advance(Math.min(ms, 5_000)); return "event"; }
+        if (!fired) {
+          fired = true;
+          w.advance(Math.min(ms, 5_000));
+          return "event";
+        }
         w.advance(ms);
         return "elapsed";
       },
@@ -188,10 +263,18 @@ describe("AC14: at most one state read per interval, however many events arrive"
     const w = world({ reviewAtMs: 10 ** 9 });
     const encoder = new TextEncoder();
     let push!: (s: string) => void;
-    const events = new ReadableStream<Uint8Array>({ start: (c) => { push = (t) => c.enqueue(encoder.encode(t)); } });
+    const events = new ReadableStream<Uint8Array>({
+      start: (c) => {
+        push = (t) => c.enqueue(encoder.encode(t));
+      },
+    });
     const inner = listenerOver(events, new Promise<void>(() => {}), () => {});
     const listener: Listener = {
-      wake: async (ms) => { push('{"type":"pull_request_review","state":"done","next":"done"}\n'); await Bun.sleep(1); return inner.wake(ms); },
+      wake: async (ms) => {
+        push('{"type":"pull_request_review","state":"done","next":"done"}\n');
+        await Bun.sleep(1);
+        return inner.wake(ms);
+      },
       close: () => inner.close(),
     };
     const r = await run(w, { ...ARGS, timeoutS: 100 }, { openListener: () => listener });
@@ -254,7 +337,21 @@ describe("AC15: the process listener, over a fake process", () => {
     });
     const ended = new Promise<void>((r) => (end = r));
     let killed = false;
-    return { events, ended, kill: () => { killed = true; }, push, endStream: () => endStream(), breakStream: (e: Error) => breakStream(e), exit: () => { endStream(); end(); }, killed: () => killed };
+    return {
+      events,
+      ended,
+      kill: () => {
+        killed = true;
+      },
+      push,
+      endStream: () => endStream(),
+      breakStream: (e: Error) => breakStream(e),
+      exit: () => {
+        endStream();
+        end();
+      },
+      killed: () => killed,
+    };
   }
 
   test("an event line wakes it before the time is up, and the content is ignored", async () => {
@@ -330,20 +427,33 @@ describe("AC15: the process listener, over a fake process", () => {
 
   test("the opener returns null when gh has no event command, and starts nothing", () => {
     let started = 0;
-    const probe: GhProbe = { supported: () => false, start: () => (started++, { stdout: new ReadableStream(), exited: new Promise(() => {}), kill: () => {} }) };
+    const probe: GhProbe = {
+      supported: () => false,
+      start: () => (started++, { stdout: new ReadableStream(), exited: new Promise(() => {}), kill: () => {} }),
+    };
     expect(openGhEventListener(REPO, probe)).toBeNull();
     expect(started).toBe(0);
   });
 
   test("the opener returns null when the probe throws (no gh at all)", () => {
-    const probe: GhProbe = { supported: () => { throw new Error("spawn gh ENOENT"); }, start: () => { throw new Error("unreachable"); } };
+    const probe: GhProbe = {
+      supported: () => {
+        throw new Error("spawn gh ENOENT");
+      },
+      start: () => {
+        throw new Error("unreachable");
+      },
+    };
     expect(openGhEventListener(REPO, probe)).toBeNull();
   });
 
   test("when gh has the command, the opener starts it for the repository and closing the listener kills it", () => {
     const p = fakeProcess();
     const started: string[] = [];
-    const probe: GhProbe = { supported: () => true, start: (repo) => (started.push(repo), { stdout: p.events, exited: p.ended, kill: p.kill }) };
+    const probe: GhProbe = {
+      supported: () => true,
+      start: (repo) => (started.push(repo), { stdout: p.events, exited: p.ended, kill: p.kill }),
+    };
     const l = openGhEventListener(REPO, probe);
     expect(l).not.toBeNull();
     expect(started).toEqual([REPO]);
@@ -444,7 +554,15 @@ describe("the deadline bounds a read in progress, not only the sleeps", () => {
 
   test("a gh call that times out on the real wait path is a timeout document, never exit 1", async () => {
     const w = world({ reviewAtMs: 10 ** 9 });
-    const r = await run(w, { ...ARGS, timeoutS: 100 }, { limitGh: () => () => { throw new GhTimeoutError(["api", "x"]); } });
+    const r = await run(
+      w,
+      { ...ARGS, timeoutS: 100 },
+      {
+        limitGh: () => () => {
+          throw new GhTimeoutError(["api", "x"]);
+        },
+      },
+    );
     expect([r.code, r.json.next, r.json.why]).toEqual([21, "wait", "timeout"]);
   });
 });
@@ -467,7 +585,14 @@ describe("the gh event listen child never outlives the wait", () => {
     const w = world({ reviewAtMs: 0 });
     let installed = 0;
     let removed = 0;
-    const signals = { install: () => (installed++, () => { removed++; }) };
+    const signals = {
+      install: () => (
+        installed++,
+        () => {
+          removed++;
+        }
+      ),
+    };
     const r = await run(w, { ...ARGS, timeoutS: 100 }, { signals });
     expect(r.code).toBe(0);
     expect([installed, removed]).toEqual([1, 1]);
@@ -480,9 +605,21 @@ describe("the gh event listen child never outlives the wait", () => {
       let handler: ((s: WaitSignal) => void) | null = null;
       let installed = 0;
       let removed = 0;
-      const signals = { install: (h: (s: WaitSignal) => void) => (installed++, (handler = h), () => { removed++; handler = null; }) };
+      const signals = {
+        install: (h: (s: WaitSignal) => void) => (
+          installed++,
+          (handler = h),
+          () => {
+            removed++;
+            handler = null;
+          }
+        ),
+      };
       const wrapped: Listener = {
-        wake: async (ms) => { handler?.(sig); return listener.wake(ms); },
+        wake: async (ms) => {
+          handler?.(sig);
+          return listener.wake(ms);
+        },
         close: () => listener.close(),
       };
       await run(w, { ...ARGS, timeoutS: 100 }, { openListener: () => wrapped, signals });
@@ -498,7 +635,11 @@ describe("the gh event listen child never outlives the wait", () => {
     const signals = { install: (h: (s: WaitSignal) => void) => ((handler = h), () => {}) };
     let closedAtSignal: boolean | null = null;
     const wrapped: Listener = {
-      wake: async (ms) => { handler?.("SIGTERM"); closedAtSignal = closed(); return listener.wake(ms); },
+      wake: async (ms) => {
+        handler?.("SIGTERM");
+        closedAtSignal = closed();
+        return listener.wake(ms);
+      },
       close: () => listener.close(),
     };
     await run(w, { ...ARGS, timeoutS: 100 }, { openListener: () => wrapped, signals });
@@ -509,10 +650,22 @@ describe("the gh event listen child never outlives the wait", () => {
     const w = world({ reviewAtMs: 10 ** 9 });
     const { listener, closed } = fakeListener(w, { everyMs: 1_000 });
     let removed = 0;
-    const signals = { install: () => () => { removed++; } };
+    const signals = {
+      install: () => () => {
+        removed++;
+      },
+    };
     let n = 0;
-    const flaky: GhFn = (a) => { if (a[1] === "graphql" && ++n === 2) throw new Error("HTTP 502"); return w.gh(a); };
-    const code = await runPrStateWait(ARGS, flaky, { stdout: () => {}, stderr: () => {} }, { ...w.base, openListener: () => listener, signals });
+    const flaky: GhFn = (a) => {
+      if (a[1] === "graphql" && ++n === 2) throw new Error("HTTP 502");
+      return w.gh(a);
+    };
+    const code = await runPrStateWait(
+      ARGS,
+      flaky,
+      { stdout: () => {}, stderr: () => {} },
+      { ...w.base, openListener: () => listener, signals },
+    );
     expect(code).toBe(1);
     expect(closed()).toBe(true);
     expect(removed).toBe(1);

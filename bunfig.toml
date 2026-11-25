@@ -1,6 +1,20 @@
 # Engine-owned Bun configuration. The workflow runs the engine with
 # `bun --no-env-file --config=<this file>`, so Bun never reads a bunfig.toml (and its
 # `preload`, which runs code) or a .env file from the reviewed pull request's checkout.
-# Keep this file minimal: no `preload`, no `env`.
+# Keep the runtime part minimal: no `preload`, no `env`.
 [install]
 auto = "disable"
+
+# Development tooling only (ADR 0061). The sections below are read by `bun fmt` and `bun lint`, and ignored
+# when the engine runs; they are not runtime settings and never need a `preload` or an `env`.
+# `bun fmt` leaves Markdown, TOML, test fixtures and the templates alone: tests compare those byte for byte.
+[fmt]
+printWidth = 140
+ignorePatterns = ["**/*.md", "**/*.toml", "**/fixtures/**", "templates/**", ".claude/**"]
+
+[lint]
+ignorePatterns = ["**/fixtures/**", ".claude/**"]
+
+[lint.rules]
+"no-empty" = "error"
+"max-depth" = ["error", 4]

@@ -8,7 +8,7 @@ description: Use when the developer asks to review, audit or "analyse" their own
 ## Why
 
 Wachiman reviews a change in an empty, isolated Claude Code profile with fixed rules: only
-committed work, a capped range, no telemetry, nothing posted anywhere, and an opt-in history on the
+committed work, a capped range, no Wachiman telemetry (Claude Code's switches are set, not packet-verified), nothing posted anywhere, and an opt-in history on the
 laptop that tracks which findings were real. Your own session carries the developer's skills,
 `CLAUDE.md` and plugins, so **you never review the code yourself: you choose the range, run the
 CLI, and present its result.**

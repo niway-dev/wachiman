@@ -13,14 +13,7 @@
  * Needs `gh` logged in with read access to the repository. Not part of the engine or of `bun test`.
  */
 import { loadConfig } from "../src/config";
-import {
-  DEFAULT_EXCLUDE,
-  buildBatchPrompt,
-  filterFiles,
-  planBatches,
-  type ReviewFile,
-  type ReviewContext,
-} from "../src/engine";
+import { DEFAULT_EXCLUDE, buildBatchPrompt, filterFiles, planBatches, type ReviewFile, type ReviewContext } from "../src/engine";
 import { addedLinesOf } from "../src/evidence";
 import { QUESTIONS, selectQuestions } from "../src/questions";
 

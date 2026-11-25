@@ -6,17 +6,7 @@ import { UsageError } from "../config";
 import { REVIEW_RESULT_V2 } from "../formats";
 import { spawnGit } from "../evidence";
 import { emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
-import {
-  appendVerdict,
-  forget,
-  historyRoot,
-  historySettings,
-  prune,
-  readRuns,
-  readVerdicts,
-  repositoryKey,
-  writeRun,
-} from "./store";
+import { appendVerdict, forget, historyRoot, historySettings, prune, readRuns, readVerdicts, repositoryKey, writeRun } from "./store";
 import { HISTORY_RUN_FORMAT, type HistoryRun } from "./types";
 
 const temps: string[] = [];
@@ -39,7 +29,12 @@ function run(savedAt: string, firstIds: string[] = ["aaaaaaaaaa"], key = "r-1234
     savedAt,
     engine: { version: "0.0.0" },
     repository: { key, name: "r", keyedBy: "remote", remote: "https://github.com/o/r", path: "/x" },
-    result: { format: REVIEW_RESULT_V2, change: { head: { sha: "1a2b3c4d5e6f".padEnd(40, "0") } }, coverage: { reviewed: [], expected: [], skipped: [] }, findings: [] } as any,
+    result: {
+      format: REVIEW_RESULT_V2,
+      change: { head: { sha: "1a2b3c4d5e6f".padEnd(40, "0") } },
+      coverage: { reviewed: [], expected: [], skipped: [] },
+      findings: [],
+    } as any,
     tracking: firstIds.map((id) => ({ id, status: "new", firstId: id, firstHead: "h", runs: 1, reopened: 0, titleKey: "t" })),
     settled: [],
     unknown: 0,
@@ -248,7 +243,12 @@ describe("writeRun / readRuns", () => {
     writeFileSync(join(dir, "old.json"), JSON.stringify(old));
     const [read] = readRuns(root, "r-12345678", () => {});
     expect(read.result.format).toBe(REVIEW_RESULT_V2);
-    expect(read.result.findings[0]).toMatchObject({ anchor: "diff", origin: "unknown", tier: "Important", verification: { status: "unverified", checked: [] } });
+    expect(read.result.findings[0]).toMatchObject({
+      anchor: "diff",
+      origin: "unknown",
+      tier: "Important",
+      verification: { status: "unverified", checked: [] },
+    });
   });
 
   test("a run that embeds a result version this engine does not know is skipped and left in place", () => {
