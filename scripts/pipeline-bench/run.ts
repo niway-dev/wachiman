@@ -198,7 +198,10 @@ async function once() {
 
 // Read every object of the case once, untimed, so the first engine measured does not pay the cold
 // git object cache that the second one would get for free. This costs seconds, not a pipeline pass.
-spawnSync("git", ["-C", repoDir, "cat-file", "--batch-all-objects", "--batch"], { stdio: "ignore" });
+const warm = spawnSync("git", ["-C", repoDir, "cat-file", "--batch-all-objects", "--batch"], { stdio: "ignore" });
+if (warm.error || warm.status !== 0) {
+  console.error(`warning: the git cache warm-up failed (${warm.error?.message ?? `exit ${warm.status}`}); timings may carry a cold cache`);
+}
 const first = await once();
 const runs = runsArg ?? (first.ms.reviewChange < 60_000 ? 3 : 1);
 const all = [first];

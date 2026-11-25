@@ -45,7 +45,7 @@ bun scripts/pipeline-bench/compare.ts --base base.jsonl --head head.jsonl
 metric whose API is missing is `n/a`.
 
 Each side first reads every git object of the case once, untimed (`git cat-file --batch-all-objects`),
-so the first engine measured does not pay the cold git object cache that the second one would otherwise get for free. If the stub
+so the first engine measured does not pay the cold git object cache that the second one would otherwise get for free. Only the git cache is warmed: the first timed run still pays module load and JIT, which the median of 3 runs absorbs. If the stub
 cannot parse a batch's file list from the engine's prompt, the result carries `harnessMismatch` and
 the report prints a warning.
 
