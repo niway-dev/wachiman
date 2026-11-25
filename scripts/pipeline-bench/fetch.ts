@@ -23,7 +23,11 @@ const git = (...args: string[]) => {
 
 const have = () => {
   try {
-    return existsSync(join(dest, ".git")) && git("rev-parse", "--verify", `${c.sha}^{commit}`) === c.sha && git("rev-parse", "--verify", `${c.sha}^`) !== "";
+    return (
+      existsSync(join(dest, ".git")) &&
+      git("rev-parse", "--verify", `${c.sha}^{commit}`) === c.sha &&
+      git("rev-parse", "--verify", `${c.sha}^`) !== ""
+    );
   } catch {
     return false;
   }

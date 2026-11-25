@@ -25,7 +25,14 @@ function compare(base: string, head: string) {
   try {
     writeFileSync(join(dir, "base.jsonl"), `${base}\n`);
     writeFileSync(join(dir, "head.jsonl"), `${head}\n`);
-    const r = Bun.spawnSync(["bun", join(import.meta.dir, "compare.ts"), "--base", join(dir, "base.jsonl"), "--head", join(dir, "head.jsonl")]);
+    const r = Bun.spawnSync([
+      "bun",
+      join(import.meta.dir, "compare.ts"),
+      "--base",
+      join(dir, "base.jsonl"),
+      "--head",
+      join(dir, "head.jsonl"),
+    ]);
     expect(r.exitCode).toBe(0);
     return r.stdout.toString();
   } finally {

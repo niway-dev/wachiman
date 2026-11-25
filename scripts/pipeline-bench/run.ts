@@ -28,6 +28,8 @@ if (!spec) {
 }
 const runsArg = arg("runs") ? Number(arg("runs")) : undefined;
 
+// The engine under test is loaded from a path chosen at run time, so its types are not known here.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
 const load = async (rel: string): Promise<Any> => import(join(srcDir, rel)).catch(() => ({}));
 const git: Any = await load("connectors/local-git.ts");
