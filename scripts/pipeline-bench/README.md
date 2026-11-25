@@ -44,8 +44,8 @@ bun scripts/pipeline-bench/compare.ts --base base.jsonl --head head.jsonl
 `run.ts` imports the engine from `--src` at run time and uses only APIs that old versions have; a
 metric whose API is missing is `n/a`.
 
-Each side runs one untimed warm-up pass before its timed runs, so the first engine measured does
-not pay the cold git object cache that the second one would otherwise get for free. If the stub
+Each side first reads every git object of the case once, untimed (`git cat-file --batch-all-objects`),
+so the first engine measured does not pay the cold git object cache that the second one would otherwise get for free. If the stub
 cannot parse a batch's file list from the engine's prompt, the result carries `harnessMismatch` and
 the report prints a warning.
 

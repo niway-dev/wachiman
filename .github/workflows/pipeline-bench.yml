@@ -42,7 +42,8 @@ jobs:
       - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.3.4
-      # Kept on purpose: the engine change stacked directly above this one swaps the engine to ripgrep, and the head side needs it.
+      # An engine that searches evidence with ripgrep needs `rg` on the PATH; one that still uses
+      # git grep ignores it, so the step is unconditional and both sides see the same tools.
       # The hash is the one in the upstream release's `.sha256` file, and the download must match it.
       - name: Install ripgrep 15.2.0
         env:

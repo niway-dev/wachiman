@@ -5,6 +5,7 @@
 //          --src <engine src dir> --repo <checkout of the case> --case <id> [--runs N]
 // Prints one JSON line. Only APIs that exist in old engine versions are used, and each is looked
 // up at run time: one that is missing leaves its metrics null instead of failing.
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
@@ -195,9 +196,9 @@ async function once() {
   }
 }
 
-// One untimed pass first, so the first timed run does not pay the cold git object cache that the
-// engine run before this one on the same runner has already warmed.
-await once();
+// Read every object of the case once, untimed, so the first engine measured does not pay the cold
+// git object cache that the second one would get for free. This costs seconds, not a pipeline pass.
+spawnSync("git", ["-C", repoDir, "cat-file", "--batch-all-objects", "--batch"], { stdio: "ignore" });
 const first = await once();
 const runs = runsArg ?? (first.ms.reviewChange < 60_000 ? 3 : 1);
 const all = [first];
@@ -215,8 +216,9 @@ console.log(
     tier: spec.tier,
     runs,
     deterministic: first.det,
-    // The same inputs must give the same digests on every run; a difference is reported, not hidden.
+    // Batches whose file list the stub could not read from the engine's prompt.
     harnessMismatch: all.reduce((n, r) => n + r.mismatches, 0),
+    // The same inputs must give the same digests on every run; a difference is reported, not hidden.
     stable: all.every((r) => r.det.evidenceHash === first.det.evidenceHash && r.det.promptHash === first.det.promptHash),
     timingMs: timing,
   }),
