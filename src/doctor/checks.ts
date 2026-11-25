@@ -18,7 +18,7 @@ import { inspectIsolatedProfile } from "../profiles";
 import { buildChildEnv } from "../providers/claude-code";
 import { effectiveSettings, OLD_SETTINGS_PATH, parseRepoSettings, SETTINGS_PATH } from "../repo-settings";
 import { UsageError } from "../config";
-import { RIPGREP_MIN_MAJOR, RIPGREP_VERSION, resolveRipgrep } from "../ripgrep";
+import { RIPGREP_MIN_MAJOR, RIPGREP_VERSION, rejectionReasons, resolveRipgrep } from "../ripgrep";
 import { classifyRef, compareVersions, parseTag, scanWorkflows } from "../upgrade/pin";
 
 export type CheckLevel = "required" | "optional";
@@ -271,11 +271,12 @@ export const CHECKS: DoctorCheck[] = [
         };
       }
       // Not required: without it the call-site evidence searches with git grep, which is only slower.
+      const reasons = rejectionReasons(found.tried);
       return {
         id: "ripgrep",
         level: "optional",
         status: "warn",
-        evidence: `no ripgrep ${RIPGREP_MIN_MAJOR} or newer: the call-site evidence uses git grep, which is slow on large repositories`,
+        evidence: `no ripgrep ${RIPGREP_MIN_MAJOR} or newer: the call-site evidence uses git grep, which is slow on large repositories${reasons.length > 0 ? ` (${reasons.join("; ")})` : ""}`,
         fix: `wachiman setup (installs ripgrep ${RIPGREP_VERSION} for Wachiman)`,
         detail: { version: null, tried: found.tried.length },
       };

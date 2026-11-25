@@ -160,6 +160,10 @@ describe("required checks that fail turn the exit code to 1", () => {
     expect(row(missing, "ripgrep").evidence).toContain("git grep");
     expect(row(missing, "ripgrep").fix).toContain("wachiman setup");
     expect(row(machine({ rg: "ripgrep 14.1.1 (rev abc)" }).report(), "ripgrep").status).toBe("warn");
+    // The reason a candidate was ignored is in the row, so the user can fix the override.
+    const relative = machine({ rg: null }).report({}, { WACHIMAN_RIPGREP: "relative/rg" });
+    expect(row(relative, "ripgrep").evidence).toContain("must be an absolute path");
+    expect(row(missing, "ripgrep").evidence).not.toContain("(");
     // Only an optional row: a machine with no ripgrep still passes.
     expect(missing.failedRequired).toBe(0);
     expect(missing.exitCode).toBe(0);

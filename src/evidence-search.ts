@@ -31,8 +31,9 @@
  * U+2028/9 (its row parser's `.` stops at them), so this backend drops those rows too. Fixing it
  * belongs to a change that touches both.
  *
- * Known differences from `git grep`: it searches tracked files only and this searches the working
- * tree, so an untracked file outside the exclusions is searched too; and there is no 8 MB output
+ * Known differences from `git grep`: this searches the directory the engine passes, which is a
+ * snapshot of the head (`wachiman local`) or a clean CI checkout, never a developer's dirty working
+ * tree, so `--no-ignore` finds no ignored or untracked file there; and there is no 8 MB output
  * limit per name: `git grep` stops a name with a very common word (`get`) at about 8 MB of output
  * and the engine then says its list is partial, while this backend lists every match (the count and
  * that note then differ).
@@ -55,7 +56,7 @@ import {
   type Match,
   type SymbolSearch,
 } from "./evidence";
-import type { RipgrepFound, RipgrepResolution } from "./ripgrep";
+import { rejectionReasons, type RipgrepFound, type RipgrepResolution } from "./ripgrep";
 
 /** Wall clock of the one search a review makes (the git backend gives each batch 20 s for its own). */
 export const SEARCH_WALL_CLOCK_MS = 60_000;
@@ -364,6 +365,7 @@ export class EvidenceSearcher {
   }
 
   private async searchMissing(names: string[]) {
+    // Names already searched are served from memory even after a failure; only the others need a search.
     if (!this.usable) return;
     const missing = [...new Set(names)].filter((n) => !this.found.has(n));
     if (missing.length === 0) return;
@@ -390,6 +392,19 @@ export class EvidenceSearcher {
     const matches = this.found.get(symbol);
     return matches ? { matches } : { failed: `${symbol} was not searched` };
   };
+
+  /**
+   * The search a batch uses once ripgrep may have failed: a name ripgrep already answered is served
+   * from memory, and only a name it never searched goes to `fallback` (`git grep`). `onFallback`
+   * is called once per such name.
+   */
+  withFallback(fallback: SymbolSearch, onFallback: () => void = () => {}): SymbolSearch {
+    return (symbol, timeoutMs) => {
+      if (this.found.has(symbol)) return this.search(symbol, timeoutMs);
+      onFallback();
+      return fallback(symbol, timeoutMs);
+    };
+  }
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -404,8 +419,7 @@ export interface EvidenceRun {
 
 /** The warning when no ripgrep qualifies. It says what to do, and why a candidate was skipped when it existed. */
 export function ripgrepMissingLine(tried: string[]): string {
-  // "did not answer --version (spawn rg ENOENT)" only says the binary is not there, which the first sentence says.
-  const reasons = tried.filter((t) => !t.includes("ENOENT"));
+  const reasons = rejectionReasons(tried);
   return `evidence: ripgrep not found, using git grep (slower); run \`wachiman setup\`${reasons.length > 0 ? ` (${reasons.join("; ")})` : ""}`;
 }
 

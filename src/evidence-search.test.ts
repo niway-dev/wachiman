@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import {
   collectEvidence,
   defaultEvidenceIo,
-  extractCalledSymbols,
+  gitSymbolSearch,
   planEvidence,
   serializeEvidence,
   type EvidencePlan,
@@ -345,19 +345,19 @@ describe("runRipgrep", () => {
     expect(files("parse")).toEqual([".hidden/h.ts"]);
   });
 
-  withRipgrep("a user's ripgrep configuration file changes nothing", async () => {
+  withRipgrep("rg is always started with --no-config, so a user's configuration file cannot change a search", async () => {
     const dir = repo();
-    const config = join(temp("evidence-rgconfig-"), "rc");
-    writeFileSync(config, "--glob=!*.ts\n--max-count=1\n");
-    const before = process.env.RIPGREP_CONFIG_PATH;
-    process.env.RIPGREP_CONFIG_PATH = config;
-    try {
-      const run = await runRipgrep((real as RipgrepFound).path, ["formatDuration"], dir);
-      expect(run.ok && run.byName.get("formatDuration")!.length).toBe(6);
-    } finally {
-      if (before === undefined) delete process.env.RIPGREP_CONFIG_PATH;
-      else process.env.RIPGREP_CONFIG_PATH = before;
-    }
+    // A wrapper that refuses to run without the flag, then hands over to the real binary.
+    const wrapper = join(temp("evidence-rgwrap-"), "rg");
+    writeFileSync(
+      wrapper,
+      `#!/bin/sh\ncase " $* " in *" --no-config "*) exec "${(real as RipgrepFound).path}" "$@" ;; esac\necho "--no-config missing" >&2\nexit 2\n`,
+    );
+    chmodSync(wrapper, 0o755);
+    const run = await runRipgrep(wrapper, ["formatDuration"], dir);
+    expect(run.ok && run.byName.get("formatDuration")!.length).toBe(6);
+    // And the wrapper does fail without the flag, so the check above can fail.
+    expect(Bun.spawnSync([wrapper, "--version"]).exitCode).toBe(2);
   });
 
   test("a binary that cannot run is a failure, never a throw", async () => {
@@ -583,6 +583,28 @@ describe("EvidenceSearcher", () => {
     // The next batch does not run rg again.
     await searcher.ensure(["b"]);
     expect(logs).toHaveLength(1);
+  });
+
+  test("after a failure a name already searched is served from memory and only a never-searched name falls back", async () => {
+    const dir = temp("evidence-s-part-");
+    const marker = join(dir, "ran");
+    const script = join(dir, "rg");
+    // The first run answers (no matches); every later run fails.
+    writeFileSync(script, `#!/bin/sh\nif [ -e "${marker}" ]; then exit 2; fi\ntouch "${marker}"\nexit 1\n`);
+    chmodSync(script, 0o755);
+    const searcher = new EvidenceSearcher({ ...found, path: script }, dir, () => {}, tally());
+    await searcher.ensure(["a"]);
+    await searcher.ensure(["b"]);
+    expect(searcher.usable).toBe(false);
+    const asked: string[] = [];
+    const search = searcher.withFallback((symbol) => {
+      asked.push(symbol);
+      return { matches: [] };
+    });
+    expect(search("a", 1000)).toEqual({ matches: [] });
+    expect(asked).toEqual([]);
+    search("b", 1000);
+    expect(asked).toEqual(["b"]);
   });
 
   test("a name that was never searched is a failure, not an empty answer", () => {
@@ -923,7 +945,7 @@ describe("differential: ripgrep and git grep give the same evidence", () => {
     expect(rg.doc.symbols.map((s) => s.symbol)).toContain("startFileDrag");
   });
 
-  withRipgrep("the time box and a failing search are reported the same way", async () => {
+  withRipgrep("a search that was never run fails the way a failing git grep does", async () => {
     const repo = fixtureRepo();
     const searcher = new EvidenceSearcher(real as RipgrepFound, repo, () => {}, { backend: "ripgrep", searches: 0, ms: 0 });
     // Never searched: the lookup fails the way a failing git grep does, and the rest is not searched.
@@ -934,6 +956,42 @@ describe("differential: ripgrep and git grep give the same evidence", () => {
     expect(doc.status).toBe("truncated");
   });
 
+  withRipgrep("after a timed-out rg run the evidence document is the git backend's", async () => {
+    const repo = fixtureRepo();
+    const slow = join(temp("evidence-slow-"), "rg");
+    writeFileSync(slow, "#!/bin/sh\nexec sleep 5\n");
+    chmodSync(slow, 0o755);
+    const logs: string[] = [];
+    const searcher = new EvidenceSearcher(
+      { ...(real as RipgrepFound), path: slow },
+      repo,
+      (l) => logs.push(l),
+      {
+        backend: "ripgrep",
+        searches: 0,
+        ms: 0,
+      },
+      { timeoutMs: 100 },
+    );
+    const plan = { symbols: [sym("formatDuration"), sym("popular")], omitted: [] };
+    await searcher.ensure(plan.symbols.map((s) => s.name));
+    expect(searcher.usable).toBe(false);
+    expect(logs[0]).toContain("ran out of its 0.1 s time box");
+    const ctx = { repoDir: repo, batchFiles: [] as string[] };
+    // The engine's path after the failure: every name is new to the searcher, so each goes to git grep.
+    const viaFallback = collectEvidence(
+      plan,
+      ctx,
+      defaultEvidenceIo,
+      undefined,
+      searcher.withFallback(gitSymbolSearch(defaultEvidenceIo, repo)),
+    );
+    const viaGit = collectEvidence(plan, ctx, defaultEvidenceIo);
+    expect(serializeEvidence(viaFallback.doc)).toBe(serializeEvidence(viaGit.doc));
+    expect(viaFallback.warnings).toEqual(viaGit.warnings);
+    expect(viaGit.doc.symbols.length).toBeGreaterThan(0);
+  });
+
   // The same comparison over a real code base: this repository at HEAD, extracted so that
   // uncommitted files (which git grep ignores and ripgrep would read) cannot differ.
   withRipgrep(
@@ -941,7 +999,9 @@ describe("differential: ripgrep and git grep give the same evidence", () => {
     async () => {
       const root = join(import.meta.dir, "..");
       const archived = Bun.spawnSync(["git", "-c", "core.quotepath=off", "archive", "--format=tar", "HEAD"], { cwd: root, stderr: "pipe" });
-      if (archived.exitCode !== 0) return; // not a git checkout (a packed install): nothing to compare
+      // Not a git checkout (a packed install): nothing to compare, but CI must never skip this silently.
+      if (process.env.CI) expect(archived.exitCode).toBe(0);
+      else if (archived.exitCode !== 0) return;
       const repo = temp("evidence-self-");
       const unpacked = Bun.spawnSync(["tar", "-x", "-C", repo], { stdin: archived.stdout });
       expect(unpacked.exitCode).toBe(0);
@@ -949,7 +1009,7 @@ describe("differential: ripgrep and git grep give the same evidence", () => {
         ["init", "-q"],
         ["add", "-A", "-f"],
       ])
-        Bun.spawnSync(["git", ...args], { cwd: repo });
+        expect(Bun.spawnSync(["git", ...args], { cwd: repo }).exitCode).toBe(0);
 
       const sources = readdirSync(join(repo, "src"))
         .filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))
@@ -984,6 +1044,3 @@ describe("differential: ripgrep and git grep give the same evidence", () => {
     120_000,
   ); // one git grep per name per batch is the slow side of this comparison
 });
-
-// extractCalledSymbols is imported only so a rename in evidence.ts breaks this file loudly.
-void extractCalledSymbols;

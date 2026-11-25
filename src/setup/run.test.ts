@@ -328,16 +328,16 @@ describe("setup on a terminal", () => {
 
   test("it installs ripgrep before the checks, printing what it does, and a refused download exits 1", async () => {
     const w = world();
-    const order: string[] = [];
+    let calls = 0;
     const { run } = setup(w, [], ["", "2"], {
       ripgrep: async (_env, print) => {
-        order.push("ripgrep");
+        calls += 1;
         print("Installing ripgrep 15.2.0 (fast search for call-site evidence) into /x/bin...");
         return { ok: true };
       },
     });
     expect(await run).toBe(0);
-    expect(order).toEqual(["ripgrep"]);
+    expect(calls).toBe(1);
     const said = errText(w);
     expect(said).toContain("Installing ripgrep 15.2.0 (fast search for call-site evidence) into /x/bin...");
     expect(said.indexOf("Installing ripgrep")).toBeLessThan(said.indexOf("doctor:"));
@@ -359,6 +359,8 @@ describe("setup on a terminal", () => {
     const w2 = world();
     const flags2 = parseSetupFlags(["--profile", "work-a", "--yes"], w2.repo);
     expect(await runSetupCommand(flags2, w2.env, w2.io, w2.deps({ interactive: false, ripgrep: async () => ({ ok: false }) }))).toBe(1);
+    // A refused download still leaves the binding written.
+    expect(w2.config()!.projects[w2.key].profile).toBe("work-a");
   });
 
   test("--json prints the project document on stdout alone", async () => {

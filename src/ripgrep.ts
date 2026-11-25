@@ -267,3 +267,8 @@ export async function ensureRipgrep(
   );
   return { ok: true, result };
 }
+
+/** The reasons worth showing for `tried`: "did not answer --version (spawn rg ENOENT)" only says the binary is not there. */
+export function rejectionReasons(tried: string[]): string[] {
+  return tried.filter((t) => !t.includes("ENOENT"));
+}

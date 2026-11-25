@@ -109,6 +109,7 @@ import {
   addedLinesOf,
   collectEvidence,
   defaultEvidenceIo,
+  gitSymbolSearch,
   emptyEvidence,
   evidenceLogLine,
   fitEvidence,
@@ -5455,18 +5456,21 @@ async function gatherEvidence(deps: CoreDeps, headDir: string, files: ReviewFile
       // different set of files) is searched now. If ripgrep failed, this batch searches with git.
       const searcher = run?.searcher;
       if (searcher) await searcher.ensure(plan.symbols.map((s) => s.name));
-      const search: SymbolSearch | undefined = searcher?.usable ? searcher.search : undefined;
+      const io = { ...defaultEvidenceIo, ...(deps.git ? { git: deps.git } : {}), now };
+      // After a ripgrep failure a name it already answered is still served from memory; only a name
+      // it never searched goes to git grep.
+      let gitSearches = 0;
+      const viaGit = gitSymbolSearch(io, headDir);
+      const search: SymbolSearch | undefined = !searcher
+        ? undefined
+        : searcher.usable
+          ? searcher.search
+          : searcher.withFallback(viaGit, () => (gitSearches += 1));
       const searchStarted = now();
-      const found = collectEvidence(
-        plan,
-        { repoDir: headDir, batchFiles },
-        { ...defaultEvidenceIo, ...(deps.git ? { git: deps.git } : {}), now },
-        undefined,
-        search,
-      );
-      if (run && !search) {
+      const found = collectEvidence(plan, { repoDir: headDir, batchFiles }, io, undefined, search);
+      if (run && !searcher?.usable && (searcher ? gitSearches > 0 : true)) {
         run.tally.backend = "git grep";
-        run.tally.searches += plan.symbols.length;
+        run.tally.searches += searcher ? gitSearches : plan.symbols.length;
         run.tally.ms += now() - searchStarted;
       }
       doc = found.doc;
