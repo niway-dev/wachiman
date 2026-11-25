@@ -58,7 +58,7 @@ const NOT_A_CALL: { file: string; rules: string[]; reason: string }[] = [
     file: "scripts/bench.ts",
     rules: ["provider CLI"],
     reason:
-      "Writes a fake `claude` shell script into a temporary folder and puts it first on the PATH of the child; the real provider CLI is never run and nothing leaves the machine.",
+      'Dev-only benchmark (not shipped). Writes a fake "claude" shell script into a temp dir and puts it on PATH; no real provider CLI runs.',
   },
 ];
 
