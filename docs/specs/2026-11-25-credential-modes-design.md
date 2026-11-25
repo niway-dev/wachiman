@@ -30,7 +30,8 @@ Build order:
 | 1 | Wachiman's services never receive, store or have permission to fetch a customer's model credential. No hosted vault | A breach of Wachiman must yield no customer credential; concentrating many customers' keys is the target an attacker wants | 0065 (new) |
 | 2 | Six options, each labelled available or planned: repository secret, provider federation, secret manager, broker, `watch`, local | Teams differ in whom they trust and which provider they pay | — |
 | 3 | Provider federation is built first, Anthropic first, on the workflow that already requests an OIDC token (`wachiman-platform.yml`) | It removes the stored secret entirely; that workflow already grants `id-token: write` for the ledger | 0065 |
-| 4 | When a key and a federation rule are both passed, the run fails before any model call | Claude Code prefers `ANTHROPIC_API_KEY` and ignores federation without saying so | 0065 |
+| 4 | When a key or a subscription token is passed with a federation rule, the run fails before any model call | Claude Code prefers `ANTHROPIC_API_KEY` and ignores federation without saying so; a token would spend on a plan nobody chose for this mode | 0065 |
+| 4a | With federation or a secret manager, the workflow refuses `claude_code_version`, `claude_code_sha256` and `bun_version` overrides | The rule pins the workflow commit, not its inputs; those inputs choose the binary that holds the credential | 0065 |
 | 4b | The docs say the provider-side spend limit is the only limit a teammate cannot edit; Wachiman's budgets and `operator` are caller inputs a pusher changes for their own branch's run | A federation rule checks which workflow runs, not its inputs | — |
 | 5 | The documented defence against a compromised release is pinning the reusable workflow's SHA in the federation rule or the secret manager's conditions | The provider or manager, not Wachiman, then refuses a release the customer has not approved | — |
 | 6 | `operator` accepts `maintain` (GitHub maintain or admin, checked per command) besides a login; a Wachiman role registry is later and not designed here | A team must not depend on one login; GitHub already knows who maintains | amends the `operator` input; ADR at build time |
@@ -51,7 +52,12 @@ Build order:
 5. **Custom model endpoint.** A broker or gateway needs the engine to pass `ANTHROPIC_BASE_URL` or
    `HTTPS_PROXY`, which the child allowlist blocks today on purpose
    (`src/providers/claude-code.ts`). Unblocking it needs its own decision.
-6. **Subscription terms.** Anthropic's consumer terms and its legal-and-compliance page read
+6. **Token lifetimes in a long review.** The model process gets one identity token file and
+   cannot mint another (AC1). If the identity token or the access token expires before the job
+   ends (30 minutes, calls up to `call_timeout_s`), later calls are refused. To settle when
+   building: GitHub's identity token lifetime, whether Claude Code re-reads the file, and whether
+   the workflow refreshes it or the docs require a minimum rule lifetime.
+7. **Subscription terms.** Anthropic's consumer terms and its legal-and-compliance page read
    differently about hosted use of a subscription. Unresolved; only Anthropic can settle it.
 
 ## Out of scope
@@ -110,7 +116,10 @@ Acceptance criteria:
   the mode; the draft banner on `credentials.md` is updated for this option.
 - **AC6.** One review on a real Console organization, with the rule pinned to the release SHA, is
   recorded as evidence. A second run from a caller pointing at another workflow is refused by
-  Anthropic.
+  Anthropic. A third run longer than the identity token's lifetime finishes, or fails
+  with a message that names the expired token.
+- **AC7.** A federation caller that passes `claude_code_version`, `claude_code_sha256` or
+  `bun_version` fails before downloading anything, with a message naming the input.
 
 Not proven yet: whether the Claude Code version the workflow pins reads the federation variables
 under `claude -p` with the flags the engine uses. It is the first thing to check when building.

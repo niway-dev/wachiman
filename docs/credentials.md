@@ -132,7 +132,8 @@ What still holds:
   to the model process and never executes code from the pull request
   ([SECURITY.md](../SECURITY.md#what-from-the-head-is-executed-and-what-is-read)).
 - **If an `ANTHROPIC_API_KEY` is also present, Claude Code uses the key and silently ignores
-  federation.** Wachiman will refuse to start when both are passed, so a forgotten key cannot
+  federation.** Wachiman will refuse to start when a key or a subscription token is passed together
+  with federation, so a forgotten secret cannot
   undo the setup.
 
 ## 3. Secret manager connection
@@ -253,7 +254,13 @@ Using Wachiman means running its code with your credential. You can limit that t
   ([install.md](install.md#what-pinning-a-version-does-and-does-not-guarantee)).
 - **Pin the same SHA in the federation rule or the secret manager conditions,** so a new release
   cannot reach your credential until you approve it.
-- **No input changes the code that runs.** Inputs choose settings, never scripts or commands.
+- **Know what the SHA does not cover.** Today the caller can pass `claude_code_version`,
+  `claude_code_sha256` and `bun_version`, which choose the Claude Code and Bun binaries the
+  workflow downloads, and the Claude Code binary is what holds the credential. A rule that pins
+  the workflow SHA does not see those inputs, and a teammate can change them on their branch.
+  **Planned:** with federation or a secret manager, the workflow refuses those overrides and uses
+  the versions pinned in the release, so the SHA covers everything that touches the credential.
+  No input runs a script or a command of the caller's choosing.
 
 ## Shared responsibility
 

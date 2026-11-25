@@ -33,9 +33,14 @@ customers.
    GitHub secret, provider federation (no stored credential), the customer's secret manager, a
    broker operated by the customer or a broker vendor, or the customer's own machine.
 3. **Federation is the recommended team option and is built first, Anthropic first.** When a
-   federation rule and a stored key are both passed, the run fails before any model call, because
-   Claude Code would use the key and silently ignore the rule.
-4. **Wachiman services may hold identifiers,** such as a repository ID, a rule ID or a manager's
+   federation rule is passed together with a stored key or a subscription token, the run fails
+   before any model call: Claude Code would use the key and silently ignore the rule, and a token
+   would make the run spend on a plan the caller did not choose for it.
+5. **In federation and secret manager modes the workflow refuses the tool-version overrides**
+   (`claude_code_version`, `claude_code_sha256`, `bun_version`) and runs the versions pinned in the
+   release. A federation rule or a manager's conditions pin the workflow's commit, not its inputs;
+   without this, a teammate could pick the binary that holds the credential.
+6. **Wachiman services may hold identifiers,** such as a repository ID, a rule ID or a manager's
    project name, and never a value that authenticates to a model provider.
 
 ## Alternatives rejected
