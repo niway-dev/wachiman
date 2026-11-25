@@ -509,6 +509,7 @@ describe("startEvidenceRun", () => {
     });
     expect(run.searcher).toBeDefined();
     expect(logs[0]).toBe("evidence: /opt/rg is ripgrep 14.1.1; 15 or newer is needed; using ripgrep 15.2.0 (/h/bin/rg) instead");
+    expect(logs.filter((l) => l.startsWith("evidence: /opt/rg"))).toHaveLength(1);
   });
 
   test("resolveRipgrep reports the sources it skipped before the one that works", () => {
