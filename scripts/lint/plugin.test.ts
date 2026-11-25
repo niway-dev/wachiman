@@ -49,6 +49,7 @@ const source = [
 
 const canary = spawnSync("bunx", [`bun@${LINT_BUN}`, "--version"], { encoding: "utf8", timeout: 120_000 });
 const available = canary.status === 0 || process.env.CI === "true";
+if (!available) console.warn(`plugin.test.ts: skipped, bun@${LINT_BUN} is not available (offline?); the comment rule was not exercised.`);
 
 const reported = (line: number) => messages.filter((m) => m.line === line);
 
