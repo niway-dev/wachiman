@@ -19,7 +19,7 @@ import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { isAbsolute, join } from "node:path";
+import { delimiter, isAbsolute, join } from "node:path";
 import { wachimanHome } from "./accounts/config";
 
 /** The release Wachiman installs and tests against. Bump it together with the table below. */
@@ -144,8 +144,15 @@ export function resolveRipgrep(
     const hit = attempt("installed", installed);
     if (hit) return hit;
   }
-  const hit = attempt("path", "rg");
-  if (hit) return hit;
+  // Only an absolute path is ever probed or run: a bare `rg`, or a relative PATH entry, would
+  // resolve against the repository the search runs in, where a file of the pull request could win.
+  for (const entry of (env.PATH ?? "").split(delimiter)) {
+    if (entry === "" || !isAbsolute(entry)) continue;
+    const candidate = join(entry, "rg");
+    if (!exists(candidate)) continue;
+    const hit = attempt("path", candidate);
+    if (hit) return hit;
+  }
   return { found: false, tried };
 }
 

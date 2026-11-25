@@ -61,6 +61,8 @@ function machine(tools: Tools = {}, extra: Partial<DoctorDeps> = {}): Machine {
     platform: "darwin",
     arch: "arm64",
     userHome,
+    // The fake machine has an `rg` on PATH only as an absolute `/usr/bin/rg`; nothing else exists.
+    fs: { ...realDoctorFs, exists: (p) => p === "/usr/bin/rg" || realDoctorFs.exists(p) },
     ...extra,
   };
   const m: Machine = {

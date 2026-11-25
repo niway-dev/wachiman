@@ -43,6 +43,7 @@
  * into one line; cutting the text would change which sites are picked. Memory is bounded by the
  * output of the one search, and a normal row is about 100 characters.
  */
+import { spawnSync } from "node:child_process";
 import { closeSync, mkdtempSync, openSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -208,6 +209,7 @@ export class MatchCollector {
   lines = 0;
   private index: NameIndex;
   private binary = new Map<string, boolean>();
+  private perFile = new Map<string, number>();
 
   /** `isBinary(file)` says whether `git grep -I` would have skipped the file; it is asked once per file that has a match. */
   constructor(
@@ -230,8 +232,28 @@ export class MatchCollector {
     }
     if (skip) return;
     this.lines += 1;
+    this.perFile.set(whole.file, (this.perFile.get(whole.file) ?? 0) + 1);
     // One object for the line, shared by every name that holds it.
     for (const name of names) this.lists.get(name)!.push(whole);
+  }
+
+  /** The files that have at least one kept line. */
+  files(): string[] {
+    return [...this.perFile.keys()];
+  }
+
+  /** Removes every line of `files`: the files `git grep -I` would have skipped as binary. */
+  drop(files: Set<string>) {
+    if (files.size === 0) return;
+    for (const [name, list] of this.lists)
+      this.lists.set(
+        name,
+        list.filter((m) => !files.has(m.file)),
+      );
+    for (const file of files) {
+      this.lines -= this.perFile.get(file) ?? 0;
+      this.perFile.delete(file);
+    }
   }
 
   /** The matches of each name sorted by path (byte order, as the git index), then line. */
@@ -270,6 +292,43 @@ export function looksBinary(path: string): boolean {
   }
 }
 
+/**
+ * The files among `files` that `git grep -I` would skip as binary. Git decides by the `diff`
+ * attribute first: `unset` (`-diff`, `binary`) is binary, `set` (`diff`) is text, and anything
+ * else, including a driver name (`diff=cpp`, which is binary only when `diff.<name>.binary` is
+ * configured), falls back to a NUL in the first 8000 bytes. One `git check-attr` answers
+ * for all files, in `repoDir` as `git grep` runs there; if it cannot run, the NUL heuristic
+ * decides for every file.
+ */
+export function binaryFiles(repoDir: string, files: string[]): Set<string> {
+  const binary = new Set<string>();
+  if (files.length === 0) return binary;
+  const attr = new Map<string, string>();
+  try {
+    const run = spawnSync("git", ["check-attr", "-z", "--stdin", "diff"], {
+      cwd: repoDir,
+      input: files.join("\0") + "\0",
+      timeout: 20_000,
+      maxBuffer: 256 * 1024 * 1024,
+      env: { PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", LC_ALL: "C" },
+      stdio: ["pipe", "pipe", "ignore"],
+    });
+    if (run.status === 0 && !run.error) {
+      const parts = run.stdout.toString("utf8").split("\0");
+      for (let i = 0; i + 2 < parts.length; i += 3) attr.set(parts[i], parts[i + 2]);
+    }
+  } catch {
+    // The heuristic below decides.
+  }
+  for (const file of files) {
+    const value = attr.get(file);
+    if (value === "unset") binary.add(file);
+    else if (value === "set") continue;
+    else if (looksBinary(join(repoDir, file))) binary.add(file);
+  }
+  return binary;
+}
+
 /** The environment `rg` gets: no token, no proxy, no configuration file. */
 const rgEnv = () => ({ PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", LC_ALL: "C" });
 
@@ -302,7 +361,7 @@ export async function runRipgrep(
       },
       Math.max(1, opts.timeoutMs ?? SEARCH_WALL_CLOCK_MS),
     );
-    const collector = new MatchCollector(names, (file) => looksBinary(join(repoDir, file)));
+    const collector = new MatchCollector(names);
     const splitter = new RowSplitter((row) => collector.add(row));
     const stderrText = new Response(proc.stderr).text();
     for await (const chunk of proc.stdout as unknown as AsyncIterable<Uint8Array>) splitter.push(chunk);
@@ -314,6 +373,7 @@ export async function runRipgrep(
     // 0: matches, 1: none. 2 means an error, possibly after partial output: not trusted.
     if (code !== 0 && code !== 1)
       return { ok: false, failed: `ripgrep exited with status ${code}${stderr ? `: ${stderr.split("\n")[0].slice(0, 200)}` : ""}`, ms };
+    collector.drop(binaryFiles(repoDir, collector.files()));
     return { ok: true, byName: collector.result(), lines: collector.lines, ms };
   } catch (error) {
     return { ok: false, failed: `ripgrep could not run: ${(error as Error).message}`, ms: now() - started };

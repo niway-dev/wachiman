@@ -48,7 +48,7 @@ export function fakeToolchain(tools: Tools = {}) {
     if (binary === "bun") return answer(tools.bun, "1.4.2");
     if (binary === "git") return answer(tools.git, "git version 2.43.0");
     if (binary === "tar") return answer(tools.tar, "bsdtar 3.5.3 - libarchive 3.5.3");
-    if (binary === "rg") return answer(tools.rg, "ripgrep 15.2.0 (rev e89fff89ac)");
+    if (binary === "rg" || binary === "/usr/bin/rg") return answer(tools.rg, "ripgrep 15.2.0 (rev e89fff89ac)");
     if (args[0] === "--version") return answer(tools.claudeVersion, "2.1.321 (Claude Code)");
     if (args[0] === "auth" && args[1] === "status") {
       const out = (tools.auth ?? ((dir) => signedIn(dir)))(options.env.CLAUDE_CONFIG_DIR);

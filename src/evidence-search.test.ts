@@ -410,23 +410,61 @@ describe("resolveRipgrep", () => {
   });
 
   test("then the copy Wachiman installed, then rg on PATH", () => {
-    expect(resolveRipgrep(env(), answers({ [installed]: RG15, rg: RG15 }), (p) => p === installed)).toMatchObject({
+    expect(resolveRipgrep(env(), answers({ [installed]: RG15, "/usr/bin/rg": RG15 }), (p) => p === installed)).toMatchObject({
       found: true,
       path: installed,
       source: "installed",
     });
-    expect(resolveRipgrep(env(), answers({ rg: RG15 }), () => false)).toMatchObject({ found: true, path: "rg", source: "path" });
+    expect(resolveRipgrep(env(), answers({ "/usr/bin/rg": RG15 }), () => true)).toMatchObject({
+      found: true,
+      path: "/usr/bin/rg",
+      source: "path",
+    });
   });
 
   test("an installed copy that does not exist is not probed", () => {
     const probed: string[] = [];
     const probe: VersionProbe = (b) => (probed.push(b), { status: 0, stdout: RG15 });
-    resolveRipgrep(env(), probe, () => false);
-    expect(probed).toEqual(["rg"]);
+    resolveRipgrep(env(), probe, (p) => p === "/usr/bin/rg");
+    expect(probed).toEqual(["/usr/bin/rg"]);
+  });
+
+  test("a relative or empty PATH entry is skipped, and the path returned is absolute", () => {
+    const probed: string[] = [];
+    const probe: VersionProbe = (b) => (probed.push(b), b === "/usr/bin/rg" ? { status: 0, stdout: RG15 } : { status: 1, stdout: "" });
+    const found = resolveRipgrep(
+      env({ PATH: ["tools", "", ".", "/usr/bin"].join(":") }),
+      probe,
+      (p) => p.endsWith("/rg") && !p.startsWith("/home"),
+    );
+    expect(probed).toEqual(["/usr/bin/rg"]);
+    expect(found).toMatchObject({ found: true, path: "/usr/bin/rg" });
+    // Never the bare name, which would resolve against the repository the search runs in.
+    expect(probed).not.toContain("rg");
+    expect(resolveRipgrep(env({ PATH: "tools:." }), probe, (p) => !p.startsWith("/home"))).toMatchObject({ found: false });
+    expect(probed).toEqual(["/usr/bin/rg"]);
+  });
+
+  test("a repository-local rg in the working directory is never chosen", () => {
+    const repo = mkdtempSync(join(tmpdir(), "wachiman-rg-local-"));
+    try {
+      mkdirSync(join(repo, "tools"));
+      writeFileSync(join(repo, "tools", "rg"), "#!/bin/sh\necho 'ripgrep 99.0.0'\n", { mode: 0o755 });
+      const previous = process.cwd();
+      process.chdir(repo);
+      try {
+        const found = resolveRipgrep({ WACHIMAN_HOME: "/nonexistent/home", PATH: "tools" });
+        expect(found.found).toBe(false);
+      } finally {
+        process.chdir(previous);
+      }
+    } finally {
+      rmSync(repo, { recursive: true, force: true });
+    }
   });
 
   test("a broken override is skipped and the next source is tried", () => {
-    const found = resolveRipgrep(env({ [RIPGREP_ENV]: "/opt/rg" }), answers({ "/opt/rg": null, rg: RG15 }), () => false);
+    const found = resolveRipgrep(env({ [RIPGREP_ENV]: "/opt/rg" }), answers({ "/opt/rg": null, "/usr/bin/rg": RG15 }), () => true);
     expect(found).toMatchObject({ found: true, source: "path" });
     expect(resolveRipgrep(env({ [RIPGREP_ENV]: "relative/rg" }), answers({}), () => false)).toMatchObject({
       found: false,
@@ -436,15 +474,18 @@ describe("resolveRipgrep", () => {
 
   test("a version older than the pinned major, an unknown version and a program that is not ripgrep are not used", () => {
     for (const out of ["ripgrep 14.1.1 (rev abc)\n", "ripgrep unknown\n", "grep (BSD grep) 2.6.0\n", ""]) {
-      const found = resolveRipgrep(env(), answers({ rg: out }), () => false);
+      const found = resolveRipgrep(env(), answers({ "/usr/bin/rg": out }), (p) => p === "/usr/bin/rg");
       expect(found.found).toBe(false);
     }
-    expect(resolveRipgrep(env(), answers({ rg: "ripgrep 16.0.0\n" }), () => false)).toMatchObject({ found: true, version: "16.0.0" });
+    expect(resolveRipgrep(env(), answers({ "/usr/bin/rg": "ripgrep 16.0.0\n" }), (p) => p === "/usr/bin/rg")).toMatchObject({
+      found: true,
+      version: "16.0.0",
+    });
   });
 
   test("nothing found says what was tried", () => {
-    const found = resolveRipgrep(env(), answers({ rg: "ripgrep 14.1.1\n" }), () => false);
-    expect(found).toEqual({ found: false, tried: ["rg is ripgrep 14.1.1; 15 or newer is needed"] });
+    const found = resolveRipgrep(env(), answers({ "/usr/bin/rg": "ripgrep 14.1.1\n" }), (p) => p === "/usr/bin/rg");
+    expect(found).toEqual({ found: false, tried: ["/usr/bin/rg is ripgrep 14.1.1; 15 or newer is needed"] });
   });
 
   test("parseRipgrepVersion reads the first line only", () => {
@@ -514,9 +555,9 @@ describe("startEvidenceRun", () => {
 
   test("resolveRipgrep reports the sources it skipped before the one that works", () => {
     const hit = resolveRipgrep(
-      { WACHIMAN_HOME: "/h", PATH: "", [RIPGREP_ENV]: "/opt/rg" },
-      answers({ "/opt/rg": null, rg: RG15 }),
-      () => false,
+      { WACHIMAN_HOME: "/h", PATH: "/usr/bin", [RIPGREP_ENV]: "/opt/rg" },
+      answers({ "/opt/rg": null, "/usr/bin/rg": RG15 }),
+      (p) => p === "/usr/bin/rg",
     );
     expect(hit).toMatchObject({ found: true, source: "path", skipped: [expect.stringContaining("/opt/rg")] });
   });
@@ -740,7 +781,7 @@ describe("installRipgrep", () => {
 });
 
 describe("ensureRipgrep", () => {
-  const env = { WACHIMAN_HOME: "/h/.wachiman", PATH: "" };
+  const env = { WACHIMAN_HOME: "/h/.wachiman", PATH: "/usr/bin" };
 
   test("a bad WACHIMAN_HOME is an unavailable install, never a throw", async () => {
     const lines: string[] = [];
@@ -760,14 +801,14 @@ describe("ensureRipgrep", () => {
   test("a ripgrep that is already there is reported, and nothing is downloaded", async () => {
     const lines: string[] = [];
     const out = await ensureRipgrep(env, (l) => lines.push(l), {
-      probe: answers({ rg: RG15 }),
-      exists: () => false,
+      probe: answers({ "/usr/bin/rg": RG15 }),
+      exists: (p) => p === "/usr/bin/rg",
       download: async () => {
         throw new Error("must not download");
       },
     });
     expect(out.ok).toBe(true);
-    expect(lines).toEqual(["ripgrep 15.2.0 found (on PATH): rg"]);
+    expect(lines).toEqual(["ripgrep 15.2.0 found (on PATH): /usr/bin/rg"]);
   });
 
   test("a missing one is announced before it is installed, with the pinned version and the directory", async () => {
@@ -922,6 +963,30 @@ describe("differential: ripgrep and git grep give the same evidence", () => {
       expect(result.rgText, plan.name).toBe(result.gitText);
       expect(result.rg.warnings, plan.name).toEqual(result.git.warnings);
     }
+  });
+
+  withRipgrep("git attributes decide what is binary, as for git grep -I", async () => {
+    const repo = temp("evidence-attr-");
+    const git = (...args: string[]) => {
+      const run = Bun.spawnSync(["git", ...args], { cwd: repo, stderr: "pipe" });
+      if (run.exitCode !== 0) throw new Error(`git ${args.join(" ")}: ${run.stderr.toString()}`);
+    };
+    const write = (path: string, text: string | Uint8Array) => writeFileSync(join(repo, path), text);
+    write(".gitattributes", "a.ts binary\nb.ts -diff\nc.js diff\nd.js diff=custom\n");
+    write("a.ts", "formatDuration(1)\n");
+    write("b.ts", "formatDuration(2)\n");
+    write("c.js", "formatDuration(3)\0x\n");
+    write("d.js", "formatDuration(4)\0x\n");
+    write("e.ts", "formatDuration(5)\0x\n");
+    write("f.ts", "formatDuration(6)\n");
+    git("init", "-q");
+    git("add", "-A", "-f");
+    const plan = { symbols: [sym("formatDuration")], omitted: [] };
+    const { git: viaGit, rg, gitText, rgText } = await bothBackends(repo, plan, [], ["formatDuration"]);
+    expect(rgText).toBe(gitText);
+    const files = viaGit.doc.symbols[0].call_sites.map((c) => c.file).sort();
+    expect(files).toEqual(["c.js", "f.ts"]);
+    expect(rg.doc.symbols[0].call_sites.map((c) => c.file).sort()).toEqual(files);
   });
 
   withRipgrep("the fixture exercises what it claims: sites, definitions, truncation, ranking", async () => {
