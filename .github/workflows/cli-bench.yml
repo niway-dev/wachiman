@@ -103,6 +103,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
+        # The lookup also accepts the marker used before the rename (<!-- wachiman-bench -->), so a pull
+        # request open at the rename keeps one comment, not two. Drop it once no such pull request is open.
         run: |
           id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | (startswith("<!-- wachiman-cli-bench -->") or startswith("<!-- wachiman-bench -->")))) | .id' | head -n 1)
           if [ -n "$id" ]; then

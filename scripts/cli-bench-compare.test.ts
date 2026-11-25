@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { LEGACY_MARKER, MARKER, compare, median, parseArgs, render, type BenchRun } from "./cli-bench-compare";
+import { MARKER, compare, median, parseArgs, render, type BenchRun } from "./cli-bench-compare";
 
 const run = (commit: string, medians: Record<string, number>): BenchRun => ({
   commit,
@@ -47,7 +47,6 @@ describe("cli-bench-compare", () => {
     const md = render(result, { thresholdPct: 25, minDeltaMs: 10, rounds: 1, baseCommit: "abc1234", headCommit: "def5678" });
     expect(md.startsWith(MARKER)).toBe(true);
     expect(MARKER).toBe("<!-- wachiman-cli-bench -->");
-    expect(LEGACY_MARKER).toBe("<!-- wachiman-bench -->");
     expect(md).toContain("| a | 100.0 ms | 150.0 ms | +50.0% | regressed |");
     expect(md).toContain("| b | 100.0 ms | 90.0 ms | -10.0% | ok |");
     expect(md).toContain("more than 25% and at least 10 ms slower");

@@ -20,14 +20,6 @@ export const clean = (c?: string) => (c ?? "unknown").replace(/-dirty$/, "");
 /** First line of the PR comment: how the workflow finds the comment to update. */
 export const MARKER = "<!-- wachiman-cli-bench -->";
 
-/**
- * The marker the workflow wrote before it was renamed to "CLI bench". The workflow still accepts it
- * when it looks for its comment, so a pull request open at the rename keeps one comment, not two.
- * Remove it (here and in the jq filter of .github/workflows/cli-bench.yml) once no pull request
- * opened before the rename is still open.
- */
-export const LEGACY_MARKER = "<!-- wachiman-bench -->";
-
 export type BenchRun = { commit?: string; date?: string; results: { case: string; median_ms: number }[] };
 export type Options = { thresholdPct: number; minDeltaMs: number };
 export type Row = { case: string; baseMs: number | null; headMs: number | null; changePct: number | null; regressed: boolean };
