@@ -3,7 +3,7 @@ import { existsSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 
 const TS_WITH_REASON = /^@ts-(?:expect-error|ignore|nocheck)\s+\S/;
-const TOOL_BARE = /^(?:@ts-check|(?:eslint|oxlint)-enable(?:\s+[\w@/-]+(?:\s*,\s*[\w@/-]+)*)?)$/;
+const TOOL_BARE = /^(?:@ts-check|(?:eslint|oxlint)-enable(?:\s+[\w@/:.-]+(?:\s*,\s*[\w@/:.-]+)*)?)$/;
 const DISABLE = /^(?:eslint|oxlint)-disable(?:-next-line|-line)?\b/;
 const POINTER = /^See\s+([^\s#]+?)(#\S*)?\.?$/;
 

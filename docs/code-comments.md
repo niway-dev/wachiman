@@ -21,8 +21,9 @@ a pointer to it.
    - `@ts-check`, alone (`@ts-check` followed by text is prose);
    - `eslint-disable`, `eslint-disable-next-line`, `eslint-disable-line` and the `oxlint-` equivalents, with a
      reason after ` -- `, as in `// eslint-disable-next-line no-empty -- the probe may throw`;
-   - `eslint-enable` and `oxlint-enable`, bare or followed only by rule names separated by commas (any other
-     text after them is prose);
+   - `eslint-enable` and `oxlint-enable`, bare or followed only by tokens made of letters, digits, `_`, `@`, `/`, `:`, `.` and `-`, separated by
+     commas (so `bun:test/no-export` is accepted; any text with spaces between tokens is prose). The rule cannot
+     tell a rule name from a single ordinary word, so `// eslint-enable again` is accepted;
    - the shebang (`#!/usr/bin/env bun`);
    - `/// <reference ... />`.
 
