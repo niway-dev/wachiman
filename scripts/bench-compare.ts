@@ -92,7 +92,9 @@ export function parseArgs(argv: string[]) {
     return n;
   };
   for (let i = 0; i < argv.length; i++) {
-    const [flag, inline] = argv[i].split("=", 2);
+    const eq = argv[i].indexOf("=");
+    const flag = eq === -1 ? argv[i] : argv[i].slice(0, eq);
+    const inline = eq === -1 ? undefined : argv[i].slice(eq + 1);
     if (flag === "--base" || flag === "--head") {
       target = flag === "--base" ? "base" : "head";
       if (inline !== undefined) out[target].push(inline);
