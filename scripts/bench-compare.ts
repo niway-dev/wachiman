@@ -65,7 +65,9 @@ export function render(
     "",
     "| case | base | head | change | status |",
     "| --- | ---: | ---: | ---: | --- |",
-    ...result.rows.map((r) => `| ${r.case} | ${ms(r.baseMs)} | ${ms(r.headMs)} | ${pct(r.changePct)} | ${r.regressed ? "regressed" : "ok"} |`),
+    ...result.rows.map(
+      (r) => `| ${r.case} | ${ms(r.baseMs)} | ${ms(r.headMs)} | ${pct(r.changePct)} | ${r.regressed ? "regressed" : "ok"} |`,
+    ),
     "",
     result.failed ? "At least one case regressed beyond the threshold." : "No case regressed beyond the threshold.",
   ];
@@ -73,7 +75,15 @@ export function render(
 }
 
 export function parseArgs(argv: string[]) {
-  const out = { base: [] as string[], head: [] as string[], thresholdPct: 15, minDeltaMs: 10, out: undefined as string | undefined, baseCommit: undefined as string | undefined, headCommit: undefined as string | undefined };
+  const out = {
+    base: [] as string[],
+    head: [] as string[],
+    thresholdPct: 15,
+    minDeltaMs: 10,
+    out: undefined as string | undefined,
+    baseCommit: undefined as string | undefined,
+    headCommit: undefined as string | undefined,
+  };
   let target: "base" | "head" | null = null;
   const num = (name: string, v: string | undefined) => {
     const n = Number(v);
