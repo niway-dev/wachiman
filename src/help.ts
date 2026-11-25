@@ -51,7 +51,7 @@ const PROFILE: Row = [
 ];
 const DO_NOT_TRACK_ENV: Row = [
   "DO_NOT_TRACK",
-  "Honored: Wachiman sends no usage data; set to 1 and no future opt-in can turn collection on (https://donottrack.sh/)",
+  "Honored: Wachiman sends no usage data; set to 1 and no future opt-in can turn collection on",
 ];
 const HOME_ENV: Row = ["WACHIMAN_HOME", "The Wachiman home, an absolute path. Default: ~/.wachiman"];
 const PROFILE_ENV: Row = ["WACHIMAN_PROFILE", "The profile used when there is no --profile and no project binding"];
