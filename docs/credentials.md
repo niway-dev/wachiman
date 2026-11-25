@@ -115,8 +115,9 @@ access. To upgrade, you add the new SHA on purpose. See
    limit, rate limits and usage report, so reviews cannot spend more than you allow and you can
    see what they cost. Archiving the workspace stops everything in it.
 2. Add GitHub as an identity issuer, create a service account, and create a federation rule for
-   that workspace whose conditions name your `repository_id` and the Wachiman
-   `job_workflow_ref` at the SHA you pin.
+   that workspace whose conditions name the audience Wachiman documents, your `repository_id`,
+   and the Wachiman `job_workflow_ref` at the SHA you pin. **All three are required:** without
+   the audience, an identity token the engine mints for another purpose could be replayed.
 3. In the caller workflow, call `wachiman-platform.yml`, pass the rule ID and the organization ID
    as inputs, and grant the job `id-token: write`. No secret is added.
 
@@ -262,7 +263,7 @@ Using Wachiman means running its code with your credential. You can limit that t
   **Planned:** with federation or a secret manager, the workflow refuses those overrides and uses
   the versions pinned in the release. No input runs a script or a command of the caller's choosing.
 - **Make the rule check the audience too.** GitHub's identity token names the audience it was
-  minted for. The workflow also mints identity tokens for the spend ledger, at a URL the caller
+  minted for. The engine also mints identity tokens for the spend ledger, at a URL the caller
   chooses (`ledger_url`), and such a token carries the same pinned `job_workflow_ref`. A rule that
   checks the audience refuses a token minted for any other host.
 

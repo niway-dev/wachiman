@@ -3,8 +3,8 @@
 - **Status:** proposed 2026-11-25, for the owner's review. No code changes with this ADR.
 - **Date:** 2026-11-25
 - **Spec:** [credential modes](../specs/2026-11-25-credential-modes-design.md)
-- **Relates to:** [ADR 0001](0001-distribution-and-trust.md) (the key reaches the model process only
-  through an allowlist), [ADR 0037](0037-the-actions-review-can-run-on-a-claude-code-subscription-token.md)
+- **Relates to:** [ADR 0001](0001-distribution-and-trust.md) (the agent gets no credentials beyond
+  what it needs; implemented as `CHILD_ENV_ALLOWLIST` in `src/providers/claude-code.ts`), [ADR 0037](0037-the-actions-review-can-run-on-a-claude-code-subscription-token.md)
   (the subscription token), [ADR 0064](0064-new-review-behavior-is-opt-in-per-repository-and-off-by-default.md)
   (opt-in behavior).
 

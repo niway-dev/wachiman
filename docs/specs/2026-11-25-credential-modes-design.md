@@ -99,8 +99,10 @@ How it runs:
 
 Customer setup, in the Claude Console: a workspace for reviews with a spend limit, GitHub as an
 issuer, a service account, and a federation rule for that workspace whose conditions name
-`repository_id` and `job_workflow_ref` at the pinned SHA. `wachiman init` can print those
-conditions for the repository it runs in.
+the fixed audience, `repository_id` and `job_workflow_ref` at the pinned SHA, all three required.
+`wachiman init` can print those conditions for the repository it runs in. Whether federation mode
+should also refuse a non-empty `ledger_url`, so the defence does not rest on the customer's rule,
+is decided when building.
 
 Acceptance criteria:
 
