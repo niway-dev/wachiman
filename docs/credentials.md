@@ -87,6 +87,7 @@ provider refuses.
 
 **What you pin in the rule.** The rule can require, among other claims:
 
+- `aud`: the audience the token was minted for, which Wachiman fixes for federation;
 - `repository_id`: your repository's numeric ID, which survives a rename;
 - `job_workflow_ref`: the exact reusable workflow that runs, for example
   `niway-dev/wachiman/.github/workflows/wachiman-platform.yml@<commit SHA>` (the variant of the
@@ -259,8 +260,11 @@ Using Wachiman means running its code with your credential. You can limit that t
   workflow downloads, and the Claude Code binary is what holds the credential. A rule that pins
   the workflow SHA does not see those inputs, and a teammate can change them on their branch.
   **Planned:** with federation or a secret manager, the workflow refuses those overrides and uses
-  the versions pinned in the release, so the SHA covers everything that touches the credential.
-  No input runs a script or a command of the caller's choosing.
+  the versions pinned in the release. No input runs a script or a command of the caller's choosing.
+- **Make the rule check the audience too.** GitHub's identity token names the audience it was
+  minted for. The workflow also mints identity tokens for the spend ledger, at a URL the caller
+  chooses (`ledger_url`), and such a token carries the same pinned `job_workflow_ref`. A rule that
+  checks the audience refuses a token minted for any other host.
 
 ## Shared responsibility
 

@@ -85,9 +85,12 @@ Build order:
 
 How it runs:
 
-1. The caller uses `wachiman-platform.yml`, grants `id-token: write`, and passes two inputs:
+1. The caller uses `wachiman-platform.yml` (the deprecated `review-platform.yml` alias is not
+   supported for federation: its `job_workflow_ref` differs, so a rule pinned to the new name
+   refuses it, and the docs say to move first), grants `id-token: write`, and passes two inputs:
    `anthropic_federation_rule_id` and `anthropic_organization_id`. It passes no model secret.
-2. A workflow step requests GitHub's OIDC token with the audience Anthropic expects and writes it
+2. A workflow step requests GitHub's OIDC token with a fixed audience, not one the caller can set,
+   and writes it
    to a file outside the checkout, readable only by the runner user.
 3. The engine adds `ANTHROPIC_FEDERATION_RULE_ID`, `ANTHROPIC_ORGANIZATION_ID` and
    `ANTHROPIC_IDENTITY_TOKEN_FILE` to the model process's allowlist, only in this mode.
@@ -118,7 +121,11 @@ Acceptance criteria:
   recorded as evidence. A second run from a caller pointing at another workflow is refused by
   Anthropic. A third run longer than the identity token's lifetime finishes, or fails
   with a message that names the expired token.
-- **AC7.** A federation caller that passes `claude_code_version`, `claude_code_sha256` or
+- **AC7.** The federation identity token's audience is a constant in the workflow. The setup page
+  tells the customer to put that audience in the rule, so a token minted for `ledger_url` (a host
+  the caller chooses) is refused by Anthropic. A test checks that the two audiences can never be
+  equal.
+- **AC8.** A federation caller that passes `claude_code_version`, `claude_code_sha256` or
   `bun_version` fails before downloading anything, with a message naming the input.
 
 Not proven yet: whether the Claude Code version the workflow pins reads the federation variables
