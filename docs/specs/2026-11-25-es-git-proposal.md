@@ -48,13 +48,14 @@ more than the diff.
 ## Conflict with ADR 0002
 
 [ADR 0002](../adr/0002-typescript-on-bun-zero-dependencies.md), as amended on 2026-11-13, allows no
-library unless the owner explicitly asks for one, records each approval in its table, and keeps every
-approved package out of the code that sees the model key and out of GitHub Actions
-(`test/dependencies.test.ts`). es-git would be imported by the engine's read path, which runs beside
+library unless the owner explicitly asks for one, records each approval in its table, and keeps the approved
+terminal libraries out of the code that sees the model key and out of GitHub Actions (enforced for
+those packages by `test/dependencies.test.ts`). es-git would be imported by the engine's read path, which runs beside
 the key in Actions. Adopting it therefore needs more than a table line: the owner's explicit request,
 and an amendment that lets a native package into that code, with its own reopen condition. None of
-the ADR's reopen conditions is met today. ripgrep does not raise this question: it is a separate
-binary started as a process, pinned by hash, not a library the engine imports.
+the ADR's reopen conditions is met today. The [ripgrep evidence search](https://github.com/niway-dev/wachiman/pull/308), not yet on `main`,
+does not raise this question in the same way: it starts a separate binary, pinned by hash in that
+change, and imports no library.
 
 ## Before starting
 
