@@ -82,7 +82,7 @@ jobs:
           set -e
           cat "$RUNNER_TEMP/bench/comment.md" >> "$GITHUB_STEP_SUMMARY"
           echo "status=$status" >> "$GITHUB_OUTPUT"
-      # One sticky comment, found by the hidden marker on its first line. A pull request from a
+      # One sticky comment, found by the hidden marker on its first line and by its author, so a comment someone else quotes is never patched. A pull request from a
       # fork, and one opened by Dependabot, gets a read-only token, so it only gets the job summary above.
       - name: Post or update the comment
         if: github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
@@ -91,7 +91,7 @@ jobs:
           PR: ${{ github.event.pull_request.number }}
           REPO: ${{ github.repository }}
         run: |
-          id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" --jq '.[] | select(.body | startswith("<!-- wachiman-bench -->")) | .id' | head -n 1)
+          id=$(gh api --paginate "repos/$REPO/issues/$PR/comments" --jq '.[] | select(.user.login == "github-actions[bot]" and (.body | startswith("<!-- wachiman-bench -->"))) | .id' | head -n 1)
           if [ -n "$id" ]; then
             gh api --method PATCH "repos/$REPO/issues/comments/$id" -F body=@"$RUNNER_TEMP/bench/comment.md" > /dev/null
           else
