@@ -1,6 +1,6 @@
 // See docs/code-comments.md
 import { existsSync, statSync } from "node:fs";
-import { dirname, isAbsolute, join, relative, resolve } from "node:path";
+import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 const TS_WITH_REASON = /^@ts-(?:expect-error|ignore|nocheck)\s+\S/;
 const TOOL_BARE = /^(?:@ts-check|(?:eslint|oxlint)-enable(?:\s+[\w@/:.-]+(?:\s*,\s*[\w@/:.-]+)*)?)$/;
@@ -37,7 +37,7 @@ function isFileInside(root, target) {
   if (isAbsolute(target)) return false;
   const path = resolve(root, target);
   const rel = relative(root, path);
-  if (rel.startsWith("..") || isAbsolute(rel)) return false;
+  if (rel === ".." || rel.startsWith(`..${sep}`) || isAbsolute(rel)) return false;
   try {
     return statSync(path).isFile();
   } catch {

@@ -8,7 +8,8 @@ a pointer to it.
 ## What is allowed
 
 1. **A pointer** to the document that explains the code. The whole comment is `See <path>` or
-   `See <path>#<anchor>`, with the path relative to the repository root and the file existing:
+   `See <path>#<anchor>`, optionally ending with a period, with the path relative to the repository
+   root and the file existing:
 
    ```ts
    // See docs/adr/0061-bun-is-the-development-toolchain-with-a-ratchet-for-what-already-exists.md
