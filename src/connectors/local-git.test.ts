@@ -86,6 +86,26 @@ describe("resolveRefs", () => {
     expect(() => resolveRefs(r.dir, undefined, undefined, undefined, { commit: "nope" })).toThrow(
       "--commit nope is not a commit in this clone.",
     );
+    const tree = spawnGit(["rev-parse", "HEAD^{tree}"], { cwd: r.dir, timeoutMs: 10_000 }).stdout.trim();
+    expect(() => resolveRefs(r.dir, undefined, undefined, undefined, { commit: tree })).toThrow(
+      `--commit ${tree} is not a commit in this clone.`,
+    );
+  });
+
+  test("--from reads HEAD and its revision with one git process each", () => {
+    const r = branchRepo();
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const refs = resolveRefs(r.dir, undefined, counting, 50, { from: r.head });
+    expect(refs).toEqual(resolveRefs(r.dir, undefined, undefined, 50, { from: r.head }));
+    expect(refs.headSha).toBe(r.head);
+    expect(calls.filter((c) => c[0] === "rev-parse" && c.some((a) => a.endsWith("^{commit}")))).toEqual([
+      ["rev-parse", "--verify", "-q", "HEAD^{commit}"],
+      ["rev-parse", "--verify", "-q", `${r.head}^{commit}`],
+    ]);
   });
 
   test("a missing commit or base is still refused, in the same order", () => {
