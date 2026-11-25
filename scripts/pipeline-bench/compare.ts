@@ -22,6 +22,7 @@ interface Result {
   runs: number;
   deterministic: Record<string, number | string | null>;
   stable?: boolean;
+  harnessMismatch?: number;
   timingMs: Record<string, number | null>;
 }
 const read = (path: string): Result[] =>
@@ -84,6 +85,12 @@ for (const id of ids) {
   if (!b || !h) {
     out.push(`No result for ${!b ? "base" : "head"}; the harness or the engine failed on this case.`, "");
     continue;
+  }
+  if ((b.harnessMismatch ?? 0) > 0 || (h.harnessMismatch ?? 0) > 0) {
+    out.push(
+      `> **Warning: harness mismatch.** The stub could not read the batch file list from the prompt (base ${b.harnessMismatch ?? 0} batch(es), head ${h.harnessMismatch ?? 0}); the engine's prompt wording probably changed, and the figures below may be wrong.`,
+      "",
+    );
   }
   const eb = b.deterministic.evidenceHash;
   const eh = h.deterministic.evidenceHash;

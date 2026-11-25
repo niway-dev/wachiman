@@ -3,13 +3,14 @@ import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-const result = (over: { batches?: number; evidenceHash?: string; reviewChange?: number }) =>
+const result = (over: { harnessMismatch?: number; batches?: number; evidenceHash?: string; reviewChange?: number }) =>
   JSON.stringify({
     case: "demo-1",
     repo: "owner/demo",
     sha: "a".repeat(40),
     tier: "pr",
     runs: 3,
+    harnessMismatch: over.harnessMismatch,
     deterministic: {
       filesChanged: 10,
       batches: over.batches ?? 4,
@@ -58,4 +59,10 @@ test("a metric the engine could not report is n/a, and a missing side is said so
   const md = compare(result({}), result({}));
   expect(md).toMatch(/\| evidence bytes, total \| n\/a \| n\/a \|/);
   expect(compare(result({}), "")).toContain("No result for head");
+});
+
+test("a harness mismatch on either side is a visible warning", () => {
+  expect(compare(result({}), result({}))).not.toContain("harness mismatch");
+  expect(compare(result({}), result({ harnessMismatch: 2 }))).toMatch(/Warning: harness mismatch.*base 0 batch\(es\), head 2/);
+  expect(compare(result({ harnessMismatch: 1 }), result({}))).toContain("harness mismatch");
 });

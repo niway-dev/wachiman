@@ -6,7 +6,7 @@
 // Prints one JSON line. Only APIs that exist in old engine versions are used, and each is looked
 // up at run time: one that is missing leaves its metrics null instead of failing.
 import { createHash } from "node:crypto";
-import { readFileSync, rmSync } from "node:fs";
+import { existsSync, readFileSync, rmSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 function arg(name: string): string | undefined {
@@ -31,7 +31,19 @@ const runsArg = arg("runs") ? Number(arg("runs")) : undefined;
 // The engine under test is loaded from a path chosen at run time, so its types are not known here.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Any = any;
-const load = async (rel: string): Promise<Any> => import(join(srcDir, rel)).catch(() => ({}));
+// Only a module that does not exist gives {} (an old engine without that file); any other error
+// (a syntax error, a failing import) is printed and rethrown, so it is never read as "no API".
+const load = async (rel: string): Promise<Any> => {
+  const path = join(srcDir, rel);
+  try {
+    return await import(path);
+  } catch (e) {
+    const err = e as { code?: string; message?: string };
+    if (!existsSync(path) && (err.code === "ERR_MODULE_NOT_FOUND" || /cannot find module/i.test(err.message ?? ""))) return {};
+    console.error(`failed to load ${path}: ${err.message ?? e}`);
+    throw e;
+  }
+};
 const git: Any = await load("connectors/local-git.ts");
 const eng: Any = await load("engine.ts");
 const cfg: Any = await load("config.ts");
@@ -99,6 +111,7 @@ async function once() {
 
     // The whole core, with a provider that reads each batch's evidence file before it is removed.
     const prompts: string[] = [];
+    let mismatches = 0;
     const evidences: string[] = [];
     const provider = {
       name: "stub",
@@ -123,6 +136,8 @@ async function once() {
           .split("\n")
           .map((l) => l.replace(/^- /, "").replace(/ \+\d+ −\d+.*$/, ""))
           .filter(Boolean);
+        // A non-empty prompt with no files parsed means the engine's wording changed under the stub.
+        if (files.length === 0 && req.prompt.trim() !== "") mismatches++;
         return {
           structuredOutput: { files_reviewed: files, files_skipped: [], findings: [], contracts: [], thread_replies: [], summary: "stub" },
           costUsd: 0,
@@ -145,6 +160,7 @@ async function once() {
     const hasEvidence = lines.length > 0;
     const allFiles: Any[] = input.files;
     return {
+      mismatches,
       det: {
         filesChanged: allFiles.length,
         filesKept: kept ? kept.length : null,
@@ -179,6 +195,9 @@ async function once() {
   }
 }
 
+// One untimed pass first, so the first timed run does not pay the cold git object cache that the
+// engine run before this one on the same runner has already warmed.
+await once();
 const first = await once();
 const runs = runsArg ?? (first.ms.reviewChange < 60_000 ? 3 : 1);
 const all = [first];
@@ -197,6 +216,7 @@ console.log(
     runs,
     deterministic: first.det,
     // The same inputs must give the same digests on every run; a difference is reported, not hidden.
+    harnessMismatch: all.reduce((n, r) => n + r.mismatches, 0),
     stable: all.every((r) => r.det.evidenceHash === first.det.evidenceHash && r.det.promptHash === first.det.promptHash),
     timingMs: timing,
   }),
