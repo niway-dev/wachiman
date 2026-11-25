@@ -65,7 +65,10 @@ jobs:
           cd head
           git rev-parse --verify --quiet "$BASE^{commit}" >/dev/null || git fetch --no-tags origin "$BASE"
           target=$(git rev-parse --verify "$BASE^{commit}" 2>/dev/null || git rev-parse --verify "origin/$BASE^{commit}")
-          mb=$(git merge-base "$target" HEAD 2>/dev/null || echo "$target")
+          if ! mb=$(git merge-base "$target" HEAD 2>/dev/null); then
+            mb=$target
+            echo "::warning::no merge-base with $BASE; the base engine is its tip, so later commits on $BASE show up as this change's effect"
+          fi
           echo "base engine: $mb; head engine: $(git rev-parse HEAD)"
           git worktree add --detach ../base "$mb"
       - name: Decide the cases

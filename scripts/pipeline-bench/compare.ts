@@ -72,7 +72,7 @@ function delta(b: number | null, h: number | null, fmt: (n: number) => string) {
 const out: string[] = [];
 out.push("## Pipeline baseline: the code path without the model", "");
 out.push(
-  "A stub provider answers instantly, so every figure is the engine's own work. Base and head ran one after the other on the same runner; timings are medians of the runs listed and still move a few percent between runs. Size metrics are exact: a row marked **changed** differs between base and head.",
+  "A stub provider answers instantly, so every figure is the engine's own work. Base and head ran one after the other on the same runner; timings are medians of the runs listed, and one round can move by up to about 15% on the same runner, so read only larger timing changes as real. Size metrics are exact: a row marked **changed** differs between base and head.",
   "",
 );
 const ids = [...new Set([...base.map((r) => r.case), ...head.map((r) => r.case)])];
