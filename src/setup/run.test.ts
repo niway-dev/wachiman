@@ -357,7 +357,8 @@ describe("setup on a terminal", () => {
     expect(ok).toBe(0);
     expect(called).toBe(1);
     const w2 = world();
-    expect(await runSetupCommand(flags, w2.env, w2.io, w2.deps({ interactive: false, ripgrep: async () => ({ ok: false }) }))).toBe(1);
+    const flags2 = parseSetupFlags(["--profile", "work-a", "--yes"], w2.repo);
+    expect(await runSetupCommand(flags2, w2.env, w2.io, w2.deps({ interactive: false, ripgrep: async () => ({ ok: false }) }))).toBe(1);
   });
 
   test("--json prints the project document on stdout alone", async () => {

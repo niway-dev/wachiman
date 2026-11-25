@@ -599,7 +599,7 @@ unpacked; a mismatch fails the install and nothing is made executable.
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `WACHIMAN_RIPGREP` | empty | Absolute path of an `rg` to use. It wins over the installed copy and over `PATH`. It must answer `--version` with ripgrep 15 or newer; otherwise it is skipped with a note and the next source is tried. |
+| `WACHIMAN_RIPGREP` | empty | Absolute path of an `rg` to use. It wins over the installed copy and over `PATH`. It must answer `--version` with ripgrep 15 or newer; otherwise it is skipped and the next source is tried. The review logs one line naming the skipped source and the `rg` it used instead, or, when none qualifies, the reason of each in the line that says it uses `git grep`. |
 
 Installed copy: `<Wachiman home>/bin/rg` (`~/.wachiman/bin/rg` unless `WACHIMAN_HOME` says otherwise),
 ripgrep 15.2.0 for macOS and Linux on x64 and arm64. `wachiman doctor` has an optional `ripgrep` row

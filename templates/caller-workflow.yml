@@ -201,8 +201,14 @@ jobs:
       - name: Install ripgrep
         # The fast search behind the call-site evidence: the pinned release, checked against the
         # SHA-256 in scripts/wachiman/ripgrep.ts. A mismatch fails the job; a download that
-        # cannot be made only warns, and the review searches with `git grep`.
-        run: bun --no-env-file --config=scripts/wachiman/bunfig.toml scripts/wachiman/install-ripgrep.ts
+        # cannot be made only warns, and the review searches with `git grep`. A copy of src/ that
+        # predates this file skips the step with a warning instead of failing the job.
+        run: |
+          if [ -f scripts/wachiman/install-ripgrep.ts ]; then
+            bun --no-env-file --config=scripts/wachiman/bunfig.toml scripts/wachiman/install-ripgrep.ts
+          else
+            echo "::warning::scripts/wachiman/install-ripgrep.ts is missing (an older copy of src/); the call-site evidence will use git grep. Re-copy src/ into scripts/wachiman/."
+          fi
 
       - name: Review the pull request
         env:

@@ -70,6 +70,8 @@ export interface RipgrepFound {
   path: string;
   version: string;
   source: "env" | "installed" | "path";
+  /** Sources tried before this one that did not qualify, and why. Absent when there were none. */
+  skipped?: string[];
 }
 
 export type RipgrepResolution =
@@ -118,7 +120,8 @@ export function resolveRipgrep(
   const tried: string[] = [];
   const attempt = (source: RipgrepFound["source"], binary: string): RipgrepResolution | undefined => {
     const result = check(binary, probe);
-    if (result.ok) return { found: true, path: binary, version: result.version, source };
+    if (result.ok)
+      return { found: true, path: binary, version: result.version, source, ...(tried.length > 0 ? { skipped: [...tried] } : {}) };
     tried.push(result.why);
     return undefined;
   };
@@ -239,7 +242,16 @@ export async function ensureRipgrep(
     );
     return { ok: true, result: resolved };
   }
-  const dir = ripgrepInstallDir(env);
+  let dir: string;
+  try {
+    dir = ripgrepInstallDir(env);
+  } catch (error) {
+    const result: InstallResult = { status: "unavailable", reason: `could not install ripgrep: ${(error as Error).message}` };
+    print(
+      `ripgrep was not installed: ${result.reason}. Reviews still work; the call-site evidence uses git grep, which is slower on large repositories.`,
+    );
+    return { ok: true, result };
+  }
   print(`Installing ripgrep ${RIPGREP_VERSION} (fast search for call-site evidence) into ${dir}...`);
   const result = await installRipgrep(env, deps);
   if (result.status === "installed") {

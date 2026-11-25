@@ -226,13 +226,17 @@ the result is the same, but a large pull request can spend minutes searching ins
   `wachiman doctor` shows the `ripgrep` row.
 - In CI, the reusable workflows install it in the "Install ripgrep" step. If that step warned that the
   download failed (no network to GitHub releases), the review falls back to `git grep`; a copy-mode
-  workflow that predates the step needs `wachiman upgrade --repo-only`.
+  workflow that predates the step needs an update. Reusable-workflow callers update the pin
+  (`wachiman upgrade --repo-only`); copy-mode users re-copy `src/` into `scripts/wachiman/` and update the
+  workflow from `templates/caller-workflow.yml` ([setup-copy.md](setup-copy.md)).
 - To use your own build, set `WACHIMAN_RIPGREP` to its absolute path; it must be ripgrep 15 or newer.
 - `ripgrep was NOT installed: SHA-256 mismatch ...` means the downloaded archive is not the pinned
   release. Nothing was installed. Re-run once; if it persists, do not work around it, open an issue
   with both hashes.
 - `evidence: <reason>; using git grep (slower)` (for example `ripgrep exited with status 2: ...`) means
-  `rg` ran and failed or ran out of its 60-second box; the rest of that review used `git grep`.
+  `rg` ran and failed. `evidence: ripgrep ran out of its 60 s time box after N ms; using git grep (slower)`
+  means the one search took longer than 60 seconds. In both cases each batch of that review then searched
+  with `git grep`, in its own 20-second box.
 
 ### The provider binary
 

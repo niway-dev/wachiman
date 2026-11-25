@@ -51,6 +51,14 @@ afterAll(() => scratch.forEach((d) => rmSync(d, { recursive: true, force: true }
 const real = resolveRipgrep(process.env);
 const withRipgrep = real.found ? test : test.skip;
 
+describe("the CI environment", () => {
+  // Without it the rg-vs-git-grep differential tests would all skip silently when the download failed.
+  test("CI always has a usable ripgrep, so the differential tests run", () => {
+    if (!process.env.CI) return;
+    expect(real.found).toBe(true);
+  });
+});
+
 describe("parseRipgrepRow", () => {
   test("splits at the NUL, so spaces and colons in a path stay in the path", () => {
     expect(parseRipgrepRow("./src/with space/c:o.ts\u000012:const a = b:c;")).toEqual({
@@ -360,7 +368,7 @@ describe("runRipgrep", () => {
   test("a search past its time box is killed and reported as timed out", async () => {
     const dir = temp("evidence-rg-slow-");
     const slow = join(dir, "rg");
-    writeFileSync(slow, "#!/bin/sh\nsleep 5\n");
+    writeFileSync(slow, "#!/bin/sh\nexec sleep 5\n");
     chmodSync(slow, 0o755);
     const started = Date.now();
     const run = await runRipgrep(slow, ["x"], dir, { timeoutMs: 100 });
@@ -484,6 +492,34 @@ describe("startEvidenceRun", () => {
     expect(logs).toEqual(["evidence: ripgrep not found, using git grep (slower); run `wachiman setup`"]);
   });
 
+  test("a skipped override is logged once when a later source works", async () => {
+    const logs: string[] = [];
+    const found: RipgrepFound = {
+      path: "/h/bin/rg",
+      version: "15.2.0",
+      source: "installed",
+      skipped: ["/opt/rg is ripgrep 14.1.1; 15 or newer is needed"],
+    };
+    const run = await startEvidenceRun({
+      ...base,
+      repoDir: temp("evidence-run-"),
+      customGit: false,
+      ripgrep: () => ({ found: true, ...found }),
+      log: (l) => logs.push(l),
+    });
+    expect(run.searcher).toBeDefined();
+    expect(logs[0]).toBe("evidence: /opt/rg is ripgrep 14.1.1; 15 or newer is needed; using ripgrep 15.2.0 (/h/bin/rg) instead");
+  });
+
+  test("resolveRipgrep reports the sources it skipped before the one that works", () => {
+    const hit = resolveRipgrep(
+      { WACHIMAN_HOME: "/h", PATH: "", [RIPGREP_ENV]: "/opt/rg" },
+      answers({ "/opt/rg": null, rg: RG15 }),
+      () => false,
+    );
+    expect(hit).toMatchObject({ found: true, source: "path", skipped: [expect.stringContaining("/opt/rg")] });
+  });
+
   test("the warning names why an existing candidate was skipped", () => {
     expect(ripgrepMissingLine(["rg is ripgrep 14.1.1; 15 or newer is needed"])).toBe(
       "evidence: ripgrep not found, using git grep (slower); run `wachiman setup` (rg is ripgrep 14.1.1; 15 or newer is needed)",
@@ -532,17 +568,32 @@ describe("EvidenceSearcher", () => {
     expect(logs).toHaveLength(1);
   });
 
+  test("a search that runs out of its time box turns the searcher unusable, so each batch uses git grep", async () => {
+    const dir = temp("evidence-s-slow-");
+    const slow = join(dir, "rg");
+    writeFileSync(slow, "#!/bin/sh\nexec sleep 5\n");
+    chmodSync(slow, 0o755);
+    const logs: string[] = [];
+    const searcher = new EvidenceSearcher({ ...found, path: slow }, dir, (l) => logs.push(l), tally(), { timeoutMs: 100 });
+    await searcher.ensure(["a"]);
+    expect(searcher.usable).toBe(false);
+    expect(logs).toHaveLength(1);
+    expect(logs[0]).toMatch(/^evidence: ripgrep ran out of its 0\.1 s time box after \d+ ms; using git grep \(slower\)$/);
+    // The next batch does not run rg again.
+    await searcher.ensure(["b"]);
+    expect(logs).toHaveLength(1);
+  });
+
   test("a name that was never searched is a failure, not an empty answer", () => {
     const searcher = new EvidenceSearcher(found, "/x", () => {}, tally());
     expect(searcher.search("never", 1000)).toEqual({ failed: "never was not searched" });
   });
 
-  test("concurrent calls are served one at a time and a name is searched once", async () => {
+  withRipgrep("concurrent calls are served one at a time and a name is searched once", async () => {
     const dir = temp("evidence-s-");
     writeFileSync(join(dir, "a.ts"), "alpha(1);\nbeta(2);\n");
-    if (!real.found) return;
     const t = tally();
-    const searcher = new EvidenceSearcher(real, dir, () => {}, t);
+    const searcher = new EvidenceSearcher(real as RipgrepFound, dir, () => {}, t);
     await Promise.all([searcher.ensure(["alpha", "beta"]), searcher.ensure(["alpha"]), searcher.ensure(["beta", "alpha"])]);
     expect(t.searches).toBe(1);
   });
@@ -667,6 +718,21 @@ describe("installRipgrep", () => {
 
 describe("ensureRipgrep", () => {
   const env = { WACHIMAN_HOME: "/h/.wachiman", PATH: "" };
+
+  test("a bad WACHIMAN_HOME is an unavailable install, never a throw", async () => {
+    const lines: string[] = [];
+    const out = await ensureRipgrep({ WACHIMAN_HOME: "relative/home", PATH: "" }, (l) => lines.push(l), {
+      probe: answers({}),
+      exists: () => false,
+    });
+    expect(out.ok).toBe(true);
+    expect(out.result).toMatchObject({
+      status: "unavailable",
+      reason: expect.stringContaining("could not install ripgrep: WACHIMAN_HOME must be an absolute path"),
+    });
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toContain("Reviews still work; the call-site evidence uses git grep");
+  });
 
   test("a ripgrep that is already there is reported, and nothing is downloaded", async () => {
     const lines: string[] = [];

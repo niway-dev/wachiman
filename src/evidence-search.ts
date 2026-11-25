@@ -340,7 +340,6 @@ export interface EvidenceTally {
  */
 export class EvidenceSearcher {
   private found = new Map<string, Match[]>();
-  private timedOut = new Set<string>();
   private queue: Promise<void> = Promise.resolve();
   /** Set when ripgrep failed: from then on the engine uses `git grep`. */
   failure?: string;
@@ -366,7 +365,7 @@ export class EvidenceSearcher {
 
   private async searchMissing(names: string[]) {
     if (!this.usable) return;
-    const missing = [...new Set(names)].filter((n) => !this.found.has(n) && !this.timedOut.has(n));
+    const missing = [...new Set(names)].filter((n) => !this.found.has(n));
     if (missing.length === 0) return;
     const run = await runRipgrep(this.binary.path, missing, this.repoDir, this.opts);
     this.tally.searches += 1;
@@ -375,8 +374,11 @@ export class EvidenceSearcher {
       for (const [name, matches] of run.byName) this.found.set(name, matches);
       this.log(`evidence: ripgrep ${this.binary.version} searched ${missing.length} name(s) in ${run.ms} ms (${run.lines} matching lines)`);
     } else if (run.timedOut) {
-      for (const name of missing) this.timedOut.add(name);
-      this.log(`evidence: ripgrep ran out of its ${(this.opts.timeoutMs ?? SEARCH_WALL_CLOCK_MS) / 1000} s time box after ${run.ms} ms`);
+      // Like a failed rg: each batch then searches with git grep, in its own smaller time box.
+      this.failure = "ripgrep ran out of its time box";
+      this.log(
+        `evidence: ripgrep ran out of its ${(this.opts.timeoutMs ?? SEARCH_WALL_CLOCK_MS) / 1000} s time box after ${run.ms} ms; using git grep (slower)`,
+      );
     } else {
       this.failure = run.failed;
       this.log(`evidence: ${run.failed}; using git grep (slower)`);
@@ -385,7 +387,6 @@ export class EvidenceSearcher {
 
   /** The `SymbolSearch` that `collectEvidence` calls: from memory, never a process. */
   readonly search: SymbolSearch = (symbol) => {
-    if (this.timedOut.has(symbol)) return { timedOut: true };
     const matches = this.found.get(symbol);
     return matches ? { matches } : { failed: `${symbol} was not searched` };
   };
@@ -440,6 +441,7 @@ export async function startEvidenceRun(args: {
     args.log(ripgrepMissingLine(resolved.tried));
     return git;
   }
+  if (resolved.skipped) args.log(`evidence: ${resolved.skipped.join("; ")}; using ripgrep ${resolved.version} (${resolved.path}) instead`);
   const tally: EvidenceTally = { backend: "ripgrep", searches: 0, ms: 0 };
   const searcher = new EvidenceSearcher(resolved, args.repoDir, args.log, tally, { timeoutMs: args.timeoutMs });
   await searcher.ensure([...names]);

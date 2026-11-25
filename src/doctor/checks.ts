@@ -170,10 +170,6 @@ const BUN_MIN: [number, number] = [1, 3];
 const GIT_MIN: [number, number] = [2, 30];
 
 /** Runs `<tool> --version` from a neutral directory with the allowlisted environment. */
-function probe(ctx: DoctorContext, tool: string) {
-  return probeBinary(ctx, tool);
-}
-
 function probeBinary(ctx: DoctorContext, tool: string) {
   return ctx.spawn(tool, ["--version"], {
     cwd: ctx.neutralDir,
@@ -186,7 +182,7 @@ function probeBinary(ctx: DoctorContext, tool: string) {
 }
 
 function toolRow(ctx: DoctorContext, id: "bun" | "git" | "tar", min?: [number, number]): DoctorRow {
-  const run = probe(ctx, id);
+  const run = probeBinary(ctx, id);
   if (run.error || run.status !== 0) {
     return {
       id,

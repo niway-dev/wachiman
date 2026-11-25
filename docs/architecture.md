@@ -472,9 +472,10 @@ holds them to it.
   `git grep` per name per batch took about 0.65 s each (17 minutes for that pull request), and it does
   not block the event loop, so the batches overlap again. A later batch that needs a name nobody planned
   (a retry) gets one more search for the missing names. The one search has a 60-second wall clock; when
-  it runs out the names are reported as not searched, as with the 20-second box of the git backend.
+  it runs out, the engine logs ``evidence: ripgrep ran out of its 60 s time box after N ms; using git grep (slower)``
+  and each batch searches with `git grep` in its own 20-second box, as when `rg` fails.
 - **`git grep` (fallback).** One `git grep -n -I -w -F` per name per batch, as before. It runs when no
-  usable `rg` is found, when `rg` fails, and whenever a test injects its own git runner. The engine logs
+  usable `rg` is found, when `rg` fails or runs out of its time box, and whenever a test injects its own git runner. The engine logs
   one line, ``evidence: ripgrep not found, using git grep (slower); run `wachiman setup` ``, and a summary
   line with the backend and its total milliseconds.
 
