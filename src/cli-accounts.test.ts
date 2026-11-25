@@ -134,7 +134,6 @@ describe("account commands through the CLI", () => {
       "git",
       "tar",
       "ripgrep",
-      "ripgrep",
       "config",
       "profile",
       "auth",
