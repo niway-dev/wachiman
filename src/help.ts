@@ -51,7 +51,7 @@ const PROFILE: Row = [
 ];
 const DO_NOT_TRACK_ENV: Row = [
   "DO_NOT_TRACK",
-  "Honored: Wachiman sends no usage data; set to 1 and no future opt-in can turn collection on",
+  "Honored: when set to 1, no usage data is sent, whatever the stored opt-in says",
 ];
 const HOME_ENV: Row = ["WACHIMAN_HOME", "The Wachiman home, an absolute path. Default: ~/.wachiman"];
 const PROFILE_ENV: Row = ["WACHIMAN_PROFILE", "The profile used when there is no --profile and no project binding"];
@@ -537,6 +537,25 @@ const upgradePage: Page = {
   docs: `${DOCS}/cli.md#upgrade`,
 };
 
+const telemetryPage: Page = {
+  usage: "wachiman telemetry on|off|status|reset",
+  summary:
+    "Share usage metrics (counts and categories, never code, paths, repository names or account identifiers) only if you opt in. `on` shows exactly what is sent and asks [y/N]; it needs a terminal and refuses when CI or GITHUB_ACTIONS is set. `off` stops it from the next review and keeps nothing running. `status` prints your choice, the installation ID and what blocks sending now. `reset` makes a new installation ID.",
+  env: [
+    HOME_ENV,
+    ["DO_NOT_TRACK", "Honored: when set, nothing is sent, whatever you chose"],
+    ["WACHIMAN_TELEMETRY", "0 turns it off for one process. Nothing turns it on without your stored yes"],
+    ["CI, GITHUB_ACTIONS", "When set, nothing is sent and `on` refuses"],
+  ],
+  exit: [
+    ["0", "Done"],
+    ["2", "Usage error, or `on` without a terminal or in CI"],
+    ["130", "`on` was cancelled; nothing was stored"],
+  ],
+  examples: ["wachiman telemetry status", "wachiman telemetry on", "wachiman telemetry off"],
+  docs: `${DOCS}/on-your-machine.md#telemetry`,
+};
+
 const ACCOUNT_ENV: readonly Row[] = [HOME_ENV, ["CI", "true or 1 means no terminal: confirmations need --yes"]];
 const accountPage = (usage: string, summary: string, options: readonly Row[], examples: string[]): Page => ({
   usage,
@@ -957,6 +976,7 @@ const PAGES: Readonly<Record<string, Page>> = {
   project: projectPage,
   skills: skillsPage,
   upgrade: upgradePage,
+  telemetry: telemetryPage,
   "pr-template": prTemplatePageRoot,
   memory: memoryPage,
   review: reviewPage,
@@ -1063,6 +1083,7 @@ export function rootHelp(paint: Paint = plain): string {
       ["pr-template", "Install and check the PR description template"],
       ["memory", "Check and propose repository memory (.wachiman/memory)"],
       ["upgrade", "Update the CLI and the workflow pin in this repository"],
+      ["telemetry", "Turn the opt-in usage metrics on or off, and see their status"],
     ]),
     "",
     `Help: wachiman <command> --help · wachiman help ci · docs: ${DOCS}/cli.md`,

@@ -42,6 +42,7 @@ import { existsSync, readFileSync, statSync, writeSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
+import { runTelemetry } from "./telemetry/command";
 import { parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus } from "./status/command";
 import { parseDashboardArgs, runDashboard } from "./store/command";
@@ -384,6 +385,10 @@ export async function main(argv: string[], env: Record<string, string | undefine
         { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) },
         { version: readVersion() },
       );
+    }
+    if (mode === "telemetry") {
+      // Before extractRepoDir: no repository is read. Only the opt-in choice in the Wachiman home; no request is made here.
+      return runTelemetry(argv.slice(1), env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
     if (mode === "ledger") {
       // Before extractRepoDir: no repository is read. The only command that contacts the ledger (ADR 0039).
