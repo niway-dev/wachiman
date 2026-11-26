@@ -86,7 +86,7 @@ refused API call, with a message that names the token, never the key, and is not
 `total_cost_usd` on a subscription is an API-price equivalent, so the footer, the paused notice and
 the `wachiman-cost` line (`auth: "oauth-token"`) say it is an estimate.
 
-### The prompt cache
+## The prompt cache
 
 The settings file sets `"promptCacheTtl": "5m"` (Claude Code 2.1.242 and later; the pinned 2.1.304
 reads it), so every mode writes the prompt cache for 5 minutes. Unset, Claude Code writes it for
@@ -100,7 +100,8 @@ A batch rarely pauses for more than 5 minutes between turns, so the longer cache
 
 Claude Code's `CLAUDE_CODE_PROMPT_CACHE_TTL` outranks the setting, but it is not in the child
 environment's allowlist, so a caller cannot set it. The setting covers the main conversation only;
-the review uses no subagents.
+the review uses no subagents. An older `claude`, which `wachiman local` may run, ignores the key:
+Claude Code 2.1.200 starts and calls the API with this settings file, on its own default lifetime.
 
 ## The child environment
 
