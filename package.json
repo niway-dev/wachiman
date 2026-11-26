@@ -42,7 +42,7 @@
   },
   "scripts": {
     "test": "bun test",
-    "bench": "bun scripts/bench.ts",
+    "bench:cli": "bun scripts/cli-bench.ts",
     "fmt": "bunx bun@1.4.5 fmt --no-script",
     "fmt:check": "bunx bun@1.4.5 fmt --check --no-script",
     "lint": "bun scripts/ratchet.ts lint",
