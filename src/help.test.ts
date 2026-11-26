@@ -184,3 +184,9 @@ describe("pr-template", () => {
     expect(run(["pr-template"]).stdout).toBe(commandHelp(["pr-template"]));
   }, 30_000);
 });
+
+describe("DO_NOT_TRACK", () => {
+  test("is listed in the environment of init and upgrade", () => {
+    for (const name of ["init", "upgrade"]) expect(commandHelp([name])).toContain("DO_NOT_TRACK");
+  });
+});

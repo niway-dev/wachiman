@@ -49,6 +49,10 @@ const PROFILE: Row = [
   "--profile <name>",
   "The account to run on: `default` (your own claude), a registered profile, or `isolated[:<name>]`. Default: the project binding, WACHIMAN_PROFILE, the configured default, then `default`",
 ];
+const DO_NOT_TRACK_ENV: Row = [
+  "DO_NOT_TRACK",
+  "Honored: Wachiman sends no usage data; set to 1 and no future opt-in can turn collection on",
+];
 const HOME_ENV: Row = ["WACHIMAN_HOME", "The Wachiman home, an absolute path. Default: ~/.wachiman"];
 const PROFILE_ENV: Row = ["WACHIMAN_PROFILE", "The profile used when there is no --profile and no project binding"];
 const KEY_ENV: Row = ["ANTHROPIC_API_KEY", "Must be unset: the run refuses to start (exit 2) so the call goes to your subscription"];
@@ -472,7 +476,7 @@ const initPage: Page = {
     ],
     REPO_DIR,
   ],
-  env: [HOME_ENV, ["CI", "true or 1 turns the prompts off"], ["NO_COLOR", "Turns styling off"]],
+  env: [HOME_ENV, ["CI", "true or 1 turns the prompts off"], ["NO_COLOR", "Turns styling off"], DO_NOT_TRACK_ENV],
   exit: [
     ["0", 'Done (including a "no" answer)'],
     ["1", "Engine error"],
@@ -523,7 +527,7 @@ const upgradePage: Page = {
     ],
     REPO_DIR,
   ],
-  env: [HOME_ENV],
+  env: [HOME_ENV, DO_NOT_TRACK_ENV],
   exit: [
     ["0", "Done, nothing to do, or the CLI is a clone or a dev build and was not upgraded"],
     ["1", "The package manager failed, a version could not be read, or a workflow file could not be read or written"],

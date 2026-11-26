@@ -650,17 +650,19 @@ skip it.
 wachiman upgrade [--check] [--repo-only] [--to <version>] [--repo-dir <dir>]
 ```
 
-The caller workflow pins an exact release (`uses: niway-dev/wachiman/.github/workflows/review.yml@v1.20.1`), <!-- x-release-please-version -->
+The caller workflow pins an exact release (`uses: niway-dev/wachiman/.github/workflows/review.yml@v1.21.0`), <!-- x-release-please-version -->
 so a new release never reaches CI without a change you review. `upgrade` makes that change one command, in two steps.
 
-1. **The CLI.** It reads the latest version with `npm view wachiman version`, then installs it with the package manager
+1. **The CLI.** It reads the latest version with `npm view wachiman version wachimanDataCollection --json` (one request), then installs it with the package manager
    that owns the global install: `bun add -g wachiman@latest` when the package sits under `~/.bun/install/global`,
    `npm install -g wachiman@latest` when it sits under npm's global prefix (`npm prefix -g`). A custom Bun home
    (`$BUN_INSTALL/install/global`) counts as bun. An install made with pnpm, yarn or volta is not driven: the command
    names the path and says to update it with that tool, then run `wachiman upgrade --repo-only`. On
    Windows the package manager is started through a shell so that `npm.cmd` and `bun.cmd` are found. The package manager runs with your terminal. A clone or a `wachiman-dev`
    build is never upgraded: the command says to `git pull` or run `scripts/dev-build.sh`. A CLI that is already on the
-   latest version installs nothing.
+   latest version installs nothing. When a release between the installed one and the new one adds data collection, the
+   command prints a notice for it under `Data collection changes in this upgrade:` before it installs, and `--check` prints it
+   too. It prints nothing when no release does, and today none does. Without `--to`, the notices come from the same request that reads the latest version, so if it fails the command stops with "could not read the latest version" and changes nothing. With `--to`, the command makes this one registry request too, to read the notices of the release you chose; if that lookup fails (the registry cannot be reached or answers with something unreadable), it prints one line on stderr saying so and carries on with the upgrade.
 2. **The repository.** In the current git repository it rewrites the `@<tag>` of every such `uses:` line in
    `.github/workflows/*.yml` to the new version and prints the files it changed and the commands to commit them
    (`git add …`, `git commit -m "chore: pin Wachiman to vX.Y.Z"`). The rest of each file stays byte for byte the same,
@@ -1060,7 +1062,7 @@ on:
 permissions: { contents: write, pull-requests: write }
 jobs:
   remember:
-    uses: niway-dev/wachiman/.github/workflows/wachiman-memory.yml@v1.20.1
+    uses: niway-dev/wachiman/.github/workflows/wachiman-memory.yml@v1.21.0
     with:
       operator: your-github-login
 ```
@@ -1352,6 +1354,10 @@ Read by the account commands and `local`:
 `WACHIMAN_NO_ANIMATION` (any non-empty value) is read only by the intro of `init`, `setup` and the launcher: it
 turns the typing off and prints Wachi's scene at once. `NO_COLOR` (non-empty) turns every color off in the help,
 the menus and the intro, and `TERM=dumb` also switches to ASCII symbols.
+
+`DO_NOT_TRACK` is honored, as [donottrack.sh](https://donottrack.sh/) describes. Wachiman sends no usage data today, so it
+changes nothing now; set to `1` (or any value but empty, `0` or `false`), it means no future opt-in can turn collection on.
+It does not change what Claude Code, Codex or Bun send. Wachiman never sets it and never passes it on.
 
 All optional settings (`WACHIMAN_BUDGET_USD`, `WACHIMAN_MODEL`, `WACHIMAN_PROVIDER`,
 `WACHIMAN_DRY_RUN`, `WACHIMAN_EXCLUDE`, `WACHIMAN_COMMENT_AUTHOR` and the rest) are in
