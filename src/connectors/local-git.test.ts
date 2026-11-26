@@ -31,6 +31,20 @@ setDefaultTimeout(30_000);
 
 afterAll(removeTempRepos);
 
+// Runs fn with TMPDIR pointing at a directory of its own, so snapshot counts are not disturbed by parallel test files.
+function withPrivateTmp(fn: () => void): void {
+  const dir = mkdtempSync(join(realpathSync(tmpdir()), "wachiman-tmp-test-"));
+  const previous = process.env.TMPDIR;
+  process.env.TMPDIR = dir;
+  try {
+    fn();
+  } finally {
+    if (previous === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previous;
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 const snapshots: string[] = [];
 afterAll(() => snapshots.forEach(removeSnapshot));
 
@@ -481,20 +495,21 @@ describe("snapshotHead", () => {
   });
 
   test("a timed-out step is reported with its name, the file count and what to do, and nothing is left behind", () => {
-    const r = branchRepo();
-    const before = readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-"));
-    const fake: GitRunner = (args, opts) =>
-      args.includes("archive") ? { status: null, stdout: "", timedOut: true, error: "spawnSync git ETIMEDOUT" } : spawnGit(args, opts);
-    let message = "";
-    try {
-      snapshotHead(r.dir, r.head, fake);
-    } catch (error) {
-      message = (error as Error).message;
-    }
-    expect(message).toContain('Snapshot step "git archive" timed out after 60 s on a head of 5 files.');
-    expect(message).toContain("retry when it is less loaded");
-    expect(message).toContain(tmpdir());
-    expect(readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-"))).toEqual(before);
+    withPrivateTmp(() => {
+      const r = branchRepo();
+      const fake: GitRunner = (args, opts) =>
+        args.includes("archive") ? { status: null, stdout: "", timedOut: true, error: "spawnSync git ETIMEDOUT" } : spawnGit(args, opts);
+      let message = "";
+      try {
+        snapshotHead(r.dir, r.head, fake);
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain('Snapshot step "git archive" timed out after 60 s on a head of 5 files.');
+      expect(message).toContain("retry when it is less loaded");
+      expect(message).toContain(tmpdir());
+      expect(readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-"))).toEqual([]);
+    });
   });
 
   test("when read-tree fails the snapshot falls back to hashing the files and is the same", () => {
@@ -688,12 +703,13 @@ describe("buildLocalInput", () => {
   });
 
   test("a refused HEAD leaves no snapshot behind", () => {
-    const r = branchRepo();
-    git(r.dir, "switch", "-q", "--detach", "feat/x");
-    const before = new Set(readdirSync(tmpdir()));
-    expect(() => buildLocalInput({ repoDir: r.dir, paths: [], log: () => {}, warn: () => {} })).toThrow(UsageError);
-    const after = readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-") && !before.has(n));
-    expect(after).toEqual([]);
+    // Other test files create snapshots in the shared temp dir at the same time. A private TMPDIR makes the count exact.
+    withPrivateTmp(() => {
+      const r = branchRepo();
+      git(r.dir, "switch", "-q", "--detach", "feat/x");
+      expect(() => buildLocalInput({ repoDir: r.dir, paths: [], log: () => {}, warn: () => {} })).toThrow(UsageError);
+      expect(readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-"))).toEqual([]);
+    });
   });
 });
 
