@@ -86,7 +86,7 @@ describe("localFormatOnly reads the range with one git log", () => {
 
   test("a shallow clone is not routed and says why", () => {
     const b = formattedBranch();
-    const shallow: GitRunner = (args, opts) =>
+    const shallow: GitRunner = (args) =>
       args[0] === "rev-parse" && args.includes("--is-shallow-repository") ? { status: 0, stdout: "true\n", stderr: "" } : (() => { throw new Error("must not run git log"); })();
     const notes: string[] = [];
     expect(localFormatOnly(b.dir, b.mergeBase, "HEAD", ["a.ts"], `${b.format1}\n`, (l) => notes.push(l), shallow)).toEqual([]);
