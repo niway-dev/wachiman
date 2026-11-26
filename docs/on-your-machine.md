@@ -252,7 +252,9 @@ exact fields will be listed on this page before the release that adds them:
   nothing is sent; CI, a run without a terminal, or an agent running `init` never counts as a yes.
 - **No account identifier, ever.** Nothing from GitHub, Claude, OpenAI or any other account, your
   email, hostname, machine, repository names, remotes or paths is sent, raw or hashed. A random
-  installation ID, created when you say yes, links the reports.
+  installation ID, created when you say yes, links the reports, so they are pseudonymous, not
+  anonymous; `wachiman telemetry status` prints it for a deletion request. Like any request, the
+  upload exposes your network address to the receiver, which would not keep it.
 - **Counts, not content.** Wachiman version, review mode, model family, diff sizes, chunk counts,
   tokens, duration, error categories, finding counts, repository languages and layout, and the
   date; never code, prompts, model output or error text.

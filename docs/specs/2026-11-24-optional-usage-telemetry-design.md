@@ -39,7 +39,8 @@ design is written now and the work starts when someone else uses Wachiman.
 
 **Out of scope.** Telemetry from Actions runs. Uploading past runs on opt-in. Publishing usage
 statistics. Collecting review text or raw error messages. Treating finding counts as evidence of
-correctness. Deleting records already received when someone opts out (a separate request).
+correctness. A deletion command; to ask for deletion, `wachiman telemetry status` prints the
+installation ID, which the owner sends with the request before any reset.
 
 ## When to build it
 
@@ -60,7 +61,9 @@ Would you like to share usage metrics to help improve Wachiman?
 
 Metrics include diff sizes, chunk counts, token usage, review duration,
 error categories, finding counts, and repository languages and layout.
-A random installation ID links your usage reports.
+A random installation ID links your usage reports, so they are
+pseudonymous, not anonymous. The receiver sees your network address
+and does not keep it.
 
 We do not send code, prompts, responses, repository names, file paths,
 or identifiers from any of your accounts.
@@ -136,8 +139,9 @@ the output. A summary over the size cap is not sent.
   off. The rules already published in its Telemetry section are met by this design; the fields are
   listed there before the release.
 - `README.md`, [local-review.md](../local-review.md), [faq.md](../faq.md): "sends no telemetry"
-  becomes "sends no telemetry unless you opted in during `init`".
-- ADR 0019 decision 5 and ADR 0042, by [ADR 0065](../adr/0065-usage-metrics-are-sent-only-after-opt-in-and-never-carry-an-account-identifier.md).
+  becomes "sends no telemetry unless you opted in (in `wachiman init` or with
+  `wachiman telemetry on`)".
+- ADR 0019 decision 5, ADR 0039 and ADR 0042, by [ADR 0065](../adr/0065-usage-metrics-are-sent-only-after-opt-in-and-never-carry-an-account-identifier.md).
 - The network-call inventory test behind on-your-machine.md gains the new call site.
 - An entry in `wachimanDataCollection` in `package.json` (printed by `wachiman upgrade`) and a
   `CHANGELOG.md` call-out, as CONTRIBUTING.md requires for any change that sends usage data.
