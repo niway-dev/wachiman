@@ -3697,6 +3697,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     if (claimsStep.claims && claimsStep.claims.length > 0) context.claims = claimsStep.claims.map((c) => c.text);
   }
   let budgetError = false;
+  // A batch that never started for want of room. It counts as a budget stop only when no limit stopped the run.
+  let notRunBudget = false;
   let limitError: "turns" | "timeout" | undefined;
   // Any call, a retry included, that ended on a turn or time limit or on its budget: a batch that
   // still gave usable output is not a finished review, so PR Confidence cannot grade it.
@@ -3936,10 +3938,11 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     if (outcome.budgetError) budgetError = true;
     // A batch that never started for want of room: with no batch output the run stopped on its budget,
     // so the review posts the budget notice instead of failing with "no review for any batch".
-    if (outcome.notRun.length > 0 && otherError === undefined) budgetError = true;
+    if (outcome.notRun.length > 0 && otherError === undefined) notRunBudget = true;
     if (outcome.stopped) limitError = outcome.stopped;
     if (outcome.anyLimit) anyLimit = true;
   }
+  if (notRunBudget && limitError === undefined) budgetError = true;
 
   // Set by the callbacks above, which the compiler does not follow.
   const refused = rejection as { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;

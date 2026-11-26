@@ -307,8 +307,9 @@ The comment reads:
 > The agent ran out of its budget ($0.75 a batch, $3 the pull request) before finishing any batch: nothing here was reviewed reliably. Review part of it: `/wachiman review <path> [path…]`.
 
 The numbers are your settings. The job is green and exit 0, and the comment is the only output.
-The same comment appears when `budget_usd` is below a batch's start floor (60% of the model's mean batch
-figure, never below 0.05 USD): no batch starts, at no cost.
+On the local path, the same comment appears when `budget_usd` is below a batch's start floor (60% of the
+model's mean batch figure, never below 0.05 USD): no batch starts, at no cost. The GitHub path checks the
+estimate against the budget before it starts, so it does not reach this comment.
 Review part of the pull request with a path, or raise `batch_budget_usd` and `budget_usd`.
 
 ### `The agent did not return a review for any batch.`
