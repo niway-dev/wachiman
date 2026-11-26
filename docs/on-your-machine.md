@@ -245,16 +245,17 @@ set (to anything but empty, `0` or `false`) no future opt-in can turn collection
 the variable and never passes it to another program. `DO_NOT_TRACK` does not change what Claude
 Code, Codex or Bun send; that is their own telemetry, described above.
 
-If Wachiman ever sends usage metrics, these rules hold, and the release that adds them lists the
-exact fields on this page:
+If Wachiman ever sends usage metrics, this is the intended design (proposed, not yet accepted). The
+exact fields will be listed on this page before the release that adds them:
 
 - **Opt-in only.** Interactive `wachiman init` asks once, with No as the default. Without that yes,
   nothing is sent; CI, a run without a terminal, or an agent running `init` never counts as a yes.
 - **No account identifier, ever.** Nothing from GitHub, Claude, OpenAI or any other account, your
   email, hostname, machine, repository names, remotes or paths is sent, raw or hashed. A random
   installation ID, created when you say yes, links the reports.
-- **Counts, not content.** Diff sizes, chunk counts, tokens, duration, error categories and
-  finding counts; never code, prompts, model output or error text.
+- **Counts, not content.** Wachiman version, review mode, model family, diff sizes, chunk counts,
+  tokens, duration, error categories, finding counts, repository languages and layout, and the
+  date; never code, prompts, model output or error text.
 - **It can be turned off at any time, and local review works the same with it off.** `DO_NOT_TRACK`
   wins over a stored yes.
 - **Announced.** The release is announced in `CHANGELOG.md` and printed by `wachiman upgrade`.
