@@ -746,7 +746,8 @@ starts with `Comment (<category>):`, and its body names the action:
 
 The reviewer is a language model, so the categories are a judgement, not a lint rule. A repository
 that wants every prose comment rejected mechanically needs a linter; this setting asks for a review
-opinion on new comments only.
+opinion on new comments only. This repository enforces a stricter, mechanical version with its own lint rule; see
+[code comments](code-comments.md).
 
 ### Path rules (`paths`)
 

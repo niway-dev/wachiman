@@ -50,6 +50,8 @@ Two facts shape the decision:
    same code before and after, and each changed JSON or YAML file parses to the same value.
 5. **Lint rules.** Bun's recommended rules, plus `no-empty` and `max-depth` (limit 4, ESLint's own
    default; nine existing places are deeper and go to the baseline). Both are errors.
+   A custom rule, `local/comments-point-to-docs`, allows a code comment only as a pointer to a document
+   or a tool directive ([code comments](../code-comments.md)); existing comments go to the baseline.
 6. **Typecheck.** `strict`, over `src/`, `scripts/` and `test/`, with two exact development
    dependencies: `@types/bun` 1.3.4 (the declarations match the runtime consumers get; without
    them `bun check` cannot see `Bun`, `bun:test` or `node:` modules) and `@types/node` 26.6.6.
@@ -101,10 +103,13 @@ Two facts shape the decision:
 - One formatting commit rewrites about 300 files (11,400 lines added, 4,160 removed). `git blame`
   skips it through `.git-blame-ignore-revs`; GitHub honours that file, and locally
   `git config blame.ignoreRevsFile .git-blame-ignore-revs` turns it on.
-- The baseline starts at 116 lint diagnostics in 50 files and 155 type errors in 46 files. They
+- The baseline started at 116 lint diagnostics in 50 files and 155 type errors in 46 files. They
   are real findings, not noise, and each fix lowers the baseline in the same pull request.
   Renaming or moving a file with a baseline entry looks like a rise in the new path; update the
   baseline in that pull request.
+- The comment rule adds its own count to the baseline, about 4,500 comments, kept in
+  `scripts/ratchet-baseline.json` under `local/comments-point-to-docs`. Those are policy debt, not findings
+  (see [code comments](../code-comments.md)); each comment removed or turned into a pointer lowers it.
 - A fall is reported but does not fail the run. Until the baseline is updated, the same count can
   come back without a rise being seen. The rule is that the pull request that fixes something
   runs `bun run ratchet:update` and commits the lower baseline; a reviewer who sees a fix
@@ -125,8 +130,8 @@ Two facts shape the decision:
 
 - Changing the Bun consumers receive, the Bun the launcher uses, or the Bun the test shards use.
 - Formatting Markdown, or the files a test compares byte for byte.
-- Custom lint rules. The toolchain makes them possible (ESLint plugin API); a rule is added when a
-  pattern we do not want has recurred.
+- Further custom lint rules. The toolchain makes them possible (ESLint plugin API); a rule is added when a
+  pattern we do not want has recurred. The one exception so far is the comment rule in decision 5.
 - Type-aware lint rules (`--type-aware`), and `bun test --check`.
 - A pre-commit hook.
 
