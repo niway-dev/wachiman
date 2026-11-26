@@ -66,6 +66,7 @@ import { sinceLastRunText, thisRunText, type HistoryAnnotation } from "./sinks/c
 import { renderJson } from "./sinks/json";
 import { renderMarkdown } from "./sinks/markdown";
 import { renderTerminal } from "./sinks/terminal";
+import { reportRun, runOfReview } from "./telemetry/report";
 
 export const FORMATS = ["terminal", "markdown", "json"] as const;
 export type LocalFormat = (typeof FORMATS)[number];
@@ -786,6 +787,8 @@ export async function runLocal(
       writeFileSync(path, text);
       io.stderr(`report: ${path}`);
     } else io.stdout(text);
+    // Only with a stored yes (src/telemetry/); after the report is written, so it can neither change it nor the exit code.
+    await reportRun(runOfReview(result, kept), { env, home: () => home, version: io.engineVersion });
     return exitCodeOf(result);
   } finally {
     process.off("SIGINT", onSigint);

@@ -37,6 +37,7 @@ import {
   type BranchRepo,
 } from "../test/support/temp-repo";
 import { personalMemoryDir } from "./memory/personal";
+import { recordChoice } from "./telemetry/consent";
 import { readMemoryUse } from "./memory/hygiene";
 
 const temps: string[] = [];
@@ -1692,4 +1693,64 @@ describe("memory use", () => {
     expect(local("ok", [], { HOME: plain }).code).toBe(0);
     expect(existsSync(join(plain, ".wachiman"))).toBe(false);
   }, 30_000);
+});
+
+describe("usage telemetry after a review (opt-in; src/telemetry/)", () => {
+  // `local()` spawns synchronously, which would freeze a server in this process, so these runs are asynchronous.
+  async function localAsync(env: Record<string, string>, repo: BranchRepo = branchRepo()) {
+    const s = stubs("ok", repo.dir);
+    const started = Date.now();
+    const child = Bun.spawn([process.execPath, cli, "local", "--repo-dir", repo.dir], {
+      env: { PATH: `${s.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-home-"), USER: "dev", WACHIMAN_VERIFY: "0", ...env },
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [stdout, stderr, code] = [await new Response(child.stdout).text(), await new Response(child.stderr).text(), await child.exited];
+    return { stdout, stderr, code, ms: Date.now() - started };
+  }
+  const consented = () => {
+    const whome = temp("wachiman-whome-");
+    recordChoice(whome, "yes");
+    return whome;
+  };
+
+  test("a stored yes sends one summary; a hanging endpoint leaves the output and the exit code as they were and adds about the timeout", async () => {
+    const bodies: string[] = [];
+    const server = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })) });
+    const hang = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Promise<Response>(() => {}) });
+    try {
+      const whome = consented();
+      const repo = branchRepo();
+      const off = await localAsync({ WACHIMAN_HOME: whome, WACHIMAN_TELEMETRY: "0" }, repo);
+      const sent = await localAsync({ WACHIMAN_HOME: whome, WACHIMAN_TELEMETRY_URL: `http://127.0.0.1:${server.port}/v1/usage` }, repo);
+      expect(bodies.length).toBe(1);
+      const body = JSON.parse(bodies[0]);
+      expect(body).toMatchObject({ format: "wachiman.telemetry/1", mode: "local", findings: { fix: 1 }, outcome: { state: "complete" } });
+      expect(sent.code).toBe(off.code);
+      expect(sent.stdout).toBe(off.stdout);
+      const hung = await localAsync({ WACHIMAN_HOME: whome, WACHIMAN_TELEMETRY_URL: `http://127.0.0.1:${hang.port}/v1/usage` }, repo);
+      expect(hung.code).toBe(off.code);
+      expect(hung.stdout).toBe(off.stdout);
+      expect(hung.stderr).not.toContain("telemetry");
+      expect(hung.ms - off.ms).toBeLessThan(2000 + 2500);
+    } finally {
+      server.stop(true);
+      hang.stop(true);
+    }
+  }, 60_000);
+
+  test("without a stored yes, or with DO_NOT_TRACK, CI or GITHUB_ACTIONS set, no request is made", async () => {
+    const bodies: string[] = [];
+    const server = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })) });
+    try {
+      const url = { WACHIMAN_TELEMETRY_URL: `http://127.0.0.1:${server.port}/v1/usage` };
+      await localAsync({ WACHIMAN_HOME: temp("wachiman-whome-"), ...url });
+      for (const blocker of [{ DO_NOT_TRACK: "1" }, { CI: "true" }, { GITHUB_ACTIONS: "true" }])
+        await localAsync({ WACHIMAN_HOME: consented(), ...url, ...blocker });
+      expect(bodies).toEqual([]);
+    } finally {
+      server.stop(true);
+    }
+  }, 90_000);
 });

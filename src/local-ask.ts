@@ -18,6 +18,7 @@ import { type AskAnswer, askSchema, buildAskPrompt, checkRefs, isAskAnswer, rend
 import { repoLineCounter } from "./contracts";
 import { UsageError } from "./config";
 import { askDistributed, type ResolvedSibling } from "./distributed";
+import { askErrorOf, reportRun, runOfAsk } from "./telemetry/report";
 import { annotateDiff, DEFAULT_EXCLUDE, filterFiles, renderInstructions, runProvider, type ReviewInput, type ReviewResult } from "./engine";
 import { historyRoot, readRuns, repositoryKey } from "./history/store";
 import { type LocalArgs, type LocalDeps, localScopeInput, openLocalSession, parseFlags } from "./local";
@@ -269,6 +270,17 @@ export async function runAsk(
     if (!result || !isAskAnswer(parsed, schema)) {
       const reason = result ? (result.isError ? result.terminalReason || "the call failed" : "its output was not an answer") : failure;
       io.stderr(`Wachiman could not answer (${reason}).`);
+      await reportRun(
+        runOfAsk({
+          model: config.model,
+          kept,
+          usage: result?.usage,
+          durationMs: result?.durationMs ?? 0,
+          error: askErrorOf(result),
+          failed: true,
+        }),
+        { env, home: () => home, version: io.engineVersion },
+      );
       return 1;
     }
 
@@ -359,6 +371,12 @@ export async function runAsk(
       writeFileSync(path, text);
       io.stderr(`report: ${path}`);
     } else io.stdout(text);
+    // Only with a stored yes (src/telemetry/); after the answer is written, so it can neither change it nor the exit code.
+    await reportRun(runOfAsk({ model: config.model, kept, usage: result.usage, durationMs: result.durationMs, error: null, failed: false }), {
+      env,
+      home: () => home,
+      version: io.engineVersion,
+    });
     return 0;
   } finally {
     process.off("SIGINT", onSigint);
