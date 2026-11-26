@@ -4,10 +4,19 @@
   [optional usage telemetry spec](../specs/2026-11-24-optional-usage-telemetry-design.md#when-to-build-it).
   When accepted, it amends decision 5 of
   [ADR 0019](0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md) and the
-  statement of it that [ADR 0042](0042-what-a-run-may-read-depends-on-where-its-output-goes.md) relies on.
+  statements of it that [ADR 0039](0039-the-laptop-reads-the-ledger-and-one-report-covers-laptop-and-actions-runs.md)
+  and [ADR 0042](0042-what-a-run-may-read-depends-on-where-its-output-goes.md) rely on, and it
+  supersedes in part the "no hosted service" non-goal of
+  [ADR 0001](0001-distribution-and-trust.md), for the usage receiver only.
 - **Date:** 2026-11-25
 
 ## Context
+
+The [usage dashboard spec](../specs/2026-10-31-usage-dashboard-design.md) rejected an upload keyed
+by a generated ID, because a stable ID is a pseudonym and the receiver would be a hosted service,
+and left product telemetry to its own ADR. This is that ADR. What changed: the upload is opt-in
+rather than the dashboard's data path, it carries counts instead of review data, and the owner
+accepts hosting one small receiver. The pseudonym remains, and decision 3 says so.
 
 ADR 0019 decision 5 fixed the promise of local mode as "Wachiman sends no telemetry and makes no
 GitHub requests". The same sentence is in the README, the local-review guide, the FAQ and
@@ -22,8 +31,9 @@ about counting.
 
 ## Decision
 
-1. **Opt-in only.** Interactive `wachiman init` asks once, default No. Without a stored yes, no
-   telemetry call is made. No terminal, CI, or an agent running `init` never counts as a yes.
+1. **Opt-in only, by two routes.** Interactive `wachiman init` asks once, default No. Without a stored yes, no
+   telemetry call is made. The only other route is `wachiman telemetry on`, which asks the same
+   question and needs a terminal outside CI. No terminal, CI, or an agent never counts as a yes.
    `DO_NOT_TRACK` set ([donottrack.sh](https://donottrack.sh/)) overrides a stored yes, and `init`
    does not ask while it is set.
 2. **No account identifier, ever.** Telemetry never reads for identification, hashes, derives or
@@ -37,7 +47,7 @@ about counting.
    schema of numbers and bounded categories. Never the SQLite index, history files, code,
    prompts, model output or error text.
 5. **The new promise of local mode:** "Wachiman makes no GitHub requests in local mode and sends no
-   telemetry unless you opted in during `init`; your code is sent to your configured Claude account
+   telemetry unless you opted in (in `wachiman init` or with `wachiman telemetry on`); your code is sent to your configured Claude account
    for the review." It replaces ADR 0019 decision 5's sentence in the same release that first
    sends, and not before.
 
