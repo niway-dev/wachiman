@@ -1,13 +1,14 @@
 # ADR 0065: Usage metrics are sent only after opt-in, and never carry an account identifier
 
-- **Status:** proposed 2026-11-25. Not implemented; building waits for the trigger in the
-  [optional usage telemetry spec](../specs/2026-11-24-optional-usage-telemetry-design.md#when-to-build-it).
-  When accepted, it amends decision 5 of
+- **Status:** accepted 2026-11-26, implemented in the release that adds `wachiman telemetry` (the CLI side:
+  `src/telemetry/`, the `init` question and `wachiman telemetry`; the HTTP contract is
+  [telemetry-api.md](../telemetry-api.md)). It amends decision 5 of
   [ADR 0019](0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md) and the
   statements of it that [ADR 0039](0039-the-laptop-reads-the-ledger-and-one-report-covers-laptop-and-actions-runs.md)
   and [ADR 0042](0042-what-a-run-may-read-depends-on-where-its-output-goes.md) rely on, and it
   supersedes in part the "no hosted service" non-goal of
-  [ADR 0001](0001-distribution-and-trust.md), for the usage receiver only.
+  [ADR 0001](0001-distribution-and-trust.md), for the usage receiver only. The
+  [optional usage telemetry spec](../specs/2026-11-24-optional-usage-telemetry-design.md) is the design it follows.
 - **Date:** 2026-11-25
 
 ## Context

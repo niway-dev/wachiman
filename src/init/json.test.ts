@@ -83,7 +83,7 @@ const put = (w: World, path: string, text: string) => {
 };
 const actions = (w: World) => doc(w).files.map((f: any) => [f.path, f.action]);
 
-const KEYS = ["format", "ok", "mode", "dryRun", "repoDir", "files", "local", "github", "error"];
+const KEYS = ["format", "ok", "mode", "dryRun", "repoDir", "files", "local", "github", "telemetry", "error"];
 
 describe("init --json", () => {
   test("a real run prints exactly one wachiman.init/1 document and every status line goes to stderr", async () => {

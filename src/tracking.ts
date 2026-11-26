@@ -1,6 +1,6 @@
 /**
  * DO_NOT_TRACK (https://donottrack.sh/). Wachiman reads it, never sets it, and never passes it on.
- * It changes nothing today because Wachiman sends no usage data; it is here so any future collection
+ * Wachiman's one collection is the opt-in usage summary (src/telemetry/); it, and any later collection,
  * has to ask `usageDataAllowed()` first (not `doNotTrack()`, which is only its input).
  */
 
@@ -10,8 +10,11 @@ export function doNotTrack(env: Record<string, string | undefined> = process.env
   return value !== undefined && value !== "" && value !== "0" && value !== "false";
 }
 
-/** Wachiman collects no usage data. A change that adds collection flips this and must still pass through `usageDataAllowed`. */
-const COLLECTS_USAGE_DATA = false;
+/**
+ * Wachiman has one feature that collects usage data: the opt-in summary of src/telemetry/, which also needs a stored yes.
+ * Any other collection must still pass through `usageDataAllowed`.
+ */
+const COLLECTS_USAGE_DATA = true;
 
 /** The pure rule: collection needs both a feature that collects and no `DO_NOT_TRACK`. Exported for tests; call `usageDataAllowed`. */
 export function usageGate(collects: boolean, env: Record<string, string | undefined>): boolean {

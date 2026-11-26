@@ -13,8 +13,9 @@ describe("doNotTrack", () => {
 });
 
 describe("usageDataAllowed", () => {
-  test("is false whatever the environment says, because Wachiman collects nothing", () => {
-    for (const v of [undefined, "", "0", "false", "1", "true", "yes"]) expect(usageDataAllowed({ DO_NOT_TRACK: v })).toBe(false);
+  test("follows DO_NOT_TRACK alone: the stored consent is checked elsewhere (src/telemetry/consent.ts)", () => {
+    for (const v of [undefined, "", "0", "false"]) expect(usageDataAllowed({ DO_NOT_TRACK: v })).toBe(true);
+    for (const v of ["1", "true", "yes"]) expect(usageDataAllowed({ DO_NOT_TRACK: v })).toBe(false);
   });
 
   test("when collection exists, DO_NOT_TRACK still wins", () => {

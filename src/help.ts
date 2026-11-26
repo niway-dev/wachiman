@@ -51,7 +51,7 @@ const PROFILE: Row = [
 ];
 const DO_NOT_TRACK_ENV: Row = [
   "DO_NOT_TRACK",
-  "Honored: Wachiman sends no usage data; set to 1 and no future opt-in can turn collection on",
+  "Honored: when set to anything but empty, 0 or false, no usage data is sent, whatever the stored opt-in says",
 ];
 const HOME_ENV: Row = ["WACHIMAN_HOME", "The Wachiman home, an absolute path. Default: ~/.wachiman"];
 const PROFILE_ENV: Row = ["WACHIMAN_PROFILE", "The profile used when there is no --profile and no project binding"];
@@ -444,7 +444,7 @@ const setupPage: Page = {
 const initPage: Page = {
   usage: initUsage,
   summary:
-    "Write the GitHub Actions caller workflow (.github/workflows/wachiman-review.yml), or, with --mode local, write no workflow and hand over to setup. With a repository kind, also write .wachiman.yml. It writes a pointer to the wachiman-loop skill into AGENTS.md (or CLAUDE.md). It can also install the PR description template.",
+    "Write the GitHub Actions caller workflow (.github/workflows/wachiman-review.yml), or, with --mode local, write no workflow and hand over to setup. With a repository kind, also write .wachiman.yml. It writes a pointer to the wachiman-loop skill into AGENTS.md (or CLAUDE.md). It can also install the PR description template. In a terminal it asks once, last, whether to share usage metrics (default No; not asked when DO_NOT_TRACK is set to anything but empty, 0 or false, WACHIMAN_TELEMETRY set to 0, false, off or no, CI or GITHUB_ACTIONS is set, you already answered, or with --dry-run; nothing is stored without a terminal).",
   options: [
     ["--mode github|local|both", "What to set up. Required without a terminal"],
     ["--operator <login>", "The GitHub login allowed to command the reviewer. Required for github and both without a terminal"],
@@ -471,7 +471,7 @@ const initPage: Page = {
     ["--yes", "No prompts"],
     [
       "--json",
-      "Never prompt, and print one wachiman.init/1 document on stdout (files and their actions, local and GitHub readiness, error). Status lines go to stderr",
+      "Never prompt, and print one wachiman.init/1 document on stdout (files and their actions, local and GitHub readiness, `telemetry`: pending, yes, no or blocked (something in the environment stops sending: DO_NOT_TRACK, WACHIMAN_TELEMETRY set to 0, false, off or no, CI or GITHUB_ACTIONS), error). Status lines go to stderr",
     ],
     REPO_DIR,
   ],
@@ -534,6 +534,26 @@ const upgradePage: Page = {
   ],
   examples: ["wachiman upgrade --check", "wachiman upgrade", "wachiman upgrade --repo-only"],
   docs: `${DOCS}/cli.md#upgrade`,
+};
+
+const telemetryPage: Page = {
+  usage: "wachiman telemetry on|off|status|reset",
+  summary:
+    "Share usage metrics (counts and categories, never code, paths, repository names or account identifiers) only if you opt in. `on` shows exactly what is sent and asks [y/N]; it needs a terminal and refuses when CI or GITHUB_ACTIONS is set. `off` stops it from the next review and keeps nothing running. `status` prints your choice, the installation ID and what blocks sending now. `reset` makes a new installation ID.",
+  env: [
+    HOME_ENV,
+    ["DO_NOT_TRACK", "Honored: when set to anything but empty, 0 or false, nothing is sent, whatever you chose"],
+    ["WACHIMAN_TELEMETRY", "0, false, off or no (any case) turns it off for one process. Nothing turns it on without your stored yes"],
+    ["CI, GITHUB_ACTIONS", "When set, nothing is sent and `on` refuses"],
+  ],
+  exit: [
+    ["0", "Done (`status` also exits 0 when the stored choice cannot be read, and says so)"],
+    ["1", "`on`, `off` or `reset` found a stored choice that cannot be read; nothing was changed"],
+    ["2", "Usage error, or `on` without a terminal or in CI"],
+    ["130", "`on` was cancelled; nothing was stored"],
+  ],
+  examples: ["wachiman telemetry status", "wachiman telemetry on", "wachiman telemetry off"],
+  docs: `${DOCS}/on-your-machine.md#telemetry`,
 };
 
 const ACCOUNT_ENV: readonly Row[] = [HOME_ENV, ["CI", "true or 1 means no terminal: confirmations need --yes"]];
@@ -956,6 +976,7 @@ const PAGES: Readonly<Record<string, Page>> = {
   project: projectPage,
   skills: skillsPage,
   upgrade: upgradePage,
+  telemetry: telemetryPage,
   "pr-template": prTemplatePageRoot,
   memory: memoryPage,
   review: reviewPage,
@@ -1062,6 +1083,7 @@ export function rootHelp(paint: Paint = plain): string {
       ["pr-template", "Install and check the PR description template"],
       ["memory", "Check and propose repository memory (.wachiman/memory)"],
       ["upgrade", "Update the CLI and the workflow pin in this repository"],
+      ["telemetry", "Turn the opt-in usage metrics on or off, and see their status"],
     ]),
     "",
     `Help: wachiman <command> --help · wachiman help ci · docs: ${DOCS}/cli.md`,
