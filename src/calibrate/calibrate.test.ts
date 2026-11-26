@@ -257,6 +257,11 @@ describe("hideWord", () => {
     expect(word).not.toMatch(/Important|Nit/);
     expect(hideWord("**Should fix (correctness): the loop**\nbody should stay")).toBe("**fix (correctness): the loop**\nbody should stay");
   });
+  test("a priority word in the model's own title stays", () => {
+    expect(hideWord("**Should fix (correctness): Should the loop stop? Could be**\nbody")).toBe(
+      "**fix (correctness): Should the loop stop? Could be**\nbody",
+    );
+  });
   test("removing the tier word leaves no stray separator", () => {
     expect(hideWord("👮 **Wachiman** · Nit · 🟠🧪 **Fix · tests: X (confidence high)**")).toBe(
       "👮 **Wachiman** · 🟠🧪 **Fix · tests: X (confidence high)**",
@@ -270,7 +275,7 @@ describe("hideWord", () => {
 
 // ---- --judge --------------------------------------------------------------------------------------
 
-/** 10 PRs, each with consider·medium x2 (one unanswered), fix·low, blocker·low, info·low (never sampled), no-confidence consider. */
+/** 10 PRs, each with consider·medium x2 (one unanswered), fix·low, blocker·low, info·low (never sampled), and one of each other movable cell. */
 const bigFixture = (): FakePr[] =>
   Array.from({ length: 10 }, (_, i) => ({
     number: i + 1,
@@ -424,7 +429,13 @@ describe("calibrate --propose (AC7)", () => {
     expect(proposed.cells.fix.low.word).toBe("could");
     expect(proposed.cells.blocker.high.word).toBe("must");
     expect(proposed.cells.info.low.word).toBe("fyi");
-    // Nothing the engine reads changed.
+    // The only file written is the proposal, beside the judging files; nothing the engine reads changed.
+    expect(readdirSync(join(dir, "calibration", "o__r")).sort()).toEqual([
+      "judging-2026-11-18.jsonl",
+      "judging-2026-11-19.jsonl",
+      "proposed-table.json",
+    ]);
+    expect(readdirSync(dir)).toEqual(["calibration"]);
     expect(hashOf(priorityFile)).toBe(before);
     expect(TABLE_V1.cells.consider.medium.priority).toBe("could");
   });

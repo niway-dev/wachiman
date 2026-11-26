@@ -25,7 +25,7 @@ pass when their files run alone); it has not run after the rebase.
 ## What the first runs showed
 
 Run on 2026-11-19/20 over the last 200 pull requests of this repository (348 findings, 76 PRs) and
-of one private product repository (608 findings, 132 PRs; its counts stay on the owner's machine):
+of one private product repository (its counts stay on the owner's machine; only the direction is given here):
 
 - Confidence separates outcomes in both: a Consider is declined more as confidence drops (this
   repository: 9%, 17%, 25% of answered at high, medium, low). The v1 seeds hold; nothing to change.
@@ -42,11 +42,15 @@ of one private product repository (608 findings, 132 PRs; its counts stay on the
 2. **AC11.** A review whose model family or prompt version differs from a cell's provenance shows
    `not measured for this configuration` and the seed word. Needs the provenance recorded in the
    table cells and the review's configuration at render time.
+   A judging line records no model or prompt version yet, so decision 9 (judgements count per
+   matching configuration) cannot hold until it does: record the configuration on each drawn line.
 3. **AC3, second half.** The Track record row shows `fixed <p>% of <n> answered · <k> PRs` with
    `seed` or `calibrated vN` once the repository's own outcomes are counted. Decide where a review
    reads those counts (the remote review has no local home): a committed file written by
-   `calibrate`, or skip the rate where none is available. This is a design choice; write it in the
-   spec before building.
+   `calibrate`, or skip the rate where none is available. Showing a cell's fix rate on every
+   comment also shows it to the owner while judging the blind sample, which would unblind
+   decision 6: the design must say how the judging pass stays blind. This is a design choice;
+   write it in the spec before building.
 4. **Local review** with Wachiman (`cs-review-loop`), then mark the pull request ready.
 5. **Owner:** judge the drawn files (`wouldAct` true or false on each line), then
    `wachiman calibrate <repo> --propose`.

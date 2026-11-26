@@ -7,8 +7,9 @@ import { parseLabel, parseVerdict, type RawComment } from "../precision";
 
 export type Outcome = "fixed" | "declined" | "wrong" | "none";
 export type AuthorKind = "owner" | "agent";
-export type Severity = "blocker" | "fix" | "consider" | "info";
-export type Confidence = "high" | "medium" | "low";
+import type { Confidence, Severity } from "../engine";
+
+export type { Confidence, Severity };
 
 const FIXED = /\b(?:fixed|done|addressed|applied|settled|resolved|updated)\b|^\W*(?:added|agreed)\b/i;
 const DECLINED =

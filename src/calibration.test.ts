@@ -1,5 +1,7 @@
 import { describe, expect, test } from "bun:test";
-import { aggregateCells, bandOf, formatCellTable, movedWord, wilsonInterval, type Finding } from "./calibration";
+import { bandOf, movedWord, wilsonInterval } from "./calibration";
+import type { Outcome, OutcomeFinding } from "./calibrate/outcomes";
+import { aggregateOutcomes, formatOutcomeTable } from "./calibrate/report";
 
 describe("wilsonInterval", () => {
   test("no data gives the whole range", () => {
@@ -57,35 +59,32 @@ describe("movedWord", () => {
   });
 });
 
-const f = (severity: Finding["severity"], confidence: Finding["confidence"], reply: Finding["reply"], pr: number): Finding => ({
+const f = (
+  severity: OutcomeFinding["severity"],
+  confidence: OutcomeFinding["confidence"],
+  outcome: Outcome,
+  pr: number,
+): OutcomeFinding => ({
+  id: `${severity}-${confidence}-${outcome}-${pr}`,
+  repo: "o/r",
+  pr,
+  commentId: pr,
+  url: "",
+  path: "a.ts",
+  line: null,
+  body: "",
   severity,
   confidence,
-  reply,
-  pr,
-});
-
-describe("aggregateCells", () => {
-  test("groups by severity and confidence, counts distinct PRs, keeps undefined apart from medium", () => {
-    const rows = aggregateCells([
-      f("consider", undefined, "none", 3),
-      f("consider", "medium", "fixed", 1),
-      f("consider", "medium", "declined", 1),
-      f("blocker", "high", "fixed", 2),
-    ]);
-    expect(rows).toEqual([
-      { severity: "blocker", confidence: "high", answered: 1, fixed: 1, declined: 0, unanswered: 0, prs: 1 },
-      { severity: "consider", confidence: "medium", answered: 2, fixed: 1, declined: 1, unanswered: 0, prs: 1 },
-      { severity: "consider", confidence: undefined, answered: 0, fixed: 0, declined: 0, unanswered: 1, prs: 1 },
-    ]);
-  });
+  outcome,
+  kind: "owner",
 });
 
 describe("AC8 fixture", () => {
-  const many = (severity: Finding["severity"], confidence: Finding["confidence"], fixed: number, declined: number): Finding[] => [
+  const many = (severity: OutcomeFinding["severity"], confidence: OutcomeFinding["confidence"], fixed: number, declined: number) => [
     ...Array.from({ length: fixed }, (_, i) => f(severity, confidence, "fixed", i)),
     ...Array.from({ length: declined }, (_, i) => f(severity, confidence, "declined", i)),
   ];
-  const rows = aggregateCells([
+  const cells = aggregateOutcomes([
     ...many("consider", "high", 53, 3),
     ...many("consider", "medium", 68, 28),
     ...many("consider", "low", 14, 11),
@@ -93,7 +92,7 @@ describe("AC8 fixture", () => {
   ]);
 
   test("counts reproduce the table", () => {
-    expect(rows.map((r) => [r.severity, r.confidence, r.answered, r.fixed, r.declined, r.unanswered])).toEqual([
+    expect(cells.map((c) => [c.severity, c.confidence, c.all.n, c.all.fixed, c.all.declined, c.all.unanswered])).toEqual([
       ["fix", "high", 11, 8, 3, 0],
       ["consider", "high", 56, 53, 3, 0],
       ["consider", "medium", 96, 68, 28, 0],
@@ -102,19 +101,21 @@ describe("AC8 fixture", () => {
   });
 
   test("formatted percentages match", () => {
-    const lines = formatCellTable(rows)
+    const lines = formatOutcomeTable(cells, "all")
       .split("\n")
-      .map((l) => l.split(/\s{2,}/));
-    expect(lines[0]).toEqual(["Severity · confidence", "Answered", "Fixed", "Declined", "Unanswered"]);
+      .map((l) => l.trim().split(/\s{2,}/));
+    expect(lines[0]).toEqual(["Severity · confidence", "n", "Fixed", "Declined", "Wrong", "Unanswered"]);
     expect(lines.slice(1)).toEqual([
-      ["Fix · high", "11", "73%", "27%", "0"],
-      ["Consider · high", "56", "95%", "5%", "0"],
-      ["Consider · medium", "96", "71%", "29%", "0"],
-      ["Consider · low", "25", "56%", "44%", "0"],
+      ["Fix · high", "11", "73%", "27%", "0%", "0%"],
+      ["Consider · high", "56", "95%", "5%", "0%", "0%"],
+      ["Consider · medium", "96", "71%", "29%", "0%", "0%"],
+      ["Consider · low", "25", "56%", "44%", "0%", "0%"],
     ]);
   });
 
-  test("a cell with no answers shows a dash", () => {
-    expect(formatCellTable(aggregateCells([f("info", "low", "none", 1)]))).toContain("—");
+  test("a cell with no answers shows a dash, and no confidence stays apart from medium", () => {
+    const rows = aggregateOutcomes([f("info", "low", "none", 1), f("consider", undefined, "none", 3), f("consider", "medium", "fixed", 1)]);
+    expect(rows.map((c) => c.confidence)).toEqual(["medium", undefined, "low"]);
+    expect(formatOutcomeTable(rows, "all")).toContain("—");
   });
 });

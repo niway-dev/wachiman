@@ -66,13 +66,17 @@ export function hideWord(body: string): string {
       .map((row) => (row.startsWith("| **Severity** |") ? row.replace(/( · (?:Must|Should|Could|FYI|Important|Nit))+(?= \|$)/, "") : row))
       .join("\n");
   }
-  const [first, ...rest] = body.split("\n");
+  const [line, ...rest] = body.split("\n");
+  // Only the label before the title loses its words: the model's own title is kept as written.
+  const colon = line.indexOf(": ");
+  const label = colon === -1 ? line : line.slice(0, colon);
+  const title = colon === -1 ? "" : line.slice(colon);
   return [
-    first
+    `${label
       .replace(WORD, "")
       .replace(/^\*\* +/, "**")
       .replace(/ {2,}/g, " ")
-      .replace(/ ·\s*·/g, " ·"),
+      .replace(/ ·\s*·/g, " ·")}${title}`,
     ...rest,
   ].join("\n");
 }

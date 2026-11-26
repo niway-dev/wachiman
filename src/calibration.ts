@@ -1,13 +1,11 @@
 /**
- * Calibration maths for the finding priority (layer 2): pure functions, no I/O. Outcomes are
- * counted per severity x confidence cell, a Wilson interval says how sure a rate is, and a word
- * moves only when that interval leaves its band.
+ * Calibration maths for the finding priority (layer 2): pure functions, no I/O. A Wilson interval
+ * says how sure a rate is, and a word moves only when that interval leaves its band. The outcome
+ * counts per cell live in `calibrate/report.ts`.
  */
 import type { Priority } from "./priority";
 
 type Word = Exclude<Priority, "must">;
-type Severity = "blocker" | "fix" | "consider" | "info";
-type Confidence = "high" | "medium" | "low";
 
 /** z for a 90% two-sided interval. */
 const Z90 = 1.6448536269514722;
@@ -44,70 +42,4 @@ export function movedWord(current: Word, judgedYes: number, judgedN: number, dis
   if (up > at) return { word: WORDS[up], measured: true };
   if (down < at) return { word: WORDS[down], measured: true };
   return { word: current, measured: true };
-}
-
-/** One judged finding: the author's reply on its thread ("none" is unanswered) and its PR number. */
-export type Finding = { severity: Severity; confidence: Confidence | undefined; reply: "fixed" | "declined" | "none"; pr: number };
-
-/** Counts for one cell. An undefined confidence means "not measured" and is never merged with medium. */
-export type CellCount = {
-  severity: Severity;
-  confidence: Confidence | undefined;
-  answered: number;
-  fixed: number;
-  declined: number;
-  unanswered: number;
-  prs: number;
-};
-
-const SEVERITIES: readonly Severity[] = ["blocker", "fix", "consider", "info"];
-const CONFIDENCES: readonly (Confidence | undefined)[] = ["high", "medium", "low", undefined];
-
-export function aggregateCells(findings: Finding[]): CellCount[] {
-  const cells = new Map<string, { row: CellCount; prs: Set<number> }>();
-  for (const f of findings) {
-    const key = `${f.severity}|${f.confidence ?? "unmeasured"}`;
-    let cell = cells.get(key);
-    if (!cell) {
-      cell = {
-        row: { severity: f.severity, confidence: f.confidence, answered: 0, fixed: 0, declined: 0, unanswered: 0, prs: 0 },
-        prs: new Set(),
-      };
-      cells.set(key, cell);
-    }
-    if (f.reply === "fixed") cell.row.fixed++;
-    else if (f.reply === "declined") cell.row.declined++;
-    else cell.row.unanswered++;
-    cell.row.answered = cell.row.fixed + cell.row.declined;
-    cell.prs.add(f.pr);
-  }
-  return [...cells.values()]
-    .map(({ row, prs }) => ({ ...row, prs: prs.size }))
-    .sort(
-      (a, b) =>
-        SEVERITIES.indexOf(a.severity) - SEVERITIES.indexOf(b.severity) ||
-        CONFIDENCES.indexOf(a.confidence) - CONFIDENCES.indexOf(b.confidence),
-    );
-}
-
-const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
-const percent = (part: number, whole: number) => (whole === 0 ? "—" : `${Math.round((part / whole) * 100)}%`);
-
-/** Plain-text table, one row per cell. Percentages are shares of the answered findings. */
-export function formatCellTable(rows: CellCount[]): string {
-  const header = ["Severity · confidence", "Answered", "Fixed", "Declined", "Unanswered"];
-  const body = rows.map((r) => [
-    `${capital(r.severity)} · ${r.confidence ?? "not measured"}`,
-    String(r.answered),
-    percent(r.fixed, r.answered),
-    percent(r.declined, r.answered),
-    String(r.unanswered),
-  ]);
-  const widths = header.map((h, i) => Math.max(h.length, ...body.map((b) => b[i].length)));
-  const line = (cols: string[]) =>
-    cols
-      .map((c, i) => (i === 0 ? c.padEnd(widths[i]) : c.padStart(widths[i])))
-      .join("  ")
-      .trimEnd();
-  return [line(header), ...body.map(line)].join("\n");
 }

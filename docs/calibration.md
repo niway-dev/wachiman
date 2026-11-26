@@ -17,8 +17,8 @@ the first human reply that states an outcome. A reply's first meaningful line is
 | Outcome | The reply's first meaningful line | Notes |
 | --- | --- | --- |
 | wrong | a `Verdict:` line that [precision](precision.md) counts as wrong | wins over the others |
-| fixed | contains `fixed`, `done`, `addressed`, `applied`, `settled`, `resolved` or `updated` | `Fixed in 64198cf. …` |
-| declined | contains `declin…`, `won't fix`, `not fixing`, `keeping`, `intentional`, `by design`, `no change`, `out of scope`, `on purpose`, `not changing`, `no longer applies`, `as intended`, `deliberate` or `kept as is` | `Declined: …` |
+| fixed | contains `fixed`, `done`, `addressed`, `applied`, `settled`, `resolved` or `updated`, or starts with `Added` or `Agreed` | `Fixed in 64198cf. …` |
+| declined | contains `declin…`, `won't fix`, `not fixing`, `keeping`, `intentional`, `by design`, `no change`, `out of scope`, `on purpose`, `not changing`, `no longer applies`, `as intended`, `deliberate`, `kept as is` or `the claim holds`, or starts with `Not changed`, `Verified:`, `Confirmed:` or `Checked against` | `Declined: …` |
 | unanswered | none of the above | no reply, or a reply that decides nothing |
 
 If one first line holds both a fix word and a decline word, the earlier one wins.
