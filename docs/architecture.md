@@ -423,6 +423,7 @@ Implements the floor of decision 4 and decision 5 of the
 [flow-questions spec](specs/2026-10-31-flow-questions-and-evidence-design.md); the model-side
 half of that spec (`contracts`, `confidence`, admitted investigation, ADR 0009) is separate work.
 Code: `src/evidence.ts`; `gatherEvidence` in `src/engine.ts` calls it once per provider call.
+Which languages get which part of it: [Supported languages](languages.md).
 
 *Why:* in the [2026-11-01 benchmark](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-01/README.md) the bugs Wachiman missed
 sat in sibling callers outside the diff. On kaipu-record #465 the new Drag handle called
