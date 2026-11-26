@@ -247,7 +247,8 @@ Four rules follow from that code:
    than $0.05.** The start floor is 60% of the model's mean batch figure, never below $0.05 (about
    $0.19 for Sonnet). A model outside the Sonnet, Opus and Haiku families has no measured figure, so
    its floor is 60% of the per-call cap (about $0.45 at the default $0.75). The $0.05 limit applies to the retry. A total below the start floor is accepted
-   as a setting but starts no batch: the run reports that it ran out of its budget.
+   as a setting but starts no batch: on the local path the run reports that it ran out of its budget,
+   and the GitHub path stops before any batch starts (see the troubleshooting page).
 4. **The total can be overshot.** The engine checks `spent` after each call, using what the call
    reported. The last call can push the total past `budget_usd`, because the cap on a call is not
    exact (see the next section).

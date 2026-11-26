@@ -45,6 +45,8 @@ interface Plan {
   rejected?: boolean;
   /** The call stops on its budget with no review. */
   budget?: boolean;
+  /** The call is killed at the time limit with no review. */
+  timeout?: boolean;
   /** The first call lists no file as reviewed; the retry (a "second pass" prompt) reviews it. */
   leaveFirstPassUnreviewed?: boolean;
   /** What a rejected call says; by default the same text for every batch. */
@@ -92,6 +94,7 @@ class TimedProvider implements ProviderAdapter {
         providerError: "billing",
       };
     if (plan.budget) return { ...base, isError: true, terminalReason: "budget" };
+    if (plan.timeout) return { ...base, isError: true, terminalReason: "timeout" };
     const secondPass = request.prompt.includes("second pass");
     const output: ReviewOutput = {
       files_reviewed: plan.leaveFirstPassUnreviewed && !secondPass ? [] : [file],
@@ -241,6 +244,20 @@ describe("batches run side by side", () => {
     // The retry used batch 1's slot: two batches, never more than two calls at once.
     expect(provider.maxInFlight).toBe(2);
     expect(r.posted.review?.body).toContain("reviewed after a retry");
+  });
+
+  test("a time-limit stop is not reported as a budget stop when a later batch has no room", async () => {
+    // Batch 1 is killed at the time limit after spending its $0.50 cap. Batch 2 finds $0.10 left, below
+    // the Haiku start floor ($0.168), so it never starts. The notice must name the time limit.
+    const provider = new TimedProvider((file) =>
+      file === fileName(1) ? { delayMs: 10, costUsd: (q) => q.maxBudgetUsd ?? 0, timeout: true } : { delayMs: 50 },
+    );
+    const r = run(2, provider, { ...HAIKU, WACHIMAN_BATCH_BUDGET_USD: "0.5", WACHIMAN_BUDGET_USD: "0.6" });
+    await r.done;
+    expect(provider.requests).toHaveLength(1);
+    const body = r.posted.review?.body ?? "";
+    expect(body).toContain("was killed at the 900 s time limit on a call");
+    expect(body).not.toContain("ran out of its budget");
   });
 
   test("a batch that throws ends the review after the running batches finish, and starts no more", async () => {
