@@ -6,17 +6,15 @@ Design: [optional usage telemetry spec](../specs/2026-11-24-optional-usage-telem
 
 ## Done
 
-- Consent store, gate (`telemetryAllowed`) and summary builder in `src/telemetry/`; `usageDataAllowed` now true unless `DO_NOT_TRACK`.
-
-- Sender and the call after `local` and `ask` (`src/telemetry/send.ts`, `report.ts`).
-- `wachiman telemetry on|off|status|reset` with its help page.
-- `init` question (asked last, terminal only) and the `telemetry` field of `init --json`.
-- Docs (`telemetry-api.md` with its contract test, on-your-machine, cli, README, local-review, faq), ADR status, `wachimanDataCollection`, CHANGELOG call-out.
+Everything in the brief: `src/telemetry/` (consent, gate, summary, sender, call sites), the `telemetry` command,
+the `init` question and `init --json` field, docs, ADR status, `wachimanDataCollection`, CHANGELOG call-out,
+tests. Lint and check match their baselines; `bun test`: 4708 pass, 1 flaky failure that passes alone.
 
 ## Left
 
-- Full `bun test`, lint, check.
+- A clean full `bun test` run on a quiet machine (one timing flake in `src/connectors/working-tree.test.ts`).
+- The `ask` call site has unit tests only, no end-to-end test.
 
 ## Next step
 
-The full run.
+Open the PR, then delete this file in it.
