@@ -549,6 +549,23 @@ are matched with `Bun.Glob` against each changed file's repository-relative path
 way the built-ins are written: `*.md` does not match `docs/a.md`, `**/*.md` matches at any depth.
 The reusable workflow has no input for `WACHIMAN_EXCLUDE`.
 
+Files your repository marks as generated or vendored are left out too: any file with
+`linguist-generated` or `linguist-vendored` set (`gen/** linguist-generated`, or `=true`) in a
+`.gitattributes` of the **base commit**. Wachiman reads the base commit's attributes, never the
+head's, so a pull request cannot take its own files out of its review by adding a mark;
+`wachiman local` reads them at the merge-base of its range. One `git check-attr --source` call
+answers for the whole run. When the base commit is in the clone, that call is `--source=<base>`, which needs git 2.40 or newer
+(on an older git nothing is excluded and the log says so). A shallow checkout, such as the
+reusable workflow's (`persist-credentials: false`, no base commit), never fetches: the engine lists
+the base commit's tree through the GitHub API with the run's own token, reads each `.gitattributes`
+file there (only the root one when GitHub truncates the tree), and checks the changed paths against
+them in a throwaway repository. No git process sees a token, and the workflow needs no fetch step or
+extra token scope. If any of that fails, nothing is excluded and the log says so.
+`wachiman local ask` applies the same marks. Marks with `=false` or `-linguist-generated` keep the
+file reviewed. Like the built-in patterns, a mark cannot be overridden by a path rule, and excluded
+files are only counted, not listed. New files under a directory the base marks stay excluded, and an
+edit to `.gitattributes` in the pull request is not applied (it raises no policy-changed notice either).
+
 When everything that changed is excluded or outside the requested scope, the run posts
 `Nothing to review at <sha>: …` and exits 0.
 

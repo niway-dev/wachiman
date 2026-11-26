@@ -76,7 +76,9 @@ All names are in `src/engine.ts` unless a file is given.
    ignored with a log line. If every word misses, the scope is empty and the request runs as an
    unscoped review (or, when the head was already reviewed, answers "Already reviewed").
    `filterFiles` then drops `DEFAULT_EXCLUDE` (lockfiles, build output, snapshots, source maps,
-   generated files) plus `WACHIMAN_EXCLUDE`. *Why:* paying a model to read a lockfile buys
+   generated files) plus `WACHIMAN_EXCLUDE`, then `linguistExcluded` drops the files the base
+   commit's `.gitattributes` marks `linguist-generated` or `linguist-vendored` (one `git check-attr` call: `--source=<base>` when the base is in the clone, else against the
+   base's `.gitattributes` files read through the API; never the head's attributes). *Why:* paying a model to read a lockfile buys
    nothing, and re-reading commits it already saw buys less. Binary and very large files are not
    dropped here: GitHub sends no patch for them, and the prompt tells the model to read the file
    itself or record a closed skip reason (`SKIP_REASONS`). The list of changed files comes from

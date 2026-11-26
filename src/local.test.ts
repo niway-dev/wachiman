@@ -1693,3 +1693,48 @@ describe("memory use", () => {
     expect(existsSync(join(plain, ".wachiman"))).toBe(false);
   }, 30_000);
 });
+
+describe("linguist marks in a local range", () => {
+  test("AC16: files the base marks generated or vendored are not reviewed; a mark the head adds is ignored", () => {
+    const dir = emptyRepo();
+    commit(
+      dir,
+      {
+        ".gitattributes": "gen/** linguist-generated\nvendor/** linguist-vendored\n",
+        "gen/a.js": "1\n",
+        "vendor/b.js": "1\n",
+        "src/n.ts": "1\n",
+        "src/m.ts": "1\n",
+      },
+      "base",
+    );
+    git(dir, "switch", "-q", "-c", "feat/x");
+    const head = commit(
+      dir,
+      {
+        ".gitattributes": "gen/** linguist-generated\nvendor/** linguist-vendored\nsrc/n.ts linguist-generated\n",
+        "gen/a.js": "2\n",
+        "vendor/b.js": "2\n",
+        "src/n.ts": "2\n",
+        "src/m.ts": "2\n",
+      },
+      "head",
+    );
+    const repo: BranchRepo = {
+      dir,
+      mergeBase: git(dir, "rev-parse", "main").trim(),
+      mainTip: git(dir, "rev-parse", "main").trim(),
+      head,
+      subjects: ["head"],
+    };
+    const r = local("ok", ["--base", "main"], {}, repo);
+    expect(r.code).toBe(0);
+    // .gitattributes, src/m.ts and src/n.ts stay; gen/a.js and vendor/b.js leave.
+    expect(r.stderr.split("\n")).toContain("files: 3 (2 excluded)");
+    const prompt = r.read("prompt") ?? "";
+    expect(prompt).toContain("src/n.ts");
+    expect(prompt).toContain("src/m.ts");
+    expect(prompt).not.toContain("gen/a.js");
+    expect(prompt).not.toContain("vendor/b.js");
+  }, 30_000);
+});

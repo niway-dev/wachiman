@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test";
+import { afterAll, describe, expect, test } from "bun:test";
 import { loadConfig as loadConfigWithDefaults } from "./config";
 
 /** These tests script the batches only; the opt-in verifier has its own tests. */
@@ -8,6 +8,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import {
   GhError,
+  readBaseAttributeFiles,
   changeSignature,
   comment,
   lastEngineMarker,
@@ -22,7 +23,10 @@ import {
   type ReviewOutput,
 } from "./engine";
 import type { ProviderAdapter, ProviderAuth, ProviderRequest, ProviderResult } from "./providers/types";
+import { commit, emptyRepo, removeTempRepos } from "../test/support/temp-repo";
 import { checkGoldenPrompts, recordPrompt } from "../test/support/golden-prompts";
+
+afterAll(removeTempRepos);
 
 /** Plays back one scripted answer per call and records what the engine asked for. */
 class FakeProvider implements ProviderAdapter {
@@ -2068,5 +2072,102 @@ describe("a pull request that edits paths: cannot weaken its own review", () => 
     const r = await run({ [SETTINGS]: BASE_RULES }, {}, only);
     expect(r.body).not.toContain("Review policy changed");
     expect(r.order[0]).toBe(CHARGE);
+  });
+});
+
+describe("linguist marks come from the base commit", () => {
+  test("a file the base marks generated is not reviewed, and a mark the pull request adds is ignored", async () => {
+    const dir = emptyRepo();
+    const base = commit(dir, { ".gitattributes": "gen/** linguist-generated\n", "gen/a.js": "1\n", "src/n.ts": "1\n" }, "base");
+    commit(
+      dir,
+      { ".gitattributes": "gen/** linguist-generated\nsrc/n.ts linguist-generated\n", "gen/a.js": "2\n", "src/n.ts": "2\n" },
+      "head",
+    );
+    const files = [
+      { filename: "gen/a.js", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-1\n+2" },
+      { filename: "src/n.ts", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-1\n+2" },
+    ];
+    const posted: { review?: { body: string; comments: unknown[] } } = {};
+    const inner = fakeGh(posted, {}, files);
+    const gh: GhFn = (args, input) => {
+      const line = args.join(" ");
+      if (line.startsWith("api repos/o/r/pulls/7 ")) return base;
+      // The base holds no other file this test reads (no `.wachiman.yml`, no instructions).
+      if (/contents\/(.+)\?ref=/.test(line)) throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
+      return inner(args, input);
+    };
+    const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: ["src/n.ts"], summary: "ok" }) })]);
+    // The prompt names the base commit, a real hash here: not pinned.
+    provider.record = false;
+    const logs: string[] = [];
+    const deps: Deps = { gh, provider, config: loadConfig({}), repoDir: dir, log: (l) => void logs.push(l), warn: () => {} };
+    await review(deps, "o/r", 7, []);
+    const prompt = provider.requests[0].prompt;
+    expect(prompt).toContain("src/n.ts");
+    expect(prompt).not.toContain("gen/a.js");
+    expect(logs).toContain("1 file(s) are marked linguist-generated or linguist-vendored at the base commit and are not reviewed.");
+  });
+
+  test("in a shallow checkout the base's attribute files come through the API, nested ones too", async () => {
+    const dir = emptyRepo();
+    commit(dir, { "src/n.ts": "1\n", "gen/a.js": "1\n" }, "head only");
+    const missingBase = "1".repeat(40);
+    const files = [
+      { filename: "gen/a.js", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-1\n+2" },
+      { filename: "src/n.ts", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-1\n+2" },
+      { filename: "my dir/#x/z.js", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-1\n+2" },
+    ];
+    const posted: { review?: { body: string; comments: unknown[] } } = {};
+    const inner = fakeGh(posted, {}, files);
+    const b64 = (t: string) => JSON.stringify({ type: "file", encoding: "base64", content: Buffer.from(t).toString("base64") });
+    const gh: GhFn = (args, input) => {
+      const line = args.join(" ");
+      if (line.startsWith("api repos/o/r/pulls/7 ")) return missingBase;
+      if (line.includes(`git/trees/${missingBase}?recursive=1`)) {
+        return JSON.stringify({
+          truncated: false,
+          tree: [
+            { path: "a.txt", type: "blob" },
+            { path: ".gitattributes", type: "blob" },
+            { path: "my dir/#x/.gitattributes", type: "blob" },
+            { path: "docs", type: "tree" },
+          ],
+        });
+      }
+      if (line.includes("contents/.gitattributes?ref=")) return b64("gen/** linguist-generated\n");
+      if (line.includes("contents/my%20dir/%23x/.gitattributes?ref=")) return b64("z.js linguist-generated\n");
+      if (/contents\/(.+)\?ref=/.test(line)) throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
+      return inner(args, input);
+    };
+    const provider = new FakeProvider([() => ({ structuredOutput: out({ files_reviewed: ["src/n.ts"], summary: "ok" }) })]);
+    provider.record = false;
+    const logs: string[] = [];
+    await review({ gh, provider, config: loadConfig({}), repoDir: dir, log: (l) => void logs.push(l), warn: () => {} }, "o/r", 7, []);
+    const prompt = provider.requests[0].prompt;
+    expect(prompt).toContain("src/n.ts");
+    expect(prompt).not.toContain("gen/a.js");
+    expect(prompt).not.toContain("z.js");
+    expect(logs).toContain("2 file(s) are marked linguist-generated or linguist-vendored at the base commit and are not reviewed.");
+  });
+
+  test("readBaseAttributeFiles: a truncated tree leaves the root file, and a failing read throws for the caller to fail open", () => {
+    const logs: string[] = [];
+    const calls: string[] = [];
+    const gh: GhFn = (args) => {
+      const line = args.join(" ");
+      calls.push(line);
+      if (line.includes("git/trees/")) return JSON.stringify({ truncated: true, tree: [] });
+      return JSON.stringify({ type: "file", encoding: "base64", content: Buffer.from("a linguist-vendored\n").toString("base64") });
+    };
+    expect(readBaseAttributeFiles(gh, "o/r", "a".repeat(40), (l) => logs.push(l))).toEqual([
+      { path: ".gitattributes", content: "a linguist-vendored\n" },
+    ]);
+    expect(calls.filter((c) => c.includes("/contents/")).length).toBe(1);
+    expect(logs.length).toBe(1);
+    const boom: GhFn = () => {
+      throw new GhError("gh: boom (HTTP 502)", 502, "boom");
+    };
+    expect(() => readBaseAttributeFiles(boom, "o/r", "a".repeat(40), () => {})).toThrow();
   });
 });

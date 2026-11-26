@@ -171,6 +171,7 @@ import type { ProviderErrorClass } from "./providers/errors";
 import type { Effort, ProviderAdapter, ProviderAuth } from "./providers/types";
 import { renderDataPathQuestions, selectQuestions, type DataPathQuestion } from "./questions";
 import { buildRiskMap, wellFormed, type JudgementItem, type RiskFact, type RiskMap } from "./risk";
+import { linguistExcluded, type AttributeFile } from "./linguist";
 import { ASK_SCHEMA, buildAskPrompt, checkRefs, isAskAnswer, renderAnswer } from "./ask";
 
 export type { Profile, ResultFinding, ReviewChange, ReviewInput, ReviewResult, Stop } from "./formats";
@@ -542,14 +543,14 @@ export function resolveScope(words: string[], filenames: string[]) {
   return { paths, ignored: words.filter((w) => !paths.includes(w)) };
 }
 
-export function filterFiles(files: ReviewFile[], exclude: string[], scope: string[]) {
+export function filterFiles(files: ReviewFile[], exclude: string[], scope: string[], excludePaths?: ReadonlySet<string>) {
   const globs = exclude.map((pattern) => new Bun.Glob(pattern));
   const inScope = (name: string) => scope.length === 0 || scope.some((p) => underPath(name, p));
   const kept: ReviewFile[] = [];
   const dropped: ReviewFile[] = [];
   for (const f of files) {
     if (!inScope(f.filename)) continue;
-    (globs.some((g) => g.match(f.filename)) ? dropped : kept).push(f);
+    (globs.some((g) => g.match(f.filename)) || excludePaths?.has(f.filename) ? dropped : kept).push(f);
   }
   return { kept, dropped };
 }
@@ -1689,7 +1690,7 @@ export function baseSha(gh: GhFn, repo: string, pr: number) {
 function fileAtBase(gh: GhFn, repo: string, path: string, sha: string): InstructionFile | null {
   let raw: string;
   try {
-    raw = gh(["api", `repos/${repo}/contents/${path}?ref=${sha}`]);
+    raw = gh(["api", `repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${sha}`]);
   } catch (error) {
     if (error instanceof GhError && error.status === 404) return null;
     throw error;
@@ -1699,6 +1700,41 @@ function fileAtBase(gh: GhFn, repo: string, path: string, sha: string): Instruct
   // The contents API sends no content for a file over 1 MB.
   if (meta.encoding !== "base64") return { path, content: "", truncated: true };
   return instructionFileOf(path, Buffer.from(meta.content ?? "", "base64"));
+}
+
+const MAX_ATTRIBUTE_FILES = 50;
+
+/**
+ * The `.gitattributes` files of the base commit, through the same API and token as every other base
+ * read. One recursive tree read finds them; a truncated tree leaves only the root file. A file the
+ * API cannot send whole is skipped, since half an attributes file would mark the wrong files.
+ */
+export function readBaseAttributeFiles(gh: GhFn, repo: string, sha: string, log: (line: string) => void): AttributeFile[] {
+  const tree = JSON.parse(gh(["api", `repos/${repo}/git/trees/${sha}?recursive=1`])) as {
+    tree?: { path: string; type: string }[];
+    truncated?: boolean;
+  };
+  let paths: string[];
+  if (tree.truncated) {
+    log("The base commit's file tree is too large to list; only the root .gitattributes is read for linguist marks.");
+    paths = [".gitattributes"];
+  } else {
+    paths = (tree.tree ?? [])
+      .filter((e) => e.type === "blob" && (e.path === ".gitattributes" || e.path.endsWith("/.gitattributes")))
+      .map((e) => e.path);
+    if (paths.length > MAX_ATTRIBUTE_FILES) {
+      log(`The base commit has ${paths.length} .gitattributes files; only the first ${MAX_ATTRIBUTE_FILES} are read for linguist marks.`);
+      paths = paths.slice(0, MAX_ATTRIBUTE_FILES);
+    }
+  }
+  const files: AttributeFile[] = [];
+  for (const path of paths) {
+    const file = fileAtBase(gh, repo, path, sha);
+    if (!file) continue;
+    if (file.truncated) log(`${path} is too large to read through the API and is skipped for linguist marks.`);
+    else files.push({ path, content: file.content });
+  }
+  return files;
 }
 
 /** An instruction file from its bytes, cut at `MAX_INSTRUCTION_BYTES`. Shared by every connector. */
@@ -3408,6 +3444,8 @@ export interface ReviewOptions {
   batchChars: number;
   /** On top of `DEFAULT_EXCLUDE`. */
   exclude: string[];
+  /** Exact paths left out as well: the files the base commit marks `linguist-generated` or `linguist-vendored`. */
+  excludePaths?: ReadonlySet<string>;
   maxTurns: number;
   callTimeoutS: number;
   model: string;
@@ -3497,7 +3535,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     },
   };
   const { change } = input;
-  const filtered = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...options.exclude], input.scope);
+  const filtered = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...options.exclude], input.scope, options.excludePaths);
   const { dropped } = filtered;
   const { reviewable: kept, unreviewable } = splitUnreviewable(filtered.kept, input.headDir);
   const totalBudget = options.totalBudgetUsd;
@@ -4602,7 +4640,24 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     const unreadNames = new Set(resumed);
     files = [...files.filter((f) => !unreadNames.has(f.filename)), ...carried];
   }
-  const { kept, dropped } = filterFiles(files, [...DEFAULT_EXCLUDE, ...config.exclude], paths);
+  const filtered = filterFiles(files, [...DEFAULT_EXCLUDE, ...config.exclude], paths);
+  // Files the base commit's `.gitattributes` marks `linguist-generated` or `linguist-vendored` leave
+  // the review like the default excludes; the head's `.gitattributes` is never read.
+  const base = filtered.kept.length > 0 ? baseSha(gh, repo, pr) : "";
+  const marked =
+    filtered.kept.length > 0
+      ? linguistExcluded(
+          filtered.kept.map((f) => f.filename),
+          {
+            repoDir: deps.repoDir ?? process.cwd(),
+            baseSha: base,
+            readBaseAttributes: () => readBaseAttributeFiles(gh, repo, base, deps.log),
+            log: deps.log,
+          },
+        )
+      : new Set<string>();
+  const kept = filtered.kept.filter((f) => !marked.has(f.filename));
+  const dropped = [...filtered.dropped, ...filtered.kept.filter((f) => marked.has(f.filename))];
   if (kept.length === 0) {
     // Signed, with a block: an unsigned notice would leave `pr-state` at `review_missing` for a head
     // the engine decided on purpose has nothing to review. The marker moves unless the request was scoped.
@@ -4643,7 +4698,6 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // review and no marker is written, so the next push sees no marker and gates again.
   // The path rules come from the base commit whatever the model and effort inputs say; they reorder
   // the batches, so the estimate is made with them.
-  const base = baseSha(gh, repo, pr);
   const { pathRules: baseRules, commentsPointToDocs } = readBasePolicy(gh, repo, base, deps.warn);
   // A pull request that edits the rules is reviewed under the base's, and `.wachiman.yml` itself is
   // a critical path for that review: the head's rules are never applied, only compared.
@@ -4704,6 +4758,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const totalBudget = Math.min(config.budgetUsd, ceiling.room, grant.roomUsd);
   const options: ReviewOptions = {
     ...reviewOptionsOf(config, totalBudget),
+    ...(marked.size > 0 ? { excludePaths: marked } : {}),
     ...(memory ? { memory } : {}),
     // The check of `holds while` reads the whole pull request, not the delta this run reviews.
     changedPaths: touchedPathsOf(prFiles),
