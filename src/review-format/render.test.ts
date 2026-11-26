@@ -258,7 +258,8 @@ describe("S5: the partial review is readable", () => {
       const input = inputs[name]!;
       const written = input.footer.markers.filter((m) => m.startsWith("<!-- wachi:partial "));
       expect(written).toHaveLength(1);
-      expect(bodies[name]!.match(/<!-- wachi:partial [^>]*-->/g)).toEqual(written);
+      const hidden: string[] = bodies[name]!.match(/<!-- wachi:partial [^>]*-->/g) ?? [];
+      expect(hidden).toEqual(written);
       expect(isPartialFooter(bodies[name]!)).toBe(true);
     }
   });

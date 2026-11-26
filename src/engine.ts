@@ -3617,7 +3617,10 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
    * below the minimum but money is reserved by batches in flight, it waits: what they do not spend
    * comes back, and giving up now would skip a batch that a sequential run would have afforded.
    */
-  const acquire = async (id: number, launching: boolean): Promise<{ usd: number; runLimited: boolean } | { why: "rejected" | "budget" | "failed" }> => {
+  const acquire = async (
+    id: number,
+    launching: boolean,
+  ): Promise<{ usd: number; runLimited: boolean } | { why: "rejected" | "budget" | "failed" }> => {
     for (;;) {
       if (fatal) return { why: "failed" };
       if (rejection) return { why: "rejected" };
