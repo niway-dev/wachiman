@@ -15,9 +15,10 @@ on-your-machine.md, which also promised that any future usage data would be list
 release that adds it, could be turned off, and would not be needed for local review.
 
 Wachiman has no view of how it is used outside the owner's machines: diff sizes, chunk counts,
-tokens, failures. Those numbers would steer work on coverage, cost and reliability. Open source
-CLIs that collect usage (Angular CLI, Next.js) ask once and send counts; the public argument around
-them is about what identity is attached, not about counting.
+tokens, failures. Those numbers would steer work on coverage, cost and reliability. Angular CLI
+asks once during setup and sends counts only after a yes; other CLIs, such as Next.js, collect by
+default with an opt-out. The public argument around them is about what identity is attached, not
+about counting.
 
 ## Decision
 

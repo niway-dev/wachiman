@@ -30,8 +30,8 @@ design is written now and the work starts when someone else uses Wachiman.
 | A summary from an allowlist of fields, never the SQLite index or history files | What is sent is what the schema lists, and nothing else can slip in | 0065 |
 | Laptop only in the first version; Actions out | Consent belongs to the environment that runs; a workflow needs its own explicit switch, designed later | none |
 | The receiver is a new hosted endpoint, apart from the spend ledger | The ledger knows accounts; keeping the two apart makes "no account identifier" checkable | none |
-| Telemetry never fails or slows a review | Fire-and-forget with a short timeout and a size cap | none |
-| The public promises change in the same release that starts sending | Never announce what is not running, never run what is not announced | 0065 |
+| Telemetry never fails a review and adds at most 2 seconds | One attempt with a 2-second timeout and a size cap, after the result is written | none |
+| The intended rules are published now; "sends no telemetry" changes only in the release that starts sending | The later change then fulfils a published promise instead of reversing one; never claim what is not running | 0065 |
 
 **Open questions.** Retention of raw events (proposed: 90 days, then aggregates only). How
 `monorepo` is told apart from `single`. Whether the CLI shows the last payload
@@ -72,10 +72,12 @@ Share usage metrics? [y/N]
 
 - **Yes:** store the choice and a new random UUID (v4) in the user's Wachiman settings, not in the
   repository. Send a summary after each later review. Past runs are never sent.
-- **No, Enter, or no terminal:** store No and never ask again. Reviews work exactly as before.
-- **Agent-driven setup** (an agent runs `init` for the owner): the agent relays the question to the
-  owner and never answers it.
-- **Later:** `wachiman telemetry on|off|status`. Off stops sending and drops anything pending. It
+- **No or Enter:** store No and never ask again. Reviews work exactly as before.
+- **No terminal** (`--json`, `--yes`, CI, an agent): store nothing and send nothing; the question
+  is asked at the next interactive `init`. `init --json` reports `"telemetry": "pending"` so an
+  agent relays the question to the owner, who answers it or runs `wachiman telemetry on`; the agent
+  never answers it. `init --dry-run` writes no choice and no UUID.
+- **Later:** `wachiman telemetry on|off|status`. Off stops sending from the next review on. It
   does not delete what was received. A new `on` after an `off` keeps the same UUID;
   `wachiman telemetry reset` makes a new one.
 - **`DO_NOT_TRACK`:** when it is set ([donottrack.sh](https://donottrack.sh/)), telemetry is off
@@ -121,17 +123,23 @@ what the client sends against it. The service itself is not in this repository.
 ## Failure and resources
 
 Sending happens after the review result is written, in the same process, with a 2-second timeout,
-one attempt and no retry queue on disk. A failure is ignored and never changes the exit code or
+one attempt and no retry queue on disk, so nothing is ever pending between commands. A hanging
+endpoint adds at most 2 seconds to the review's wall time. A failure is ignored and never changes the exit code or
 the output. A summary over the size cap is not sent.
 
 ## What must change in the same release
 
 - [on-your-machine.md](../on-your-machine.md#telemetry): the fields, the endpoint, how to turn it
-  off. Its own promise (line "If Wachiman ever collects usage data…") is met by this design.
+  off. The rules already published in its Telemetry section are met by this design; the fields are
+  listed there before the release.
 - `README.md`, [local-review.md](../local-review.md), [faq.md](../faq.md): "sends no telemetry"
   becomes "sends no telemetry unless you opted in during `init`".
 - ADR 0019 decision 5 and ADR 0042, by [ADR 0065](../adr/0065-usage-metrics-are-sent-only-after-opt-in-and-never-carry-an-account-identifier.md).
 - The network-call inventory test behind on-your-machine.md gains the new call site.
+- An entry in `wachimanDataCollection` in `package.json` (printed by `wachiman upgrade`) and a
+  `CHANGELOG.md` call-out, as CONTRIBUTING.md requires for any change that sends usage data.
+- [cli.md](../cli.md): the `init` question, the `wachiman telemetry` command, the `init --json`
+  field, and its "Wachiman sends no usage data today" line.
 - The website, privacy policy and terms change with the receiver, outside this repository.
 
 ## Verification the implementation must show
@@ -140,5 +148,8 @@ the output. A summary over the size cap is not sent.
   marker strings (a GitHub login, an email, a repository name, a token) and asserts none appears.
 - A test that no telemetry call happens without the stored yes, in `init` without a terminal, and
   with `WACHIMAN_TELEMETRY=0`.
-- A test that a failing or hanging endpoint leaves the review's output and exit code unchanged.
+- A test that a failing or hanging endpoint leaves the review's output and exit code unchanged and
+  adds no more than the timeout to its wall time.
+- A test that with a stored yes and `DO_NOT_TRACK` set no call is made, and that interactive `init`
+  does not ask while it is set.
 - The schema in `docs/` and the client's builder are checked against each other by a test.
