@@ -1699,16 +1699,34 @@ describe("linguist marks in a local range", () => {
     const dir = emptyRepo();
     commit(
       dir,
-      { ".gitattributes": "gen/** linguist-generated\nvendor/** linguist-vendored\n", "gen/a.js": "1\n", "vendor/b.js": "1\n", "src/n.ts": "1\n", "src/m.ts": "1\n" },
+      {
+        ".gitattributes": "gen/** linguist-generated\nvendor/** linguist-vendored\n",
+        "gen/a.js": "1\n",
+        "vendor/b.js": "1\n",
+        "src/n.ts": "1\n",
+        "src/m.ts": "1\n",
+      },
       "base",
     );
     git(dir, "switch", "-q", "-c", "feat/x");
     const head = commit(
       dir,
-      { ".gitattributes": "gen/** linguist-generated\nvendor/** linguist-vendored\nsrc/n.ts linguist-generated\n", "gen/a.js": "2\n", "vendor/b.js": "2\n", "src/n.ts": "2\n", "src/m.ts": "2\n" },
+      {
+        ".gitattributes": "gen/** linguist-generated\nvendor/** linguist-vendored\nsrc/n.ts linguist-generated\n",
+        "gen/a.js": "2\n",
+        "vendor/b.js": "2\n",
+        "src/n.ts": "2\n",
+        "src/m.ts": "2\n",
+      },
       "head",
     );
-    const repo: BranchRepo = { dir, mergeBase: git(dir, "rev-parse", "main").trim(), mainTip: git(dir, "rev-parse", "main").trim(), head, subjects: ["head"] };
+    const repo: BranchRepo = {
+      dir,
+      mergeBase: git(dir, "rev-parse", "main").trim(),
+      mainTip: git(dir, "rev-parse", "main").trim(),
+      head,
+      subjects: ["head"],
+    };
     const r = local("ok", ["--base", "main"], {}, repo);
     expect(r.code).toBe(0);
     // .gitattributes, src/m.ts and src/n.ts stay; gen/a.js and vendor/b.js leave.

@@ -2079,7 +2079,11 @@ describe("linguist marks come from the base commit", () => {
   test("a file the base marks generated is not reviewed, and a mark the pull request adds is ignored", async () => {
     const dir = emptyRepo();
     const base = commit(dir, { ".gitattributes": "gen/** linguist-generated\n", "gen/a.js": "1\n", "src/n.ts": "1\n" }, "base");
-    commit(dir, { ".gitattributes": "gen/** linguist-generated\nsrc/n.ts linguist-generated\n", "gen/a.js": "2\n", "src/n.ts": "2\n" }, "head");
+    commit(
+      dir,
+      { ".gitattributes": "gen/** linguist-generated\nsrc/n.ts linguist-generated\n", "gen/a.js": "2\n", "src/n.ts": "2\n" },
+      "head",
+    );
     const files = [
       { filename: "gen/a.js", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-1\n+2" },
       { filename: "src/n.ts", additions: 1, deletions: 1, patch: "@@ -1 +1 @@\n-1\n+2" },
@@ -2121,7 +2125,15 @@ describe("linguist marks come from the base commit", () => {
       const line = args.join(" ");
       if (line.startsWith("api repos/o/r/pulls/7 ")) return missingBase;
       if (line.includes(`git/trees/${missingBase}?recursive=1`)) {
-        return JSON.stringify({ truncated: false, tree: [{ path: "a.txt", type: "blob" }, { path: ".gitattributes", type: "blob" }, { path: "my dir/#x/.gitattributes", type: "blob" }, { path: "docs", type: "tree" }] });
+        return JSON.stringify({
+          truncated: false,
+          tree: [
+            { path: "a.txt", type: "blob" },
+            { path: ".gitattributes", type: "blob" },
+            { path: "my dir/#x/.gitattributes", type: "blob" },
+            { path: "docs", type: "tree" },
+          ],
+        });
       }
       if (line.includes("contents/.gitattributes?ref=")) return b64("gen/** linguist-generated\n");
       if (line.includes("contents/my%20dir/%23x/.gitattributes?ref=")) return b64("z.js linguist-generated\n");
@@ -2148,7 +2160,9 @@ describe("linguist marks come from the base commit", () => {
       if (line.includes("git/trees/")) return JSON.stringify({ truncated: true, tree: [] });
       return JSON.stringify({ type: "file", encoding: "base64", content: Buffer.from("a linguist-vendored\n").toString("base64") });
     };
-    expect(readBaseAttributeFiles(gh, "o/r", "a".repeat(40), (l) => logs.push(l))).toEqual([{ path: ".gitattributes", content: "a linguist-vendored\n" }]);
+    expect(readBaseAttributeFiles(gh, "o/r", "a".repeat(40), (l) => logs.push(l))).toEqual([
+      { path: ".gitattributes", content: "a linguist-vendored\n" },
+    ]);
     expect(calls.filter((c) => c.includes("/contents/")).length).toBe(1);
     expect(logs.length).toBe(1);
     const boom: GhFn = () => {

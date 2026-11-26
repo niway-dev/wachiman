@@ -14,7 +14,10 @@ function withGitShim<T>(run: (calls: () => string[]) => T): T {
   const logFile = join(dir, "calls.log");
   rmSync(dir, { recursive: true, force: true });
   mkdirSync(dir, { recursive: true });
-  writeFileSync(join(dir, "git"), `#!/bin/sh\necho "token=\${GH_TOKEN:-}\${GITHUB_TOKEN:-}|config=\${GIT_CONFIG_COUNT:-} $*" >> "${logFile}"\nexec "${real}" "$@"\n`);
+  writeFileSync(
+    join(dir, "git"),
+    `#!/bin/sh\necho "token=\${GH_TOKEN:-}\${GITHUB_TOKEN:-}|config=\${GIT_CONFIG_COUNT:-} $*" >> "${logFile}"\nexec "${real}" "$@"\n`,
+  );
   chmodSync(join(dir, "git"), 0o755);
   const saved = { PATH: process.env.PATH, GH_TOKEN: process.env.GH_TOKEN, GITHUB_TOKEN: process.env.GITHUB_TOKEN };
   process.env.PATH = `${dir}:${saved.PATH ?? ""}`;
@@ -46,7 +49,14 @@ const BASE_ATTRIBUTES = [
  */
 function fixture() {
   const dir = emptyRepo("wachiman-linguist-");
-  const files = { "gen/a.js": "1\n", "vendor/b.js": "1\n", "keep/c.js": "1\n", "plain/d.js": "1\n", "src/n.ts": "1\n", "nested/x.txt": "1\n" };
+  const files = {
+    "gen/a.js": "1\n",
+    "vendor/b.js": "1\n",
+    "keep/c.js": "1\n",
+    "plain/d.js": "1\n",
+    "src/n.ts": "1\n",
+    "nested/x.txt": "1\n",
+  };
   const base = commit(dir, { ".gitattributes": BASE_ATTRIBUTES, ...files }, "base");
   git(dir, "switch", "-q", "-c", "feat");
   const head = commit(
@@ -167,13 +177,18 @@ describe("linguist exclusion from the base commit", () => {
     const logs: string[] = [];
     const excluded = linguistExcluded(f.paths, { repoDir: f.dir, baseSha: "1".repeat(40), log: (l) => logs.push(l) });
     expect(excluded.size).toBe(0);
-    expect(logs).toEqual([`linguist-generated and linguist-vendored are not applied: the base commit ${"1".repeat(7)} is not in the clone.`]);
+    expect(logs).toEqual([
+      `linguist-generated and linguist-vendored are not applied: the base commit ${"1".repeat(7)} is not in the clone.`,
+    ]);
   });
 
   test("paths with spaces and glob characters match, and an empty path list excludes nothing", () => {
     const dir = emptyRepo("wachiman-linguist-odd-");
     const base = commit(dir, { ".gitattributes": "gen/** linguist-generated\n", "gen/a b.js": "1\n", "gen/[x].js": "1\n" }, "base");
-    expect([...linguistExcluded(["gen/a b.js", "gen/[x].js", "z"], { repoDir: dir, baseSha: base, log: () => {} })].sort()).toEqual(["gen/[x].js", "gen/a b.js"]);
+    expect([...linguistExcluded(["gen/a b.js", "gen/[x].js", "z"], { repoDir: dir, baseSha: base, log: () => {} })].sort()).toEqual([
+      "gen/[x].js",
+      "gen/a b.js",
+    ]);
     expect(linguistExcluded([], { repoDir: dir, baseSha: base, log: () => {} }).size).toBe(0);
   });
 });
@@ -188,7 +203,24 @@ describe("helpers", () => {
   });
 
   test("check-attr output: set and true count; false, unset and unspecified do not", () => {
-    const out = ["a", "linguist-generated", "set", "a", "linguist-vendored", "unspecified", "b", "linguist-generated", "true", "c", "linguist-generated", "false", "d", "linguist-vendored", "unset", ""].join("\0");
+    const out = [
+      "a",
+      "linguist-generated",
+      "set",
+      "a",
+      "linguist-vendored",
+      "unspecified",
+      "b",
+      "linguist-generated",
+      "true",
+      "c",
+      "linguist-generated",
+      "false",
+      "d",
+      "linguist-vendored",
+      "unset",
+      "",
+    ].join("\0");
     expect([...parseCheckAttr(out)].sort()).toEqual(["a", "b"]);
   });
 });

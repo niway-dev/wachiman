@@ -185,7 +185,10 @@ export async function runAsk(
     const { input } = scope;
     // The same files the review would send (its excludes and its scope), so both read one change.
     const filtered = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...config.exclude], input.scope);
-    const marked = linguistExcluded(filtered.kept.map((f) => f.filename), { repoDir, baseSha: input.change.base.sha, log: io.stderr });
+    const marked = linguistExcluded(
+      filtered.kept.map((f) => f.filename),
+      { repoDir, baseSha: input.change.base.sha, log: io.stderr },
+    );
     const kept = filtered.kept.filter((f) => !marked.has(f.filename));
     const dropped = [...filtered.dropped, ...filtered.kept.filter((f) => marked.has(f.filename))];
     if (kept.length === 0) {

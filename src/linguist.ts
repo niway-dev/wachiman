@@ -90,14 +90,18 @@ function markedByFiles(files: AttributeFile[], paths: readonly string[], log: (l
       writeFileSync(target, f.content);
     }
     // Nothing but the base's own files: no user or system attributes file.
-    const run = spawnSync("git", [...GIT_BASE_ARGS, "-c", "core.attributesFile=/dev/null", "check-attr", "--stdin", "-z", "linguist-generated", "linguist-vendored"], {
-      cwd: dir,
-      encoding: "utf8",
-      input: paths.join("\0") + "\0",
-      timeout: TIMEOUT_MS,
-      maxBuffer: MAX_BYTES,
-      env: { ...gitEnv(), GIT_ATTR_NOSYSTEM: "1" },
-    });
+    const run = spawnSync(
+      "git",
+      [...GIT_BASE_ARGS, "-c", "core.attributesFile=/dev/null", "check-attr", "--stdin", "-z", "linguist-generated", "linguist-vendored"],
+      {
+        cwd: dir,
+        encoding: "utf8",
+        input: paths.join("\0") + "\0",
+        timeout: TIMEOUT_MS,
+        maxBuffer: MAX_BYTES,
+        env: { ...gitEnv(), GIT_ATTR_NOSYSTEM: "1" },
+      },
+    );
     if (run.status !== 0) {
       log(`${NOT_APPLIED}: git check-attr failed (${failureReason(run)}).`);
       return null;
@@ -113,7 +117,8 @@ export function linguistExcluded(paths: readonly string[], o: LinguistOptions): 
   const none = new Set<string>();
   if (paths.length === 0) return none;
   const report = (marked: Set<string>) => {
-    if (marked.size > 0) o.log(`${marked.size} file(s) are marked linguist-generated or linguist-vendored at the base commit and are not reviewed.`);
+    if (marked.size > 0)
+      o.log(`${marked.size} file(s) are marked linguist-generated or linguist-vendored at the base commit and are not reviewed.`);
     return marked;
   };
   try {
@@ -136,7 +141,11 @@ export function linguistExcluded(paths: readonly string[], o: LinguistOptions): 
       o.log(`${NOT_APPLIED}: this git (${version.stdout.trim() || "unknown version"}) has no check-attr --source (2.40 or newer).`);
       return none;
     }
-    const run = git(cwd, ["check-attr", `--source=${o.baseSha}`, "--stdin", "-z", "linguist-generated", "linguist-vendored"], paths.join("\0") + "\0");
+    const run = git(
+      cwd,
+      ["check-attr", `--source=${o.baseSha}`, "--stdin", "-z", "linguist-generated", "linguist-vendored"],
+      paths.join("\0") + "\0",
+    );
     if (run.status !== 0) {
       o.log(`${NOT_APPLIED}: git check-attr failed (${failureReason(run)}).`);
       return none;
