@@ -55,7 +55,8 @@ through `gh`, the optional spend ledger (off unless you set `ledger_url`; it rec
 figures, never code), a `curl` download of the pinned Claude Code binary in the workflow, and the
 npm registry for `wachiman upgrade`, plus your git remote for `wachiman memory propose` and
 `memory remember`. A search of the source found no analytics or telemetry
-sender, but Claude Code, Codex and Bun may send their own. Every network call, file written and
+sender, but Claude Code, Codex and Bun may send their own. If usage metrics are ever added, they are opt-in and carry no account identifier
+([the rules](on-your-machine.md#telemetry)). Every network call, file written and
 program started is on [on-your-machine.md](on-your-machine.md), with the file that shows it, and
 `test/egress.test.ts` fails when a source file with a network call site, or a URL host, is not on the page. It checks per file, not per call.
 
