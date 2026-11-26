@@ -92,15 +92,9 @@ export interface Judged {
 }
 
 /** Each of the reviewer's root comments with its label, its model and the first verdict in its thread. */
-export function judge(
-  comments: RawComment[],
-  modelOfReview: Map<number, string>,
-  botLogin = "github-actions[bot]",
-): Judged[] {
+export function judge(comments: RawComment[], modelOfReview: Map<number, string>, botLogin = "github-actions[bot]"): Judged[] {
   // Signed roots, and unsigned ones in the old label format from before `LEGACY_CUTOFF` (see `isWachiFinding`).
-  const roots = comments.filter(
-    (c) => c.user.login === botLogin && !c.in_reply_to_id && isWachiFinding(c.body, c.created_at),
-  );
+  const roots = comments.filter((c) => c.user.login === botLogin && !c.in_reply_to_id && isWachiFinding(c.body, c.created_at));
   return roots.flatMap((root) => {
     const label = parseLabel(root.body);
     if (!label) return [];
@@ -156,9 +150,7 @@ function collect(gh: GhFn, repo: string, prs: number): Judged[] {
     .filter(Boolean)
     .map(Number);
   return numbers.flatMap((pr) => {
-    const comments = JSON.parse(
-      gh(["api", "--paginate", "--slurp", `repos/${repo}/pulls/${pr}/comments`]),
-    ).flat() as RawComment[];
+    const comments = JSON.parse(gh(["api", "--paginate", "--slurp", `repos/${repo}/pulls/${pr}/comments`])).flat() as RawComment[];
     if (!comments.some((c) => c.user.login === "github-actions[bot]")) return [];
     const reviews = JSON.parse(gh(["api", "--paginate", "--slurp", `repos/${repo}/pulls/${pr}/reviews`])).flat() as {
       id: number;

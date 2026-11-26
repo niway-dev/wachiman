@@ -100,12 +100,21 @@ describe("resolveInitOptions: the pinned tag", () => {
     expect(DEFAULT_WORKFLOW_REF).toMatch(/^v\d+\.\d+\.\d+$/);
   });
 
-  test.each(["1.5.0", "v1.5", "v1.5.0-rc.1", "v1", "main", "latest", "v1.5.0 ", "unknown", "0123456789abcdef", "0123456789ABCDEF0123456789abcdef01234567", "v1.5.0\nuses: x"])(
-    "%j is not an Actions tag",
-    (tag) => {
-      expect(error({ mode: "github", operator: "me", version: tag })).toMatch(/vX\.Y\.Z|40/);
-    },
-  );
+  test.each([
+    "1.5.0",
+    "v1.5",
+    "v1.5.0-rc.1",
+    "v1",
+    "main",
+    "latest",
+    "v1.5.0 ",
+    "unknown",
+    "0123456789abcdef",
+    "0123456789ABCDEF0123456789abcdef01234567",
+    "v1.5.0\nuses: x",
+  ])("%j is not an Actions tag", (tag) => {
+    expect(error({ mode: "github", operator: "me", version: tag })).toMatch(/vX\.Y\.Z|40/);
+  });
 
   test("the CLI's own version never becomes the tag: the resolver is not given it, and a bad bundled ref is refused", () => {
     // `wachiman --version` may print 1.9.0, an unreleased build or `unknown`; none of them reaches `uses: …@`.
@@ -148,7 +157,9 @@ describe("parseInitFlags: the argument parser", () => {
   const parse = (argv: string[]) => parseInitFlags(argv, "/repo");
 
   test("every flag, in both spellings", () => {
-    expect(parse(["--mode", "both", "--operator=me", "--version", "v1.5.0", "--path=.github/workflows/a.yml", "--force", "--dry-run", "--yes"])).toEqual({
+    expect(
+      parse(["--mode", "both", "--operator=me", "--version", "v1.5.0", "--path=.github/workflows/a.yml", "--force", "--dry-run", "--yes"]),
+    ).toEqual({
       mode: "both",
       operator: "me",
       version: "v1.5.0",
@@ -221,7 +232,11 @@ describe("resolveInitOptions: --project-kind", () => {
 
 describe("parseInitFlags: --project-kind", () => {
   test("the value is carried as projectKind and listed in the usage", () => {
-    expect(parseInitFlags(["--mode", "local", "--project-kind", "single"], "/r")).toEqual({ mode: "local", projectKind: "single", repoDir: "/r" });
+    expect(parseInitFlags(["--mode", "local", "--project-kind", "single"], "/r")).toEqual({
+      mode: "local",
+      projectKind: "single",
+      repoDir: "/r",
+    });
     expect(initUsage).toContain("--project-kind monorepo|single");
   });
 

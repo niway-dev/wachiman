@@ -7,13 +7,28 @@ import { evidenceLine, newCandidate, parseEvidenceLine, renderEntry, type EntryF
 import { candidateFromShown, proposalsIn, REMEMBER_SIGNATURE, renderProposal } from "./proposal";
 
 const ev = (extra: Partial<Evidence> = {}): Evidence => ({ date: "2026-11-18", source: "instruction", pr: 709, agent: false, ...extra });
-const FIELDS = { kind: "exception", scope: "docs/adr/**", rule: "Do not report a stale date on wording edits.", why: "ADRs version themselves when a decision changes." };
+const FIELDS = {
+  kind: "exception",
+  scope: "docs/adr/**",
+  rule: "Do not report a stale date on wording edits.",
+  why: "ADRs version themselves when a decision changes.",
+};
 const candidate = (fields: EntryFields = FIELDS, evidence = ev()) => newCandidate(fields, evidence, "2026-11-18");
 
 describe("parseEvidenceLine", () => {
   test("reads back every line evidenceLine writes", () => {
-    for (const e of [ev(), ev({ agent: true }), ev({ source: "judged", pr: undefined, branch: "feat/x y" }), ev({ source: "fixed", agent: true, pr: 12 })]) {
-      expect(parseEvidenceLine(evidenceLine(e))).toEqual({ date: e.date, source: e.source, agent: e.agent, ...(e.pr !== undefined ? { pr: e.pr } : { branch: e.branch }) });
+    for (const e of [
+      ev(),
+      ev({ agent: true }),
+      ev({ source: "judged", pr: undefined, branch: "feat/x y" }),
+      ev({ source: "fixed", agent: true, pr: 12 }),
+    ]) {
+      expect(parseEvidenceLine(evidenceLine(e))).toEqual({
+        date: e.date,
+        source: e.source,
+        agent: e.agent,
+        ...(e.pr !== undefined ? { pr: e.pr } : { branch: e.branch }),
+      });
     }
   });
 

@@ -30,8 +30,7 @@ const CODE_FILE = /\.(?:[cm]?[jt]s|[jt]sx)$/i;
  */
 const TEST_FILE = /(?:\.(?:test|spec)\.[a-z]+$|(?:^|\/)(?:__tests__|__mocks__|tests?|e2e|fixtures?)\/)/i;
 
-const READ =
-  /\b(?:read[A-Za-z]*|load[A-Z][A-Za-z]*|getItem)\s*\(|\bBun\.file\s*\(|\b(?:fs|fsp|promises)\.[a-z]*[Rr]ead[A-Za-z]*\s*\(/;
+const READ = /\b(?:read[A-Za-z]*|load[A-Z][A-Za-z]*|getItem)\s*\(|\bBun\.file\s*\(|\b(?:fs|fsp|promises)\.[a-z]*[Rr]ead[A-Za-z]*\s*\(/;
 
 const WRITE =
   /\b(?:write[A-Z]\w*|atomicWrite\w*|appendFile\w*|outputFile\w*|copyFile\w*|save[A-Z]?\w*|persist\w*|setItem)\s*\(|(?<![.\w])write\s*\(|\bBun\.write\s*\(|\b(?:this|self)\.(?:write|save|persist|flush|commit)\w*\s*\(/;

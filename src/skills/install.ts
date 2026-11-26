@@ -4,7 +4,20 @@
  * only what it installed (command contract section 5.9).
  */
 import { createHash } from "node:crypto";
-import { lstatSync, mkdirSync, readdirSync, readFileSync, realpathSync, renameSync, rmdirSync, rmSync, statSync, unlinkSync, writeFileSync, type Stats } from "node:fs";
+import {
+  lstatSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  renameSync,
+  rmdirSync,
+  rmSync,
+  statSync,
+  unlinkSync,
+  writeFileSync,
+  type Stats,
+} from "node:fs";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, relative, resolve } from "node:path";
 import { wachimanHome } from "../accounts/config";
@@ -13,7 +26,11 @@ import { UsageError } from "../config";
 export const SKILL_NAMES = ["wachiman-review", "wachiman-loop", "wachiman-audit"] as const;
 export const MARKER_FILE = ".wachiman-skill.json";
 
-export interface SkillsOptions { action: "install" | "uninstall"; dirs: string[]; json: boolean }
+export interface SkillsOptions {
+  action: "install" | "uninstall";
+  dirs: string[];
+  json: boolean;
+}
 export interface SkillInstallReport {
   format: "wachiman.skills/1";
   entries: { target: string; action: "installed" | "removed" | "preserved" | "failed"; reason?: string }[];
@@ -111,7 +128,9 @@ function refuseWachimanHome(targets: string[], homes: string[]) {
     const seen = [resolve(target), resolveThroughExisting(target)];
     const hit = protectedPaths.find((p) => seen.some((path) => isUnder(path, p)));
     if (hit !== undefined) {
-      throw new UsageError(`refusing ${target}: it is under the Wachiman home ${hit}, which holds isolated review profiles that must stay empty.`);
+      throw new UsageError(
+        `refusing ${target}: it is under the Wachiman home ${hit}, which holds isolated review profiles that must stay empty.`,
+      );
     }
   }
 }
@@ -126,7 +145,11 @@ const lstatOrUndefined = (path: string): Stats | undefined => {
 
 /** A path the marker may list: relative, `/`-separated, no empty, `.` or `..` segment, not the marker itself. */
 const isSafeRelative = (rel: string) =>
-  rel !== MARKER_FILE && !rel.includes("\\") && !rel.includes("\0") && !isAbsolute(rel) && rel.split("/").every((part) => part !== "" && part !== "." && part !== "..");
+  rel !== MARKER_FILE &&
+  !rel.includes("\\") &&
+  !rel.includes("\0") &&
+  !isAbsolute(rel) &&
+  rel.split("/").every((part) => part !== "" && part !== "." && part !== "..");
 
 /** The ownership marker of a copy, or undefined when it is missing, not ours, malformed or lists an unsafe path. */
 function readMarker(dest: string): SkillInstallMarker | undefined {
@@ -134,7 +157,8 @@ function readMarker(dest: string): SkillInstallMarker | undefined {
   if (!lstatOrUndefined(path)?.isFile()) return undefined;
   try {
     const parsed = JSON.parse(readFileSync(path, "utf8")) as Partial<SkillInstallMarker>;
-    if (parsed.format !== "wachiman.skill-install/1" || typeof parsed.version !== "string" || typeof parsed.installedAt !== "string") return undefined;
+    if (parsed.format !== "wachiman.skill-install/1" || typeof parsed.version !== "string" || typeof parsed.installedAt !== "string")
+      return undefined;
     const files = parsed.files;
     if (typeof files !== "object" || files === null || Array.isArray(files)) return undefined;
     for (const [rel, hash] of Object.entries(files)) if (!isSafeRelative(rel) || typeof hash !== "string") return undefined;
@@ -241,18 +265,30 @@ function installOne(dest: string, source: string, deps: SkillsDeps): Entry {
   if (stat !== undefined) {
     const owned = ownership(dest);
     if ("reason" in owned) return { target: dest, action: "preserved", reason: owned.reason };
-    const modified = Object.entries(owned.marker.files).filter(([rel, hash]) => fileState(dest, rel, hash) === "modified").map(([rel]) => rel);
+    const modified = Object.entries(owned.marker.files)
+      .filter(([rel, hash]) => fileState(dest, rel, hash) === "modified")
+      .map(([rel]) => rel);
     if (modified.length > 0) return { target: dest, action: "preserved", reason: `locally modified (${modified.join(", ")})` };
     replaced = owned.marker;
   }
   const files = listFiles(source);
   if (replaced) {
     const collisions = replaceCollisions(dest, files, replaced);
-    if (collisions.length > 0) return { target: dest, action: "preserved", reason: `the new version would overwrite or cross paths wachiman did not install (${collisions.join(", ")})` };
+    if (collisions.length > 0)
+      return {
+        target: dest,
+        action: "preserved",
+        reason: `the new version would overwrite or cross paths wachiman did not install (${collisions.join(", ")})`,
+      };
   }
   const hashes: Record<string, string> = {};
   const writeMarker = (listed: Record<string, string>) => {
-    const marker: SkillInstallMarker = { format: "wachiman.skill-install/1", version: deps.version ?? "unknown", installedAt: (deps.now?.() ?? new Date()).toISOString(), files: listed };
+    const marker: SkillInstallMarker = {
+      format: "wachiman.skill-install/1",
+      version: deps.version ?? "unknown",
+      installedAt: (deps.now?.() ?? new Date()).toISOString(),
+      files: listed,
+    };
     writeInside(dest, MARKER_FILE, Buffer.from(`${JSON.stringify(marker, null, 2)}\n`));
   };
   try {
@@ -300,12 +336,18 @@ function uninstallOne(dest: string): Entry | undefined {
   if (modified.length > 0) {
     const kept = Object.fromEntries(modified.map((rel) => [rel, marker.files[rel]]));
     writeInside(dest, MARKER_FILE, Buffer.from(`${JSON.stringify({ ...marker, files: kept }, null, 2)}\n`));
-    return { target: dest, action: "preserved", reason: `locally modified (${modified.join(", ")}) and kept; the other installed files were removed` };
+    return {
+      target: dest,
+      action: "preserved",
+      reason: `locally modified (${modified.join(", ")}) and kept; the other installed files were removed`,
+    };
   }
   unlinkSync(join(dest, MARKER_FILE));
   const rest = readdirSync(dest);
   if (rest.length === 0) rmdirSync(dest);
-  return rest.length === 0 ? { target: dest, action: "removed" } : { target: dest, action: "removed", reason: `kept files that are not wachiman's (${rest.join(", ")})` };
+  return rest.length === 0
+    ? { target: dest, action: "removed" }
+    : { target: dest, action: "removed", reason: `kept files that are not wachiman's (${rest.join(", ")})` };
 }
 
 /**
@@ -347,7 +389,9 @@ export function parseSkillsArgs(argv: string[]): SkillsOptions | { help: true } 
   if (argv.includes("--help") || argv.includes("-h")) return { help: true };
   const [action, ...rest] = argv;
   if (action !== "install" && action !== "uninstall") {
-    throw new UsageError(action === undefined ? "skills needs install or uninstall." : `skills: unknown subcommand "${action}"; use install or uninstall.`);
+    throw new UsageError(
+      action === undefined ? "skills needs install or uninstall." : `skills: unknown subcommand "${action}"; use install or uninstall.`,
+    );
   }
   const dirs: string[] = [];
   let json = false;
@@ -355,7 +399,8 @@ export function parseSkillsArgs(argv: string[]): SkillsOptions | { help: true } 
     const arg = rest[i];
     if (arg === "--dir" || arg.startsWith("--dir=")) {
       const value = arg === "--dir" ? rest[++i] : arg.slice("--dir=".length);
-      if (value === undefined || value === "" || (arg === "--dir" && value.startsWith("--"))) throw new UsageError("--dir needs a directory.");
+      if (value === undefined || value === "" || (arg === "--dir" && value.startsWith("--")))
+        throw new UsageError("--dir needs a directory.");
       dirs.push(value);
     } else if (arg === "--json" && action === "install") {
       json = true;
@@ -368,12 +413,17 @@ export function parseSkillsArgs(argv: string[]): SkillsOptions | { help: true } 
   return { action, dirs, json };
 }
 
-export interface SkillsIo { stdout: (text: string) => void; stderr: (line: string) => void }
+export interface SkillsIo {
+  stdout: (text: string) => void;
+  stderr: (line: string) => void;
+}
 
 /** Runs the command: the result on stdout (one document with `--json`), warnings on stderr; the exit code. */
 export function runSkills(opts: SkillsOptions, env: Record<string, string | undefined>, io: SkillsIo, deps: SkillsDeps = {}): number {
   const report = installSkills(opts, env, { ...deps, warn: (line) => io.stderr(`wachiman: ${line}`) });
   if (opts.json) io.stdout(`${JSON.stringify(report, null, 2)}\n`);
-  else for (const entry of report.entries) if (entry.action === "installed" || entry.action === "removed") io.stdout(`${entry.action} ${entry.target}\n`);
+  else
+    for (const entry of report.entries)
+      if (entry.action === "installed" || entry.action === "removed") io.stdout(`${entry.action} ${entry.target}\n`);
   return report.exitCode;
 }

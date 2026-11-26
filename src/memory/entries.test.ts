@@ -120,7 +120,10 @@ describe("parseMemoryFile", () => {
   test("an example entry inside a fenced code block is neither an entry nor a problem", () => {
     const example = BODY("4c1e9a2").trimEnd();
     for (const fence of ["```", "~~~", "````"]) {
-      const { entries, problems } = parseMemoryFile("index.md", `# Memory\n\nHow to write one:\n\n${fence}markdown\n${example}\n### not an entry\n${fence}\n`);
+      const { entries, problems } = parseMemoryFile(
+        "index.md",
+        `# Memory\n\nHow to write one:\n\n${fence}markdown\n${example}\n### not an entry\n${fence}\n`,
+      );
       expect(entries).toEqual([]);
       expect(problems).toEqual([]);
     }
@@ -130,7 +133,13 @@ describe("parseMemoryFile", () => {
     const real = BODY(entryId({ ...FIELDS }));
     const { entries, problems } = parseMemoryFile("index.md", `\`\`\`\n### no id\n\`\`\`\n\n${real}\n### no id here\n`);
     expect(entries).toHaveLength(1);
-    expect(problems).toEqual([{ file: "index.md", line: 5 + real.split("\n").length, message: "entry heading must be `### <id> <title>` with a 7-character hex id" }]);
+    expect(problems).toEqual([
+      {
+        file: "index.md",
+        line: 5 + real.split("\n").length,
+        message: "entry heading must be `### <id> <title>` with a 7-character hex id",
+      },
+    ]);
   });
 
   test("text outside entries (headings, prose, tables) is allowed", () => {
@@ -142,7 +151,8 @@ describe("parseMemoryFile", () => {
 
 describe("parseIndexMap", () => {
   test("reads glob and file rows of a table, with their lines, and skips the header", () => {
-    const text = "# Index\n\n| Glob | File |\n| --- | --- |\n| `apps/desktop/**` | `apps-desktop.md` |\n| packages/ui/** | packages-ui.md |\n";
+    const text =
+      "# Index\n\n| Glob | File |\n| --- | --- |\n| `apps/desktop/**` | `apps-desktop.md` |\n| packages/ui/** | packages-ui.md |\n";
     expect(parseIndexMap(text)).toEqual([
       { glob: "apps/desktop/**", file: "apps-desktop.md", line: 5 },
       { glob: "packages/ui/**", file: "packages-ui.md", line: 6 },

@@ -152,7 +152,17 @@ describe("the encoded comment", () => {
   });
 
   test("every reason of the spec round-trips, the stop reasons included", () => {
-    expect(NOT_REVIEWED_REASONS).toEqual(["billing", "auth", "rate_limit", "ceiling", "limit", "size_gate", "turn_limit", "timeout", "budget"]);
+    expect(NOT_REVIEWED_REASONS).toEqual([
+      "billing",
+      "auth",
+      "rate_limit",
+      "ceiling",
+      "limit",
+      "size_gate",
+      "turn_limit",
+      "timeout",
+      "budget",
+    ]);
     for (const reason of NOT_REVIEWED_REASONS) {
       const notice = buildStateBlock({ status: "not-reviewed", reason, findings: noFindings() }, CTX, 0);
       expect(decodeStateBlock(encodedOf(encodeStateBlock(notice)))?.reason).toBe(reason);
@@ -177,7 +187,11 @@ describe("the size cap (AC4)", () => {
   test("a block with oversized fields keeps its counts and status and stays under the cap", () => {
     const big = "x".repeat(50_000);
     const block: ReviewStateBlock = {
-      ...buildStateBlock({ status: "partial", carriedFrom: "abc", scope: 4, ...{ findings: countFindings(sev("fix", "info"), sev("fix"), []).findings } }, CTX, 1),
+      ...buildStateBlock(
+        { status: "partial", carriedFrom: "abc", scope: 4, ...{ findings: countFindings(sev("fix", "info"), sev("fix"), []).findings } },
+        CTX,
+        1,
+      ),
       engine: big,
       head: big,
       attempt: big,

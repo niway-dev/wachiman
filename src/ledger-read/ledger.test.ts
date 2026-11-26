@@ -1,5 +1,16 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { UsageError } from "../config";
@@ -31,20 +42,53 @@ const URL_ = "https://ledger.example.test";
 const NOW = new Date("2026-11-12T12:00:00Z");
 
 const call = (model: string, auth: string, cost: number) => ({
-  operation: "review", label: "batch 1/1", model, turns: 3, duration_ms: 1000, input_tokens: 10, output_tokens: 5, cache_read_tokens: 0, cache_write_tokens: 0,
-  cost_usd: cost, costKnown: true, terminal_reason: "completed", auth,
+  operation: "review",
+  label: "batch 1/1",
+  model,
+  turns: 3,
+  duration_ms: 1000,
+  input_tokens: 10,
+  output_tokens: 5,
+  cache_read_tokens: 0,
+  cache_write_tokens: 0,
+  cost_usd: cost,
+  costKnown: true,
+  terminal_reason: "completed",
+  auth,
 });
 /** Illustrative entries, one per state; invented figures. */
 const entry = (id: string, day: string, week: string, state: string, over: Record<string, unknown> = {}) => ({
-  id, day, week, repository: "o/alpha", repository_id: 1, pr: 7, run_id: id, run_attempt: 1, trigger: "pull_request", forced: false, state,
-  reservedUsd: 1, settledUsd: null, created_at: `${day}T10:00:00Z`, settled_at: null, calls: [], ...over,
+  id,
+  day,
+  week,
+  repository: "o/alpha",
+  repository_id: 1,
+  pr: 7,
+  run_id: id,
+  run_attempt: 1,
+  trigger: "pull_request",
+  forced: false,
+  state,
+  reservedUsd: 1,
+  settledUsd: null,
+  created_at: `${day}T10:00:00Z`,
+  settled_at: null,
+  calls: [],
+  ...over,
 });
 const ENTRIES = [
-  entry("e1", "2026-11-02", "2026-11-02", "settled", { settledUsd: 0.4, calls: [call("claude-opus-5-5", "api-key", 0.3), call("claude-haiku-5-5", "api-key", 0.1)] }),
+  entry("e1", "2026-11-02", "2026-11-02", "settled", {
+    settledUsd: 0.4,
+    calls: [call("claude-opus-5-5", "api-key", 0.3), call("claude-haiku-5-5", "api-key", 0.1)],
+  }),
   entry("e2", "2026-11-10", "2026-11-09", "settled", { pr: 8, settledUsd: 0.6, calls: [call("claude-sonnet-5-5", "oauth-token", 0.6)] }),
   entry("e3", "2026-11-12", "2026-11-09", "reserved", { reservedUsd: 1 }),
   entry("e4", "2026-11-10", "2026-11-09", "unsettled", { reservedUsd: 2 }),
-  entry("e5", "2026-11-11", "2026-11-09", "unreserved", { reservedUsd: 0, settledUsd: 0.25, calls: [call("claude-opus-5-5", "api-key", 0.25)] }),
+  entry("e5", "2026-11-11", "2026-11-09", "unreserved", {
+    reservedUsd: 0,
+    settledUsd: 0.25,
+    calls: [call("claude-opus-5-5", "api-key", 0.25)],
+  }),
 ];
 const RESPONSE = { account: "acct-1", limits: { dailyUsd: 5, weeklyUsd: 20 }, entries: ENTRIES };
 
@@ -69,7 +113,11 @@ describe("credentials", () => {
     const home = tempHome();
     const out: string[] = [];
     const err: string[] = [];
-    await runLedger({ action: "connect", url: `${URL_}/` }, { WACHIMAN_HOME: home }, { stdout: (t) => out.push(t), stderr: (t) => err.push(t), readToken: async () => `${TOKEN}\n` });
+    await runLedger(
+      { action: "connect", url: `${URL_}/` },
+      { WACHIMAN_HOME: home },
+      { stdout: (t) => out.push(t), stderr: (t) => err.push(t), readToken: async () => `${TOKEN}\n` },
+    );
     expect(JSON.parse(readFileSync(credentialsPath(home), "utf8"))).toEqual({ url: URL_, token: TOKEN });
     expect(statSync(credentialsPath(home)).mode & 0o777).toBe(0o600);
     expect(out.join("") + err.join("")).not.toContain(TOKEN);
@@ -110,7 +158,10 @@ describe("pull", () => {
     expect(day10.entries.map((e: { id: string }) => e.id).sort()).toEqual(["e2", "e4"]);
     const before = files(dir).map((p) => [p, readFileSync(p, "utf8")]);
     await pullLedger(home, {}, undefined, deps(f));
-    const countEntries = () => files(dir).filter((p) => /\d{4}-\d{2}-\d{2}\.json$/.test(p)).reduce((n, p) => n + JSON.parse(readFileSync(p, "utf8")).entries.length, 0);
+    const countEntries = () =>
+      files(dir)
+        .filter((p) => /\d{4}-\d{2}-\d{2}\.json$/.test(p))
+        .reduce((n, p) => n + JSON.parse(readFileSync(p, "utf8")).entries.length, 0);
     expect(countEntries()).toBe(5);
     const strip = (rows: string[][]) => rows.filter(([p]) => !p.endsWith("pull.json"));
     expect(strip(files(dir).map((p) => [p, readFileSync(p, "utf8")]))).toEqual(strip(before));
@@ -137,7 +188,12 @@ describe("pull", () => {
       const error = await pullLedger(home, {}, undefined, deps(fakeFetch({ echo: TOKEN }, status))).catch((e) => e as Error);
       expect((error as Error).message).not.toContain(TOKEN);
     }
-    const unreachable: PullDeps = { now: () => NOW, fetch: (async () => { throw new Error(`boom ${TOKEN}`); }) as unknown as typeof fetch };
+    const unreachable: PullDeps = {
+      now: () => NOW,
+      fetch: (async () => {
+        throw new Error(`boom ${TOKEN}`);
+      }) as unknown as typeof fetch,
+    };
     expect(((await pullLedger(home, {}, undefined, unreachable).catch((e) => e)) as Error).message).not.toContain(TOKEN);
   });
   test("without credentials nothing is requested", async () => {
@@ -148,7 +204,14 @@ describe("pull", () => {
   test("a malformed answer is an error and writes nothing", async () => {
     const home = tempHome();
     writeCredentials(home, { url: URL_, token: TOKEN });
-    await expect(pullLedger(home, {}, undefined, deps(fakeFetch({ account: "a", entries: [{ id: "x", day: "2026-11-01", week: "2026-10-26", state: "weird" }] })))).rejects.toThrow(/unexpected ledger answer/);
+    await expect(
+      pullLedger(
+        home,
+        {},
+        undefined,
+        deps(fakeFetch({ account: "a", entries: [{ id: "x", day: "2026-11-01", week: "2026-10-26", state: "weird" }] })),
+      ),
+    ).rejects.toThrow(/unexpected ledger answer/);
     expect(listLedgerAccounts(home)).toEqual([]);
   });
 });
@@ -185,7 +248,9 @@ describe("index", () => {
     await pullLedger(home, {}, undefined, deps(fakeFetch()));
     refreshIndex(home, () => {});
     const byRun = (a: { runId: string }, b: { runId: string }) => a.runId.localeCompare(b.runId);
-    const fromIndex = readSpendRows(index).rows.filter((r) => r.source === "actions").sort(byRun);
+    const fromIndex = readSpendRows(index)
+      .rows.filter((r) => r.source === "actions")
+      .sort(byRun);
     const fromFiles = readLedgerFromFiles(home, () => {}).rows.sort(byRun);
     expect(fromFiles).toEqual(fromIndex);
     expect(readLedgerFromFiles(home, () => {}).ranges).toEqual(readSpendRows(index).actions);
@@ -194,7 +259,8 @@ describe("index", () => {
 
 describe("requests happen only on an explicit command", () => {
   const originalFetch = globalThis.fetch;
-  const dash = (home: string, args: Partial<DashboardArgs> = {}) => runDashboard({ json: false, ...args }, { WACHIMAN_HOME: home }, { stdout: () => {}, stderr: () => {}, now: () => NOW });
+  const dash = (home: string, args: Partial<DashboardArgs> = {}) =>
+    runDashboard({ json: false, ...args }, { WACHIMAN_HOME: home }, { stdout: () => {}, stderr: () => {}, now: () => NOW });
 
   test("status and dashboard make no request without --refresh", async () => {
     const f = fakeFetch();
@@ -203,7 +269,12 @@ describe("requests happen only on an explicit command", () => {
       const { wachiman: home } = fixtureHome();
       writeCredentials(home, { url: URL_, token: TOKEN });
       const out: string[] = [];
-      runStatus(parseStatusArgs(["--all-repos"]) as never, home, { WACHIMAN_HOME: home }, { stdout: (t) => out.push(t), stderr: () => {}, version: "0", now: () => NOW });
+      runStatus(
+        parseStatusArgs(["--all-repos"]) as never,
+        home,
+        { WACHIMAN_HOME: home },
+        { stdout: (t) => out.push(t), stderr: () => {}, version: "0", now: () => NOW },
+      );
       dash(home);
       dash(home, { json: true });
       expect(f.requests).toHaveLength(0);
@@ -261,7 +332,9 @@ describe("the page", () => {
   test("a period before the first laptop run shows no data, not zero", async () => {
     const { html } = await page(true);
     // The laptop fixture starts on 2026-11-01; the pull covers from 2026-10-09: the first weeks have Actions data only.
-    expect(html).toMatch(/Week of 2026-10-05[^<]*<\/td><td class="num">0<\/td><td class="num">0<\/td><td class="num">\$0\.00<\/td><td class="num">\$0\.00<\/td><td class="num">no data<\/td>/);
+    expect(html).toMatch(
+      /Week of 2026-10-05[^<]*<\/td><td class="num">0<\/td><td class="num">0<\/td><td class="num">\$0\.00<\/td><td class="num">\$0\.00<\/td><td class="num">no data<\/td>/,
+    );
   });
   test("before the first pull, Actions figures say no data", async () => {
     const { wachiman: home } = fixtureHome();
@@ -290,8 +363,15 @@ describe("end to end through the real command line", () => {
       fetch(req) {
         seen.push(`${new URL(req.url).pathname} ${req.headers.get("authorization")}`);
         const day = new Date().toISOString().slice(0, 10);
-        const wk = (() => { const d = new Date(`${day}T00:00:00Z`); return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10); })();
-        return Response.json({ account: "acct-1", limits: { dailyUsd: 5, weeklyUsd: null }, entries: [entry("live", day, wk, "settled", { settledUsd: 0.5, calls: [call("claude-opus-5-5", "api-key", 0.5)] })] });
+        const wk = (() => {
+          const d = new Date(`${day}T00:00:00Z`);
+          return new Date(d.getTime() - ((d.getUTCDay() + 6) % 7) * 86_400_000).toISOString().slice(0, 10);
+        })();
+        return Response.json({
+          account: "acct-1",
+          limits: { dailyUsd: 5, weeklyUsd: null },
+          entries: [entry("live", day, wk, "settled", { settledUsd: 0.5, calls: [call("claude-opus-5-5", "api-key", 0.5)] })],
+        });
       },
     });
     try {
@@ -330,12 +410,22 @@ describe("review fixes", () => {
   const status = (home: string, argv: string[]) => {
     const out: string[] = [];
     const err: string[] = [];
-    runStatus(parseStatusArgs(argv) as never, home, { WACHIMAN_HOME: home }, { stdout: (t) => out.push(t), stderr: (l) => err.push(l), version: "0", now: () => NOW });
+    runStatus(
+      parseStatusArgs(argv) as never,
+      home,
+      { WACHIMAN_HOME: home },
+      { stdout: (t) => out.push(t), stderr: (l) => err.push(l), version: "0", now: () => NOW },
+    );
     return { out: out.join(""), err };
   };
 
   test("run_attempt may be a number or a numeric string", () => {
-    const parse = (v: unknown) => parseEntriesResponse({ account: "a", limits: { dailyUsd: null, weeklyUsd: null }, entries: [entry("x", "2026-11-01", "2026-10-26", "reserved", { run_attempt: v })] }).entries[0].run_attempt;
+    const parse = (v: unknown) =>
+      parseEntriesResponse({
+        account: "a",
+        limits: { dailyUsd: null, weeklyUsd: null },
+        entries: [entry("x", "2026-11-01", "2026-10-26", "reserved", { run_attempt: v })],
+      }).entries[0].run_attempt;
     expect(parse(2)).toBe(2);
     expect(parse("2")).toBe(2);
     expect(parse("two")).toBeNull();
@@ -345,12 +435,21 @@ describe("review fixes", () => {
     const home = tempHome();
     writeCredentials(home, { url: URL_, token: TOKEN });
     let init: RequestInit | undefined;
-    const redirecting: PullDeps = { now: () => NOW, fetch: (async (_u: unknown, i?: RequestInit) => { init = i; throw new TypeError("fetch failed: redirect mode is set to error"); }) as unknown as typeof fetch };
+    const redirecting: PullDeps = {
+      now: () => NOW,
+      fetch: (async (_u: unknown, i?: RequestInit) => {
+        init = i;
+        throw new TypeError("fetch failed: redirect mode is set to error");
+      }) as unknown as typeof fetch,
+    };
     const error = (await pullLedger(home, {}, undefined, redirecting).catch((e) => e)) as Error;
     expect(init?.redirect).toBe("error");
     expect(error.message).toMatch(/redirected/);
     expect(error.message).not.toContain(TOKEN);
-    const f3xx: PullDeps = { now: () => NOW, fetch: (async () => new Response(null, { status: 302, headers: { location: "https://elsewhere.test" } })) as unknown as typeof fetch };
+    const f3xx: PullDeps = {
+      now: () => NOW,
+      fetch: (async () => new Response(null, { status: 302, headers: { location: "https://elsewhere.test" } })) as unknown as typeof fetch,
+    };
     expect(((await pullLedger(home, {}, undefined, f3xx).catch((e) => e)) as Error).message).toMatch(/redirected/);
   });
 
@@ -372,7 +471,10 @@ describe("review fixes", () => {
     writeCredentials(home, { url: URL_, token: TOKEN });
     await pullLedger(home, {}, 5, { fetch: fakeFetch({ ...RESPONSE, entries: [] }).fn, now: () => new Date("2026-08-05T12:00:00Z") });
     await pullLedger(home, {}, 5, { fetch: fakeFetch({ ...RESPONSE, entries: [] }).fn, now: () => NOW });
-    expect(readLedgerFromFiles(home, () => {}).ranges).toEqual([{ from: "2026-08-01", to: "2026-08-05" }, { from: "2026-11-08", to: "2026-11-12" }]);
+    expect(readLedgerFromFiles(home, () => {}).ranges).toEqual([
+      { from: "2026-08-01", to: "2026-08-05" },
+      { from: "2026-11-08", to: "2026-11-12" },
+    ]);
     await pullLedger(home, {}, 5, { fetch: fakeFetch({ ...RESPONSE, entries: [] }).fn, now: () => new Date("2026-08-10T12:00:00Z") });
     expect(readLedgerFromFiles(home, () => {}).ranges[0]).toEqual({ from: "2026-08-01", to: "2026-08-10" });
   });
@@ -382,7 +484,11 @@ describe("review fixes", () => {
     writeCredentials(home, { url: URL_, token: TOKEN });
     await pullLedger(home, {}, undefined, deps(fakeFetch()));
     const out: string[] = [];
-    const io = { stdout: (t: string) => out.push(t), stderr: () => {}, pull: deps(fakeFetch({ ...RESPONSE, entries: ENTRIES.filter((e) => e.id !== "e1") })) };
+    const io = {
+      stdout: (t: string) => out.push(t),
+      stderr: () => {},
+      pull: deps(fakeFetch({ ...RESPONSE, entries: ENTRIES.filter((e) => e.id !== "e1") })),
+    };
     expect(await runLedger({ action: "pull" }, { WACHIMAN_HOME: home }, io)).toBe(0);
     expect(out.join("")).toMatch(/1 day file deleted/);
   });
@@ -392,7 +498,12 @@ describe("review fixes", () => {
     mkdirSync(join(home, "ledger"), { recursive: true });
     writeFileSync(credentialsPath(home), "{ not json");
     const out = join(home, "p.html");
-    const run = () => runDashboard({ json: false, out }, { WACHIMAN_HOME: home, WACHIMAN_LEDGER_URL: "ftp://bad", WACHIMAN_LEDGER_TOKEN: "x" }, { stdout: () => {}, stderr: () => {}, now: () => NOW });
+    const run = () =>
+      runDashboard(
+        { json: false, out },
+        { WACHIMAN_HOME: home, WACHIMAN_LEDGER_URL: "ftp://bad", WACHIMAN_LEDGER_TOKEN: "x" },
+        { stdout: () => {}, stderr: () => {}, now: () => NOW },
+      );
     expect(run).not.toThrow();
     expect(readFileSync(out, "utf8")).toContain("has not been pulled yet");
   });
@@ -422,7 +533,12 @@ describe("review fixes", () => {
     const used = (argv: string[]) => JSON.parse(status(home, [...argv, "--json"]).out).limitUse;
     const base = used(["--all-repos"]);
     expect(base.day.usedUsd).toBeGreaterThan(0);
-    for (const argv of [["--all-repos", "--model", "nothing-matches"], ["--repo", "other"], ["--all-repos", "--since", "1d"], ["--all-repos", "--profile", "p"]]) {
+    for (const argv of [
+      ["--all-repos", "--model", "nothing-matches"],
+      ["--repo", "other"],
+      ["--all-repos", "--since", "1d"],
+      ["--all-repos", "--profile", "p"],
+    ]) {
       expect(used(argv)).toEqual(base);
     }
     expect(status(home, ["--all-repos", "--model", "nothing-matches"]).out).toContain(`of $5.00`);
@@ -453,7 +569,11 @@ describe("review fixes", () => {
     const home = tempHome();
     writeCredentials(home, { url: URL_, token: TOKEN });
     const evil = `o/<script>alert("x")</script>&'`;
-    const hostile = entry("h1", "2026-11-10", "2026-11-09", "settled", { repository: evil, settledUsd: 0.5, calls: [call(`m<script>"&`, "api-key", 0.5)] });
+    const hostile = entry("h1", "2026-11-10", "2026-11-09", "settled", {
+      repository: evil,
+      settledUsd: 0.5,
+      calls: [call(`m<script>"&`, "api-key", 0.5)],
+    });
     await pullLedger(home, {}, undefined, deps(fakeFetch({ ...RESPONSE, entries: [hostile] })));
     const out = join(home, "p.html");
     runDashboard({ json: false, out }, { WACHIMAN_HOME: home }, { stdout: () => {}, stderr: () => {}, now: () => NOW });
@@ -472,8 +592,17 @@ describe("review fixes", () => {
     const out = join(home, "p.html");
     runDashboard({ json: false, out }, { WACHIMAN_HOME: home }, { stdout: () => {}, stderr: () => {}, now: () => NOW });
     const html = readFileSync(out, "utf8");
-    for (const title of ["Counted against the limit, per day (GitHub Actions runs)", "Spend per day, by source", "Counted against the limit, per week (GitHub Actions runs)", "Spend per week, by source"]) expect(html).toContain(title);
-    const svgs = html.split("<svg").slice(1).map((x) => x.split("</svg>")[0]);
+    for (const title of [
+      "Counted against the limit, per day (GitHub Actions runs)",
+      "Spend per day, by source",
+      "Counted against the limit, per week (GitHub Actions runs)",
+      "Spend per week, by source",
+    ])
+      expect(html).toContain(title);
+    const svgs = html
+      .split("<svg")
+      .slice(1)
+      .map((x) => x.split("</svg>")[0]);
     const counted = svgs.filter((x) => /counted against the ledger limit/.test(x));
     const bySource = svgs.filter((x) => /by source/.test(x));
     expect(counted).toHaveLength(2);
@@ -539,20 +668,32 @@ describe("one account at a time", () => {
     const home = tempHome();
     writeCredentials(home, { url: URL_, token: TOKEN });
     await pullLedger(home, {}, undefined, deps(fakeFetch()));
-    const other = { account: "acct-0", limits: { dailyUsd: 99, weeklyUsd: 99 }, entries: [entry("z1", "2026-11-12", "2026-11-09", "settled", { settledUsd: 7, calls: [call("claude-opus-5-5", "api-key", 7)] })] };
+    const other = {
+      account: "acct-0",
+      limits: { dailyUsd: 99, weeklyUsd: 99 },
+      entries: [entry("z1", "2026-11-12", "2026-11-09", "settled", { settledUsd: 7, calls: [call("claude-opus-5-5", "api-key", 7)] })],
+    };
     await pullLedger(home, {}, undefined, { fetch: fakeFetch(other).fn, now: () => new Date("2026-11-12T13:00:00Z") });
     expect(listLedgerAccounts(home).map((a) => a.account)).toEqual(["acct-0"]);
     const l = readLedgerFromFiles(home, () => {});
     expect(l.rows.map((r) => r.runId)).toEqual(["z1"]);
     expect(l.limits).toEqual({ dailyUsd: 99, weeklyUsd: 99 });
     const out: string[] = [];
-    runStatus(parseStatusArgs(["--all-repos", "--json"]) as never, home, { WACHIMAN_HOME: home }, { stdout: (t) => out.push(t), stderr: () => {}, version: "0", now: () => NOW });
+    runStatus(
+      parseStatusArgs(["--all-repos", "--json"]) as never,
+      home,
+      { WACHIMAN_HOME: home },
+      { stdout: (t) => out.push(t), stderr: () => {}, version: "0", now: () => NOW },
+    );
     expect(JSON.parse(out.join("")).limitUse.day).toMatchObject({ usedUsd: 7, limitUsd: 99 });
   });
 });
 
 describe("dollars of an unknown credential", () => {
-  const mystery = entry("m1", "2026-11-10", "2026-11-09", "settled", { settledUsd: 0.3, calls: [call("claude-opus-5-5", "mystery-auth", 0.3)] });
+  const mystery = entry("m1", "2026-11-10", "2026-11-09", "settled", {
+    settledUsd: 0.3,
+    calls: [call("claude-opus-5-5", "mystery-auth", 0.3)],
+  });
   async function home() {
     const h = tempHome();
     writeCredentials(h, { url: URL_, token: TOKEN });
@@ -571,7 +712,12 @@ describe("dollars of an unknown credential", () => {
   test("status keeps them out of the estimated column", async () => {
     const h = await home();
     const out: string[] = [];
-    runStatus(parseStatusArgs(["--all-repos"]) as never, h, { WACHIMAN_HOME: h }, { stdout: (t) => out.push(t), stderr: () => {}, version: "0", now: () => NOW });
+    runStatus(
+      parseStatusArgs(["--all-repos"]) as never,
+      h,
+      { WACHIMAN_HOME: h },
+      { stdout: (t) => out.push(t), stderr: () => {}, version: "0", now: () => NOW },
+    );
     expect(out.join("")).toMatch(/2026-11-10\s+1\s+1\s+\$0\.00\s+\$0\.00 \+ \$0\.30 unknown/);
   });
 });
@@ -583,7 +729,12 @@ describe("small review fixes", () => {
     await pullLedger(home, {}, undefined, deps(fakeFetch()));
     const runs = (repo: string) => {
       const out: string[] = [];
-      runStatus(parseStatusArgs(["--repo", repo, "--json"]) as never, home, { WACHIMAN_HOME: home }, { stdout: (t) => out.push(t), stderr: () => {}, version: "0", now: () => NOW });
+      runStatus(
+        parseStatusArgs(["--repo", repo, "--json"]) as never,
+        home,
+        { WACHIMAN_HOME: home },
+        { stdout: (t) => out.push(t), stderr: () => {}, version: "0", now: () => NOW },
+      );
       return JSON.parse(out.join("")).report.totals.total.runs;
     };
     expect(runs("alpha")).toBeGreaterThan(0);

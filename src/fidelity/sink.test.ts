@@ -47,10 +47,23 @@ function fakeGithub(live: { headRefOid: string; title: string; body: string }) {
 const sinkDeps = (gh: GhFn, over: Partial<SinkDeps> = {}): SinkDeps & { logs: string[]; warnings: string[] } => {
   const logs: string[] = [];
   const warnings: string[] = [];
-  return { gh, dryRun: false, now: () => Date.parse("2026-11-11T12:00:00Z"), log: (l) => logs.push(l), warn: (l) => warnings.push(l), logs, warnings, ...over };
+  return {
+    gh,
+    dryRun: false,
+    now: () => Date.parse("2026-11-11T12:00:00Z"),
+    log: (l) => logs.push(l),
+    warn: (l) => warnings.push(l),
+    logs,
+    warnings,
+    ...over,
+  };
 };
 
-const PUBLISH = { headSha: COMMIT, permalinkBase: "https://github.com/o/r", reviewUrl: "https://github.com/o/r/pull/7#pullrequestreview-1" };
+const PUBLISH = {
+  headSha: COMMIT,
+  permalinkBase: "https://github.com/o/r",
+  reviewUrl: "https://github.com/o/r/pull/7#pullrequestreview-1",
+};
 
 describe("failing closed at the moment of writing", () => {
   const live = { headCommit: COMMIT, title: TITLE, body: BODY };
@@ -116,7 +129,10 @@ describe("writing the description block", () => {
   test("a second run replaces the block and adds no second one", () => {
     const github = fakeGithub({ headRefOid: COMMIT, title: TITLE, body: BODY });
     publishConfidence(sinkDeps(github.gh), "o/r", 7, { ...PUBLISH, fidelity: fidelity() });
-    publishConfidence(sinkDeps(github.gh), "o/r", 7, { ...PUBLISH, fidelity: fidelity({ grade: "B", trial: false, reasons: ["One unexplained change"], unexplainedFiles: ["src/x.ts"] }) });
+    publishConfidence(sinkDeps(github.gh), "o/r", 7, {
+      ...PUBLISH,
+      fidelity: fidelity({ grade: "B", trial: false, reasons: ["One unexplained change"], unexplainedFiles: ["src/x.ts"] }),
+    });
     const final = github.state.body;
     expect(final.split(BLOCK_START)).toHaveLength(2);
     expect(final.split(BLOCK_END)).toHaveLength(2);
@@ -151,7 +167,10 @@ describe("writing the description block", () => {
 
   test("a review with no grade (a partial review) writes cannot say with its reason", () => {
     const github = fakeGithub({ headRefOid: COMMIT, title: TITLE, body: BODY });
-    publishConfidence(sinkDeps(github.gh), "o/r", 7, { ...PUBLISH, partialReason: "This review covered only the changes since the last one" });
+    publishConfidence(sinkDeps(github.gh), "o/r", 7, {
+      ...PUBLISH,
+      partialReason: "This review covered only the changes since the last one",
+    });
     const written = github.patches[0]!.body;
     expect(written).toContain("IMPORTANT");
     expect(written).toContain("This review covered only the changes since the last one");

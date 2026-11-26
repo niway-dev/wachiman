@@ -37,7 +37,7 @@ export function saveRun(p: SaveRunParams): HistoryAnnotation {
 
   const head = p.result.change.head.sha;
   const ancestors = new Map<string, boolean>();
-  const treeHeads = new Set(runs.filter(r => r.result.change.kind === "working-tree").map(r => r.result.change.head.sha));
+  const treeHeads = new Set(runs.filter((r) => r.result.change.kind === "working-tree").map((r) => r.result.change.head.sha));
   // Exit 0 = ancestor (or the same commit); 1 = not; anything else (an unknown commit) cannot be proven.
   const isAncestor = (lastHead: string) => {
     // Fingerprints still match; missing findings on ephemeral trees stay unknown.

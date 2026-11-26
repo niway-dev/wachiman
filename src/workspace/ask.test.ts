@@ -150,7 +150,13 @@ describe("rematerialiseSiblings", () => {
 
   test("a member the per-user file does not watch is not read", () => {
     const f = fixture();
-    writeFileSync(userFilePath(f.home), JSON.stringify({ version: 1, workspaces: [{ manifest: join(f.parent, MANIFEST_FILE), members: { "desktop-app": { watch: false } } }] }));
+    writeFileSync(
+      userFilePath(f.home),
+      JSON.stringify({
+        version: 1,
+        workspaces: [{ manifest: join(f.parent, MANIFEST_FILE), members: { "desktop-app": { watch: false } } }],
+      }),
+    );
     const out = ask(f, [row({ sha: f.first })]);
     expect(out.siblings[0].status).toBe("unreadable");
     expect(out.siblings[0].unreadable).toContain("not watched");

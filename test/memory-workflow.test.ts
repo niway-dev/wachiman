@@ -6,7 +6,11 @@ import { join } from "node:path";
 // permissions, and that job never runs a model or reads the pull request's code.
 const root = join(import.meta.dir, "..");
 const read = (path: string) => readFileSync(join(root, path), "utf8");
-type Job = { permissions?: Record<string, string>; if?: string; steps: { name?: string; uses?: string; run?: string; with?: Record<string, string>; env?: Record<string, string> }[] };
+type Job = {
+  permissions?: Record<string, string>;
+  if?: string;
+  steps: { name?: string; uses?: string; run?: string; with?: Record<string, string>; env?: Record<string, string> }[];
+};
 const jobsOf = (path: string) => (Bun.YAML.parse(read(path)) as { jobs: Record<string, Job> }).jobs;
 
 describe("the review workflows write nothing to the repository", () => {
@@ -88,7 +92,8 @@ describe("wachiman-memory.yml", () => {
       WACHIMAN_MENTION: "${{ inputs.mention }}",
       WACHIMAN_OPERATOR: "${{ inputs.operator }}",
     });
-    for (const name of ["GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"]) expect(run.env?.[name], name).toBeTruthy();
+    for (const name of ["GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"])
+      expect(run.env?.[name], name).toBeTruthy();
     // The engine reads the repository from the runner's own variable, which the workflow does not override.
     expect(run.env?.GITHUB_REPOSITORY).toBeUndefined();
   });

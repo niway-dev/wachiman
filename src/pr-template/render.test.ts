@@ -25,7 +25,12 @@ describe("renderTemplate, default", () => {
     expect(rows).toEqual(["Type", "Issue", "Risk", "Rollout", "Release", "Evidence", "Decisions"]);
     expect([...text.matchAll(/^## (.+)$/gm)].map((m) => m[1])).toEqual(["Needs you", "What", "Why", "Evidence", "Decisions"]);
     expect([...text.matchAll(/<summary><b>(.+?)<\/b>/g)].map((m) => m[1])).toEqual([
-      "Changes", "How to test", "Not verified", "Checks", "Agent context", "Notes",
+      "Changes",
+      "How to test",
+      "Not verified",
+      "Checks",
+      "Agent context",
+      "Notes",
     ]);
   });
 
@@ -51,7 +56,9 @@ describe("renderTemplate, default", () => {
 
   test("guide comments are wrapped and end with a newline", () => {
     expect(text.endsWith("\n")).toBe(true);
-    for (const line of lines) if (!line.startsWith("| **") && !line.startsWith("<!-- wachiman") && !line.startsWith("<!-- PR")) expect(line.length).toBeLessThan(110);
+    for (const line of lines)
+      if (!line.startsWith("| **") && !line.startsWith("<!-- wachiman") && !line.startsWith("<!-- PR"))
+        expect(line.length).toBeLessThan(110);
   });
 
   test("is deterministic", () => {
@@ -62,12 +69,16 @@ describe("renderTemplate, default", () => {
 
 describe("renderTemplate, with a repository choice", () => {
   test("the preamble sits under the intro comment and above the status table", () => {
-    const text = render({ preamble: ["- [ ] I said whether an AI tool wrote part of this.", "- [ ] **Outside contributors only:** I accept CLA.md."] });
+    const text = render({
+      preamble: ["- [ ] I said whether an AI tool wrote part of this.", "- [ ] **Outside contributors only:** I accept CLA.md."],
+    });
     const body = text.split("\n").slice(1).join("\n");
     const first = body.indexOf("- [ ] I said");
     expect(first).toBeGreaterThan(body.indexOf("-->"));
     expect(first).toBeLessThan(body.indexOf("|               |"));
-    expect(text).toContain("- [ ] I said whether an AI tool wrote part of this.\n- [ ] **Outside contributors only:** I accept CLA.md.\n\n<!-- Status table guide");
+    expect(text).toContain(
+      "- [ ] I said whether an AI tool wrote part of this.\n- [ ] **Outside contributors only:** I accept CLA.md.\n\n<!-- Status table guide",
+    );
   });
 
   test("a multi-line preamble entry stays together", () => {
@@ -84,7 +95,14 @@ describe("renderTemplate, with a repository choice", () => {
         { id: "team", kind: "status-row", label: "Team", guide: "Owning team" },
       ],
     });
-    expect([...text.matchAll(/^## (.+)$/gm)].map((m) => m[1])).toEqual(["Needs you", "What", "Why", "Evidence", "Migration notes", "Screenshots"]);
+    expect([...text.matchAll(/^## (.+)$/gm)].map((m) => m[1])).toEqual([
+      "Needs you",
+      "What",
+      "Why",
+      "Evidence",
+      "Migration notes",
+      "Screenshots",
+    ]);
     expect(text).toContain("     Team: Owning team -->\n\n|");
     expect(text).toMatch(/^\| \*\*Team\*\*\s+\|\s+\|$/m);
     expect(text).toContain("<!-- Say what to run. -->");
@@ -165,7 +183,11 @@ describe("templateState", () => {
 
   test("outdated when the catalog moved to a newer version", () => {
     const bumped = parseCatalog(JSON.stringify({ ...JSON.parse(JSON.stringify(catalog)), version: 2 }));
-    expect(templateState({ catalog: bumped, fileText: fresh, choiceText: null })).toEqual({ state: "outdated", version: 2, installedVersion: 1 });
+    expect(templateState({ catalog: bumped, fileText: fresh, choiceText: null })).toEqual({
+      state: "outdated",
+      version: 2,
+      installedVersion: 1,
+    });
   });
 
   test("a custom template is current against its own JSON, not outdated for differing from the default", () => {
@@ -233,12 +255,15 @@ describe("displayWidth and formatTable", () => {
   });
 
   test("columns are as wide as their widest cell, at least three, and the separator matches", () => {
-    expect(formatTable(["", ""], [["**Ship 🚀**", ""], ["**Type**", ""]])).toEqual([
-      "|             |     |",
-      "| ----------- | --- |",
-      "| **Ship 🚀** |     |",
-      "| **Type**    |     |",
-    ]);
+    expect(
+      formatTable(
+        ["", ""],
+        [
+          ["**Ship 🚀**", ""],
+          ["**Type**", ""],
+        ],
+      ),
+    ).toEqual(["|             |     |", "| ----------- | --- |", "| **Ship 🚀** |     |", "| **Type**    |     |"]);
     expect(formatTable(["A", "Bb"], [["x"]])).toEqual(["| A   | Bb  |", "| --- | --- |", "| x   |     |"]);
   });
 });

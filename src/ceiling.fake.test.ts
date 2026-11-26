@@ -162,12 +162,14 @@ describe("the ceiling notice", () => {
 
 describe("automaticSpend", () => {
   const lines = (bodies: string[]) => bodies.map((body) => JSON.stringify({ body })).join("\n");
-  const world = (reviews: string[], comments: string[]): GhFn => (args) => {
-    const line = args.join(" ");
-    if (line.includes("/pulls/7/reviews")) return lines(reviews);
-    if (line.includes("/pulls/7/comments")) return lines(comments);
-    throw new Error(`unexpected gh call: ${line}`);
-  };
+  const world =
+    (reviews: string[], comments: string[]): GhFn =>
+    (args) => {
+      const line = args.join(" ");
+      if (line.includes("/pulls/7/reviews")) return lines(reviews);
+      if (line.includes("/pulls/7/comments")) return lines(comments);
+      throw new Error(`unexpected gh call: ${line}`);
+    };
 
   test("sums automatic reviews and thread replies, and nothing else", () => {
     const { spent } = automaticSpend(
@@ -267,9 +269,7 @@ describe("review() under the ceiling", () => {
         return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } });
       throw new Error(`unexpected gh call: ${line}`);
     };
-    const provider = new FakeProvider(
-      opts.script ?? [() => ({ costUsd: 0.1, structuredOutput: out({}) })],
-    );
+    const provider = new FakeProvider(opts.script ?? [() => ({ costUsd: 0.1, structuredOutput: out({}) })]);
     const deps: Deps = {
       gh,
       provider,
@@ -545,7 +545,12 @@ describe("review() under the ceiling", () => {
     expect(t.posted[0]).toContain("ran out of its budget");
     expect(readAutoCost(t.posted[0])).toBeGreaterThan(0.5);
     // A manual run in the same situation keeps its old, unsigned notice.
-    const manual = setup({ script: [() => ({ costUsd: 0.6, terminalReason: "budget", isError: true }), () => ({ costUsd: 0.4, terminalReason: "budget", isError: true })] });
+    const manual = setup({
+      script: [
+        () => ({ costUsd: 0.6, terminalReason: "budget", isError: true }),
+        () => ({ costUsd: 0.4, terminalReason: "budget", isError: true }),
+      ],
+    });
     await review(manual.deps, "o/r", 7, []);
     expect(manual.posted[0]).toContain("ran out of its budget");
     expect(manual.posted[0]).not.toContain(SIGNATURE.auto);
@@ -565,7 +570,9 @@ describe("review() under the ceiling", () => {
       expect(t.posted).toHaveLength(1);
       expect(readSignedStateBlock(t.posted[0])).toMatchObject({ status: "not-reviewed", reason, findings: { total: 0 } });
       // Before the attempt line, after the signature, like every other notice; the ceiling still sums its cost.
-      expect(t.posted[0]).toMatch(/<!-- wachi:review -->\n\n<!-- wachi:state [A-Za-z0-9_-]+ -->\n\n<!-- wachi:attempt id=[0-9a-f-]{36} -->$/);
+      expect(t.posted[0]).toMatch(
+        /<!-- wachi:review -->\n\n<!-- wachi:state [A-Za-z0-9_-]+ -->\n\n<!-- wachi:attempt id=[0-9a-f-]{36} -->$/,
+      );
       expect(readAutoCost(t.posted[0])).toBeGreaterThan(0);
       const manual = setup({ script: [call, call] });
       manual.provider.record = false;
@@ -579,7 +586,10 @@ describe("review() under the ceiling", () => {
   test("a marker-less partial review's spend still counts toward the next automatic run", async () => {
     const t = setup({
       env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.4" },
-      script: [() => ({ costUsd: 0.36, structuredOutput: out({ files_reviewed: [] }) }), () => ({ costUsd: 0, structuredOutput: out({ files_reviewed: [] }) })],
+      script: [
+        () => ({ costUsd: 0.36, structuredOutput: out({ files_reviewed: [] }) }),
+        () => ({ costUsd: 0, structuredOutput: out({ files_reviewed: [] }) }),
+      ],
     });
     await review(t.deps, "o/r", 7, []);
     expect(t.posted[0]).toContain("Partial review");
@@ -621,7 +631,14 @@ describe("a run on a Claude subscription token", () => {
     const provider = new FakeProvider([() => ({ costUsd: 0.1, structuredOutput: out({}) })]);
     provider.auth = auth;
     provider.record = false;
-    const deps: Deps = { gh, provider, config: loadConfig({ WACHIMAN_TRIGGER: "opened", ...opts.env }), log: (l) => void logs.push(l), warn: () => {}, sleep: () => {} };
+    const deps: Deps = {
+      gh,
+      provider,
+      config: loadConfig({ WACHIMAN_TRIGGER: "opened", ...opts.env }),
+      log: (l) => void logs.push(l),
+      warn: () => {},
+      sleep: () => {},
+    };
     return { deps, posted, logs };
   }
 
@@ -654,7 +671,11 @@ describe("a run on a Claude subscription token", () => {
   });
 
   test("the cost log line of the call carries the credential", async () => {
-    for (const [auth, expected] of [["oauth-token", "oauth-token"], ["api-key", "api-key"], [undefined, "api-key"]] as const) {
+    for (const [auth, expected] of [
+      ["oauth-token", "oauth-token"],
+      ["api-key", "api-key"],
+      [undefined, "api-key"],
+    ] as const) {
       const t = setup(auth);
       await review(t.deps, "o/r", 7, []);
       const line = t.logs.find((l) => l.startsWith("wachiman-cost "));

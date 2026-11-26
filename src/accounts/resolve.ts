@@ -66,7 +66,10 @@ export function lookupProfileRef(value: string, lookup: ProfileLookup): { ok: tr
   if (entry) {
     if (entry.kind === "managed") return { ok: true, profile: { kind: "managed", name, configDir: entry.configDir, registered: true } };
     if (managedOnly) {
-      return { ok: false, problem: `"${value}" names a managed profile, but "${name}" is registered as an external profile; use --profile ${name}.` };
+      return {
+        ok: false,
+        problem: `"${value}" names a managed profile, but "${name}" is registered as an external profile; use --profile ${name}.`,
+      };
     }
     return { ok: true, profile: { kind: "external", name, configDir: entry.configDir, ...(entry.binary ? { binary: entry.binary } : {}) } };
   }

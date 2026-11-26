@@ -46,12 +46,7 @@ export interface OpenFinding {
   title: string;
 }
 
-export type AttentionKind =
-  | "contradicted-claim"
-  | "unexplained"
-  | "finding"
-  | "risk-fact"
-  | "judgement";
+export type AttentionKind = "contradicted-claim" | "unexplained" | "finding" | "risk-fact" | "judgement";
 
 /** One place that needs a person. `line` is absent when the whole file is meant. */
 export interface Attention {

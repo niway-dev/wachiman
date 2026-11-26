@@ -22,7 +22,17 @@ export function readSpendRows(indexPath: string): IndexedSpend {
         `SELECT u.repo_key AS key, COALESCE(r.name, u.repo_key) AS name, u.saved_at, u.day, u.head_sha, u.model, u.effort, u.profile, u.cost_usd
          FROM runs u LEFT JOIN repositories r ON r.key = u.repo_key ORDER BY u.saved_at`,
       )
-      .all() as { key: string; name: string; saved_at: string; day: string; head_sha: string; model: string; effort: string; profile: string; cost_usd: number }[];
+      .all() as {
+      key: string;
+      name: string;
+      saved_at: string;
+      day: string;
+      head_sha: string;
+      model: string;
+      effort: string;
+      profile: string;
+      cost_usd: number;
+    }[];
     for (const r of laptop) {
       rows.push({
         source: "laptop",
@@ -53,7 +63,9 @@ export function readSpendRows(indexPath: string): IndexedSpend {
       const k = `${c.account}\n${c.entry_id}`;
       calls.set(k, [...(calls.get(k) ?? []), { model: c.model, auth: c.auth, costUsd: c.cost_usd, costKnown: c.cost_known === 1 }]);
     }
-    for (const e of db.query("SELECT account, id, day, week, repository, pr, run_id, state, reserved_usd, settled_usd FROM ledger_entries ORDER BY day, id").all() as {
+    for (const e of db
+      .query("SELECT account, id, day, week, repository, pr, run_id, state, reserved_usd, settled_usd FROM ledger_entries ORDER BY day, id")
+      .all() as {
       account: string;
       id: string;
       day: string;
@@ -89,13 +101,19 @@ export function readSpendRows(indexPath: string): IndexedSpend {
       weekly_limit_usd: number | null;
     }[];
     if (pulls.length === 0) return { rows, actions: [], limits: null, pulledAt: null };
-    const ranges = (db.query("SELECT from_day, to_day FROM ledger_ranges").all() as { from_day: string; to_day: string }[]).map((r) => ({ from: r.from_day, to: r.to_day }));
+    const ranges = (db.query("SELECT from_day, to_day FROM ledger_ranges").all() as { from_day: string; to_day: string }[]).map((r) => ({
+      from: r.from_day,
+      to: r.to_day,
+    }));
     return {
       rows,
       actions: mergeRanges(ranges),
       // Only the account pulled last is indexed (listLedgerAccounts), so this holds one row.
       limits: { dailyUsd: pulls[0].daily_limit_usd, weeklyUsd: pulls[0].weekly_limit_usd },
-      pulledAt: pulls.map((p) => p.pulled_at).sort().at(-1)!,
+      pulledAt: pulls
+        .map((p) => p.pulled_at)
+        .sort()
+        .at(-1)!,
     };
   } finally {
     db.close();

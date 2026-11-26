@@ -22,7 +22,21 @@ import { classifyRef, compareVersions, parseTag, scanWorkflows } from "../upgrad
 
 export type CheckLevel = "required" | "optional";
 export type CheckStatus = "ok" | "fail" | "warn" | "skip";
-export type CheckId = "wachiman" | "bun" | "git" | "tar" | "config" | "profile" | "auth" | "environment" | "project" | "settings" | "workflow-pin" | "history" | "skills" | "isolation";
+export type CheckId =
+  | "wachiman"
+  | "bun"
+  | "git"
+  | "tar"
+  | "config"
+  | "profile"
+  | "auth"
+  | "environment"
+  | "project"
+  | "settings"
+  | "workflow-pin"
+  | "history"
+  | "skills"
+  | "isolation";
 
 export interface DoctorRow {
   id: CheckId;
@@ -155,13 +169,26 @@ const GIT_MIN: [number, number] = [2, 30];
 
 /** Runs `<tool> --version` from a neutral directory with the allowlisted environment. */
 function probe(ctx: DoctorContext, tool: string) {
-  return ctx.spawn(tool, ["--version"], { cwd: ctx.neutralDir, env: buildChildEnv(ctx.env, { auth: "subscription" }), timeout: TIMEOUT_MS, maxBuffer: MAX_BUFFER, shell: false, encoding: "utf8" });
+  return ctx.spawn(tool, ["--version"], {
+    cwd: ctx.neutralDir,
+    env: buildChildEnv(ctx.env, { auth: "subscription" }),
+    timeout: TIMEOUT_MS,
+    maxBuffer: MAX_BUFFER,
+    shell: false,
+    encoding: "utf8",
+  });
 }
 
 function toolRow(ctx: DoctorContext, id: "bun" | "git" | "tar", min?: [number, number]): DoctorRow {
   const run = probe(ctx, id);
   if (run.error || run.status !== 0) {
-    return { id, level: "required", status: "fail", evidence: `${id} did not answer --version${run.error ? `: ${run.error.message}` : ` (exit ${run.status})`}`, fix: `install ${id} and put it on your PATH` };
+    return {
+      id,
+      level: "required",
+      status: "fail",
+      evidence: `${id} did not answer --version${run.error ? `: ${run.error.message}` : ` (exit ${run.status})`}`,
+      fix: `install ${id} and put it on your PATH`,
+    };
   }
   const line = firstLine(run.stdout);
   const version = parseVersion(line);
@@ -223,7 +250,14 @@ export const CHECKS: DoctorCheck[] = [
     id: "config",
     level: "required",
     run: ({ config }) => {
-      if (config.kind === "absent") return { id: "config", level: "required", status: "ok", evidence: "no config file: no profiles registered", detail: { profiles: 0, bindings: 0 } };
+      if (config.kind === "absent")
+        return {
+          id: "config",
+          level: "required",
+          status: "ok",
+          evidence: "no config file: no profiles registered",
+          detail: { profiles: 0, bindings: 0 },
+        };
       if (config.kind === "corrupt") {
         return {
           id: "config",
@@ -235,14 +269,21 @@ export const CHECKS: DoctorCheck[] = [
       }
       const profiles = Object.keys(config.config.profiles).length;
       const bindings = Object.keys(config.config.projects).length;
-      return { id: "config", level: "required", status: "ok", evidence: `${config.path}: ${profiles} profile(s), ${bindings} binding(s)`, detail: { profiles, bindings } };
+      return {
+        id: "config",
+        level: "required",
+        status: "ok",
+        evidence: `${config.path}: ${profiles} profile(s), ${bindings} binding(s)`,
+        detail: { profiles, bindings },
+      };
     },
   },
   {
     id: "profile",
     level: "required",
     run: ({ target }) => {
-      if (target.kind === "unavailable") return withProfile(target, { id: "profile", level: "required", status: "skip", evidence: `skipped: ${target.reason}` });
+      if (target.kind === "unavailable")
+        return withProfile(target, { id: "profile", level: "required", status: "skip", evidence: `skipped: ${target.reason}` });
       if (target.kind === "failure") {
         return withProfile(target, {
           id: "profile",
@@ -262,7 +303,14 @@ export const CHECKS: DoctorCheck[] = [
         ...(profile.kind === "external" && profile.binary ? { binary: profile.binary } : {}),
       };
       if (!confirmation.ok && (confirmation.stage === "directory" || confirmation.stage === "binary")) {
-        return withProfile(target, { id: "profile", level: "required", status: "fail", evidence: confirmation.problem, fix: confirmation.fix, detail });
+        return withProfile(target, {
+          id: "profile",
+          level: "required",
+          status: "fail",
+          evidence: confirmation.problem,
+          fix: confirmation.fix,
+          detail,
+        });
       }
       const overrode = resolved.overridden.map((o) => RUNG_LABEL[o.rung]);
       const version = confirmation.ok ? confirmation.binary.version : undefined;
@@ -281,7 +329,8 @@ export const CHECKS: DoctorCheck[] = [
     id: "auth",
     level: "required",
     run: ({ target }) => {
-      const skip = (reason: string) => withProfile(target, { id: "auth", level: "required", status: "skip", evidence: `skipped: ${reason}`, detail: { ...NETWORK } });
+      const skip = (reason: string) =>
+        withProfile(target, { id: "auth", level: "required", status: "skip", evidence: `skipped: ${reason}`, detail: { ...NETWORK } });
       if (target.kind === "unavailable") return skip(target.reason);
       if (target.kind === "failure") return skip("no profile to check");
       const { confirmation } = target;
@@ -345,7 +394,11 @@ export const CHECKS: DoctorCheck[] = [
         status,
         evidence: notes.length ? notes.join("; ") : "no variable that changes the account is set",
         ...(fix ? { fix } : {}),
-        detail: { anthropicApiKey: Boolean(env.ANTHROPIC_API_KEY), claudeConfigDir: Boolean(env.CLAUDE_CONFIG_DIR), wachimanProfile: Boolean(env.WACHIMAN_PROFILE) },
+        detail: {
+          anthropicApiKey: Boolean(env.ANTHROPIC_API_KEY),
+          claudeConfigDir: Boolean(env.CLAUDE_CONFIG_DIR),
+          wachimanProfile: Boolean(env.WACHIMAN_PROFILE),
+        },
       };
     },
   },
@@ -355,7 +408,8 @@ export const CHECKS: DoctorCheck[] = [
     run: ({ repository, config, primary }) => {
       if (!repository.ok) return { id: "project", level: "optional", status: "skip", evidence: repository.reason };
       const repo = repository.value;
-      const binding = config.kind === "ok" && Object.hasOwn(config.config.projects, repo.key) ? config.config.projects[repo.key] : undefined;
+      const binding =
+        config.kind === "ok" && Object.hasOwn(config.config.projects, repo.key) ? config.config.projects[repo.key] : undefined;
       const would = primary ? `; would use ${profileName(primary.profile)}, chosen by ${RUNG_LABEL[primary.rung]}` : "";
       return {
         id: "project",
@@ -365,7 +419,13 @@ export const CHECKS: DoctorCheck[] = [
           `${repo.name} (key ${repo.key}, keyed by ${repo.keyedBy === "remote" ? `origin ${repo.remote ?? "(unparsed)"}` : `path ${repo.path}`}); ` +
           (binding ? `bound to ${binding.profile}` : "not bound") +
           would,
-        detail: { key: repo.key, keyedBy: repo.keyedBy, bound: binding !== undefined, profile: binding?.profile ?? null, ...(repo.remote ? { remote: repo.remote } : {}) },
+        detail: {
+          key: repo.key,
+          keyedBy: repo.keyedBy,
+          bound: binding !== undefined,
+          profile: binding?.profile ?? null,
+          ...(repo.remote ? { remote: repo.remote } : {}),
+        },
       };
     },
   },
@@ -375,7 +435,8 @@ export const CHECKS: DoctorCheck[] = [
     id: "settings",
     level: "optional",
     run: ({ root, env, fs, settingsUncommitted }) => {
-      if (root === undefined) return { id: "settings", level: "optional", status: "skip", evidence: "not in a git working tree: no repository settings to read" };
+      if (root === undefined)
+        return { id: "settings", level: "optional", status: "skip", evidence: "not in a git working tree: no repository settings to read" };
       const file = join(root, SETTINGS_PATH);
       const old = join(root, OLD_SETTINGS_PATH);
       const hasFile = fs.exists(file);
@@ -385,7 +446,10 @@ export const CHECKS: DoctorCheck[] = [
         try {
           settings = parseRepoSettings(fs.read(file));
         } catch (error) {
-          const why = error instanceof UsageError ? error.message : `${SETTINGS_PATH} cannot be read (${error instanceof Error ? error.message : error})`;
+          const why =
+            error instanceof UsageError
+              ? error.message
+              : `${SETTINGS_PATH} cannot be read (${error instanceof Error ? error.message : error})`;
           return {
             id: "settings",
             level: "optional",
@@ -399,7 +463,9 @@ export const CHECKS: DoctorCheck[] = [
       const effective = effectiveSettings(env, settings);
       const from = (s: { value: string; source: string; skipped?: string }) =>
         `${s.value} (${s.source === "file" ? `from ${SETTINGS_PATH}` : s.source === "env" ? "from the environment" : s.skipped !== undefined ? `default; the model "${settings?.model}" in ${SETTINGS_PATH} is skipped: ${s.skipped}` : "default"})`;
-      const read = hasFile ? `${SETTINGS_PATH}: kind ${settings?.kind ?? "not set"}, model ${settings?.model ?? "not set"}, effort ${settings?.effort ?? "not set"}` : `no ${SETTINGS_PATH}`;
+      const read = hasFile
+        ? `${SETTINGS_PATH}: kind ${settings?.kind ?? "not set"}, model ${settings?.model ?? "not set"}, effort ${settings?.effort ?? "not set"}`
+        : `no ${SETTINGS_PATH}`;
       const detail = {
         file: hasFile ? file : null,
         valid: true,
@@ -435,7 +501,13 @@ export const CHECKS: DoctorCheck[] = [
     id: "workflow-pin",
     level: "optional",
     run: ({ root, fs, version }) => {
-      const row = (status: CheckStatus, evidence: string, extra: Partial<DoctorRow> = {}): DoctorRow => ({ id: "workflow-pin", level: "optional", status, evidence, ...extra });
+      const row = (status: CheckStatus, evidence: string, extra: Partial<DoctorRow> = {}): DoctorRow => ({
+        id: "workflow-pin",
+        level: "optional",
+        status,
+        evidence,
+        ...extra,
+      });
       const installed = parseTag(version);
       if (root === undefined) return row("skip", "not in a git repository, so no workflow was read");
       const scan = scanWorkflows(root, fs);
@@ -444,23 +516,36 @@ export const CHECKS: DoctorCheck[] = [
       const pins = scan.files.flatMap(({ file, refs }) => refs.map((ref) => ({ file, ref })));
       if (pins.length === 0) {
         return unreadable.length > 0
-          ? row("warn", `no readable workflow calls a Wachiman reusable workflow${unreadableNote}`, { detail: { unreadable: unreadable.length } })
+          ? row("warn", `no readable workflow calls a Wachiman reusable workflow${unreadableNote}`, {
+              detail: { unreadable: unreadable.length },
+            })
           : row("skip", "no workflow in .github/workflows calls a Wachiman reusable workflow");
       }
-      if (installed === undefined) return row("skip", `the installed version "${version}" is not a release version, so pins cannot be compared`);
+      if (installed === undefined)
+        return row("skip", `the installed version "${version}" is not a release version, so pins cannot be compared`);
       const older = pins.filter((p) => classifyRef(p.ref) === "tag" && compareVersions(parseTag(p.ref)!, installed) < 0);
       const fixed = pins.filter((p) => classifyRef(p.ref) === "tag");
       const other = pins.filter((p) => classifyRef(p.ref) !== "tag");
-      const list = (items: typeof pins) => items.map((p) => `${p.file} @${classifyRef(p.ref) === "sha" ? p.ref.slice(0, 12) : p.ref}`).join(", ");
+      const list = (items: typeof pins) =>
+        items.map((p) => `${p.file} @${classifyRef(p.ref) === "sha" ? p.ref.slice(0, 12) : p.ref}`).join(", ");
       const detail = { pins: pins.length, older: older.length, notReleaseTag: other.length, unreadable: unreadable.length };
       if (older.length > 0) {
-        return row("warn", `${list(older)} older than the installed v${version}: reviews in Actions run that older release${unreadableNote}`, {
-          fix: "wachiman upgrade --repo-only",
-          detail,
-        });
+        return row(
+          "warn",
+          `${list(older)} older than the installed v${version}: reviews in Actions run that older release${unreadableNote}`,
+          {
+            fix: "wachiman upgrade --repo-only",
+            detail,
+          },
+        );
       }
       const note = (other.length > 0 ? `; ${list(other)} is a commit or branch, which is not compared` : "") + unreadableNote;
-      if (fixed.length === 0) return row(unreadable.length > 0 ? "warn" : "skip", `${list(other)} is a commit or branch, not a release tag, so it is not compared${unreadableNote}`, { detail });
+      if (fixed.length === 0)
+        return row(
+          unreadable.length > 0 ? "warn" : "skip",
+          `${list(other)} is a commit or branch, not a release tag, so it is not compared${unreadableNote}`,
+          { detail },
+        );
       return row(unreadable.length > 0 ? "warn" : "ok", `${list(fixed)} is not older than the installed v${version}${note}`, { detail });
     },
   },
@@ -469,7 +554,8 @@ export const CHECKS: DoctorCheck[] = [
     level: "optional",
     run: ({ home, fs }) => {
       const dir = join(home, "history");
-      if (!fs.isDirectory(dir)) return { id: "history", level: "optional", status: "skip", evidence: `no history kept yet (${dir} does not exist)` };
+      if (!fs.isDirectory(dir))
+        return { id: "history", level: "optional", status: "skip", evidence: `no history kept yet (${dir} does not exist)` };
       const repositories = fs.list(dir).filter((n) => fs.isDirectory(join(dir, n))).length;
       const mode = fs.mode(dir);
       const open = mode !== undefined && (mode & 0o077) !== 0;
@@ -488,9 +574,13 @@ export const CHECKS: DoctorCheck[] = [
     level: "optional",
     run: ({ userHome, fs }) => {
       const names = ["wachiman-review", "wachiman-loop", "wachiman-audit"] as const;
-      const found = Object.fromEntries(names.map((n) => [n, fs.isDirectory(join(userHome, ".claude", "skills", n))])) as Record<(typeof names)[number], boolean>;
+      const found = Object.fromEntries(names.map((n) => [n, fs.isDirectory(join(userHome, ".claude", "skills", n))])) as Record<
+        (typeof names)[number],
+        boolean
+      >;
       const where = join(userHome, ".claude", "skills");
-      if (!names.some((n) => found[n])) return { id: "skills", level: "optional", status: "skip", evidence: `no Wachiman skill in ${where}`, detail: found };
+      if (!names.some((n) => found[n]))
+        return { id: "skills", level: "optional", status: "skip", evidence: `no Wachiman skill in ${where}`, detail: found };
       return {
         id: "skills",
         level: "optional",
@@ -505,10 +595,16 @@ export const CHECKS: DoctorCheck[] = [
     level: "optional",
     run: (ctx) => {
       const { target } = ctx;
-      if (target.kind !== "profile") return withProfile(target, { id: "isolation", level: "optional", status: "skip", evidence: "skipped: no profile to inspect" });
+      if (target.kind !== "profile")
+        return withProfile(target, { id: "isolation", level: "optional", status: "skip", evidence: "skipped: no profile to inspect" });
       const { profile } = target.resolved;
       if (profile.kind === "default") {
-        return withProfile(target, { id: "isolation", level: "optional", status: "skip", evidence: "the default profile is your own claude, as is; nothing to inspect" });
+        return withProfile(target, {
+          id: "isolation",
+          level: "optional",
+          status: "skip",
+          evidence: "the default profile is your own claude, as is; nothing to inspect",
+        });
       }
       if (profile.kind === "external") {
         return withProfile(target, {
@@ -533,7 +629,12 @@ export const CHECKS: DoctorCheck[] = [
           detail: { found: found.join(", ") },
         });
       }
-      return withProfile(target, { id: "isolation", level: "required", status: "ok", evidence: `${profile.configDir} holds only a sign-in` });
+      return withProfile(target, {
+        id: "isolation",
+        level: "required",
+        status: "ok",
+        evidence: `${profile.configDir} holds only a sign-in`,
+      });
     },
   },
 ];

@@ -268,7 +268,10 @@ export function parseRiskExtension(text: string, warn: (line: string) => void = 
 
 function extensionRules(extra: RiskExtension | null | undefined, warn: (line: string) => void): Rule[] {
   const rules: Rule[] = [];
-  for (const [levelName, level] of [["high", HIGH], ["medium", MEDIUM]] as const) {
+  for (const [levelName, level] of [
+    ["high", HIGH],
+    ["medium", MEDIUM],
+  ] as const) {
     const section = (extra?.[levelName] ?? {}) as Record<string, unknown>;
     for (const kind of ["paths", "content"] as const) {
       const list = Array.isArray(section[kind]) ? (section[kind] as unknown[]) : [];
@@ -295,11 +298,7 @@ export const UNREADABLE_PATH_RULE = "a changed path that could not be read";
  * the answer only with a higher level. A file whose path could not be read counts as High: it could
  * have matched any rule, so it is never dropped.
  */
-export function computeRisk(
-  changes: readonly ChangedFile[],
-  extra?: RiskExtension | null,
-  warn: (line: string) => void = () => {},
-): Risk {
+export function computeRisk(changes: readonly ChangedFile[], extra?: RiskExtension | null, warn: (line: string) => void = () => {}): Risk {
   let best: Risk = { level: LOW, rule: null, path: null };
   // The source of a rename or copy is judged as a path of its own, without the hunk lines.
   const judged = changes.flatMap((c) => (c.from ? [c, { path: c.from, status: c.status }] : [c]));
@@ -388,7 +387,15 @@ function headerPath(rest: string): string | undefined {
  * them can be read the file is kept with `unreadable: true`, never dropped.
  */
 export function parsePatch(text: string): ChangedFile[] {
-  interface Current { header: string; status: string; lines: string[]; renameTo?: string | null; renameFrom?: string | null; minus?: string | null; plus?: string | null }
+  interface Current {
+    header: string;
+    status: string;
+    lines: string[];
+    renameTo?: string | null;
+    renameFrom?: string | null;
+    minus?: string | null;
+    plus?: string | null;
+  }
   const done: Current[] = [];
   let cur: Current | null = null;
   let inHunk = false;
@@ -418,9 +425,15 @@ export function parsePatch(text: string): ChangedFile[] {
   }
   if (cur) done.push(cur);
   return done.map((c): ChangedFile => {
-    const path = c.renameTo || (c.plus === undefined ? undefined : c.plus) || (c.plus === null && c.minus ? c.minus : undefined) || headerPath(c.header);
+    const path =
+      c.renameTo ||
+      (c.plus === undefined ? undefined : c.plus) ||
+      (c.plus === null && c.minus ? c.minus : undefined) ||
+      headerPath(c.header);
     const patch = c.lines.join("\n");
     if (path && c.renameFrom === null) return { path, status: c.status, patch, unreadable: true };
-    return path ? { path, status: c.status, patch, ...(c.renameFrom ? { from: c.renameFrom } : {}) } : { path: c.header, status: c.status, patch, unreadable: true };
+    return path
+      ? { path, status: c.status, patch, ...(c.renameFrom ? { from: c.renameFrom } : {}) }
+      : { path: c.header, status: c.status, patch, unreadable: true };
   });
 }

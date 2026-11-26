@@ -12,7 +12,15 @@
  * plain summaries), so the structural rules do not read it; `breaking-change` does, because a
  * squash merge copies the whole body.
  */
-import { loadCatalog, type Catalog, type CatalogEntry, type DetailsEntry, type FooterEntry, type SectionEntry, type StatusRowEntry } from "./catalog";
+import {
+  loadCatalog,
+  type Catalog,
+  type CatalogEntry,
+  type DetailsEntry,
+  type FooterEntry,
+  type SectionEntry,
+  type StatusRowEntry,
+} from "./catalog";
 import { parseDescription, type ParsedDescription } from "./describe";
 import { computeRisk, LEVELS, type ChangedFile, type Risk, type RiskExtension, type RiskLevel } from "./pr-risk";
 import type { ResolvedTemplate } from "./resolve";
@@ -124,7 +132,10 @@ function splitCells(row: string): string[] {
 const quote = (text: string) => JSON.stringify(text.slice(0, 40));
 
 function decisionRecordProblems(decisions: string): string[] {
-  const lines = decisions.split("<details")[0]!.split("\n").filter((l) => l.trim().startsWith("|"));
+  const lines = decisions
+    .split("<details")[0]!
+    .split("\n")
+    .filter((l) => l.trim().startsWith("|"));
   if (lines.length === 0) return [];
   const header = splitCells(lines[0]!).map((c) => c.toLowerCase());
   const col = header.includes("record") ? header.indexOf("record") : 2;
@@ -186,7 +197,8 @@ export function checkDescription(input: CheckInput): CheckResult {
   const catalog = input.catalog ?? loadCatalog();
   const template = withLockedFromCatalog(input.template, catalog);
   const findings: Finding[] = [];
-  const add = (code: FindingCode, message: string, line?: number) => findings.push(line === undefined ? { code, message } : { code, message, line: line + 1 });
+  const add = (code: FindingCode, message: string, line?: number) =>
+    findings.push(line === undefined ? { code, message } : { code, message, line: line + 1 });
 
   const raw = input.body ?? "";
   const parsed: ParsedDescription = parseDescription(raw);
@@ -196,7 +208,9 @@ export function checkDescription(input: CheckInput): CheckResult {
   const detailsEntries = template.sections.filter((e): e is DetailsEntry => e.kind === "details");
   const footerEntry = template.sections.find((e): e is FooterEntry => e.kind === "footer")!;
   const hasNotes = detailsEntries.some((e) => e.id === "notes");
-  const moveHint = hasNotes ? "move its content into Notes or one of the template's sections" : "move its content into one of the template's sections";
+  const moveHint = hasNotes
+    ? "move its content into Notes or one of the template's sections"
+    : "move its content into one of the template's sections";
 
   // headings
   const allowedHeadings = sectionEntries.map((e) => e.heading);
@@ -212,7 +226,8 @@ export function checkDescription(input: CheckInput): CheckResult {
     add("heading-order", `the \`##\` headings are ${known.join(", ")}; each must appear once, in the order ${allowedHeadings.join(", ")}`);
   }
   for (const h of parsed.headings) {
-    if (!allowedHeadings.includes(h.name)) add("heading-unknown", `\`## ${h.name}\` is not a heading of this template; ${moveHint}`, h.line);
+    if (!allowedHeadings.includes(h.name))
+      add("heading-unknown", `\`## ${h.name}\` is not a heading of this template; ${moveHint}`, h.line);
   }
 
   // status table
@@ -230,17 +245,26 @@ export function checkDescription(input: CheckInput): CheckResult {
     const section = parsed.sections.find((s) => s.name === e.heading);
     if (!section) continue;
     // Only the section's own text: not its collapsed blocks, and not the footer that follows it.
-    let text = parsed.structural.split("\n").slice(section.startLine + 1, section.bodyEndLine).join("\n");
+    let text = parsed.structural
+      .split("\n")
+      .slice(section.startLine + 1, section.bodyEndLine)
+      .join("\n");
     text = text.replace(/^\s*[-*]\s*\[[ xX]?\]\s*$/gm, "");
     text = text.replace(/\*\*(Before|After) merge:?\*\*:?/g, "");
     if (text.trim() === "") {
-      add("needs-you-empty", `\`## ${e.heading}\` is empty; list the owner's actions as checkboxes, or write "Nothing. Merge when checks are green."`);
+      add(
+        "needs-you-empty",
+        `\`## ${e.heading}\` is empty; list the owner's actions as checkboxes, or write "Nothing. Merge when checks are green."`,
+      );
     }
   }
 
   // an ADR cited by number
   for (const mention of bareAdrMentions(parsed.structural)) {
-    add("adr-bare-number", `"${mention}" cites an ADR by number; say what it decides and link it, for example [One PR description template](../adr/0033-....md)`);
+    add(
+      "adr-bare-number",
+      `"${mention}" cites an ADR by number; say what it decides and link it, for example [One PR description template](../adr/0033-....md)`,
+    );
   }
   const decisions = sectionEntries.find((e) => e.id === "decisions");
   const decisionsSection = decisions && parsed.sections.find((s) => s.name === decisions.heading);
@@ -254,13 +278,20 @@ export function checkDescription(input: CheckInput): CheckResult {
   if (!input.allowBreaking) {
     const fix = "remove it, or pass --allow-breaking only if the owner asked for a breaking change";
     const title = input.title ?? "";
-    if (BANG_TITLE.test(title)) add("breaking-change", `the title ${JSON.stringify(title)} has a \`!\` (the conventional-commit breaking marker); ${fix}`);
+    if (BANG_TITLE.test(title))
+      add("breaking-change", `the title ${JSON.stringify(title)} has a \`!\` (the conventional-commit breaking marker); ${fix}`);
     if (BREAKING.test(raw)) {
-      add("breaking-change", `the body contains the breaking-change footer text (comments count: a squash merge copies them into the commit); ${fix}`);
+      add(
+        "breaking-change",
+        `the body contains the breaking-change footer text (comments count: a squash merge copies them into the commit); ${fix}`,
+      );
     }
     (input.commitMessages ?? []).forEach((msg, i) => {
       if (BREAKING.test(msg ?? "")) {
-        add("breaking-change", `commit message ${i + 1} contains the breaking-change footer text; reword the commit, or pass --allow-breaking only if the owner asked`);
+        add(
+          "breaking-change",
+          `commit message ${i + 1} contains the breaking-change footer text; reword the commit, or pass --allow-breaking only if the owner asked`,
+        );
       }
     });
   }
@@ -274,10 +305,16 @@ export function checkDescription(input: CheckInput): CheckResult {
     if (stated === null) {
       add("risk-unstated", `the ${riskEntry.label} row has no level; start it with 🟢 Low, 🟡 Medium or 🔴 High`);
     } else if (computed === null && input.riskError && stated < LEVELS.length - 1) {
-      add("risk-unverified", `the risk floor could not be computed (${input.riskError}); fix the cause (a reachable --base for a file, a working gh for --pr)`);
+      add(
+        "risk-unverified",
+        `the risk floor could not be computed (${input.riskError}); fix the cause (a reachable --base for a file, a working gh for --pr)`,
+      );
     } else if (computed !== null && stated < levelOf(computed)) {
       const why = typeof computed !== "number" && computed.rule ? ` (${computed.rule})` : "";
-      add("risk-below-floor", `the ${riskEntry.label} row says ${LEVELS[stated]![1]} but \`wachiman pr-template risk\` computes ${LEVELS[levelOf(computed)]![1]}${why}; raise it, an author may only raise the level`);
+      add(
+        "risk-below-floor",
+        `the ${riskEntry.label} row says ${LEVELS[stated]![1]} but \`wachiman pr-template risk\` computes ${LEVELS[levelOf(computed)]![1]}${why}; raise it, an author may only raise the level`,
+      );
     }
   }
 
@@ -292,12 +329,19 @@ export function checkDescription(input: CheckInput): CheckResult {
     }
   }
   if (sha === null) {
-    add("footer-missing", `the footer has no commit sha; keep the footer line of the template and replace the {sha} placeholder with the real commit (7 or more hex characters)`);
+    add(
+      "footer-missing",
+      `the footer has no commit sha; keep the footer line of the template and replace the {sha} placeholder with the real commit (7 or more hex characters)`,
+    );
   } else if (input.head) {
     const head = input.head.toLowerCase();
     const found = sha.toLowerCase();
     const matches = head.startsWith(found) || (head.length < 40 && found.startsWith(head));
-    if (!matches) add("footer-head-mismatch", `the footer describes commit ${sha.slice(0, 12)} but the head is ${input.head.slice(0, 12)}; rewrite the description against the head and update the sha`);
+    if (!matches)
+      add(
+        "footer-head-mismatch",
+        `the footer describes commit ${sha.slice(0, 12)} but the head is ${input.head.slice(0, 12)}; rewrite the description against the head and update the sha`,
+      );
   }
 
   // the Wachiman block
@@ -311,16 +355,27 @@ export function checkDescription(input: CheckInput): CheckResult {
   const present: string[] = [];
   for (const d of parsed.details) {
     if (d.name === null) {
-      add("details-unknown", `a collapsed block has no bold title in its summary; use one of ${allowedDetails.join(", ")}, or put the text in ${hasNotes ? "Notes" : "a section"}`, d.startLine);
+      add(
+        "details-unknown",
+        `a collapsed block has no bold title in its summary; use one of ${allowedDetails.join(", ")}, or put the text in ${hasNotes ? "Notes" : "a section"}`,
+        d.startLine,
+      );
     } else if (!allowedDetails.includes(d.name)) {
-      add("details-unknown", `the collapsed block "${d.name}" is not allowed; use one of ${allowedDetails.join(", ")}, or put the text in ${hasNotes ? "Notes" : "a section"}`, d.startLine);
+      add(
+        "details-unknown",
+        `the collapsed block "${d.name}" is not allowed; use one of ${allowedDetails.join(", ")}, or put the text in ${hasNotes ? "Notes" : "a section"}`,
+        d.startLine,
+      );
     } else {
       present.push(d.name);
     }
   }
   const didx = present.map((n) => allowedDetails.indexOf(n));
   if (didx.some((b, i) => i > 0 && b <= didx[i - 1]!)) {
-    add("details-order", `the collapsed blocks are ${present.join(", ")}; each must appear once, in the order ${allowedDetails.join(", ")}`);
+    add(
+      "details-order",
+      `the collapsed blocks are ${present.join(", ")}; each must appear once, in the order ${allowedDetails.join(", ")}`,
+    );
   }
   for (const e of detailsEntries) {
     if (isRequired(e) && !parsed.details.some((d) => d.name === e.summary)) {

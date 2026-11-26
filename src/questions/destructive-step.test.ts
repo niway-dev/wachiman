@@ -35,9 +35,9 @@ describe("destructive-step question", () => {
       const file = "apps/kaipu-record/src/main/workspaces/move-item.ts";
       expect(applies(["    if (sourcePresent) await unlink(sourceMedia).catch(() => {});"], file)).toBe(true);
       expect(applies(["    await removeCompanions(from.companionPaths(journal.sourceId));"], file)).toBe(true);
-      expect(
-        applies(['    await rm(join(sourceDir, META_DIR, "drag"), { recursive: true, force: true }).catch(() => {});'], file),
-      ).toBe(true);
+      expect(applies(['    await rm(join(sourceDir, META_DIR, "drag"), { recursive: true, force: true }).catch(() => {});'], file)).toBe(
+        true,
+      );
     });
 
     // kaipu-record #439, commit c59e58f (the commit Wachiman reviewed),
@@ -137,14 +137,7 @@ describe("destructive-step question", () => {
     });
 
     test("timers and UI resets inside a loop", () => {
-      expect(
-        applies([
-          "for (const id of ids) {",
-          "  clearTimeout(timers.get(id));",
-          "  resetForm(id);",
-          "}",
-        ]),
-      ).toBe(false);
+      expect(applies(["for (const id of ids) {", "  clearTimeout(timers.get(id));", "  resetForm(id);", "}"])).toBe(false);
     });
 
     test("a clear call with no loop around it", () => {
@@ -153,14 +146,7 @@ describe("destructive-step question", () => {
 
     test("a clear call far below the loop header", () => {
       expect(
-        applies([
-          "for (const ws of workspaces) {",
-          "  a();",
-          "  b();",
-          "  c();",
-          "  d();",
-          "  await this.resetOverrides(ws.id, wanted);",
-        ]),
+        applies(["for (const ws of workspaces) {", "  a();", "  b();", "  c();", "  d();", "  await this.resetOverrides(ws.id, wanted);"]),
       ).toBe(false);
     });
 

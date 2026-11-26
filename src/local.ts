@@ -28,12 +28,31 @@ import {
   warnSnapshotDifferences,
 } from "./connectors/local-git";
 import { planExceptions } from "./memory/mute";
-import { DEFAULT_EXCLUDE, batchRoom, touchedPathsOf, estimateFor, filterFiles, planBatches, reviewChange, reviewOptionsOf, splitUnreviewable, type ReviewInput, type ReviewResult } from "./engine";
+import {
+  DEFAULT_EXCLUDE,
+  batchRoom,
+  touchedPathsOf,
+  estimateFor,
+  filterFiles,
+  planBatches,
+  reviewChange,
+  reviewOptionsOf,
+  splitUnreviewable,
+  type ReviewInput,
+  type ReviewResult,
+} from "./engine";
 import type { ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
 import { personalSourceFor } from "./memory/personal";
 import { assertReviewInputFormat, NO_V1_DISTRIBUTED, REVIEW_INPUT_V2 } from "./formats";
-import { applyRepoSettings, fileSettingsNote, ignoredSettingsNote, parsePathRules, wantsRepoSettings, type RepoSettings } from "./repo-settings";
+import {
+  applyRepoSettings,
+  fileSettingsNote,
+  ignoredSettingsNote,
+  parsePathRules,
+  wantsRepoSettings,
+  type RepoSettings,
+} from "./repo-settings";
 import { workingTreeInput, snapshotWorkingTree } from "./connectors/working-tree";
 import { historyRoot, historySettings, saveRun } from "./history";
 import { readConfig, wachimanHome } from "./accounts/config";
@@ -204,7 +223,8 @@ export function parseFlags(argv: string[], command: string, accepted: readonly s
   }
   if (sawVerify && sawNoVerify) throw new UsageError("--verify and --no-verify cannot be used together.");
   if (sawDistributed && sawNoDistributed) throw new UsageError("--distributed-repo and --no-distributed-repo cannot be used together.");
-  if (sawNoDistributed && args.siblings) throw new UsageError("--sibling needs distributed-repo mode: it cannot be used with --no-distributed-repo.");
+  if (sawNoDistributed && args.siblings)
+    throw new UsageError("--sibling needs distributed-repo mode: it cannot be used with --no-distributed-repo.");
   if (args.resultVersion !== undefined && args.format !== "json") throw new UsageError("--result-version applies only with --format json.");
   if (new Set(picked).size < picked.length) throw new UsageError(`${picked.find((n, i) => picked.indexOf(n) !== i)} was given twice.`);
   if (picked.length > 1) throw new UsageError(`${picked[0]} and ${picked[1]} cannot be used together.`);
@@ -267,7 +287,10 @@ export function readInputFile(path: string): Omit<ReviewInput, "headDir"> {
   if (problems.length > 0) throw new UsageError(`--input ${path} is missing or mistypes: ${problems.join(", ")}.`);
   // Optional, and checked as `.wachiman.yml` is: an entry that names no severity is not guessed at.
   if (input.pathRules !== undefined) input.pathRules = parsePathRules(input.pathRules, `--input ${path}`);
-  if (input.pathPolicyChanged !== undefined && input.pathPolicyChanged !== true) throw new UsageError(`--input ${path}: pathPolicyChanged must be true when present.`);
+  if (input.pathPolicyChanged !== undefined && input.pathPolicyChanged !== true)
+    throw new UsageError(`--input ${path}: pathPolicyChanged must be true when present.`);
+  if (input.commentsPointToDocs !== undefined && input.commentsPointToDocs !== true)
+    throw new UsageError(`--input ${path}: commentsPointToDocs must be true when present.`);
   // In memory only (docs/formats): the head the agent reads is always the engine's own snapshot.
   if ("headDir" in input) throw new UsageError(`--input ${path} carries headDir, which a review input file never holds.`);
   return input as Omit<ReviewInput, "headDir">;
@@ -331,7 +354,12 @@ export interface LocalSession {
  * broken file at that commit is ignored with a warning and the run continues on the environment and
  * the defaults, so the change that fixes it can be reviewed.
  */
-export function withLocalSettings(config: EngineConfig, repoDir: string, scope: SettingsScope, stderr: (line: string) => void): EngineConfig {
+export function withLocalSettings(
+  config: EngineConfig,
+  repoDir: string,
+  scope: SettingsScope,
+  stderr: (line: string) => void,
+): EngineConfig {
   if (!wantsRepoSettings(config)) return config;
   const sha = localSettingsCommit(repoDir, scope);
   if (sha === undefined) return config;
@@ -640,11 +668,17 @@ export async function runLocal(
     // The workspace: which contracts this change applies and which sibling snapshots to read for them. Never fetches.
     let siblingContext: DistributedContext | undefined;
     if (distributed.on) {
-      const prepared = prepareDistributed(distributed, { files: kept, headSha: input.change.head.sha, siblings: args.siblings ?? [], warn: (line) => io.stderr(withoutControl(line)) });
+      const prepared = prepareDistributed(distributed, {
+        files: kept,
+        headSha: input.change.head.sha,
+        siblings: args.siblings ?? [],
+        warn: (line) => io.stderr(withoutControl(line)),
+      });
       releaseSiblings = prepared.release;
       siblingContext = prepared.context;
       // A result that carries siblings or applied contracts has no /1 (the label and the siblings have no place there). Known here, before any call.
-      if (args.resultVersion === 1 && (siblingContext.siblings.length > 0 || siblingContext.contracts.length > 0)) throw new UsageError(NO_V1_DISTRIBUTED);
+      if (args.resultVersion === 1 && (siblingContext.siblings.length > 0 || siblingContext.contracts.length > 0))
+        throw new UsageError(NO_V1_DISTRIBUTED);
       for (const line of distributedLines(prepared.context)) io.stderr(line);
     }
 
@@ -653,36 +687,58 @@ export async function runLocal(
     const reviewable = splitUnreviewable(kept, input.headDir).reviewable;
     if (args.noMemory) io.stderr("memory: off (--no-memory)");
     // The developer's personal memory for this repository (keyed by `origin`) is loaded after it, on the laptop only.
-    const memory = args.noMemory ? undefined : localMemory(repoDir, input.change.base.sha, reviewable.map((f) => f.filename), io.stderr, spawnGit, personalSourceFor(home, repoDir, spawnGit, io.stderr));
+    const memory = args.noMemory
+      ? undefined
+      : localMemory(
+          repoDir,
+          input.change.base.sha,
+          reviewable.map((f) => f.filename),
+          io.stderr,
+          spawnGit,
+          personalSourceFor(home, repoDir, spawnGit, io.stderr),
+        );
     // The room is what `reviewChange` gives the batches: the budget less the verifier and memory-match reserves.
     const room = batchRoom(
       config.budgetUsd,
       config.verify ? { budgetUsd: config.verifyBudgetUsd } : undefined,
-      planExceptions(memory, touchedPathsOf(input.files), reviewable.map((f) => f.filename)),
+      planExceptions(
+        memory,
+        touchedPathsOf(input.files),
+        reviewable.map((f) => f.filename),
+      ),
     );
     const warning = sizeWarning(estimateFor(kept, config, input.pathRules), config.budgetUsd, config.model, room);
     if (warning) io.stderr(warning);
-    const result = await reviewChange(input, { ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"), ...(memory ? { memory } : {}), ...(siblingContext ? { distributed: siblingContext } : {}) }, {
-      provider,
-      ...(verifier ? { verifier } : {}),
-      // The verifier reads the code before the change too; made once, only when there is something to check.
-      ...(verifier
-        ? {
-            baseSnapshot: () => {
-              const base = input.change.kind === "working-tree"
-                ? snapshotWorkingTree(repoDir, `${input.change.base.sha}^{tree}`)
-                : snapshotHead(repoDir, input.change.base.sha);
-              return {
-                dir: base.dir,
-                release: () => removeSnapshot(base.dir),
-              };
-            },
-          }
-        : {}),
-      log: io.stderr,
-      warn: io.stderr,
-      engineVersion: io.engineVersion,
-    });
+    const result = await reviewChange(
+      input,
+      {
+        ...reviewOptionsOf(config, config.budgetUsd, profile.kind === "managed" ? "isolated" : "default"),
+        ...(memory ? { memory } : {}),
+        ...(siblingContext ? { distributed: siblingContext } : {}),
+      },
+      {
+        provider,
+        ...(verifier ? { verifier } : {}),
+        // The verifier reads the code before the change too; made once, only when there is something to check.
+        ...(verifier
+          ? {
+              baseSnapshot: () => {
+                const base =
+                  input.change.kind === "working-tree"
+                    ? snapshotWorkingTree(repoDir, `${input.change.base.sha}^{tree}`)
+                    : snapshotHead(repoDir, input.change.base.sha);
+                return {
+                  dir: base.dir,
+                  release: () => removeSnapshot(base.dir),
+                };
+              },
+            }
+          : {}),
+        log: io.stderr,
+        warn: io.stderr,
+        engineVersion: io.engineVersion,
+      },
+    );
     if (state.interrupted) {
       io.stderr("Interrupted: the review stopped and its snapshot was removed.");
       return 130;
@@ -690,7 +746,16 @@ export async function runLocal(
     // The laptop's record of which memory entries a review used (`memory check` suggests archiving the unused). It lives in the history store, so it is written only when history is on (ADR 0020); it never leaves the laptop and never fails a review.
     if (memory && history.enabled) {
       try {
-        recordMemoryUse(home, repositoryKey(repoDir).key, entriesUsed(memory, reviewable.map((f) => f.filename), result.muted ?? []), new Date().toISOString().slice(0, 10));
+        recordMemoryUse(
+          home,
+          repositoryKey(repoDir).key,
+          entriesUsed(
+            memory,
+            reviewable.map((f) => f.filename),
+            result.muted ?? [],
+          ),
+          new Date().toISOString().slice(0, 10),
+        );
       } catch (error) {
         io.stderr(`memory: this run's use of memory was not recorded (${error instanceof Error ? error.message : error})`);
       }
@@ -721,7 +786,8 @@ export async function runLocal(
       args.format === "json"
         ? renderJson(
             result,
-            args.resultVersion ?? (input.change.kind === "working-tree" || result.siblings?.length || result.workspaceContractsApplied?.length ? 2 : 1),
+            args.resultVersion ??
+              (input.change.kind === "working-tree" || result.siblings?.length || result.workspaceContractsApplied?.length ? 2 : 1),
             // ADR 0034: with history on, a `/2` finding names itself by the id `history --verdict` takes.
             annotation ? result.findings.map((_, i) => annotation!.byIndex.get(i)?.id) : undefined,
           )
@@ -759,10 +825,14 @@ export function distributedLines(context: DistributedContext): string[] {
 
 function siblingLine(s: ResolvedSibling): string {
   const member = plainText(s.member);
-  const why = s.byHand && s.contracts.length === 0 ? "added by hand" : `${s.byHand ? "added by hand, " : ""}for ${s.contracts.map(plainText).join(", ")}`;
+  const why =
+    s.byHand && s.contracts.length === 0
+      ? "added by hand"
+      : `${s.byHand ? "added by hand, " : ""}for ${s.contracts.map(plainText).join(", ")}`;
   const rule = `${s.rule} (${s.ruleSource})`;
   if (s.status === "not-cloned" || s.status === "not-watched") return `sibling: ${member}, ${s.status}, rule ${rule}, ${why}`;
-  if (s.status === "unreadable") return `sibling: ${member}, unreadable (${plainText(s.unreadable ?? "unknown reason")}), rule ${rule}, ${why}`;
+  if (s.status === "unreadable")
+    return `sibling: ${member}, unreadable (${plainText(s.unreadable ?? "unknown reason")}), rule ${rule}, ${why}`;
   const read = s.readAs === s.rule ? `rule ${rule}` : `rule ${rule}, read as ${s.readAs}`;
   const age = s.fetchedAt ? `, last fetched ${plainText(s.fetchedAt)}` : "";
   const dirty = s.status === "uncommitted-not-read" ? ", uncommitted changes not read" : "";

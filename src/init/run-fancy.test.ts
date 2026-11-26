@@ -20,7 +20,15 @@ function world(answers: (number | string | boolean | null)[]) {
   const err: string[] = [];
   const out: string[] = [];
   const io = { stdout: (t: string) => void out.push(t), stderr: (l: string) => void err.push(l) };
-  const run = () => runInitCommand(parseInitFlags(["--mode", "github", "--version", "v1.5.0"], repo), {}, io, { now: () => NOW, version: "1.9.0", defaultWorkflowRef: "v1.5.0", interactive: true, cwd: "/elsewhere", prompter });
+  const run = () =>
+    runInitCommand(parseInitFlags(["--mode", "github", "--version", "v1.5.0"], repo), {}, io, {
+      now: () => NOW,
+      version: "1.9.0",
+      defaultWorkflowRef: "v1.5.0",
+      interactive: true,
+      cwd: "/elsewhere",
+      prompter,
+    });
   return { repo, ui, err, out, run, target: join(repo, ".github", "workflows", "wachiman-review.yml") };
 }
 
@@ -87,7 +95,10 @@ describe("init on a terminal session", () => {
   test("status lines go through the Ui, not loose to stderr", async () => {
     const w = world([0, "octocat", false, true, true]);
     await w.run();
-    const drawn = w.ui.of("log").map((e) => e.message).join("\n");
+    const drawn = w.ui
+      .of("log")
+      .map((e) => e.message)
+      .join("\n");
     expect(drawn).toContain("wrote ");
     expect(w.err.join("\n")).not.toContain("wrote ");
   });
@@ -97,7 +108,12 @@ describe("init on a terminal session", () => {
     expect(await w.run()).toBe(0);
     const template = join(w.repo, ".github", "pull_request_template.md");
     expect(readFileSync(template, "utf8")).toContain("wachiman:pr-template version=1");
-    expect(w.ui.of("log").map((e) => e.message).join("\n")).toContain("wrote .github/pull_request_template.md");
+    expect(
+      w.ui
+        .of("log")
+        .map((e) => e.message)
+        .join("\n"),
+    ).toContain("wrote .github/pull_request_template.md");
     expect(w.out).toEqual([]);
   });
 });

@@ -38,7 +38,8 @@ interface TreeEntry {
 
 function treeOf(git: GitRunner, repoDir: string, sha: string): TreeEntry[] {
   const out = git(["ls-tree", "-r", "-z", "--full-tree", sha], { cwd: repoDir, timeoutMs: 60_000, maxBytes: MAX_BYTES });
-  if (out.status !== 0 || out.error || out.outputCut) throw new Error(`git ls-tree ${sha} failed in ${repoDir}: ${out.error ?? out.stderr?.trim() ?? `status ${out.status}`}`);
+  if (out.status !== 0 || out.error || out.outputCut)
+    throw new Error(`git ls-tree ${sha} failed in ${repoDir}: ${out.error ?? out.stderr?.trim() ?? `status ${out.status}`}`);
   const entries: TreeEntry[] = [];
   for (const record of out.stdout.split("\0")) {
     const tab = record.indexOf("\t");
@@ -79,7 +80,8 @@ function readBlobs(memberDir: string, oids: string[], timeoutMs: number): Buffer
     const header = out.toString("utf8", at, eol).split(" ");
     if (header[1] === "missing") throw new Error(`${MISSING_OBJECT_MESSAGE}: blob ${oid} is absent in ${memberDir}.`);
     const size = Number(header[2]);
-    if (header[0] !== oid || header[1] !== "blob" || !Number.isInteger(size)) throw new Error(`git cat-file --batch gave "${header.join(" ")}" for ${oid} in ${memberDir}.`);
+    if (header[0] !== oid || header[1] !== "blob" || !Number.isInteger(size))
+      throw new Error(`git cat-file --batch gave "${header.join(" ")}" for ${oid} in ${memberDir}.`);
     blobs.push(out.subarray(eol + 1, eol + 1 + size));
     at = eol + 1 + size + 1;
   }
@@ -108,7 +110,11 @@ export function snapshotSibling(memberDir: string, sha: string, globs: string[],
     }
   }
 
-  const blobs = readBlobs(memberDir, selected.map((e) => e.oid), snapshotTimeoutMs(selected.length));
+  const blobs = readBlobs(
+    memberDir,
+    selected.map((e) => e.oid),
+    snapshotTimeoutMs(selected.length),
+  );
   const dir = realpathSync(mkdtempSync(join(tmpdir(), "wachiman-sibling-")));
   const remove = () => rmSync(dir, { recursive: true, force: true });
   try {

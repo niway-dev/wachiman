@@ -11,8 +11,19 @@ const OLD = "b".repeat(40);
 const OWN = "github-actions[bot]";
 const ATTEMPT = (n: number) => `${String(n).padStart(8, "0")}-1111-1111-1111-111111111111`;
 
-interface Review { login?: string; body: string; at: string }
-interface Thread { id?: string; resolved?: boolean; outdated?: boolean; path?: string; line?: number | null; comments: { login: string; body: string }[] }
+interface Review {
+  login?: string;
+  body: string;
+  at: string;
+}
+interface Thread {
+  id?: string;
+  resolved?: boolean;
+  outdated?: boolean;
+  path?: string;
+  line?: number | null;
+  comments: { login: string; body: string }[];
+}
 interface World {
   state?: string;
   /** The head each successive read of the pull request returns; the last one repeats. */
@@ -33,14 +44,29 @@ function fake(w: World) {
       const all = w.threads ?? [];
       const from = after === undefined ? 0 : Number(after);
       const nodes = all.slice(from, from + 100).map((t, i) => {
-        const c = t.comments.map((x) => ({ author: { login: x.login }, body: x.body, createdAt: "2026-11-19T00:00:00Z", url: `https://github.com/${REPO}/pull/1#discussion_r${from + i}` }));
+        const c = t.comments.map((x) => ({
+          author: { login: x.login },
+          body: x.body,
+          createdAt: "2026-11-19T00:00:00Z",
+          url: `https://github.com/${REPO}/pull/1#discussion_r${from + i}`,
+        }));
         return {
-          id: t.id ?? `T${from + i}`, isResolved: t.resolved ?? false, isOutdated: t.outdated ?? false, path: t.path ?? "a.ts", line: t.line === undefined ? 10 : t.line, originalLine: 10,
-          first: { nodes: c.slice(0, 1) }, last: { nodes: joined.includes("last: comments(last: 1)") ? c.slice(-1) : c.slice(0, 100).slice(-1) },
+          id: t.id ?? `T${from + i}`,
+          isResolved: t.resolved ?? false,
+          isOutdated: t.outdated ?? false,
+          path: t.path ?? "a.ts",
+          line: t.line === undefined ? 10 : t.line,
+          originalLine: 10,
+          first: { nodes: c.slice(0, 1) },
+          last: { nodes: joined.includes("last: comments(last: 1)") ? c.slice(-1) : c.slice(0, 100).slice(-1) },
         };
       });
       const end = from + 100;
-      return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage: end < all.length, endCursor: String(end) }, nodes } } } } });
+      return JSON.stringify({
+        data: {
+          repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage: end < all.length, endCursor: String(end) }, nodes } } },
+        },
+      });
     }
     if (joined.includes("/reviews")) {
       return (w.reviews ?? []).map((r) => JSON.stringify({ login: r.login ?? OWN, body: r.body, submitted_at: r.at })).join("\n");
@@ -76,7 +102,9 @@ const withCounts = (inline: number, body: number, blockingBody = 0) => {
 };
 const at = (n: number) => `2026-11-19T00:0${n}:00Z`;
 const rev = (body: string, n: number): Review => ({ body, at: at(n) });
-const FINDING = "| 👮 **Wachiman** | Off by one |\n|:--|:--|\n| **Priority** | **Should** · x |\n| **Severity** | 🟠 Fix |\n| **Area** | 🐛 bug |\n| **Track record** | no record yet · seed |\n\nFails.\n\n" + SIGNATURE.finding;
+const FINDING =
+  "| 👮 **Wachiman** | Off by one |\n|:--|:--|\n| **Priority** | **Should** · x |\n| **Severity** | 🟠 Fix |\n| **Area** | 🐛 bug |\n| **Track record** | no record yet · seed |\n\nFails.\n\n" +
+  SIGNATURE.finding;
 const thread = (over: Partial<Thread> = {}): Thread => ({ comments: [{ login: "github-actions", body: FINDING }], ...over });
 
 const read = (w: World) => readPrState(fake(w).gh, REPO, 1);
@@ -102,10 +130,20 @@ describe("AC7: the rule table, row by row, and its exit code", () => {
     { row: 7, world: { reviews: [rev(complete(HEAD), 1)], threads: [thread()] }, next: "act", why: "findings_open" },
     { row: 7, world: { reviews: [rev(complete(HEAD, 1, { findings: withCounts(0, 1, 1) }), 1)] }, next: "act", why: "findings_open" },
     { row: 8, world: { reviews: [rev(partial(HEAD), 1)] }, next: "blocked", why: "partial" },
-    { row: 8, world: { reviews: [rev(`Partial\n\n${SIGNATURE.review}\n\n${partialMarker({ sha: HEAD, rest: ["b.ts"], tried: [] })}`, 1)] }, next: "blocked", why: "partial" },
+    {
+      row: 8,
+      world: { reviews: [rev(`Partial\n\n${SIGNATURE.review}\n\n${partialMarker({ sha: HEAD, rest: ["b.ts"], tried: [] })}`, 1)] },
+      next: "blocked",
+      why: "partial",
+    },
     { row: 9, world: { reviews: [rev(complete(HEAD), 1)] }, next: "done", why: "clean" },
     { row: 10, world: { reviews: [rev(`R\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`, 1)] }, next: "done", why: "clean_legacy" },
-    { row: 10, world: { reviews: [rev(`R\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`, 1)], threads: [thread()] }, next: "act", why: "findings_open" },
+    {
+      row: 10,
+      world: { reviews: [rev(`R\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`, 1)], threads: [thread()] },
+      next: "act",
+      why: "findings_open",
+    },
     { row: 9, world: { reviews: [rev(complete(HEAD, 1, { findings: withCounts(0, 2) }), 1)] }, next: "done", why: "clean" },
   ];
   for (const { row, world, next, why } of rows) {
@@ -121,7 +159,9 @@ describe("AC7: the rule table, row by row, and its exit code", () => {
   test("a GitHub error exits 1 with nothing on stdout, and a usage error is thrown for exit 2", () => {
     const out: string[] = [];
     const err: string[] = [];
-    const broken: GhFn = () => { throw new GhError("gh api failed: HTTP 502", 502, "Bad Gateway"); };
+    const broken: GhFn = () => {
+      throw new GhError("gh api failed: HTTP 502", 502, "Bad Gateway");
+    };
     expect(runPrState({ pr: 1, repo: REPO }, broken, { stdout: (t) => out.push(t), stderr: (l) => err.push(l) })).toBe(1);
     expect(out).toEqual([]);
     expect(err[0]).toContain("pr-state");
@@ -134,7 +174,10 @@ describe("AC7: the rule table, row by row, and its exit code", () => {
 
 describe("AC6: the document", () => {
   test("has every field of wachiman.pr-state/1", () => {
-    const doc = read({ reviews: [rev(complete(HEAD, 3), 1)], threads: [thread({ id: "PRRT_1", path: "src/a.ts", line: 12, outdated: true })] });
+    const doc = read({
+      reviews: [rev(complete(HEAD, 3), 1)],
+      threads: [thread({ id: "PRRT_1", path: "src/a.ts", line: 12, outdated: true })],
+    });
     expect(doc).toEqual({
       format: PR_STATE_FORMAT,
       repo: REPO,
@@ -142,7 +185,17 @@ describe("AC6: the document", () => {
       head: HEAD,
       review: { state: "complete", reason: null, reviewed_head: HEAD, attempt: ATTEMPT(3), engine: "1.18.0", source: "block" },
       findings: {
-        open: [{ thread_id: "PRRT_1", url: `https://github.com/${REPO}/pull/1#discussion_r0`, path: "src/a.ts", line: 12, severity: "fix", outdated: true, awaiting: "fix_or_reply" }],
+        open: [
+          {
+            thread_id: "PRRT_1",
+            url: `https://github.com/${REPO}/pull/1#discussion_r0`,
+            path: "src/a.ts",
+            line: 12,
+            severity: "fix",
+            outdated: true,
+            awaiting: "fix_or_reply",
+          },
+        ],
         unthreaded: { blocking: 0, body: 0, outside_diff: 0 },
       },
       next: "act",
@@ -150,7 +203,11 @@ describe("AC6: the document", () => {
     });
   });
   test("a not-reviewed head carries its reason", () => {
-    expect(read({ reviews: [rev(notice(HEAD, "turn_limit"), 1)] }).review).toMatchObject({ state: "not-reviewed", reason: "turn_limit", source: "block" });
+    expect(read({ reviews: [rev(notice(HEAD, "turn_limit"), 1)] }).review).toMatchObject({
+      state: "not-reviewed",
+      reason: "turn_limit",
+      source: "block",
+    });
   });
   test("an engine without --repo asks gh, and with no number takes the current branch's pull request", () => {
     const w = fake({ reviews: [rev(complete(HEAD), 1)] });
@@ -204,7 +261,17 @@ describe("AC8: done only with a complete head and no unresolved Wachiman thread"
     expect(doc.next).toBe("act");
   });
   test("a thread someone else replied to last is still listed, awaiting resolve, and keeps act", () => {
-    const doc = read({ reviews: [rev(complete(HEAD), 1)], threads: [thread({ comments: [{ login: "github-actions", body: FINDING }, { login: "dev", body: "fixed" }] })] });
+    const doc = read({
+      reviews: [rev(complete(HEAD), 1)],
+      threads: [
+        thread({
+          comments: [
+            { login: "github-actions", body: FINDING },
+            { login: "dev", body: "fixed" },
+          ],
+        }),
+      ],
+    });
     expect(doc.findings.open).toHaveLength(1);
     expect(doc.findings.open[0].awaiting).toBe("resolve");
     expect(doc.next).toBe("act");
@@ -212,7 +279,11 @@ describe("AC8: done only with a complete head and no unresolved Wachiman thread"
   test("a resolved thread does not count; an unrelated thread (a person's, or another bot's) is not a finding", () => {
     const doc = read({
       reviews: [rev(complete(HEAD), 1)],
-      threads: [thread({ resolved: true }), { comments: [{ login: "dev", body: FINDING }] }, { comments: [{ login: "github-actions", body: "just a note" }] }],
+      threads: [
+        thread({ resolved: true }),
+        { comments: [{ login: "dev", body: FINDING }] },
+        { comments: [{ login: "github-actions", body: "just a note" }] },
+      ],
     });
     expect(doc.findings.open).toEqual([]);
     expect(doc.next).toBe("done");
@@ -236,7 +307,14 @@ describe("AC8: done only with a complete head and no unresolved Wachiman thread"
     expect(doc.review).toMatchObject({ state: "complete", reviewed_head: HEAD });
     expect(doc.findings.unthreaded).toEqual({ blocking: 1, body: 1, outside_diff: 0 });
     expect(doc.next).toBe("act");
-    expect(read({ reviews: [rev(complete(OLD, 1), 1), rev(`Base moved\n\n${SIGNATURE.review}\n\n${marker(HEAD)}\n\n${block(HEAD, 2, { carriedFrom: OLD })}`, 2)] }).next).toBe("done");
+    expect(
+      read({
+        reviews: [
+          rev(complete(OLD, 1), 1),
+          rev(`Base moved\n\n${SIGNATURE.review}\n\n${marker(HEAD)}\n\n${block(HEAD, 2, { carriedFrom: OLD })}`, 2),
+        ],
+      }).next,
+    ).toBe("done");
   });
 });
 
@@ -265,8 +343,14 @@ describe("AC10: attempts and stale reviews", () => {
     const doc = read({ reviews: [rev(complete(OLD, 1), 1)], checks: [{ name: "Wachiman review", status: "completed" }] });
     expect(doc.review).toMatchObject({ state: "stale", reviewed_head: OLD });
     expect(doc).toMatchObject({ next: "blocked", why: "review_missing" });
-    expect(read({ reviews: [rev(complete(OLD, 1), 1)] })).toMatchObject({ next: "wait", why: "review_not_started", review: { state: "stale" } });
-    expect(read({ reviews: [rev(complete(OLD, 1), 1)], checks: [{ name: "Wachiman review", status: "queued" }] }).review.state).toBe("running");
+    expect(read({ reviews: [rev(complete(OLD, 1), 1)] })).toMatchObject({
+      next: "wait",
+      why: "review_not_started",
+      review: { state: "stale" },
+    });
+    expect(read({ reviews: [rev(complete(OLD, 1), 1)], checks: [{ name: "Wachiman review", status: "queued" }] }).review.state).toBe(
+      "running",
+    );
   });
 });
 
@@ -274,11 +358,24 @@ describe("AC11: reviews from an engine without the block", () => {
   test("a complete review is read from `wachiman sha=` and a partial one from `wachi:partial`", () => {
     const completeLegacy = `Review\n\n<sub>m · $0.1</sub>\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`;
     const partialLegacy = `Partial\n\n${SIGNATURE.review}\n\n${partialMarker({ sha: HEAD, rest: ["b.ts"], tried: [] })}`;
-    expect(read({ reviews: [rev(completeLegacy, 1)] })).toMatchObject({ next: "done", why: "clean_legacy", review: { state: "complete", source: "legacy-markers", attempt: null, engine: null }, findings: { unthreaded: null } });
-    expect(read({ reviews: [rev(partialLegacy, 1)] })).toMatchObject({ next: "blocked", why: "partial", review: { state: "partial", source: "legacy-markers" } });
+    expect(read({ reviews: [rev(completeLegacy, 1)] })).toMatchObject({
+      next: "done",
+      why: "clean_legacy",
+      review: { state: "complete", source: "legacy-markers", attempt: null, engine: null },
+      findings: { unthreaded: null },
+    });
+    expect(read({ reviews: [rev(partialLegacy, 1)] })).toMatchObject({
+      next: "blocked",
+      why: "partial",
+      review: { state: "partial", source: "legacy-markers" },
+    });
   });
   test("a legacy notice without a sha is none, never complete", () => {
-    for (const legacyLine of ["<!-- wachi:refusal kind=billing -->", "<!-- wachi:ceiling usd=1.50 -->", "<!-- wachi:limit reason=limit on=2026-11-18 -->"]) {
+    for (const legacyLine of [
+      "<!-- wachi:refusal kind=billing -->",
+      "<!-- wachi:ceiling usd=1.50 -->",
+      "<!-- wachi:limit reason=limit on=2026-11-18 -->",
+    ]) {
       const body = `Notice\n\n${legacyLine}\n\n${SIGNATURE.review}`;
       const doc = read({ reviews: [rev(body, 1)] });
       expect(doc.review).toMatchObject({ state: "none", source: null });
@@ -312,7 +409,9 @@ describe("AC11: reviews from an engine without the block", () => {
 
 describe("AC12: pagination", () => {
   test("a finding thread past the first 100 threads is reported", () => {
-    const threads = Array.from({ length: 150 }, (_, i): Thread => (i === 149 ? thread({ id: "LAST" }) : { resolved: true, comments: [{ login: "dev", body: "x" }] }));
+    const threads = Array.from({ length: 150 }, (_, i): Thread =>
+      i === 149 ? thread({ id: "LAST" }) : { resolved: true, comments: [{ login: "dev", body: "x" }] },
+    );
     const f = fake({ reviews: [rev(complete(HEAD), 1)], threads });
     const doc = readPrState(f.gh, REPO, 1);
     expect(doc.findings.open.map((t) => t.thread_id)).toEqual(["LAST"]);
@@ -329,7 +428,12 @@ describe("AC12: pagination", () => {
     expect(doc.findings.open.map((t) => t.awaiting)).toEqual(["resolve"]);
   });
   test("a cursor that does not advance fails instead of looping", () => {
-    const gh: GhFn = (args) => args[1] === "graphql" ? JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage: true, endCursor: "x" }, nodes: [] } } } } }) : fake({ reviews: [] }).gh(args);
+    const gh: GhFn = (args) =>
+      args[1] === "graphql"
+        ? JSON.stringify({
+            data: { repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage: true, endCursor: "x" }, nodes: [] } } } },
+          })
+        : fake({ reviews: [] }).gh(args);
     expect(() => readPrState(gh, REPO, 1)).toThrow(/pagination/);
   });
 });
@@ -343,7 +447,10 @@ describe("AC17: a scoped block never decides the head", () => {
     expect(blocked).toMatchObject({ next: "blocked", why: "review_missing" });
   });
   test("a scoped review after a complete review of the same head leaves the complete one deciding", () => {
-    expect(read({ reviews: [rev(complete(HEAD, 1), 1), rev(scoped(HEAD, 2), 2)] })).toMatchObject({ next: "done", review: { state: "complete", attempt: ATTEMPT(1) } });
+    expect(read({ reviews: [rev(complete(HEAD, 1), 1), rev(scoped(HEAD, 2), 2)] })).toMatchObject({
+      next: "done",
+      review: { state: "complete", attempt: ATTEMPT(1) },
+    });
   });
   test("its threads are still listed and keep act", () => {
     const doc = read({ reviews: [rev(complete(HEAD, 1), 1), rev(scoped(HEAD, 2), 2)], threads: [thread({ id: "FROM_SCOPED" })] });
@@ -365,7 +472,10 @@ describe("forged state", () => {
     }
   });
   test("a finding thread from another author, or one that is not signed, is never listed", () => {
-    const doc = read({ reviews: [rev(complete(HEAD), 1)], threads: [{ comments: [{ login: "mallory", body: FINDING }] }, { comments: [{ login: "github-actions", body: "no signature" }] }] });
+    const doc = read({
+      reviews: [rev(complete(HEAD), 1)],
+      threads: [{ comments: [{ login: "mallory", body: FINDING }] }, { comments: [{ login: "github-actions", body: "no signature" }] }],
+    });
     expect(doc.findings.open).toEqual([]);
   });
   test("a block for another head is not this head's review", () => {

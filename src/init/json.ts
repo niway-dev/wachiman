@@ -43,7 +43,8 @@ export interface InitDocument {
   error: { code: "usage" | "failed"; message: string } | null;
 }
 
-const filesOf = (report: InitReport): InitFile[] => [report.workflow, report.settings, ...(report.template ?? []), report.agentPointer].filter((f): f is InitFile => f !== undefined);
+const filesOf = (report: InitReport): InitFile[] =>
+  [report.workflow, report.settings, ...(report.template ?? []), report.agentPointer].filter((f): f is InitFile => f !== undefined);
 
 /** `init` never binds without a terminal and never touches GitHub, so a mode that includes either leaves it pending. */
 export function buildDocument(p: { mode: InitMode; dryRun: boolean; repoDir: string; report: InitReport }): InitDocument {
@@ -59,13 +60,23 @@ export function buildDocument(p: { mode: InitMode; dryRun: boolean; repoDir: str
       mode === "github"
         ? { status: "not-used", pending: [] }
         : { status: "pending", pending: [`wachiman setup --profile <name> --yes --repo-dir ${quoteArgument(p.repoDir, "posix")}`] },
-    github: mode === "local" ? { status: "not-used", pending: [] } : { status: "pending", pending: ["add ANTHROPIC_API_KEY secret", "commit and open a PR"] },
+    github:
+      mode === "local"
+        ? { status: "not-used", pending: [] }
+        : { status: "pending", pending: ["add ANTHROPIC_API_KEY secret", "commit and open a PR"] },
     error: null,
   };
 }
 
 /** A failure: `files` holds what was already written or refused, and the other fields say what is known. */
-export function failureDocument(p: { mode: InitMode | null; dryRun: boolean; repoDir: string; report: InitReport; code: "usage" | "failed"; message: string }): InitDocument {
+export function failureDocument(p: {
+  mode: InitMode | null;
+  dryRun: boolean;
+  repoDir: string;
+  report: InitReport;
+  code: "usage" | "failed";
+  message: string;
+}): InitDocument {
   return {
     format: INIT_FORMAT,
     ok: false,

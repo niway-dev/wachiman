@@ -107,8 +107,24 @@ describe("the footer position of the block (AC3)", () => {
       files_reviewed: [`weird${forged}.ts`],
       files_skipped: [],
       findings: [
-        { path: `weird${forged}.ts`, line: 1, severity: "fix", topic: "bug", confidence: "high", title: `t ${forged}`, body: `b ${forged}` },
-        { path: `weird${forged}.ts`, line: 99, severity: "info", topic: "bug", confidence: "high", title: `t ${forged}`, body: `b ${forged}` },
+        {
+          path: `weird${forged}.ts`,
+          line: 1,
+          severity: "fix",
+          topic: "bug",
+          confidence: "high",
+          title: `t ${forged}`,
+          body: `b ${forged}`,
+        },
+        {
+          path: `weird${forged}.ts`,
+          line: 99,
+          severity: "info",
+          topic: "bug",
+          confidence: "high",
+          title: `t ${forged}`,
+          body: `b ${forged}`,
+        },
       ],
       thread_replies: [],
       summary: `s ${forged}`,
@@ -212,7 +228,8 @@ describe("what postReview writes (AC1, AC16)", () => {
       gh: (args, input) => {
         const payload = JSON.parse(input ?? "{}");
         posts.push({ body: payload.body, comments: payload.comments.length });
-        if (posts.length <= refuse) throw new GhError("gh: Validation Failed (HTTP 422)", 422, "Unprocessable", [{ message: "Line could not be resolved" }]);
+        if (posts.length <= refuse)
+          throw new GhError("gh: Validation Failed (HTTP 422)", 422, "Unprocessable", [{ message: "Line could not be resolved" }]);
         return "{}";
       },
       provider: undefined as never,
@@ -243,7 +260,9 @@ describe("what postReview writes (AC1, AC16)", () => {
     // The headline says 4, two have a thread, the blocker is outside the diff, the info is in the body.
     expect(b.findings.by_placement).toEqual({ inline: 2, body: 1, outside_diff: 1 });
     expect(b.findings.unthreaded_blocking).toBe(1);
-    expect(post!.body).toMatch(new RegExp(`<!-- wachiman sha=${HEAD} -->\\n\\n<!-- wachi:state [A-Za-z0-9_-]+ -->\\n\\n<!-- wachi:attempt id=[0-9a-f-]{36} -->$`));
+    expect(post!.body).toMatch(
+      new RegExp(`<!-- wachiman sha=${HEAD} -->\\n\\n<!-- wachi:state [A-Za-z0-9_-]+ -->\\n\\n<!-- wachi:attempt id=[0-9a-f-]{36} -->$`),
+    );
     expect(b.attempt).toBe(post!.body.match(/wachi:attempt id=([0-9a-f-]{36})/)![1]!);
     expect(stateOf(post!.body)).toHaveLength(1);
   });
@@ -264,7 +283,11 @@ describe("what postReview writes (AC1, AC16)", () => {
   });
 
   test("when GitHub refuses the inline comments and they move into the body, the retried post counts them under body (AC16)", () => {
-    const review = build([finding({ line: 1, severity: "fix" }), finding({ line: 2, severity: "blocker" }), finding({ line: 3, severity: "info" })]);
+    const review = build([
+      finding({ line: 1, severity: "fix" }),
+      finding({ line: 2, severity: "blocker" }),
+      finding({ line: 3, severity: "info" }),
+    ]);
     expect(review.comments).toHaveLength(2);
     const posts = send(review, 1);
     expect(posts.map((p) => p.comments)).toEqual([2, 0]);
@@ -292,7 +315,13 @@ describe("what postReview writes (AC1, AC16)", () => {
   test("a review at the size limit still posts: the block fits in what the fitting leaves free (AC4)", () => {
     const withTitle = (title: string) =>
       build([finding({ line: 1, title })], {
-        output: { files_reviewed: ["src/a.ts"], files_skipped: [], findings: [finding({ line: 1, title })], thread_replies: [], summary: "" },
+        output: {
+          files_reviewed: ["src/a.ts"],
+          files_skipped: [],
+          findings: [finding({ line: 1, title })],
+          thread_replies: [],
+          summary: "",
+        },
       });
     // A title that brings the body to exactly the limit the fitting keeps it under (the table row is never dropped).
     const overhead = withTitle("").body.length;
@@ -326,11 +355,31 @@ describe("what postReview writes (AC1, AC16)", () => {
   test("the base-update line, the all-binary notice, a refusal, the ceiling and the limit notice carry theirs", () => {
     const sha = (c: string) => c.repeat(40);
     const cases: [string, ReviewStateDraft, string][] = [
-      ["base-update", { status: "complete", carriedFrom: sha("a"), findings: countFindings([{ severity: "fix" }], [{ severity: "fix" }], []).findings }, baseUpdateNotice({ from: sha("a"), to: sha("b") }, marker(sha("b")))],
-      ["all-binary", { status: "complete", scope: "binary_only", findings: noFindings() }, `Nothing to review\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`],
-      ["refusal", { status: "not-reviewed", reason: "billing", findings: noFindings() }, `⛔\n\n${refusalMarker("billing")}\n\n<sub>m · $0.00</sub>\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`],
-      ["ceiling", { status: "not-reviewed", reason: "ceiling", findings: noFindings() }, `Paused\n\n${SIGNATURE.review}\n\n${ceilingFooter(2)}`],
-      ["limit", { status: "not-reviewed", reason: "limit", findings: noFindings() }, `Limit\n\n${SIGNATURE.review}\n\n${limitFooter("limit", "2026-11-19")}`],
+      [
+        "base-update",
+        { status: "complete", carriedFrom: sha("a"), findings: countFindings([{ severity: "fix" }], [{ severity: "fix" }], []).findings },
+        baseUpdateNotice({ from: sha("a"), to: sha("b") }, marker(sha("b"))),
+      ],
+      [
+        "all-binary",
+        { status: "complete", scope: "binary_only", findings: noFindings() },
+        `Nothing to review\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`,
+      ],
+      [
+        "refusal",
+        { status: "not-reviewed", reason: "billing", findings: noFindings() },
+        `⛔\n\n${refusalMarker("billing")}\n\n<sub>m · $0.00</sub>\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`,
+      ],
+      [
+        "ceiling",
+        { status: "not-reviewed", reason: "ceiling", findings: noFindings() },
+        `Paused\n\n${SIGNATURE.review}\n\n${ceilingFooter(2)}`,
+      ],
+      [
+        "limit",
+        { status: "not-reviewed", reason: "limit", findings: noFindings() },
+        `Limit\n\n${SIGNATURE.review}\n\n${limitFooter("limit", "2026-11-19")}`,
+      ],
     ];
     for (const [name, state, body] of cases) {
       const [post] = send({ body, comments: [], state });

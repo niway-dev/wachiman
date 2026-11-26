@@ -231,7 +231,9 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   // Verification is opt-in, including when a verifier model is configured.
   const verify = verifyRaw === "1" || verifyRaw === "true";
   if (verify && verifierModel === undefined) {
-    throw new UsageError(`WACHIMAN_VERIFY needs WACHIMAN_VERIFIER_MODEL with the ${provider} provider: the default verifier is a Claude model.`);
+    throw new UsageError(
+      `WACHIMAN_VERIFY needs WACHIMAN_VERIFIER_MODEL with the ${provider} provider: the default verifier is a Claude model.`,
+    );
   }
   const memoryProposalsRaw = get("MEMORY_PROPOSALS");
   if (memoryProposalsRaw !== undefined && !["0", "1", "true", "false"].includes(memoryProposalsRaw)) {

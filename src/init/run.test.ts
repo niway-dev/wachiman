@@ -1,5 +1,17 @@
 import { afterAll, afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, symlinkSync, unlinkSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { PassThrough } from "node:stream";
 import { join } from "node:path";
@@ -25,7 +37,8 @@ afterAll(() => {
 
 const NOW = "2026-11-09T12:00:00.000Z";
 const template = readFileSync(join(import.meta.dir, "..", "..", "templates", "wachiman-review-caller.yml"), "utf8");
-const expected = (operator: string, tag = "v1.5.0") => renderCallerWorkflow(template, { operator, tag, header: callerHeader({ version: "1.9.0", now: NOW }) });
+const expected = (operator: string, tag = "v1.5.0") =>
+  renderCallerWorkflow(template, { operator, tag, header: callerHeader({ version: "1.9.0", now: NOW }) });
 
 const realFetch = globalThis.fetch;
 beforeEach(() => {
@@ -49,7 +62,14 @@ function world() {
     out,
     err,
     io: { stdout: (t: string) => void out.push(t), stderr: (l: string) => void err.push(l) },
-    deps: (extra: InitDeps = {}): InitDeps => ({ now: () => NOW, version: "1.9.0", defaultWorkflowRef: "v1.5.0", interactive: false, cwd: "/elsewhere", ...extra }),
+    deps: (extra: InitDeps = {}): InitDeps => ({
+      now: () => NOW,
+      version: "1.9.0",
+      defaultWorkflowRef: "v1.5.0",
+      interactive: false,
+      cwd: "/elsewhere",
+      ...extra,
+    }),
     target: join(repo, ".github", "workflows", "wachiman-review.yml"),
   };
 }
@@ -79,7 +99,23 @@ describe("init --mode github --operator me --dry-run", () => {
   test("it terminates after rendering: no setup line, no prompt, even in a terminal", async () => {
     const w = world();
     const io = scripted([]);
-    const code = await init(w, ["--mode", "both", "--operator", "me", "--version", "v1.5.0", "--path", ".github/workflows/wachiman-review.yml", "--project-kind", "monorepo", "--dry-run"], { interactive: true, promptIO: io, bindNow: () => Promise.reject(new Error("must not chain")) });
+    const code = await init(
+      w,
+      [
+        "--mode",
+        "both",
+        "--operator",
+        "me",
+        "--version",
+        "v1.5.0",
+        "--path",
+        ".github/workflows/wachiman-review.yml",
+        "--project-kind",
+        "monorepo",
+        "--dry-run",
+      ],
+      { interactive: true, promptIO: io, bindNow: () => Promise.reject(new Error("must not chain")) },
+    );
     expect(code).toBe(0);
     expect(w.out.join("")).toBe(expected("me"));
     expect(w.err.join("\n")).not.toContain("setup");
@@ -103,7 +139,9 @@ describe("init --mode github without --dry-run", () => {
 
   test("--version and --path are honoured", async () => {
     const w = world();
-    expect(await init(w, ["--mode", "github", "--operator", "me", "--version", "v2.0.1", "--path", ".github/workflows/review.yaml"])).toBe(0);
+    expect(await init(w, ["--mode", "github", "--operator", "me", "--version", "v2.0.1", "--path", ".github/workflows/review.yaml"])).toBe(
+      0,
+    );
     expect(readFileSync(join(w.repo, ".github/workflows/review.yaml"), "utf8")).toBe(expected("me", "v2.0.1"));
   });
 
@@ -133,7 +171,11 @@ describe("init --mode github without --dry-run", () => {
     await init(w, ["--mode", "github", "--operator", "two", "--force"]);
     await init(w, ["--mode", "github", "--operator", "three", "--force"]);
     const dir = join(w.repo, ".github", "workflows");
-    expect(readdirSync(dir).sort()).toEqual(["wachiman-review.yml", "wachiman-review.yml.bak-20261109-120000", "wachiman-review.yml.bak-20261109-120000-2"]);
+    expect(readdirSync(dir).sort()).toEqual([
+      "wachiman-review.yml",
+      "wachiman-review.yml.bak-20261109-120000",
+      "wachiman-review.yml.bak-20261109-120000-2",
+    ]);
     expect(readFileSync(join(dir, "wachiman-review.yml.bak-20261109-120000"), "utf8")).toBe(expected("one"));
     expect(readFileSync(join(dir, "wachiman-review.yml.bak-20261109-120000-2"), "utf8")).toBe(expected("two"));
   });
@@ -193,7 +235,9 @@ describe("init --mode github without --dry-run", () => {
 
   test("a new file that appears between the look and the write is not overwritten", async () => {
     const w = world();
-    const error = await init(w, ["--mode", "github", "--operator", "me"], { hooks: { beforeCommit: () => writeFileSync(w.target, "appeared\n") } }).then(
+    const error = await init(w, ["--mode", "github", "--operator", "me"], {
+      hooks: { beforeCommit: () => writeFileSync(w.target, "appeared\n") },
+    }).then(
       () => undefined,
       (e) => e,
     );
@@ -263,7 +307,9 @@ describe("init without a terminal", () => {
 
   test("--mode both writes the workflow, prints the setup line and never runs setup", async () => {
     const w = world();
-    const code = await init(w, ["--mode", "both", "--operator", "me"], { bindNow: () => Promise.reject(new Error("setup must not run without a terminal")) });
+    const code = await init(w, ["--mode", "both", "--operator", "me"], {
+      bindNow: () => Promise.reject(new Error("setup must not run without a terminal")),
+    });
     expect(code).toBe(0);
     expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
     expect(w.err.join("\n")).toContain(`wachiman setup --repo-dir ${w.repo}`);
@@ -272,7 +318,13 @@ describe("init without a terminal", () => {
   test("--yes in a terminal behaves like no terminal: no prompts", async () => {
     const w = world();
     const io = scripted([]);
-    expect(await init(w, ["--mode", "github", "--operator", "me", "--yes"], { interactive: undefined, streams: { stdin: { isTTY: true }, stdout: { isTTY: true } }, promptIO: io })).toBe(0);
+    expect(
+      await init(w, ["--mode", "github", "--operator", "me", "--yes"], {
+        interactive: undefined,
+        streams: { stdin: { isTTY: true }, stdout: { isTTY: true } },
+        promptIO: io,
+      }),
+    ).toBe(0);
     expect(io.printed()).toBe("");
     expect(existsSync(w.target)).toBe(true);
   });
@@ -293,14 +345,28 @@ describe("init with scripted prompts", () => {
     const env = { WACHIMAN_HOME: home, PATH: "/usr/bin", USER: "fixture" };
     const tools = fakeToolchain();
     const promptIO = scripted(["", "n", "", "", ""]); // kind, PR template (no), Write it? (both) or Write .wachiman.yml? (local), pointer, account; the binding is not asked
-    const code = await runInitCommand({ repoDir: w.repo, mode, ...(mode === "both" ? { operator: "me", version: "v1.5.0", path: ".github/workflows/wachiman-review.yml" } : {}) }, env, w.io, w.deps({
-      interactive: true,
-      promptIO,
-      bindNow: (prompter, initMode) => runSetupCommand({ repoDir: w.repo }, env, w.io, {
-        interactive: true, fromInit: true, initMode, prompter, spawn: tools.spawn,
-        doctor: { platform: "darwin", arch: "arm64", version: "1.9.0", install: { kind: "source", root: "/fixture" } },
+    const code = await runInitCommand(
+      {
+        repoDir: w.repo,
+        mode,
+        ...(mode === "both" ? { operator: "me", version: "v1.5.0", path: ".github/workflows/wachiman-review.yml" } : {}),
+      },
+      env,
+      w.io,
+      w.deps({
+        interactive: true,
+        promptIO,
+        bindNow: (prompter, initMode) =>
+          runSetupCommand({ repoDir: w.repo }, env, w.io, {
+            interactive: true,
+            fromInit: true,
+            initMode,
+            prompter,
+            spawn: tools.spawn,
+            doctor: { platform: "darwin", arch: "arm64", version: "1.9.0", install: { kind: "source", root: "/fixture" } },
+          }),
       }),
-    }));
+    );
     expect(code).toBe(0);
     const config = readConfig(home);
     expect(config.kind).toBe("ok");
@@ -309,7 +375,9 @@ describe("init with scripted prompts", () => {
     expect(promptIO.printed()).not.toContain("Run wachiman setup now");
     expect(promptIO.printed()).not.toMatch(/Bind .* to default\?/);
     expect(promptIO.printed()).not.toContain("Confirm binding");
-    expect(promptIO.printed()).toMatch(/local reviews of .* will use the account "default"; saved in .*config\.json, nothing in the repository/);
+    expect(promptIO.printed()).toMatch(
+      /local reviews of .* will use the account "default"; saved in .*config\.json, nothing in the repository/,
+    );
     expect(existsSync(w.target)).toBe(mode === "both");
     expect(readFileSync(join(w.repo, ".wachiman.yml"), "utf8")).toContain("kind: monorepo\n");
     expect(promptIO.printed()).toContain(mode === "both" ? "Step 5/6  Claude account" : "Step 4/5  Claude account");
@@ -323,7 +391,9 @@ describe("init with scripted prompts", () => {
     const plain = mkdtempSync(join(tmpdir(), "wachiman-not-git-"));
     scratch.push(plain);
     const io = scripted(["1"]);
-    await expect(runInitCommand({ repoDir: plain }, {}, w.io, w.deps({ interactive: true, promptIO: io }))).rejects.toBeInstanceOf(UsageError);
+    await expect(runInitCommand({ repoDir: plain }, {}, w.io, w.deps({ interactive: true, promptIO: io }))).rejects.toBeInstanceOf(
+      UsageError,
+    );
     expect(io.printed()).toBe("");
   });
 
@@ -497,10 +567,14 @@ describe("init with scripted prompts", () => {
     const w = world();
     const io = scripted(["", "2", "n", "", "", "from-setup"]);
     let got: string | null | undefined;
-    const code = await init(w, [], { interactive: true, promptIO: io, bindNow: async (p) => {
-      got = await p.text("Setup asks", undefined);
-      return 0;
-    } });
+    const code = await init(w, [], {
+      interactive: true,
+      promptIO: io,
+      bindNow: async (p) => {
+        got = await p.text("Setup asks", undefined);
+        return 0;
+      },
+    });
     expect(code).toBe(0);
     expect(got).toBe("from-setup");
     expect(existsSync(w.target)).toBe(false);
@@ -530,28 +604,42 @@ describe("init with scripted prompts", () => {
     const w = world();
     const io = scripted(["", "3", "me", "n", "", ""]);
     let slot: { warning?: string } | undefined;
-    const code = await init(w, [], { interactive: true, promptIO: io, bindNow: async (_p, _m, closing) => {
-      slot = closing;
-      closing.warning = "Saved. One step left: sign in to Claude (`claude auth login`), then run `wachiman init` again or `wachiman doctor`.";
-      return 1;
-    } });
+    const code = await init(w, [], {
+      interactive: true,
+      promptIO: io,
+      bindNow: async (_p, _m, closing) => {
+        slot = closing;
+        closing.warning =
+          "Saved. One step left: sign in to Claude (`claude auth login`), then run `wachiman init` again or `wachiman doctor`.";
+        return 1;
+      },
+    });
     expect(code).toBe(1);
     expect(slot?.warning).toContain("One step left");
     expect(readFileSync(w.target, "utf8")).toBe(expected("me"));
   });
 
-  test.each(["both", "local"] as const)("%s: a terminal session ends on the neutral warning, never on \"Stopped.\"", async (mode) => {
+  test.each(["both", "local"] as const)('%s: a terminal session ends on the neutral warning, never on "Stopped."', async (mode) => {
     const w = world();
     const ui = fakeUi([0, true, true, true]); // project kind, then the confirmations (workflow, settings)
     const warning = "Saved. One step left: sign in to Claude (`claude auth login`), then run `wachiman init` again or `wachiman doctor`.";
     const code = await runInitCommand(
-      { repoDir: w.repo, mode, ...(mode === "both" ? { operator: "me", version: "v1.5.0", path: ".github/workflows/wachiman-review.yml" } : {}) },
+      {
+        repoDir: w.repo,
+        mode,
+        ...(mode === "both" ? { operator: "me", version: "v1.5.0", path: ".github/workflows/wachiman-review.yml" } : {}),
+      },
       { WACHIMAN_INTRO_DONE: "1" },
       w.io,
-      w.deps({ interactive: true, promptIO: { input: new PassThrough(), output: new PassThrough() }, ui, bindNow: async (_p, _m, closing) => {
-        closing.warning = warning;
-        return 1;
-      } }),
+      w.deps({
+        interactive: true,
+        promptIO: { input: new PassThrough(), output: new PassThrough() },
+        ui,
+        bindNow: async (_p, _m, closing) => {
+          closing.warning = warning;
+          return 1;
+        },
+      }),
     );
     expect(code).toBe(1);
     // What the session finally drew: the neutral text is the last event, as an outro, and nothing says "Stopped.".
@@ -572,7 +660,15 @@ describe("init with scripted prompts", () => {
   test("both: a setup failure reports the completed workflow write", async () => {
     const w = world();
     const io = scripted(["", "3", "me", "n", "", ""]);
-    const code = await exit2(init(w, [], { interactive: true, promptIO: io, bindNow: async () => { throw new UsageError("setup failed"); } }));
+    const code = await exit2(
+      init(w, [], {
+        interactive: true,
+        promptIO: io,
+        bindNow: async () => {
+          throw new UsageError("setup failed");
+        },
+      }),
+    );
     expect(code).toContain("setup failed");
     expect(existsSync(w.target)).toBe(true);
     expect(w.err.join("\n")).toContain(".github/workflows/wachiman-review.yml was written before setup failed and stays");
@@ -809,8 +905,15 @@ describe("the repository settings file .wachiman.yml", () => {
     mkdirSync(join(w.repo, ".github"));
     writeFileSync(settingsFile(w), "kind: monorepo\n");
     const edited = "kind: monorepo\nowner: someone-else\n";
-    const settingsHooks = { beforeCommit: () => { unlinkSync(settingsFile(w)); writeFileSync(settingsFile(w), edited); } };
-    expect(await exit2(init(w, [...baseArgs, "--project-kind", "single", "--force"], { settingsHooks }))).toContain("changed while init was running");
+    const settingsHooks = {
+      beforeCommit: () => {
+        unlinkSync(settingsFile(w));
+        writeFileSync(settingsFile(w), edited);
+      },
+    };
+    expect(await exit2(init(w, [...baseArgs, "--project-kind", "single", "--force"], { settingsHooks }))).toContain(
+      "changed while init was running",
+    );
     expect(readFileSync(settingsFile(w), "utf8")).toBe(edited);
     expect(existsSync(w.target)).toBe(true);
     expect(w.err.join("\n")).toContain("was written before .wachiman.yml failed and stays in place.");
@@ -819,7 +922,9 @@ describe("the repository settings file .wachiman.yml", () => {
   test("a settings file that appears during the write is never overwritten", async () => {
     const w = world();
     const settingsHooks = { beforeCommit: () => writeFileSync(settingsFile(w), "kind: theirs\n") };
-    expect(await exit2(init(w, ["--mode", "local", "--project-kind", "single"], { settingsHooks }))).toContain("appeared while init was running");
+    expect(await exit2(init(w, ["--mode", "local", "--project-kind", "single"], { settingsHooks }))).toContain(
+      "appeared while init was running",
+    );
     expect(readFileSync(settingsFile(w), "utf8")).toBe("kind: theirs\n");
   });
 

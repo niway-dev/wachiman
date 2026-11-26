@@ -59,7 +59,9 @@ describe("usage parsing", () => {
   });
 
   test("addUsage sums field by field", () => {
-    expect(addUsage({ input: 1, output: 2, cacheRead: 3, cacheWrite: 4 }, { input: 10, output: 20, cacheRead: 30, cacheWrite: 40 })).toEqual({
+    expect(
+      addUsage({ input: 1, output: 2, cacheRead: 3, cacheWrite: 4 }, { input: 10, output: 20, cacheRead: 30, cacheWrite: 40 }),
+    ).toEqual({
       input: 11,
       output: 22,
       cacheRead: 33,
@@ -162,7 +164,13 @@ describe("the job summary", () => {
   test("renders one row per call and a total row", () => {
     const table = renderCostSummary([
       call(),
-      call({ operation: "reply", label: "threads", turns: 3, usage: { input: 100, output: 200, cacheRead: 300, cacheWrite: 400 }, costUsd: 0.1 }),
+      call({
+        operation: "reply",
+        label: "threads",
+        turns: 3,
+        usage: { input: 100, output: 200, cacheRead: 300, cacheWrite: 400 },
+        costUsd: 0.1,
+      }),
     ]);
     expect(table).toBe(
       [
@@ -202,14 +210,29 @@ describe("the job summary", () => {
     expect(written).toHaveLength(1);
     expect(written[0][0]).toBe("/tmp/s");
     expect(written[0][1]).toContain("| **Total** |");
-    expect(writeStepSummary([call()], { GITHUB_STEP_SUMMARY: "/nope" }, () => { throw new Error("EACCES"); })).toBe(false);
+    expect(
+      writeStepSummary([call()], { GITHUB_STEP_SUMMARY: "/nope" }, () => {
+        throw new Error("EACCES");
+      }),
+    ).toBe(false);
   });
 });
 
 describe("ledgerCall", () => {
   const FIELDS = [
-    "auth", "cache_read_tokens", "cache_write_tokens", "costKnown", "cost_usd", "duration_ms", "input_tokens",
-    "label", "model", "operation", "output_tokens", "terminal_reason", "turns",
+    "auth",
+    "cache_read_tokens",
+    "cache_write_tokens",
+    "costKnown",
+    "cost_usd",
+    "duration_ms",
+    "input_tokens",
+    "label",
+    "model",
+    "operation",
+    "output_tokens",
+    "terminal_reason",
+    "turns",
   ];
 
   test("carries the thirteen fields of the contract and nothing about where the call ran", () => {
@@ -249,7 +272,9 @@ describe("writeStepSummary with ledger notes", () => {
   test("appends a spend limit section with one bullet per note, even when no call was made", () => {
     const written: string[] = [];
     const append = (_path: string, text: string) => void written.push(text);
-    expect(writeStepSummary([], { GITHUB_STEP_SUMMARY: "/tmp/s" }, append, ["The ledger could not be reached.", "The run was not recorded."])).toBe(true);
+    expect(
+      writeStepSummary([], { GITHUB_STEP_SUMMARY: "/tmp/s" }, append, ["The ledger could not be reached.", "The run was not recorded."]),
+    ).toBe(true);
     expect(written[0]).toContain("### Wachiman spend limit");
     expect(written[0]).toContain("- The ledger could not be reached.\n- The run was not recorded.");
     expect(written[0]).not.toContain("### Wachiman model cost");

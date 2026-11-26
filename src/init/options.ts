@@ -13,7 +13,7 @@ export const projectKinds: readonly ProjectKind[] = ["monorepo", "single"];
 /** Why `kind` cannot be recorded, or undefined when it can. */
 export function projectKindProblem(kind: string): string | undefined {
   if (projectKinds.includes(kind as ProjectKind)) return undefined;
-  if (kind === "distributed") return '--project-kind distributed is not available yet; use monorepo or single.';
+  if (kind === "distributed") return "--project-kind distributed is not available yet; use monorepo or single.";
   return `--project-kind must be monorepo or single, got "${kind}".`;
 }
 
@@ -60,7 +60,7 @@ export type ResolveResult<T> = { ok: true; options: T } | { ok: false; error: st
  * docs/releasing.md); the CLI's own version is never a substitute,
  * because an unreleased or unrelated version would pin a workflow that does not exist.
  */
-export const DEFAULT_WORKFLOW_REF: string | undefined = "v1.19.0"; // x-release-please-version
+export const DEFAULT_WORKFLOW_REF: string | undefined = "v1.21.0"; // x-release-please-version
 
 export const DEFAULT_WORKFLOW_PATH = ".github/workflows/wachiman-review.yml";
 const WORKFLOWS_DIR = ".github/workflows/";
@@ -85,7 +85,9 @@ export function operatorProblem(login: string): string | undefined {
 
 /** Why `tag` cannot be pinned, or undefined when it can. Only `vX.Y.Z` and a full lowercase commit SHA name a release. */
 export function tagProblem(tag: string): string | undefined {
-  return TAG.test(tag) ? undefined : `--version "${tag}" is not a release tag: use vX.Y.Z (for example v1.5.0) or a full 40-character commit SHA.`;
+  return TAG.test(tag)
+    ? undefined
+    : `--version "${tag}" is not a release tag: use vX.Y.Z (for example v1.5.0) or a full 40-character commit SHA.`;
 }
 
 /** The workflow path in normal form, or why it is refused: relative, `.yml` or `.yaml`, directly under `.github/workflows/`. */
@@ -107,7 +109,8 @@ export function resolveInitOptions(
   ctx: { interactive: boolean; defaultWorkflowRef?: string },
 ): ResolveResult<InitOptions> {
   const fail = (error: string) => ({ ok: false as const, error });
-  if (flags.mode === undefined) return fail("init needs --mode github|local|both when it cannot ask; for this machine only, use --mode local.");
+  if (flags.mode === undefined)
+    return fail("init needs --mode github|local|both when it cannot ask; for this machine only, use --mode local.");
   if (!initModes.includes(flags.mode as InitMode)) return fail(`--mode must be github, local or both, got "${flags.mode}".`);
   const mode = flags.mode as InitMode;
   const repoDir = flags.repoDir ?? ".";
@@ -123,22 +126,40 @@ export function resolveInitOptions(
 
   if (mode === "local") {
     // With a kind, --force means "change a different kind in the settings file", which local mode does write.
-    const given = GITHUB_ONLY_FLAGS.filter(([key]) => flags[key] !== undefined && flags[key] !== false && !(key === "force" && settings))
-      .map(([, name]) => name);
-    if (given.length > 0) return fail(`${given.join(", ")} only apply to a workflow; --mode local writes none. Drop them, or use --mode github or both.`);
-    return { ok: true, options: { mode, ...optionalFiles, ...(settings ? { settings } : {}), ...(flags.dryRun ? { dryRun: true as const } : {}), repoDir, interactive: ctx.interactive } };
+    const given = GITHUB_ONLY_FLAGS.filter(
+      ([key]) => flags[key] !== undefined && flags[key] !== false && !(key === "force" && settings),
+    ).map(([, name]) => name);
+    if (given.length > 0)
+      return fail(`${given.join(", ")} only apply to a workflow; --mode local writes none. Drop them, or use --mode github or both.`);
+    return {
+      ok: true,
+      options: {
+        mode,
+        ...optionalFiles,
+        ...(settings ? { settings } : {}),
+        ...(flags.dryRun ? { dryRun: true as const } : {}),
+        repoDir,
+        interactive: ctx.interactive,
+      },
+    };
   }
 
-  if (flags.operator === undefined) return fail(`init --mode ${mode} needs --operator <github login> when it cannot ask: the one person whose /wachiman comments start a run.`);
+  if (flags.operator === undefined)
+    return fail(
+      `init --mode ${mode} needs --operator <github login> when it cannot ask: the one person whose /wachiman comments start a run.`,
+    );
   const operatorError = operatorProblem(flags.operator);
   if (operatorError) return fail(operatorError);
 
   let tag = flags.version;
   if (tag === undefined) {
     if (ctx.defaultWorkflowRef === undefined) {
-      return fail("init needs --version <vX.Y.Z or commit SHA>: this build bundles no known-published workflow ref, and the CLI's own version is never used as one.");
+      return fail(
+        "init needs --version <vX.Y.Z or commit SHA>: this build bundles no known-published workflow ref, and the CLI's own version is never used as one.",
+      );
     }
-    if (!TAG.test(ctx.defaultWorkflowRef)) return fail(`the bundled workflow ref "${ctx.defaultWorkflowRef}" is not a release tag; pass --version <vX.Y.Z>.`);
+    if (!TAG.test(ctx.defaultWorkflowRef))
+      return fail(`the bundled workflow ref "${ctx.defaultWorkflowRef}" is not a release tag; pass --version <vX.Y.Z>.`);
     tag = ctx.defaultWorkflowRef;
   } else {
     const tagError = tagProblem(tag);

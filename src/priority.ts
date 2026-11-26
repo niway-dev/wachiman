@@ -16,9 +16,7 @@ const ORDER: readonly Priority[] = ["fyi", "could", "should", "must"];
 const SEED_RANK: Record<Priority, number> = { must: 90, should: 70, could: 40, fyi: 10 };
 
 /** Where a cell's word came from: set by hand, or fitted to outcomes (layer 2 fills the counts). */
-export type Provenance =
-  | { basis: "seed" }
-  | { basis: "calibrated"; n: number; prs: number; model: string; promptVersion: string };
+export type Provenance = { basis: "seed" } | { basis: "calibrated"; n: number; prs: number; model: string; promptVersion: string };
 
 /** One severity x confidence cell. The rank (0-100) is recorded for each finding, not used to order findings yet, and never displayed. */
 export interface Cell {
@@ -33,7 +31,11 @@ export interface CalibrationTable {
 }
 
 const seed = (priority: Priority): Cell => ({ priority, rank: SEED_RANK[priority], provenance: { basis: "seed" } });
-const row = (high: Priority, medium: Priority, low: Priority): Record<Confidence, Cell> => ({ high: seed(high), medium: seed(medium), low: seed(low) });
+const row = (high: Priority, medium: Priority, low: Priority): Record<Confidence, Cell> => ({
+  high: seed(high),
+  medium: seed(medium),
+  low: seed(low),
+});
 
 /** Spec decision 4. Seeds are set, not computed from fix rates: a fix rate measures compliance. */
 export const TABLE_V1: CalibrationTable = {
@@ -65,7 +67,10 @@ const weaker = (a: Priority, b: Priority) => (ORDER.indexOf(a) <= ORDER.indexOf(
  * Blocker is Must; every other Fix on a defect topic is at least Should. The table's cell can
  * raise a word above its floor, never lower it. A finding without confidence uses the medium cell.
  */
-export function priorityOf(f: { severity: Severity; topic: Topic; confidence?: Confidence }, table: CalibrationTable = TABLE_V1): PriorityResult {
+export function priorityOf(
+  f: { severity: Severity; topic: Topic; confidence?: Confidence },
+  table: CalibrationTable = TABLE_V1,
+): PriorityResult {
   const confidence = f.confidence ?? "medium";
   const cell = table.cells[f.severity][confidence];
   const demanding = f.severity === "blocker" || f.severity === "fix";

@@ -24,7 +24,9 @@ describe("renderCallerWorkflow on the real template", () => {
     expect(body.length).toBe(before.length);
     const changed = before.flatMap((line, i) => (line === body[i] ? [] : [{ before: line, after: body[i] }]));
     expect(changed).toHaveLength(2);
-    expect(changed[0].before).toMatch(/^    uses: niway-dev\/wachiman\/\.github\/workflows\/review\.yml@v\d+\.\d+\.\d+ # x-release-please-version$/);
+    expect(changed[0].before).toMatch(
+      /^    uses: niway-dev\/wachiman\/\.github\/workflows\/review\.yml@v\d+\.\d+\.\d+ # x-release-please-version$/,
+    );
     expect(changed[0].after).toBe("    uses: niway-dev/wachiman/.github/workflows/review.yml@v2.0.1");
     expect(changed[1].before).toBe("      operator: EDIT-THIS-github-login");
     expect(changed[1].after).toBe('      operator: "octocat"');
@@ -75,7 +77,9 @@ describe("renderCallerWorkflow throws when a template lacks an anchor", () => {
   });
 
   test("an anchor found twice is as wrong as one not found", () => {
-    expect(() => renderCallerWorkflow(`${template}\n# operator: EDIT-THIS-github-login\n`, { operator: "me", tag: "v1.5.0" })).toThrow(/operator/);
+    expect(() => renderCallerWorkflow(`${template}\n# operator: EDIT-THIS-github-login\n`, { operator: "me", tag: "v1.5.0" })).toThrow(
+      /operator/,
+    );
   });
 
   test("the login is a quoted YAML string, so a login YAML would read as null, a boolean or a number stays the login", () => {

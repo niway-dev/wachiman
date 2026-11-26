@@ -27,7 +27,10 @@ export function renderText(report: DoctorReport) {
   const header = `Wachiman ${report.version} (${[report.install, path, report.platform, `tier ${report.tier}`].filter(Boolean).join(", ")})`;
   const width = Math.max(...report.checks.map((r) => label(r).length));
   const lines = [header, PROMISE, ""];
-  for (const [title, level] of [["Required", "required"], ["Optional", "optional"]] as const) {
+  for (const [title, level] of [
+    ["Required", "required"],
+    ["Optional", "optional"],
+  ] as const) {
     lines.push(title);
     for (const r of report.checks.filter((c) => c.level === level)) lines.push(...renderRow(r, width));
     lines.push("");
@@ -62,7 +65,9 @@ export function redactReport(report: DoctorReport, where: { home: string; userHo
   // A known root is matched as a literal prefix, so a space inside it (`/Users/Jane Doe`) does not end the path.
   const known = [...new Set(roots)]
     .sort((a, b) => b.length - a.length)
-    .map((root) => new RegExp(`(?<![\\w.:/\\\\-])${root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![^\\s/\\\\,;()"'\`])[^\\s,;()"'\`]*`, "g"));
+    .map(
+      (root) => new RegExp(`(?<![\\w.:/\\\\-])${root.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?![^\\s/\\\\,;()"'\`])[^\\s,;()"'\`]*`, "g"),
+    );
   const clean = (text: string) => known.reduce((t, re) => t.replace(re, shorten), text.replace(URL, "<remote>")).replace(PATH, shorten);
   return {
     ...report,
@@ -70,7 +75,9 @@ export function redactReport(report: DoctorReport, where: { home: string; userHo
       ...r,
       evidence: clean(r.evidence),
       ...(r.fix !== undefined ? { fix: clean(r.fix) } : {}),
-      ...(r.detail ? { detail: Object.fromEntries(Object.entries(r.detail).map(([k, v]) => [k, typeof v === "string" ? clean(v) : v])) } : {}),
+      ...(r.detail
+        ? { detail: Object.fromEntries(Object.entries(r.detail).map(([k, v]) => [k, typeof v === "string" ? clean(v) : v])) }
+        : {}),
     })),
   };
 }

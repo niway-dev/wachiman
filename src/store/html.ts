@@ -23,12 +23,7 @@ export interface DashboardDocument extends Figures {
 
 /** Text for an element or a quoted attribute. */
 export function esc(text: unknown): string {
-  return String(text)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+  return String(text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
 /** Escaped text where `backtick spans` become <code>; the escape runs first, so a span cannot open a tag. */
@@ -38,7 +33,10 @@ export function withCode(text: string): string {
 
 const usd = (n: number) => `$${n.toFixed(2)}`;
 /** Estimated dollars, with unknown-credential dollars named beside them and never added in. */
-const estimated = (s: Split) => (s.byCredential.unknown.usd > 0 ? `${usd(s.byCredential.estimated.usd)} + ${usd(s.byCredential.unknown.usd)} unknown` : usd(s.byCredential.estimated.usd));
+const estimated = (s: Split) =>
+  s.byCredential.unknown.usd > 0
+    ? `${usd(s.byCredential.estimated.usd)} + ${usd(s.byCredential.unknown.usd)} unknown`
+    : usd(s.byCredential.estimated.usd);
 const SEVERITY_WORD: Record<string, string> = { blocker: "Blocker", fix: "Fix", consider: "Consider", info: "Info" };
 
 /** A bar as wide as `value` is of `max`, drawn as inline SVG; `max` 0 gives an empty bar. */
@@ -55,7 +53,6 @@ function table(head: string[], rows: string[][], numeric: number[] = []): string
 }
 
 const empty = (text: string) => `<p class="muted">${withCode(text)}</p>`;
-
 
 const NO_DATA = "no data";
 const SOURCE_WORD: Record<Source, string> = { actions: "GitHub Actions", laptop: "laptop" };
@@ -94,7 +91,11 @@ function bucketTable(buckets: Bucket[], kind: "day" | "week"): string {
     ]);
   }
   flush();
-  return table([kind === "day" ? "Day (UTC)" : "Week (Monday, UTC)", "Runs", "Calls", "Total", "GitHub Actions", "Laptop", "Billed / estimated"], rows, [1, 2, 3, 4, 5, 6]);
+  return table(
+    [kind === "day" ? "Day (UTC)" : "Week (Monday, UTC)", "Runs", "Calls", "Total", "GitHub Actions", "Laptop", "Billed / estimated"],
+    rows,
+    [1, 2, 3, 4, 5, 6],
+  );
 }
 
 /**
@@ -102,7 +103,14 @@ function bucketTable(buckets: Bucket[], kind: "day" | "week"): string {
  * "counted" is what the ledger counts against its limit (GitHub Actions only) with the limit line;
  * "source" is settled dollars by source (GitHub Actions below, laptop above) and has no limit line.
  */
-function chart(buckets: Bucket[], kind: "counted" | "source", limit: number | null, what: string, limitWord: string, tickEvery: number): string {
+function chart(
+  buckets: Bucket[],
+  kind: "counted" | "source",
+  limit: number | null,
+  what: string,
+  limitWord: string,
+  tickEvery: number,
+): string {
   const W = 640;
   const H = 170;
   const left = 46;
@@ -134,7 +142,11 @@ function chart(buckets: Bucket[], kind: "counted" | "source", limit: number | nu
   });
   // A label under every `tickEvery`-th bucket, counted back from the newest so that the last one is always named.
   const ticks = buckets
-    .map((b, i) => ((buckets.length - 1 - i) % tickEvery === 0 ? `<text class="axis" x="${(left + i * slot + slot / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(b.key.slice(5))}</text>` : ""))
+    .map((b, i) =>
+      (buckets.length - 1 - i) % tickEvery === 0
+        ? `<text class="axis" x="${(left + i * slot + slot / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle">${esc(b.key.slice(5))}</text>`
+        : "",
+    )
     .join("");
   const limitLine =
     kind !== "counted" || limit === null
@@ -170,8 +182,16 @@ function asideTable(aside: Report["aside"]): string {
   return table(
     ["Not counted as spend", "Runs", "Dollars"],
     [
-      row("Runs that were not reserved (the ledger was unreachable; recorded afterwards)", aside.unreserved, `${usd(aside.unreserved.usd)} recorded`),
-      row("Reservations that never settled (the run was killed; the hold is not spend)", aside.unsettled, `${usd(aside.unsettled.reservedUsd)} held`),
+      row(
+        "Runs that were not reserved (the ledger was unreachable; recorded afterwards)",
+        aside.unreserved,
+        `${usd(aside.unreserved.usd)} recorded`,
+      ),
+      row(
+        "Reservations that never settled (the run was killed; the hold is not spend)",
+        aside.unsettled,
+        `${usd(aside.unsettled.reservedUsd)} held`,
+      ),
       row("Runs still reserved (under six hours old)", aside.reserved, `${usd(aside.reserved.reservedUsd)} held`),
     ],
     [1],
@@ -182,10 +202,13 @@ function renderUsage(u: UsageSection): string {
   const r = u.report;
   const t = r.totals;
   const limits: Limits | null = r.limits;
-  const lastPull = r.pulledAt ? `The ledger was last pulled ${esc(r.pulledAt)}; GitHub Actions figures cover ${esc(r.coverage.actions?.from ?? "")} to ${esc(r.coverage.actions?.to ?? "")}.` : "The ledger has not been pulled yet: run <code>wachiman ledger pull</code>. GitHub Actions figures show no data until then.";
-  const limitText = limits && (limits.dailyUsd !== null || limits.weeklyUsd !== null)
-    ? `Ledger limits: ${limits.dailyUsd !== null ? `daily ${usd(limits.dailyUsd)}` : "no daily limit"}, ${limits.weeklyUsd !== null ? `weekly ${usd(limits.weeklyUsd)}` : "no weekly limit"}. The limit is best-effort and counts GitHub Actions runs only, never laptop runs.`
-    : "The ledger limit, when one is set, is best-effort and counts GitHub Actions runs only, never laptop runs.";
+  const lastPull = r.pulledAt
+    ? `The ledger was last pulled ${esc(r.pulledAt)}; GitHub Actions figures cover ${esc(r.coverage.actions?.from ?? "")} to ${esc(r.coverage.actions?.to ?? "")}.`
+    : "The ledger has not been pulled yet: run <code>wachiman ledger pull</code>. GitHub Actions figures show no data until then.";
+  const limitText =
+    limits && (limits.dailyUsd !== null || limits.weeklyUsd !== null)
+      ? `Ledger limits: ${limits.dailyUsd !== null ? `daily ${usd(limits.dailyUsd)}` : "no daily limit"}, ${limits.weeklyUsd !== null ? `weekly ${usd(limits.weeklyUsd)}` : "no weekly limit"}. The limit is best-effort and counts GitHub Actions runs only, never laptop runs.`
+      : "The ledger limit, when one is set, is best-effort and counts GitHub Actions runs only, never laptop runs.";
   const legend = `<p class="legend"><span class="sw"></span>${esc(SOURCE_WORD.actions)}<span class="sw sw2"></span>${esc(SOURCE_WORD.laptop)}</p>`;
   const tile = (value: string, label: string) => `<div class="tile"><b>${value}</b>${esc(label)}</div>`;
   return `<h2>Spend, laptop and GitHub Actions</h2>
@@ -234,10 +257,23 @@ export function renderHtml(doc: DashboardDocument): string {
   const maxVerdict = Math.max(0, ...Object.values(findings.byVerdict));
 
   const spendDay = spend.byDay.length
-    ? table(["Day", "Runs", "Estimated spend", ""], spend.byDay.map((d) => [esc(d.day), String(d.runs), usd(d.costUsdEstimate), bar(d.costUsdEstimate, maxDay)]), [1, 2])
+    ? table(
+        ["Day", "Runs", "Estimated spend", ""],
+        spend.byDay.map((d) => [esc(d.day), String(d.runs), usd(d.costUsdEstimate), bar(d.costUsdEstimate, maxDay)]),
+        [1, 2],
+      )
     : empty("No local run kept yet.");
   const spendRepo = spend.byRepository.length
-    ? table(["Repository", "Runs", "Estimated spend", ""], spend.byRepository.map((r) => [`${esc(r.name)} <span class="muted">${esc(r.key)}</span>`, String(r.runs), usd(r.costUsdEstimate), bar(r.costUsdEstimate, maxRepo)]), [1, 2])
+    ? table(
+        ["Repository", "Runs", "Estimated spend", ""],
+        spend.byRepository.map((r) => [
+          `${esc(r.name)} <span class="muted">${esc(r.key)}</span>`,
+          String(r.runs),
+          usd(r.costUsdEstimate),
+          bar(r.costUsdEstimate, maxRepo),
+        ]),
+        [1, 2],
+      )
     : empty("No repository in the history.");
 
   const bySeverity = table(
@@ -247,21 +283,36 @@ export function renderHtml(doc: DashboardDocument): string {
   );
   const byVerdict = table(
     ["Your verdict", "Findings", ""],
-    (["correct", "partial", "wrong", "intentional", "notImportant", "unjudged"] as const).map((v) => [esc(v === "notImportant" ? "not important" : v), String(findings.byVerdict[v]), bar(findings.byVerdict[v], maxVerdict)]),
+    (["correct", "partial", "wrong", "intentional", "notImportant", "unjudged"] as const).map((v) => [
+      esc(v === "notImportant" ? "not important" : v),
+      String(findings.byVerdict[v]),
+      bar(findings.byVerdict[v], maxVerdict),
+    ]),
     [1],
   );
 
   const loopTable = loops.branches.length
     ? table(
         ["Repository", "Branch", "Rounds", "Outcome", "Exit reason", "Findings seen"],
-        loops.branches.map((b) => [esc(b.repository), esc(b.branch), String(b.rounds), esc(b.outcome), esc(b.exitReason), String(b.ledger.total)]),
+        loops.branches.map((b) => [
+          esc(b.repository),
+          esc(b.branch),
+          String(b.rounds),
+          esc(b.outcome),
+          esc(b.exitReason),
+          String(b.ledger.total),
+        ]),
         [2, 5],
       )
     : empty("No loop kept yet: `wachiman loop --base <ref>` starts one.");
 
   const confidence =
     prConfidence.status === "recorded"
-      ? `${table(["Grade", "Runs"], [...GRADES].reverse().map((g) => [esc(g), String(prConfidence.byGrade[g])]), [1])}<p class="muted">${prConfidence.gradedRuns} graded run${prConfidence.gradedRuns === 1 ? "" : "s"}.</p>`
+      ? `${table(
+          ["Grade", "Runs"],
+          [...GRADES].reverse().map((g) => [esc(g), String(prConfidence.byGrade[g])]),
+          [1],
+        )}<p class="muted">${prConfidence.gradedRuns} graded run${prConfidence.gradedRuns === 1 ? "" : "s"}.</p>`
       : empty(prConfidence.note);
 
   return `<!doctype html>
@@ -308,17 +359,25 @@ code { font: .9em ui-monospace, monospace; }
 <p class="muted">${withCode(doc.scope)}</p>
 <p class="muted">Generated ${esc(doc.generatedAt)} from ${doc.usage ? "the local history and the ledger entries downloaded earlier" : "the local history. Spend is an API-equivalent estimate, not a bill"}. Nothing on this page was sent anywhere.</p>
 <div class="tiles">
-${doc.usage ? "" : `<div class="tile"><b>${totals.runs}</b>runs</div>
-<div class="tile"><b>${usd(totals.costUsdEstimate)}</b>estimated spend</div>`}
+${
+  doc.usage
+    ? ""
+    : `<div class="tile"><b>${totals.runs}</b>runs</div>
+<div class="tile"><b>${usd(totals.costUsdEstimate)}</b>estimated spend</div>`
+}
 <div class="tile"><b>${totals.repositories}</b>repositories</div>
 <div class="tile"><b>${findings.total}</b>findings</div>
 <div class="tile"><b>${loops.totals.rounds}</b>loop rounds</div>
 </div>
-${doc.usage ? renderUsage(doc.usage) : `<h2>Spend per day</h2>
+${
+  doc.usage
+    ? renderUsage(doc.usage)
+    : `<h2>Spend per day</h2>
 ${spendDay}
 <h2>Spend per repository</h2>
 ${spendRepo}
-<p class="muted">To include GitHub Actions runs here, connect a ledger: <code>wachiman ledger connect &lt;url&gt;</code>.</p>`}
+<p class="muted">To include GitHub Actions runs here, connect a ledger: <code>wachiman ledger connect &lt;url&gt;</code>.</p>`
+}
 <h2>Findings by severity</h2>
 ${bySeverity}
 <h2>Findings by your verdict</h2>

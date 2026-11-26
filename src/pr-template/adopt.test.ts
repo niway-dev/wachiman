@@ -25,9 +25,19 @@ function installOver(old: string) {
   const repo = emptyRepo();
   commit(repo, { "README.md": "hello\n", ".github/pull_request_template.md": old }, "init");
   const err: string[] = [];
-  const code = runInstall(parseInstallArgs([]) as Parameters<typeof runInstall>[0], repo, { stdout: () => {}, stderr: (l: string) => void err.push(l) }, { now: () => "2026-11-14T10:00:00.000Z" });
+  const code = runInstall(
+    parseInstallArgs([]) as Parameters<typeof runInstall>[0],
+    repo,
+    { stdout: () => {}, stderr: (l: string) => void err.push(l) },
+    { now: () => "2026-11-14T10:00:00.000Z" },
+  );
   const choicePath = join(repo, ".github", "pr-template.json");
-  return { code, log: err.join("\n"), choice: existsSync(choicePath) ? (JSON.parse(readFileSync(choicePath, "utf8")) as Record<string, unknown>) : null, template: readFileSync(join(repo, ".github", "pull_request_template.md"), "utf8") };
+  return {
+    code,
+    log: err.join("\n"),
+    choice: existsSync(choicePath) ? (JSON.parse(readFileSync(choicePath, "utf8")) as Record<string, unknown>) : null,
+    template: readFileSync(join(repo, ".github", "pull_request_template.md"), "utf8"),
+  };
 }
 
 describe("the earlier hand-copied template (version 0)", () => {
@@ -72,7 +82,9 @@ describe("the same file after a repository formatter padded its tables and added
     expect(formatted.preamble).toEqual(plain.preamble);
     expect(formatted.custom).toEqual(plain.custom);
     expect(formatted.add).toEqual(plain.add);
-    expect(formatted.report.filter((l) => l.startsWith("moved to preamble"))).toEqual(plain.report.filter((l) => l.startsWith("moved to preamble")));
+    expect(formatted.report.filter((l) => l.startsWith("moved to preamble"))).toEqual(
+      plain.report.filter((l) => l.startsWith("moved to preamble")),
+    );
   });
 
   test("a padded table row of the catalog's own body is structure, not the repository's text", () => {
@@ -81,7 +93,9 @@ describe("the same file after a repository formatter padded its tables and added
   });
 
   test("the status guide comment of a generated file is a guide, not the repository's comment", () => {
-    const a = adopt("<!-- Status table guide, one line per row.\n     Type: One of: Feature, Fix\n     Issue: the link -->\n\n| | |\n|-|-|\n| **Type** | |\n");
+    const a = adopt(
+      "<!-- Status table guide, one line per row.\n     Type: One of: Feature, Fix\n     Issue: the link -->\n\n| | |\n|-|-|\n| **Type** | |\n",
+    );
     expect(a.preamble).toEqual([]);
   });
 });
@@ -91,13 +105,22 @@ describe("a team template with its own comment, section and row", () => {
   const { merged, output } = generated(text);
 
   test("the contributor reminder is kept in the preamble", () => {
-    expect(merged.preamble).toEqual(["<!-- Reminder: outside contributors sign the contributor agreement once, before their first merge. -->"]);
+    expect(merged.preamble).toEqual([
+      "<!-- Reminder: outside contributors sign the contributor agreement once, before their first merge. -->",
+    ]);
   });
 
   test("the unknown section and row become optional custom entries after the entries that preceded them", () => {
     expect(merged.custom).toEqual([
       { id: "ticket", kind: "status-row", label: "Ticket", required: false, guide: "The ticket this change closes", after: "type" },
-      { id: "migration-notes", kind: "section", heading: "Migration notes", required: false, guide: "Steps an operator runs when this is deployed, or None.", after: "why" },
+      {
+        id: "migration-notes",
+        kind: "section",
+        heading: "Migration notes",
+        required: false,
+        guide: "Steps an operator runs when this is deployed, or None.",
+        after: "why",
+      },
     ]);
   });
 
@@ -227,7 +250,14 @@ describe("block recognition", () => {
     }
     const repo = emptyRepo();
     commit(repo, { "README.md": "x\n", ".github/pull_request_template.md": "see <!-- note\n- [ ] ok\n" }, "init");
-    expect(() => runInstall(parseInstallArgs([]) as Parameters<typeof runInstall>[0], repo, { stdout: () => {}, stderr: () => {} }, { now: () => "2026-11-14T10:00:00.000Z" })).toThrow(/close|unclosed|never closed/);
+    expect(() =>
+      runInstall(
+        parseInstallArgs([]) as Parameters<typeof runInstall>[0],
+        repo,
+        { stdout: () => {}, stderr: () => {} },
+        { now: () => "2026-11-14T10:00:00.000Z" },
+      ),
+    ).toThrow(/close|unclosed|never closed/);
     expect(existsSync(join(repo, ".github", "pr-template.json"))).toBe(false);
   });
 
@@ -238,7 +268,14 @@ describe("block recognition", () => {
     }
     const repo = emptyRepo();
     commit(repo, { "README.md": "x\n", ".github/pull_request_template.md": "```sh\nbun test\n" }, "init");
-    expect(() => runInstall(parseInstallArgs([]) as Parameters<typeof runInstall>[0], repo, { stdout: () => {}, stderr: () => {} }, { now: () => "2026-11-14T10:00:00.000Z" })).toThrow(UsageError);
+    expect(() =>
+      runInstall(
+        parseInstallArgs([]) as Parameters<typeof runInstall>[0],
+        repo,
+        { stdout: () => {}, stderr: () => {} },
+        { now: () => "2026-11-14T10:00:00.000Z" },
+      ),
+    ).toThrow(UsageError);
     expect(existsSync(join(repo, ".github", "pr-template.json"))).toBe(false);
     expect(() => generated("```sh\nbun test\n\nbun lint\n```\n")).not.toThrow();
   });
@@ -296,11 +333,19 @@ describe("block recognition", () => {
 });
 
 describe("merging into an existing definition", () => {
-  const base = { base: "default", drop: ["decisions"], custom: [{ id: "ticket", kind: "status-row", label: "Ticket", required: false }], preamble: ["- [ ] one"] };
+  const base = {
+    base: "default",
+    drop: ["decisions"],
+    custom: [{ id: "ticket", kind: "status-row", label: "Ticket", required: false }],
+    preamble: ["- [ ] one"],
+  };
 
   test("existing entries stay, new ones are appended, and nothing is duplicated", () => {
     const choice = loadRepoChoice(JSON.stringify(base), catalog);
-    const adoption = adopt("- [ ] one\n\n- [ ] two\n\n| | |\n|---|---|\n| **Ticket** | <!-- x --> |\n| **Owner** | <!-- who --> |\n", { existingCustom: choice.custom, existingDrop: choice.drop });
+    const adoption = adopt("- [ ] one\n\n- [ ] two\n\n| | |\n|---|---|\n| **Ticket** | <!-- x --> |\n| **Owner** | <!-- who --> |\n", {
+      existingCustom: choice.custom,
+      existingDrop: choice.drop,
+    });
     const merged = mergeAdoption(base, adoption);
     expect(merged.drop).toEqual(["decisions"]);
     expect((merged.custom as { id: string }[]).map((c) => c.id)).toEqual(["ticket", "owner"]);
@@ -311,7 +356,8 @@ describe("merging into an existing definition", () => {
 
 describe("the reformatted shared template (version 0b): row guides in one comment above the status table", () => {
   // fixtures/adopt/version-0b.md is that template as a repository's formatter left it, with its header comment shortened.
-  const CLA = '<!-- First pull request from someone other than the maintainer? Comment the CLA statement from CLA.md ("How to sign") before review. -->';
+  const CLA =
+    '<!-- First pull request from someone other than the maintainer? Comment the CLA statement from CLA.md ("How to sign") before review. -->';
   const shared = fixture("version-0b.md");
   // A repository's own comment sits between the header and the row guide, as in the copy that was reformatted.
   const withCla = shared.replace("\n\n<!-- Status table rows", `\n\n${CLA}\n\n<!-- Status table rows`);

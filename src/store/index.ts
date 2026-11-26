@@ -8,7 +8,18 @@
  */
 import { Database } from "bun:sqlite";
 import { createHash } from "node:crypto";
-import { chmodSync, closeSync, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, statSync, unlinkSync } from "node:fs";
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  statSync,
+  unlinkSync,
+} from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { GRADES } from "../fidelity/types";
 import { historyRoot, listKeys, loopFiles, readRuns, readVerdicts, runFiles } from "../history/store";
@@ -95,7 +106,10 @@ function retryOnce<T>(fn: () => T): T {
 function sourceSignature(root: string, afterListing?: () => void): string {
   const listed: { name: string; path: string }[] = [];
   for (const key of listKeys(root)) {
-    for (const [sub, names] of [["runs", runFiles(root, key)], ["loops", loopFiles(root, key)]] as const) {
+    for (const [sub, names] of [
+      ["runs", runFiles(root, key)],
+      ["loops", loopFiles(root, key)],
+    ] as const) {
       for (const path of names) listed.push({ name: `${key}/${sub}/${basename(path)}`, path });
     }
     const verdicts = join(root, key, "verdicts.jsonl");
@@ -189,10 +203,16 @@ function readLoopRecord(path: string): LoopRecord | undefined | null {
 function fill(db: Database, root: string, warn: (line: string) => void): number {
   let skipped = 0;
   const repo = db.prepare("INSERT INTO repositories (key, name) VALUES (?, ?)");
-  const run = db.prepare("INSERT INTO runs (repo_key, saved_at, day, head_sha, model, effort, profile, cost_usd, findings, grade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)");
-  const finding = db.prepare("INSERT INTO findings (repo_key, first_id, severity, topic, status, verdict, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  const run = db.prepare(
+    "INSERT INTO runs (repo_key, saved_at, day, head_sha, model, effort, profile, cost_usd, findings, grade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+  );
+  const finding = db.prepare(
+    "INSERT INTO findings (repo_key, first_id, severity, topic, status, verdict, last_seen_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  );
   const verdict = db.prepare("INSERT INTO verdicts (repo_key, first_id, at, verdict) VALUES (?, ?, ?, ?)");
-  const loop = db.prepare("INSERT INTO loops (repo_key, branch, base, outcome, rounds, first_round_at, last_round_at) VALUES (?, ?, ?, ?, ?, ?, ?)");
+  const loop = db.prepare(
+    "INSERT INTO loops (repo_key, branch, base, outcome, rounds, first_round_at, last_round_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+  );
   const ledger = db.prepare("INSERT INTO loop_ledger (repo_key, branch, status, count) VALUES (?, ?, ?, ?)");
 
   for (const key of listKeys(root)) {
@@ -260,7 +280,20 @@ function fillLedger(db: Database, root: string, warn: (line: string) => void) {
       for (const e of entries) {
         if (seen.has(e.id)) continue;
         seen.add(e.id);
-        entry.run(a.account, e.id, e.day, e.week, e.repository, e.pr, e.run_id === null ? null : String(e.run_id), e.run_attempt, e.trigger, e.state, e.reservedUsd, e.settledUsd);
+        entry.run(
+          a.account,
+          e.id,
+          e.day,
+          e.week,
+          e.repository,
+          e.pr,
+          e.run_id === null ? null : String(e.run_id),
+          e.run_attempt,
+          e.trigger,
+          e.state,
+          e.reservedUsd,
+          e.settledUsd,
+        );
         for (const c of e.calls) call.run(a.account, e.id, c.model, c.auth, c.cost_usd ?? 0, c.costKnown ? 1 : 0);
       }
     }
@@ -317,7 +350,11 @@ export interface RefreshHooks {
  * moved aside) is warned about only by the call that rebuilt the index: it does not force a rebuild
  * on every later call.
  */
-export function refreshIndex(wachimanHome: string, warn: (line: string) => void, hooks: RefreshHooks = {}): { path: string; rebuilt: boolean } {
+export function refreshIndex(
+  wachimanHome: string,
+  warn: (line: string) => void,
+  hooks: RefreshHooks = {},
+): { path: string; rebuilt: boolean } {
   const root = historyRoot(wachimanHome);
   const path = indexPath(wachimanHome);
   return retryOnce(() => {

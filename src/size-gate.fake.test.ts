@@ -25,8 +25,20 @@ class FakeProvider implements ProviderAdapter {
   }
   async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
-    const files = [...request.prompt.split("This part holds exactly these files")[1].split("\n\n")[0].matchAll(/^- (\S+) \+/gm)].map((m) => m[1]);
-    const output: ReviewOutput = { files_reviewed: files, files_skipped: [], findings: [], contracts: [], thread_replies: [], summary: "ok" };
+    const files = [
+      ...request.prompt
+        .split("This part holds exactly these files")[1]
+        .split("\n\n")[0]
+        .matchAll(/^- (\S+) \+/gm),
+    ].map((m) => m[1]);
+    const output: ReviewOutput = {
+      files_reviewed: files,
+      files_skipped: [],
+      findings: [],
+      contracts: [],
+      thread_replies: [],
+      summary: "ok",
+    };
     return { costUsd: 0.2, turns: 1, durationMs: 1, terminalReason: "success", isError: false, raw: {}, structuredOutput: output };
   }
 }
@@ -435,11 +447,18 @@ describe("the operator approves one head (AC6, AC7, AC8)", () => {
 
 describe("a skipped pull request names the critical paths it changes", () => {
   const rules = (...entries: [string, string, string][]) =>
-    ["paths:", ...entries.flatMap(([match, severity, reason]) => [`  - match: "${match}"`, `    severity: ${severity}`, `    reason: ${reason}`]), ""].join("\n");
-  const THE_COMMENT = "**Critical paths in this change** (from `.wachiman.yml` at the base commit): a person should read these before merging, since nothing was reviewed.";
+    [
+      "paths:",
+      ...entries.flatMap(([match, severity, reason]) => [`  - match: "${match}"`, `    severity: ${severity}`, `    reason: ${reason}`]),
+      "",
+    ].join("\n");
+  const THE_COMMENT =
+    "**Critical paths in this change** (from `.wachiman.yml` at the base commit): a person should read these before merging, since nothing was reviewed.";
 
   test("each changed file a critical rule matches is listed with its reason, after the headline", async () => {
-    const w = world(LARGE, [], { ".wachiman.yml": rules(["pkg3/**", "critical", "holds the payment keys"], ["pkg5/**", "high", "not critical"]) });
+    const w = world(LARGE, [], {
+      ".wachiman.yml": rules(["pkg3/**", "critical", "holds the payment keys"], ["pkg5/**", "high", "not critical"]),
+    });
     const { provider } = await run(w);
     expect(provider.requests).toHaveLength(0);
     expect(w.posted).toHaveLength(1);
@@ -484,7 +503,11 @@ describe("a skipped pull request names the critical paths it changes", () => {
   test("with no critical match the comment is the one without a section", async () => {
     const plain = world(LARGE);
     await run(plain);
-    for (const base of [{ ".wachiman.yml": rules(["pkg3/**", "high", "r"]) }, { ".wachiman.yml": rules(["nowhere/**", "critical", "r"]) }, { ".wachiman.yml": "effort: high\n" }]) {
+    for (const base of [
+      { ".wachiman.yml": rules(["pkg3/**", "high", "r"]) },
+      { ".wachiman.yml": rules(["nowhere/**", "critical", "r"]) },
+      { ".wachiman.yml": "effort: high\n" },
+    ]) {
       const w = world(LARGE, [], base);
       await run(w);
       expect(w.posted[0].body).toBe(plain.posted[0].body);

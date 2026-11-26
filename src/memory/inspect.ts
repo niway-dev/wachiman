@@ -47,24 +47,35 @@ export function inspectMemory(input: CheckInput): CheckResult {
     const listed = new Set<string>();
     for (const row of rows) {
       listed.add(row.file);
-      if (!(row.file in files) || row.file === INDEX_FILE) add(INDEX_FILE, row.line, `maps to \`${row.file}\`, which is not in ${MEMORY_DIR}/`);
+      if (!(row.file in files) || row.file === INDEX_FILE)
+        add(INDEX_FILE, row.line, `maps to \`${row.file}\`, which is not in ${MEMORY_DIR}/`);
       for (const glob of globsOf(row.glob)) {
         if (!matchesSome(glob)) add(INDEX_FILE, row.line, `glob \`${glob}\` matches no file in the repository`);
       }
     }
     for (const name of names) {
-      if (name !== INDEX_FILE && name !== ARCHIVE_FILE && !listed.has(name)) add(name, 1, "is not listed in index.md, so no review loads it");
+      if (name !== INDEX_FILE && name !== ARCHIVE_FILE && !listed.has(name))
+        add(name, 1, "is not listed in index.md, so no review loads it");
     }
     const indexLines = lineCount(indexText);
-    if (indexLines > budget.maxIndexLines) add(INDEX_FILE, budget.maxIndexLines + 1, `has ${indexLines} lines, over memory.max_index_lines (${budget.maxIndexLines})`);
+    if (indexLines > budget.maxIndexLines)
+      add(INDEX_FILE, budget.maxIndexLines + 1, `has ${indexLines} lines, over memory.max_index_lines (${budget.maxIndexLines})`);
     if (indexLines > budget.maxLoadedLines) {
-      add(INDEX_FILE, budget.maxLoadedLines + 1, `has ${indexLines} lines, over memory.max_loaded_lines (${budget.maxLoadedLines}): a review loads only its first ${budget.maxLoadedLines}`);
+      add(
+        INDEX_FILE,
+        budget.maxLoadedLines + 1,
+        `has ${indexLines} lines, over memory.max_loaded_lines (${budget.maxLoadedLines}): a review loads only its first ${budget.maxLoadedLines}`,
+      );
     }
     for (const name of names) {
       if (name === INDEX_FILE || name === ARCHIVE_FILE) continue;
       const n = lineCount(files[name]);
       if (indexLines + n > budget.maxLoadedLines) {
-        add(name, 1, `has ${n} lines; with index.md's ${indexLines} it exceeds memory.max_loaded_lines (${budget.maxLoadedLines}), so no review can load it`);
+        add(
+          name,
+          1,
+          `has ${n} lines; with index.md's ${indexLines} it exceeds memory.max_loaded_lines (${budget.maxLoadedLines}), so no review can load it`,
+        );
       }
     }
   }

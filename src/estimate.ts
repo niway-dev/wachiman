@@ -31,10 +31,7 @@ export interface ReviewEstimate {
  * the number `planBatches` made of those files. It is passed in rather than computed here because
  * engine.ts imports this module, and importing engine back would be a cycle.
  */
-export function estimateReview(
-  files: ReviewFile[],
-  opts: { batches: number; batchBudgetUsd: number; model: string },
-): ReviewEstimate {
+export function estimateReview(files: ReviewFile[], opts: { batches: number; batchBudgetUsd: number; model: string }): ReviewEstimate {
   const perBatchUsd = perBatchFor(opts.model, opts.batchBudgetUsd);
   return {
     files: files.length,

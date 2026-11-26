@@ -47,11 +47,6 @@ describe("test sharding", () => {
 
   test("checkSplit reports a missing, duplicated and unknown file and an empty shard", () => {
     const problems = checkSplit(["a.test.ts", "b.test.ts"], [["a.test.ts", "a.test.ts"], ["c.test.ts"], []]);
-    expect(problems).toEqual([
-      "not in any shard: b.test.ts",
-      "in 2 shards: a.test.ts",
-      "not a test file: c.test.ts",
-      "shard 3 is empty",
-    ]);
+    expect(problems).toEqual(["not in any shard: b.test.ts", "in 2 shards: a.test.ts", "not a test file: c.test.ts", "shard 3 is empty"]);
   });
 });

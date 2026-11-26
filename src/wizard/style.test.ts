@@ -10,12 +10,18 @@ test("color requires a capable output terminal and honors a non-empty NO_COLOR a
     [{ isTTY: false }, { TERM: "xterm" }],
     [{ isTTY: true }, { TERM: "dumb" }],
     [{ isTTY: true }, { TERM: "xterm", NO_COLOR: "1" }],
-  ] as const) expect(terminalStyle(output, env)("Pick", "accent")).toBe("Pick");
+  ] as const)
+    expect(terminalStyle(output, env)("Pick", "accent")).toBe("Pick");
 });
 
 test("status colors touch stderr only", () => {
-  const stdout: string[] = [], stderr: string[] = [];
-  const io = wizardIo({ stdout: (s: string) => void stdout.push(s), stderr: (s: string) => void stderr.push(s) }, { isTTY: true }, { TERM: "xterm" });
+  const stdout: string[] = [],
+    stderr: string[] = [];
+  const io = wizardIo(
+    { stdout: (s: string) => void stdout.push(s), stderr: (s: string) => void stderr.push(s) },
+    { isTTY: true },
+    { TERM: "xterm" },
+  );
   io.stdout('{"ok":true}');
   io.stderr("bound: example");
   io.stderr("cancelled: nothing saved");
@@ -76,7 +82,12 @@ test("symbols are ASCII on a dumb terminal and stripAnsi removes colors", () => 
 
 test("without a terminal session the hints are printed as they always were", () => {
   const lines: string[] = [];
-  const session = { fancy: false, nextStep: () => { throw new Error("not used"); } };
+  const session = {
+    fancy: false,
+    nextStep: () => {
+      throw new Error("not used");
+    },
+  };
   const io = wizardIo({ stderr: (s: string) => void lines.push(s) }, { isTTY: false }, {}, session);
   io.stderr("next: wachiman local");
   io.stderr("bound: example");

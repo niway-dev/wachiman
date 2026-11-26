@@ -39,7 +39,9 @@ describe("terminal", () => {
 
   test("a supported finding shows why and the lines the verifier read; an inconclusive one shows what it could not settle", () => {
     const text = renderTerminal(withInconclusiveFix(), { agentPrompt: false });
-    expect(text).toContain("    Verified: Line 2 assigns y over x before the flush on line 3.\n    Checked: apps/api/src/main/session/store.ts:2, apps/api/src/main/session/store.ts:3");
+    expect(text).toContain(
+      "    Verified: Line 2 assigns y over x before the flush on line 3.\n    Checked: apps/api/src/main/session/store.ts:2, apps/api/src/main/session/store.ts:3",
+    );
     expect(text).toContain("    Inconclusive: The lock on line 9 may serialise it.");
     // A base citation says so.
     expect(text).toContain("Pre-existing: The same missing call is in the base version of this function.");
@@ -58,13 +60,20 @@ describe("terminal", () => {
   });
 
   test("the footer says how the verification went", () => {
-    expect(renderTerminal(fixture(), { agentPrompt: false })).toContain("partly verified by Claude Code · claude-opus-5-5 (stopped: budget)");
+    expect(renderTerminal(fixture(), { agentPrompt: false })).toContain(
+      "partly verified by Claude Code · claude-opus-5-5 (stopped: budget)",
+    );
   });
 
   test("a result without verification shows no status and no section", () => {
     const r = fixture();
     delete r.verification;
-    r.findings = r.findings.map((f) => ({ ...f, origin: "unknown", tier: "Important", verification: { status: "unverified", reason: "", checked: [] } }));
+    r.findings = r.findings.map((f) => ({
+      ...f,
+      origin: "unknown",
+      tier: "Important",
+      verification: { status: "unverified", reason: "", checked: [] },
+    }));
     const text = renderTerminal(r, { agentPrompt: false });
     expect(text).toContain("Should · 🟠🐛 Fix · bug: The store drops the last session (confidence high)\n");
     expect(text).not.toContain("Pre-existing (true");
@@ -77,10 +86,14 @@ describe("markdown", () => {
     const md = renderMarkdown(withInconclusiveFix(), {});
     expect(md).toContain("### Should · 🟠🐛 **Fix · bug: The store drops the last session (confidence high, supported)**");
     expect(md).toContain("### Could · 🟡🧪 **Consider · tests: No test covers the export (confidence low, inconclusive)**");
-    expect(md).toContain("Verified: Line 2 assigns y over x before the flush on line 3.\n\nChecked: `apps/api/src/main/session/store.ts:2`, `apps/api/src/main/session/store.ts:3`");
+    expect(md).toContain(
+      "Verified: Line 2 assigns y over x before the flush on line 3.\n\nChecked: `apps/api/src/main/session/store.ts:2`, `apps/api/src/main/session/store.ts:3`",
+    );
     expect(md).toContain("## Inconclusive\n\nThe verifier looked at these and could not settle them.\n\n### Should · ");
     expect(md).toContain("Inconclusive: The lock on line 9 may serialise it.");
-    expect(md).toContain("## Pre-existing\n\nTrue, but not introduced by this change.\n\n### Should · Pre-existing · 🟠🐛 **Fix · bug: The manager never closes the store (confidence high, supported)**");
+    expect(md).toContain(
+      "## Pre-existing\n\nTrue, but not introduced by this change.\n\n### Should · Pre-existing · 🟠🐛 **Fix · bug: The manager never closes the store (confidence high, supported)**",
+    );
     expect(md.indexOf("## Findings")).toBeLessThan(md.indexOf("## Inconclusive"));
     expect(md.indexOf("## Inconclusive")).toBeLessThan(md.indexOf("## Pre-existing"));
     expect(md.indexOf("## Pre-existing")).toBeLessThan(md.indexOf("## Summary"));
@@ -88,7 +101,11 @@ describe("markdown", () => {
   });
 
   test("the history label stays with its finding when the findings are grouped", () => {
-    const history = { byIndex: new Map([[1, { status: "new" as const, firstHead: "a".repeat(40), runs: 1, id: "f0f0f0f0f0" }]]), settled: [], unknown: 0 };
+    const history = {
+      byIndex: new Map([[1, { status: "new" as const, firstHead: "a".repeat(40), runs: 1, id: "f0f0f0f0f0" }]]),
+      settled: [],
+      unknown: 0,
+    };
     const md = renderMarkdown(fixture(), { history });
     const pre = md.slice(md.indexOf("## Pre-existing"));
     expect(pre).toContain("History: new, id `f0f0f0f0f0`");
@@ -98,6 +115,8 @@ describe("markdown", () => {
 
 describe("the agent prompt", () => {
   test("carries the priority word and the status", () => {
-    expect(agentPrompt(fixture())).toContain("1. apps/api/src/main/session/store.ts:2 · Should · 🟠🐛 Fix · bug: The store drops the last session (confidence high, supported)");
+    expect(agentPrompt(fixture())).toContain(
+      "1. apps/api/src/main/session/store.ts:2 · Should · 🟠🐛 Fix · bug: The store drops the last session (confidence high, supported)",
+    );
   });
 });

@@ -8,14 +8,7 @@
 import { describe, expect, test } from "bun:test";
 import { existsSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  isPartialFooter,
-  readAutoCost,
-  readLegacyMarker,
-  readSignedMarker,
-  readSignedState,
-  readSignedStateBlock,
-} from "../engine";
+import { isPartialFooter, readAutoCost, readLegacyMarker, readSignedMarker, readSignedState, readSignedStateBlock } from "../engine";
 import { readReceipt } from "../ledger";
 import { parseLabel, parseModel } from "../precision";
 import { readReviews } from "../pr-state";
@@ -28,17 +21,27 @@ import { buildView, refusedView, type ViewInput } from "./view";
 const DIR = join(import.meta.dir, "fixtures");
 
 const MAX = 60_000;
-const inputs: Record<string, ViewInput> = { ...scenarios, ...realReviews, ...Object.fromEntries(Object.entries(fitted).map(([name, f]) => [name, f.input])) };
+const inputs: Record<string, ViewInput> = {
+  ...scenarios,
+  ...realReviews,
+  ...Object.fromEntries(Object.entries(fitted).map(([name, f]) => [name, f.input])),
+};
 const renderFitted = (f: (typeof fitted)[string]) => {
   const view = buildView(f.input);
   return renderReviewBody(f.refused ? refusedView(view) : view, f.limit);
 };
 const bodies: Record<string, string> = {
-  ...Object.fromEntries(Object.entries({ ...scenarios, ...realReviews }).map(([name, input]) => [name, renderReviewBody(buildView(input), MAX)])),
+  ...Object.fromEntries(
+    Object.entries({ ...scenarios, ...realReviews }).map(([name, input]) => [name, renderReviewBody(buildView(input), MAX)]),
+  ),
   ...Object.fromEntries(Object.entries(fitted).map(([name, f]) => [name, renderFitted(f)])),
 };
 /** The 422 bodies have no thread to answer in, so no answer line. */
-const refused = new Set(Object.entries(fitted).filter(([, f]) => f.refused).map(([name]) => name));
+const refused = new Set(
+  Object.entries(fitted)
+    .filter(([, f]) => f.refused)
+    .map(([name]) => name),
+);
 
 /** The goldens this file owns, so a stray file in the folder is noticed. */
 const goldenPath = (name: string) => join(DIR, `${name}.md`);
@@ -58,7 +61,11 @@ describe("goldens", () => {
 
   test("every golden file belongs to a scenario, and every legacy file to a real review", () => {
     const files = readdirSync(DIR).filter((f) => f.endsWith(".md"));
-    const known = new Set([...Object.keys(inputs).map((n) => `${n}.md`), ...Object.keys(realReviews).map((n) => `legacy-${n}.md`), "legacy-strange-offline-283.md"]);
+    const known = new Set([
+      ...Object.keys(inputs).map((n) => `${n}.md`),
+      ...Object.keys(realReviews).map((n) => `legacy-${n}.md`),
+      "legacy-strange-offline-283.md",
+    ]);
     expect(files.filter((f) => !known.has(f))).toEqual([]);
   });
 
@@ -73,7 +80,8 @@ describe("goldens", () => {
 describe("size-trimmed and 422 goldens: what must survive", () => {
   const MARKERS = ["wachi:auto", "wachi:review", "wachiman sha=", "wachi:attempt", "wachi:partial", "wachi:receipt"];
   /** Every Blocker and Fix of this change or inconclusive, pre-existing or not: a row in some table of the body. */
-  const demandingTitles = (name: string) => inputs[name]!.output.findings.filter((f) => f.severity === "blocker" || f.severity === "fix").map((f) => f.title);
+  const demandingTitles = (name: string) =>
+    inputs[name]!.output.findings.filter((f) => f.severity === "blocker" || f.severity === "fix").map((f) => f.title);
   const ATTEMPT = "<!-- wachi:attempt id=0b1c2d3e-0000-4000-8000-000000000001 -->";
 
   for (const [name, f] of Object.entries(fitted)) {
@@ -88,7 +96,8 @@ describe("size-trimmed and 422 goldens: what must survive", () => {
       // The poster adds the attempt line after the body: the markers it lists are the ones the readers need.
       const posted = `${body}\n\n${ATTEMPT}`;
       expect(readAutoCost(posted)).toBe(cost);
-      for (const marker of MARKERS) if (f.input.footer.markers.join(" ").includes(marker) || marker === "wachi:attempt") expect(posted).toContain(marker);
+      for (const marker of MARKERS)
+        if (f.input.footer.markers.join(" ").includes(marker) || marker === "wachi:attempt") expect(posted).toContain(marker);
     });
   }
 
@@ -223,7 +232,10 @@ describe("S5: the partial review is readable", () => {
     expect(groups.length).toBe(counted.length);
     const listed: string[] = [];
     for (const [, reason, n, items] of groups) {
-      const paths = items!.trim().split("\n").map((l) => l.slice(3, -1));
+      const paths = items!
+        .trim()
+        .split("\n")
+        .map((l) => l.slice(3, -1));
       expect(paths.length).toBe(Number(n));
       expect(callout).toContain(`${n} ${reason!.toLowerCase()}`);
       listed.push(...paths);
@@ -283,7 +295,10 @@ describe("the Findings row", () => {
       const parts = [...row.matchAll(/(\d+) (blockers?|to fix|to consider|for your information)/g)].map((m) => Number(m[1]));
       expect(parts.length, name).toBe(4);
       expect(Number.isFinite(total), name).toBe(true);
-      expect(parts.reduce((a, b) => a + b, 0), name).toBe(total);
+      expect(
+        parts.reduce((a, b) => a + b, 0),
+        name,
+      ).toBe(total);
     }
   });
 });
@@ -292,7 +307,10 @@ describe("the lead never says nothing to fix when something is open", () => {
   test("open or unknown earlier threads and a pre-existing Fix keep the lead out of modes 8 and 9", () => {
     for (const [name, input] of Object.entries(inputs)) {
       const f = buildView(input).findings;
-      const open = input.earlierThreads === "unknown" || (input.earlierThreads ?? 0) > 0 || f.preExisting.some((r) => r.severity === "blocker" || r.severity === "fix");
+      const open =
+        input.earlierThreads === "unknown" ||
+        (input.earlierThreads ?? 0) > 0 ||
+        f.preExisting.some((r) => r.severity === "blocker" || r.severity === "fix");
       if (!open) continue;
       const first = lead(bodies[name]!);
       expect(first, name).not.toMatch(/nothing to fix/i);
@@ -360,7 +378,8 @@ describe("the not-reviewed heading counts what it lists", () => {
 describe("round trip: the readers still read the footer", () => {
   const ATTEMPT = "<!-- wachi:attempt id=0b1c2d3e-0000-4000-8000-000000000001 -->";
   /** The commit a marker the readers accept names; null for the old `agent-review` marker, which none of them reads. */
-  const shaOf = (name: string) => inputs[name]!.footer.markers.at(-1)!.match(/<!-- (?:wachiman|claude-review|wachi:partial) sha=([A-Za-z0-9]+)/)?.[1] ?? null;
+  const shaOf = (name: string) =>
+    inputs[name]!.footer.markers.at(-1)!.match(/<!-- (?:wachiman|claude-review|wachi:partial) sha=([A-Za-z0-9]+)/)?.[1] ?? null;
   const block = (head: string) =>
     encodeStateBlock({
       format: REVIEW_STATE_FORMAT,
@@ -369,7 +388,12 @@ describe("round trip: the readers still read the footer", () => {
       attempt: "0b1c2d3e-0000-4000-8000-000000000001",
       status: "complete",
       reason: null,
-      findings: { total: 0, by_severity: { blocker: 0, fix: 0, consider: 0, info: 0 }, by_placement: { inline: 0, body: 0, outside_diff: 0 }, unthreaded_blocking: 0 },
+      findings: {
+        total: 0,
+        by_severity: { blocker: 0, fix: 0, consider: 0, info: 0 },
+        by_placement: { inline: 0, body: 0, outside_diff: 0 },
+        unthreaded_blocking: 0,
+      },
     });
 
   for (const [name, input] of Object.entries(inputs)) {

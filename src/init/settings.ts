@@ -79,7 +79,9 @@ export function withKind(content: string, kind: ProjectKind): string {
     throw new UsageError(`${SETTINGS_PATH} cannot be updated safely (${error instanceof Error ? error.message : error}) ${byHand}`);
   }
   if ((next.match(ANY_KIND_KEY) ?? []).length !== 1 || parsed.kind !== kind) {
-    throw new UsageError(`${SETTINGS_PATH} has a \`kind\` key that init cannot rewrite as a plain top-level line (a quoted key, a flow mapping or a duplicate). ${byHand}`);
+    throw new UsageError(
+      `${SETTINGS_PATH} has a \`kind\` key that init cannot rewrite as a plain top-level line (a quoted key, a flow mapping or a duplicate). ${byHand}`,
+    );
   }
   return next;
 }
@@ -100,7 +102,11 @@ export function planSettings(repoDir: string, kind: ProjectKind): SettingsPlan {
 }
 
 /** Writes a planned create or change: an exclusive temporary file, then a link (new) or a rename (only if the file is unchanged since the plan). */
-export function writeSettings(repoDir: string, plan: Exclude<SettingsPlan, { action: "same" }>, hooks?: { beforeCommit?: () => void }): string {
+export function writeSettings(
+  repoDir: string,
+  plan: Exclude<SettingsPlan, { action: "same" }>,
+  hooks?: { beforeCommit?: () => void },
+): string {
   const { inspected } = plan;
   const dir = dirname(inspected.target);
   const again = inspectTarget(repoDir, SETTINGS_PATH);
@@ -117,12 +123,12 @@ export function writeSettings(repoDir: string, plan: Exclude<SettingsPlan, { act
         throw new UsageError(`${inspected.target} changed while init was running; it was not replaced. Run it again.`);
       }
       renameSync(tmp, inspected.target);
-    }
-    else {
+    } else {
       try {
         linkSync(tmp, inspected.target);
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new UsageError(`${inspected.target} appeared while init was running; nothing was written.`);
+        if ((error as NodeJS.ErrnoException).code === "EEXIST")
+          throw new UsageError(`${inspected.target} appeared while init was running; nothing was written.`);
         throw error;
       }
     }

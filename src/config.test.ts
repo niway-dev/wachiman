@@ -104,11 +104,27 @@ describe("loadConfig", () => {
   });
 
   test("the ledger url must be https: the job's OIDC token travels to it; localhost is allowed for tests", () => {
-    for (const url of ["http://ledger.example", "ledger.example", "ftp://ledger.example", "https://", "HTTP://ledger.example", "http://localhost.evil.example", "http://127.0.0.1.evil.example"]) {
+    for (const url of [
+      "http://ledger.example",
+      "ledger.example",
+      "ftp://ledger.example",
+      "https://",
+      "HTTP://ledger.example",
+      "http://localhost.evil.example",
+      "http://127.0.0.1.evil.example",
+    ]) {
       expect(() => load({ WACHIMAN_LEDGER_URL: url })).toThrow(UsageError);
       expect(() => load({ WACHIMAN_LEDGER_URL: url })).toThrow(/WACHIMAN_LEDGER_URL must start with https:\/\//);
     }
-    for (const url of ["https://ledger.example", "HTTPS://ledger.example/base", "http://localhost", "http://localhost:8787", "http://localhost:8787/", "http://127.0.0.1:8787/v1", "http://127.0.0.1"]) {
+    for (const url of [
+      "https://ledger.example",
+      "HTTPS://ledger.example/base",
+      "http://localhost",
+      "http://localhost:8787",
+      "http://localhost:8787/",
+      "http://127.0.0.1:8787/v1",
+      "http://127.0.0.1",
+    ]) {
       expect(load({ WACHIMAN_LEDGER_URL: url }).config.ledgerUrl).toBe(url.replace(/\/+$/, ""));
     }
     expect(load({ WACHIMAN_LEDGER_URL: "" }).config.ledgerUrl).toBeUndefined();
@@ -138,7 +154,9 @@ describe("loadConfig", () => {
 
   test("the verifier is opt-in and needs a model outside Claude Code", () => {
     expect(load({ WACHIMAN_VERIFY: "1" }).config).toMatchObject({ verify: true, verifierModel: "claude-opus-5-5", verifyBudgetUsd: 1 });
-    expect(load({ WACHIMAN_VERIFY: "true", WACHIMAN_VERIFIER_MODEL: "claude-sonnet-5-5", WACHIMAN_VERIFY_BUDGET_USD: "0.5" }).config).toMatchObject({ verify: true, verifierModel: "claude-sonnet-5-5", verifyBudgetUsd: 0.5 });
+    expect(
+      load({ WACHIMAN_VERIFY: "true", WACHIMAN_VERIFIER_MODEL: "claude-sonnet-5-5", WACHIMAN_VERIFY_BUDGET_USD: "0.5" }).config,
+    ).toMatchObject({ verify: true, verifierModel: "claude-sonnet-5-5", verifyBudgetUsd: 0.5 });
     expect(load({ WACHIMAN_VERIFY: "0" }).config.verify).toBe(false);
     expect(load({ WACHIMAN_VERIFY: "false" }).config.verify).toBe(false);
     expect(load({ WACHIMAN_VERIFY: "" }).config.verify).toBe(false);

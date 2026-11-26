@@ -7,8 +7,9 @@ the same prompt as the GitHub workflow, and prints the review in your terminal (
 Markdown or JSON). It runs on the `claude` you are already signed in to: no API key, no GitHub
 token, no `gh`, and nothing is posted anywhere.
 
-> **Wachiman sends no telemetry and makes no GitHub requests in local mode; your code is sent to
-> your configured Claude account for the review.**
+> **In local mode Wachiman sends no telemetry of its own and makes no GitHub requests; your code is
+> sent to your configured Claude account for the review. Claude Code's own telemetry switches are
+> set but not verified by a packet capture (section 7).**
 
 It is for a developer who wants a second reader before opening a pull request, including on an
 employer's code that cannot run through a CI key. The design is in

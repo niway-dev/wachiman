@@ -97,7 +97,11 @@ describe("runPrTemplate", () => {
     mkdirSync(sub, { recursive: true });
     writeFileSync(join(sub, "desc.md"), "## Summary\n\nhello\n");
     // Only the subdirectory has desc.md; the top level does not.
-    for (const argv of [["check", "desc.md", "--title", "feat: x"], ["format", "desc.md"], ["strip", "desc.md"]]) {
+    for (const argv of [
+      ["check", "desc.md", "--title", "feat: x"],
+      ["format", "desc.md"],
+      ["strip", "desc.md"],
+    ]) {
       const run = world();
       runPrTemplate(argv, sub, run.io);
       expect(run.err.join("\n")).not.toMatch(/cannot read/);

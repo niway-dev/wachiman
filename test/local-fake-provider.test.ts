@@ -30,7 +30,17 @@ const REVIEW = {
   structured_output: {
     files_reviewed: ["CLAUDE.md", "img.png", "src/a.ts", "src/b.ts", "src/new.ts"],
     files_skipped: [],
-    findings: [{ path: "src/a.ts", line: 2, severity: "fix", topic: "bug", confidence: "high", title: "Fake finding", body: "Body of the fake finding." }],
+    findings: [
+      {
+        path: "src/a.ts",
+        line: 2,
+        severity: "fix",
+        topic: "bug",
+        confidence: "high",
+        title: "Fake finding",
+        body: "Body of the fake finding.",
+      },
+    ],
     contracts: [],
     thread_replies: [],
     summary: "Reviewed by the fake provider.",
@@ -57,7 +67,16 @@ beforeAll(() => {
   const source = join(temp("fake-claude-src-"), "fake-claude.ts");
   writeFileSync(source, fakeSource(logFile()));
   const exe = join(fakeBin, process.platform === "win32" ? "claude.exe" : "claude");
-  const built = Bun.spawnSync([process.execPath, "build", "--compile", "--no-compile-autoload-dotenv", "--no-compile-autoload-bunfig", source, "--outfile", exe]);
+  const built = Bun.spawnSync([
+    process.execPath,
+    "build",
+    "--compile",
+    "--no-compile-autoload-dotenv",
+    "--no-compile-autoload-bunfig",
+    source,
+    "--outfile",
+    exe,
+  ]);
   if (built.exitCode !== 0) throw new Error(`could not compile the fake claude: ${built.stderr.toString()}`);
 }, 120_000);
 
@@ -68,7 +87,14 @@ afterAll(() => {
 
 /** A small environment: the fake first on PATH, then node and bun (and Git for Windows, which is not in System32), and a temporary home on both families of variables. */
 function env(home: string) {
-  const path = [fakeBin, dirname(node!), dirname(Bun.which("bun") ?? process.execPath), ...(process.platform === "win32" ? [dirname(Bun.which("git") ?? "git"), join(process.env.SystemRoot ?? "C:\\Windows", "System32")] : ["/usr/bin", "/bin"])].join(delimiter);
+  const path = [
+    fakeBin,
+    dirname(node!),
+    dirname(Bun.which("bun") ?? process.execPath),
+    ...(process.platform === "win32"
+      ? [dirname(Bun.which("git") ?? "git"), join(process.env.SystemRoot ?? "C:\\Windows", "System32")]
+      : ["/usr/bin", "/bin"]),
+  ].join(delimiter);
   const keep = ["SystemRoot", "SYSTEMROOT", "TEMP", "TMP", "TMPDIR", "PATHEXT", "ComSpec", "APPDATA", "LOCALAPPDATA"];
   return {
     ...Object.fromEntries(keep.filter((k) => process.env[k] !== undefined).map((k) => [k, process.env[k] as string])),
@@ -107,7 +133,10 @@ describe.skipIf(!node)("wachiman local through the launcher, with a fake claude"
     // `bun install` has the bundled Bun next to the real launcher, and that one would work.
     const lone = temp("wachiman-lone-launcher-");
     cpSync(join(root, "bin"), join(lone, "bin"), { recursive: true });
-    const out = Bun.spawnSync([node!, join(lone, "bin", "wachiman.js"), "local", "--repo-dir", repo.dir, "--base", "main"], { env: bare, stdin: "ignore" });
+    const out = Bun.spawnSync([node!, join(lone, "bin", "wachiman.js"), "local", "--repo-dir", repo.dir, "--base", "main"], {
+      env: bare,
+      stdin: "ignore",
+    });
     expect(out.exitCode).toBe(2);
     expect(out.stderr.toString()).toContain("Bun");
   }, 60_000);
@@ -116,7 +145,10 @@ describe.skipIf(!node)("wachiman local through the launcher, with a fake claude"
     const repo = branchRepo();
     const home = temp("wachiman-launcher-home-");
     mkdirSync(join(home, ".wachiman"), { recursive: true });
-    const out = Bun.spawnSync([node!, launcher, "local", "--repo-dir", repo.dir, "--base", "main"], { env: { ...env(home), ANTHROPIC_API_KEY: "sk-ant-not-real" }, stdin: "ignore" });
+    const out = Bun.spawnSync([node!, launcher, "local", "--repo-dir", repo.dir, "--base", "main"], {
+      env: { ...env(home), ANTHROPIC_API_KEY: "sk-ant-not-real" },
+      stdin: "ignore",
+    });
     expect(out.exitCode).toBe(2);
     expect(out.stderr.toString()).toContain("ANTHROPIC_API_KEY is set");
     expect(out.stdout.toString()).not.toContain("Fake finding");

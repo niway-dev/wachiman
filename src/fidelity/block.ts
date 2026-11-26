@@ -65,8 +65,7 @@ function permalink(opts: BlockOptions, path: string, line?: number): string | un
 const link = (label: string, url: string | undefined) => (url ? `[${label}](<${url}>)` : label);
 
 function reviewedLine(opts: BlockOptions, lead: string, tail: string): string {
-  const review =
-    opts.reviewUrl && /^https:\/\/[^\s<>]+$/.test(opts.reviewUrl) ? ` · [full review](<${opts.reviewUrl}>)` : "";
+  const review = opts.reviewUrl && /^https:\/\/[^\s<>]+$/.test(opts.reviewUrl) ? ` · [full review](<${opts.reviewUrl}>)` : "";
   const on = opts.date ? ` on ${safe(opts.date)}` : "";
   return `${lead} ${code(shortCommit(opts.reviewedCommit))}${on}${review}${tail}`;
 }
@@ -165,12 +164,7 @@ function wrap(digest: string | undefined, body: string[]): string {
   return [BLOCK_START, ...(digest ? [digestComment(digest)] : []), TITLE, "", ...body, FOOTER, BLOCK_END].join("\n");
 }
 
-function cannotSay(
-  reasons: string[],
-  opts: BlockOptions,
-  lead: string,
-  digest: string | undefined,
-): string {
+function cannotSay(reasons: string[], opts: BlockOptions, lead: string, digest: string | undefined): string {
   const [headline = "The review did not finish", ...more] = reasons.map(safe);
   const commit = code(shortCommit(opts.reviewedCommit));
   return wrap(digest, [
@@ -225,11 +219,7 @@ export function renderBlock(f: Fidelity, opts: BlockOptions): string {
  * by a step that makes no model call, before the push wait, so a run that is cancelled, fails or
  * hits the ceiling leaves no old letter. It carries no digest: no text has been read yet.
  */
-export function cannotSayBlock(
-  commit: string,
-  reason: string,
-  opts: { date?: string; reviewUrl?: string } = {},
-): string {
+export function cannotSayBlock(commit: string, reason: string, opts: { date?: string; reviewUrl?: string } = {}): string {
   return cannotSay([reason], { ...opts, reviewedCommit: commit, date: opts.date ?? "" }, "Commit", undefined);
 }
 

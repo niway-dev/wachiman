@@ -45,7 +45,12 @@ function provider(options: { originHead?: boolean } = {}) {
   return { dir, tagged, tip };
 }
 
-const context = (c: ReturnType<typeof consumer>, p: ReturnType<typeof provider>, version?: VersionSpec, extra: Partial<VersionContext> = {}): VersionContext => ({
+const context = (
+  c: ReturnType<typeof consumer>,
+  p: ReturnType<typeof provider>,
+  version?: VersionSpec,
+  extra: Partial<VersionContext> = {},
+): VersionContext => ({
   contract: contractWith(version),
   reviewed: web,
   member: ui,
@@ -54,7 +59,12 @@ const context = (c: ReturnType<typeof consumer>, p: ReturnType<typeof provider>,
   siblingDir: p.dir,
   ...extra,
 });
-const user = (versions: UserWorkspace["versions"]): UserWorkspace => ({ manifest: "/m/workspace.manifest.json", distributedRepo: "off", members: {}, versions });
+const user = (versions: UserWorkspace["versions"]): UserWorkspace => ({
+  manifest: "/m/workspace.manifest.json",
+  distributedRepo: "off",
+  members: {},
+  versions,
+});
 
 describe("chooseRule precedence", () => {
   const contract = contractWith({ rule: "tip" });
@@ -73,7 +83,14 @@ describe("pinned", () => {
   test("reads the commit of the tag the reviewed head pins, with no fallback", () => {
     const p = provider();
     const result = resolveVersion(context(consumer("1.2.0"), p, pinSpec));
-    expect(result).toEqual({ contract: "ui-kit-api", member: "ui-kit", rule: "pinned", ruleSource: "manifest", readAs: "pinned", sha: p.tagged });
+    expect(result).toEqual({
+      contract: "ui-kit-api",
+      member: "ui-kit",
+      rule: "pinned",
+      ruleSource: "manifest",
+      readAs: "pinned",
+      sha: p.tagged,
+    });
   });
 
   test("reads the pin from the reviewed head commit, not from its working tree", () => {
@@ -112,13 +129,22 @@ describe("pinned", () => {
   test("a pin tag template that makes a revision expression falls back to tip, never the parent", () => {
     const p = provider();
     git(p.dir, "tag", "v1.2.0-next", p.tip);
-    for (const tag of ["v{version}~1", "v{version}^", "v{version}^{commit}~0", "v{version}@{0}", "v{version}..HEAD", "v{version}:src", "v{version}*", "v{version}\\x"]) {
+    for (const tag of [
+      "v{version}~1",
+      "v{version}^",
+      "v{version}^{commit}~0",
+      "v{version}@{0}",
+      "v{version}..HEAD",
+      "v{version}:src",
+      "v{version}*",
+      "v{version}\\x",
+    ]) {
       const result = resolveVersion(context(consumer("1.2.0"), p, { rule: "pinned", pin: { ...PIN, tag } }));
       expect(result.sha).toBe(p.tip);
       expect(result.readAs).toBe("tip");
       expect(result.fallback).toMatch(/pin tag .* (is a revision expression|is not a valid ref name)/);
     }
- }, 30_000);
+  }, 30_000);
 
   test("a literal ref is a full SHA or a tag, branch or remote name, never an expression", () => {
     const p = provider();
@@ -133,7 +159,7 @@ describe("pinned", () => {
       expect(result.readAs).toBe("tip");
       expect(result.fallback).toContain(`"${ref}"`);
     }
- }, 30_000);
+  }, 30_000);
 
   test("a key with a dot in the package name is read as a literal key", () => {
     const p = provider();
@@ -183,15 +209,27 @@ describe("pinned", () => {
 
   test("a missing file, invalid JSON, or a missing key falls back", () => {
     const p = provider();
-    fallsBack(resolveVersion(context(consumer(), p, { rule: "pinned", pin: { ...PIN, file: "missing.json" } })), p, /missing\.json not found/);
+    fallsBack(
+      resolveVersion(context(consumer(), p, { rule: "pinned", pin: { ...PIN, file: "missing.json" } })),
+      p,
+      /missing\.json not found/,
+    );
     const c = consumer();
     writeFileSync(join(c.dir, "bad.json"), "{");
     git(c.dir, "add", "-A");
     git(c.dir, "commit", "-qm", "bad");
     const head = git(c.dir, "rev-parse", "HEAD").trim();
     fallsBack(resolveVersion(context({ ...c, head }, p, { rule: "pinned", pin: { ...PIN, file: "bad.json" } })), p, /not valid JSON/);
-    fallsBack(resolveVersion(context(consumer(), p, { rule: "pinned", pin: { ...PIN, key: ["dependencies", "other"] } })), p, /not found in package\.json/);
-    fallsBack(resolveVersion(context(consumer(), p, { rule: "pinned", pin: { ...PIN, key: ["constructor"] } })), p, /not found in package\.json/);
+    fallsBack(
+      resolveVersion(context(consumer(), p, { rule: "pinned", pin: { ...PIN, key: ["dependencies", "other"] } })),
+      p,
+      /not found in package\.json/,
+    );
+    fallsBack(
+      resolveVersion(context(consumer(), p, { rule: "pinned", pin: { ...PIN, key: ["constructor"] } })),
+      p,
+      /not found in package\.json/,
+    );
   });
 
   test("a tag that is not in the sibling's local refs falls back, naming the tag", () => {
@@ -248,7 +286,8 @@ describe("local", () => {
 
   test("a git status that fails is reported as unknown, never as clean", () => {
     const p = provider();
-    const failing: GitRunner = (args, opts) => (args[0] === "status" ? { status: null, stdout: "", error: "timed out", timedOut: true } : workspaceGit(args, opts));
+    const failing: GitRunner = (args, opts) =>
+      args[0] === "status" ? { status: null, stdout: "", error: "timed out", timedOut: true } : workspaceGit(args, opts);
     const result = resolveVersion(context(consumer(), p, { rule: "local" }), failing);
     expect(result).toMatchObject({ sha: p.tip, uncommittedUnknown: true });
     expect(result.uncommitted).toBeUndefined();
@@ -342,7 +381,10 @@ describe("rule sources", () => {
     expect(resolveVersion(context(c, p)).ruleSource).toBe("default");
     expect(resolveVersion(context(c, p, { rule: "tip" })).ruleSource).toBe("manifest");
     expect(resolveVersion(context(c, p, undefined, { member: { ...ui, version: { rule: "tip" } } })).ruleSource).toBe("manifest");
-    expect(resolveVersion(context(c, p, { rule: "tip" }, { user: user({ "ui-kit": { rule: "local" } }) }))).toMatchObject({ ruleSource: "user-file", rule: "local" });
+    expect(resolveVersion(context(c, p, { rule: "tip" }, { user: user({ "ui-kit": { rule: "local" } }) }))).toMatchObject({
+      ruleSource: "user-file",
+      rule: "local",
+    });
   });
 
   test("a contract or member named like an Object.prototype key is not a rule", () => {

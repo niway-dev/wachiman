@@ -37,7 +37,9 @@ afterEach(() => {
 
 const NOW = "2026-11-09T12:00:00.000Z";
 
-function world(opts: { profiles?: Record<string, unknown>; defaultProfile?: string; projects?: Record<string, unknown>; tools?: Tools } = {}) {
+function world(
+  opts: { profiles?: Record<string, unknown>; defaultProfile?: string; projects?: Record<string, unknown>; tools?: Tools } = {},
+) {
   const home = join(temp("wachiman-wiz-"), ".wachiman");
   const userHome = temp("wachiman-wiz-user-");
   const workA = temp("claude-work-a-");
@@ -86,7 +88,10 @@ function world(opts: { profiles?: Record<string, unknown>; defaultProfile?: stri
         return { status: 0 };
       };
       return {
-        spawn: (binary, args, o) => (args[0] === "auth" && args[1] === "--help" ? { status: 0, stdout: "Commands:\n  login\n  status\n", stderr: "" } : toolchain.spawn(binary, args, o)),
+        spawn: (binary, args, o) =>
+          args[0] === "auth" && args[1] === "--help"
+            ? { status: 0, stdout: "Commands:\n  login\n  status\n", stderr: "" }
+            : toolchain.spawn(binary, args, o),
         interactiveSpawn,
         now: () => NOW,
         userHome,
@@ -232,7 +237,9 @@ describe("setup on a terminal", () => {
     expect(io.printed()).not.toContain("Sign in");
     expect(errText(w)).toContain("sign in with your own claude: `claude auth login`");
     expect(w.interactiveCalls).toEqual([]);
-    expect(closing.warning).toContain("Saved. One step left: sign in to Claude (`claude auth login`), then run `wachiman setup` again or `wachiman doctor`.");
+    expect(closing.warning).toContain(
+      "Saved. One step left: sign in to Claude (`claude auth login`), then run `wachiman setup` again or `wachiman doctor`.",
+    );
     expect(closing.warning).toContain("shell alias or function that sets CLAUDE_CONFIG_DIR");
     expect(closing.warning).toContain("`wachiman profile add <name> --config-dir <dir>`");
     expect(closing.warning).not.toContain("Stopped");
@@ -358,7 +365,9 @@ describe("setup: registering an external directory", () => {
     expect(config.projects[w.key].profile).toBe("claude-client");
     expect(Object.keys(config.profiles).sort()).toEqual(["claude-client", "work-a", "work-b"]);
     expect(errText(w)).toContain("with the new profile claude-client");
-    expect(io.printed()).toContain(`local reviews of app (every clone of https://github.com/acme/app) will use the account "claude-client", registered from ${dir}; saved in `);
+    expect(io.printed()).toContain(
+      `local reviews of app (every clone of https://github.com/acme/app) will use the account "claude-client", registered from ${dir}; saved in `,
+    );
   });
 
   test("a stored binary must be an absolute executable; a bad answer is asked again", async () => {
@@ -379,7 +388,11 @@ describe("setup: registering an external directory", () => {
     mkdirSync(join(w.home, "inside"), { recursive: true });
     const file = join(w.userHome, "afile");
     writeFileSync(file, "x");
-    const { io, run } = setup(w, [], ["", "6", "relative/dir", join(w.userHome, "missing"), file, join(w.home, "inside"), "~/.claude-client", "", ""]);
+    const { io, run } = setup(
+      w,
+      [],
+      ["", "6", "relative/dir", join(w.userHome, "missing"), file, join(w.home, "inside"), "~/.claude-client", "", ""],
+    );
     expect(await run).toBe(0);
     const printed = io.printed();
     expect(printed).toContain("must be an absolute path");
@@ -418,7 +431,10 @@ describe("setup: registering an external directory", () => {
       now: () => {
         if (!tampered) {
           tampered = true;
-          updateConfig({ home: w.home }, (c) => ({ ...c, profiles: { ...c.profiles, "claude-client": { kind: "external", configDir: dir, createdAt: "elsewhere" } } }));
+          updateConfig({ home: w.home }, (c) => ({
+            ...c,
+            profiles: { ...c.profiles, "claude-client": { kind: "external", configDir: dir, createdAt: "elsewhere" } },
+          }));
         }
         return NOW;
       },
@@ -526,7 +542,10 @@ describe("setup: the account check after the save", () => {
   test("signed out: Sign in now? yes runs profile login and checks again", async () => {
     const w = world();
     const toolchain = signedOutUntilLogin(w);
-    const { io, run } = setup(w, ["--profile", "work-a"], ["", "y"], { spawn: (b, a, o) => (a[0] === "auth" && a[1] === "--help" ? { status: 0, stdout: "  login\n", stderr: "" } : toolchain.spawn(b, a, o)) });
+    const { io, run } = setup(w, ["--profile", "work-a"], ["", "y"], {
+      spawn: (b, a, o) =>
+        a[0] === "auth" && a[1] === "--help" ? { status: 0, stdout: "  login\n", stderr: "" } : toolchain.spawn(b, a, o),
+    });
     expect(await run).toBe(0);
     expect(io.printed()).toContain("Sign in now? [Y/n]");
     expect(w.interactiveCalls).toHaveLength(1);
@@ -538,7 +557,10 @@ describe("setup: the account check after the save", () => {
   test("signed out: yes, but the sign-in did not take, still prints the warning", async () => {
     const w = world();
     const toolchain = fakeToolchain({ auth: () => ({ status: 1, stdout: JSON.stringify({ loggedIn: false }) }) });
-    const { run } = setup(w, ["--profile", "work-a"], ["", "y"], { spawn: (b, a, o) => (a[0] === "auth" && a[1] === "--help" ? { status: 0, stdout: "  login\n", stderr: "" } : toolchain.spawn(b, a, o)) });
+    const { run } = setup(w, ["--profile", "work-a"], ["", "y"], {
+      spawn: (b, a, o) =>
+        a[0] === "auth" && a[1] === "--help" ? { status: 0, stdout: "  login\n", stderr: "" } : toolchain.spawn(b, a, o),
+    });
     expect(await run).toBe(1);
     expect(w.interactiveCalls).toHaveLength(1);
     expect(errText(w)).toContain("warning:");
@@ -583,7 +605,12 @@ describe("setup without a terminal", () => {
   test("--profile binds like slice 0 and never prompts", async () => {
     const w = world();
     const io = scripted([]);
-    const code = await runSetupCommand(parseSetupFlags(["--profile", "work-a"], w.repo), w.env, w.io, w.deps({ interactive: false, promptIO: io }));
+    const code = await runSetupCommand(
+      parseSetupFlags(["--profile", "work-a"], w.repo),
+      w.env,
+      w.io,
+      w.deps({ interactive: false, promptIO: io }),
+    );
     expect(code).toBe(0);
     expect(io.printed()).toBe("");
     expect(w.config()!.projects[w.key].profile).toBe("work-a");
@@ -592,14 +619,20 @@ describe("setup without a terminal", () => {
   test("no --profile is exit 2 and writes nothing; --yes in a terminal behaves the same", async () => {
     const w = world();
     const before = w.configText();
-    await expect(runSetupCommand(parseSetupFlags([], w.repo), w.env, w.io, w.deps({ interactive: false }))).rejects.toThrow(/needs --profile <name> when it cannot ask/);
-    await expect(runSetupCommand(parseSetupFlags(["--yes"], w.repo), w.env, w.io, w.deps({ interactive: true }))).rejects.toThrow(/needs --profile <name> when it cannot ask/);
+    await expect(runSetupCommand(parseSetupFlags([], w.repo), w.env, w.io, w.deps({ interactive: false }))).rejects.toThrow(
+      /needs --profile <name> when it cannot ask/,
+    );
+    await expect(runSetupCommand(parseSetupFlags(["--yes"], w.repo), w.env, w.io, w.deps({ interactive: true }))).rejects.toThrow(
+      /needs --profile <name> when it cannot ask/,
+    );
     expect(w.configText()).toBe(before);
   });
 
   test("it never registers or creates a profile", async () => {
     const w = world();
-    await expect(runSetupCommand(parseSetupFlags(["--profile", "ghost"], w.repo), w.env, w.io, w.deps({ interactive: false }))).rejects.toBeInstanceOf(UsageError);
+    await expect(
+      runSetupCommand(parseSetupFlags(["--profile", "ghost"], w.repo), w.env, w.io, w.deps({ interactive: false })),
+    ).rejects.toBeInstanceOf(UsageError);
     expect(Object.keys(w.config()!.profiles).sort()).toEqual(["work-a", "work-b"]);
   });
 });

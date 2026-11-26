@@ -28,7 +28,14 @@ describe.skipIf(!tools || !installed || process.platform === "win32")("scripts/v
     const r = run([]);
     expect(r.stderr).not.toContain("FAIL");
     expect(r.code).toBe(0);
-    for (const line of ["wachiman --version ->", "bundled Bun is a stub, so the Bun on PATH ran", "terminal screens: chalk and @clack/prompts load from the installed copy and NO_COLOR is honored", "npm exec -- wachiman --version from the installed copy", "wachiman doctor --json against fixture dependencies", "did not reach the engine"]) {
+    for (const line of [
+      "wachiman --version ->",
+      "bundled Bun is a stub, so the Bun on PATH ran",
+      "terminal screens: chalk and @clack/prompts load from the installed copy and NO_COLOR is honored",
+      "npm exec -- wachiman --version from the installed copy",
+      "wachiman doctor --json against fixture dependencies",
+      "did not reach the engine",
+    ]) {
       expect(r.stdout).toContain(line);
     }
   }, 180_000);
@@ -44,7 +51,9 @@ describe.skipIf(!tools || !installed || process.platform === "win32")("scripts/v
     const dir = mkdtempSync(join(tmpdir(), "wachiman-relative-tarball-"));
     mkdirSync(join(dir, "dist"));
     try {
-      const packed = Bun.spawnSync(["npm", "pack", "--pack-destination", join(dir, "dist"), "--ignore-scripts", "--json"], { cwd: join(import.meta.dir, "..") });
+      const packed = Bun.spawnSync(["npm", "pack", "--pack-destination", join(dir, "dist"), "--ignore-scripts", "--json"], {
+        cwd: join(import.meta.dir, ".."),
+      });
       expect(packed.exitCode).toBe(0);
       const name = JSON.parse(packed.stdout.toString())[0].filename as string;
       const r = run(["--tarball", join("dist", name), "--without-bun"], dir);
