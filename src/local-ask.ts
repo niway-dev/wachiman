@@ -20,6 +20,7 @@ import { UsageError } from "./config";
 import { askDistributed, type ResolvedSibling } from "./distributed";
 import { askErrorOf, reportRun, runOfAsk } from "./telemetry/report";
 import type { TelemetryRun } from "./telemetry/summary";
+import type { ResolvedRefs } from "./connectors/local-git";
 import { annotateDiff, DEFAULT_EXCLUDE, filterFiles, renderInstructions, runProvider, type ReviewInput, type ReviewResult } from "./engine";
 import { historyRoot, readRuns, repositoryKey } from "./history/store";
 import { type LocalArgs, type LocalDeps, localScopeInput, openLocalSession, parseFlags } from "./local";
@@ -154,6 +155,7 @@ export async function runAsk(
   deps: LocalDeps = {},
 ): Promise<number> {
   // The account, the provider and the settings are checked before the change is read, as `local` does.
+  const resolved: ResolvedRefs = {};
   const { config, provider, state } = openLocalSession({
     profile: args.profile,
     verify: false,
@@ -161,6 +163,7 @@ export async function runAsk(
     env,
     stderr: io.stderr,
     deps,
+    resolved,
     scope: { workingTree: args.workingTree, base: args.base, commit: args.commit, from: args.from, maxDepth: args.maxDepth },
   });
   const onSigint = () => {
@@ -183,6 +186,7 @@ export async function runAsk(
       paths: args.paths,
       log: io.stderr,
       warn: io.stderr,
+      refs: resolved.refs,
     });
     release = scope.release;
     const { input } = scope;

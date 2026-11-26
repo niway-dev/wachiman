@@ -111,7 +111,7 @@ Exits 3, 10, 11 and 130 mean other things in other commands and are never used h
 | `format` | Always `wachiman.pr-state/1`. A change to a field needs a new version |
 | `head` | The pull request's head commit, read at the start of the call |
 | `review.state` | `none` (no review of this head and none of another), `running` (the check run is queued or in progress), `complete`, `partial`, `not-reviewed`, `scoped` (only a scoped review exists for this head; it never decides), `stale` (reviews exist, none for this head) |
-| `review.reason` | Why nothing was reviewed: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `turn_limit`, `timeout` or `budget`. Null otherwise. A pull request stopped by the size gate has no review (the gate posts an issue comment, which never carries a block), so it reads as `blocked` with `why: review_missing` |
+| `review.reason` | Why nothing was reviewed: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `turn_limit`, `timeout` or `budget`. Null otherwise. A pull request stopped by the room gate has no review (the gate posts an issue comment, which never carries a block), so it reads as `blocked` with `why: review_missing` |
 | `review.reviewed_head` | The head the deciding review covers; for `scoped`, that review's own head; for `stale` and `running`, the latest other review's head. Null when there is none |
 | `review.attempt`, `review.engine` | From the block. Null for `legacy-markers` |
 | `review.source` | `block`, or `legacy-markers` for a review posted by an engine without the block. Null when no review is read |
@@ -187,7 +187,7 @@ counts them under `body`.
 | `head` | The commit the review is about |
 | `attempt` | The attempt id the engine also writes in the footer; one per post |
 | `status` | `complete`, `partial` (some files not reached; the `wachi:partial` marker keeps the continuation state), `scoped` (a review of some paths an operator asked for) or `not-reviewed` (a notice: nothing was reviewed) |
-| `reason` | Required when `not-reviewed`, null otherwise: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `size_gate`, `turn_limit`, `timeout`, `budget`. The engine does not write `size_gate` today: the size gate posts an issue comment, not a review |
+| `reason` | Required when `not-reviewed`, null otherwise: `billing`, `auth`, `rate_limit`, `ceiling`, `limit`, `size_gate`, `turn_limit`, `timeout`, `budget`. The engine does not write `size_gate` today: the room gate posts an issue comment, not a review |
 | `carried_from` | Optional. On a base-update line, the earlier head whose review it carries over |
 | `scope` | Optional. `binary_only` on the all-binary notice (zero findings; `complete`, or `scoped` when the request named paths); otherwise, on a scoped review, the number of paths |
 | `findings.total` | The headline count |

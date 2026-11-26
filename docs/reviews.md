@@ -17,6 +17,7 @@ approves, never requests changes and never blocks a merge, including when a find
 | Push more commits | If your caller lists `synchronize` (the templates do), a review of only the commits that are new since the last complete review. See [Reviews on push](#reviews-on-push). Otherwise nothing. |
 | Comment `/wachiman review` (as the operator) | A review of what is new since the last complete review, or of the whole pull request if there is none. |
 | Comment `/wachiman review <path> [path…]` | A review of only those paths. See [Limit a review to some paths](#limit-a-review-to-some-paths). |
+| Comment `/wachiman review --budget N --head <sha>` (as the operator) | Approves a budget of `N` dollars for the review of that one head, after a skipped review offered it. See [how to approve a budget](costs.md#how-to-approve-a-budget). |
 | Comment `/wachiman` followed by anything else | The comment is treated as a question and answered. See [Ask a question](#ask-a-question). |
 
 Rules that apply to all of them:

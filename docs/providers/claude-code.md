@@ -86,6 +86,23 @@ refused API call, with a message that names the token, never the key, and is not
 `total_cost_usd` on a subscription is an API-price equivalent, so the footer, the paused notice and
 the `wachiman-cost` line (`auth: "oauth-token"`) say it is an estimate.
 
+## The prompt cache
+
+The settings file sets `"promptCacheTtl": "5m"` (Claude Code 2.1.242 and later; the pinned 2.1.304
+reads it), so every mode writes the prompt cache for 5 minutes. Unset, Claude Code writes it for
+1 hour on a Claude subscription and for 5 minutes on an API key
+([prompt caching](https://code.claude.com/docs/en/prompt-caching.md)). A 1-hour write is priced
+higher, and with `--max-budget-usd` Claude Code shows the model its spend against the cap on every
+turn, so on the token a batch reached its cap estimate in fewer turns and reviewed less: at a
+$0.75 cap, 10 to 12 turns against 15 to 17 on the key, and 13 to 14 with the 5-minute cache forced
+([credential probe](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-26-credential-probe/README.md)).
+A batch rarely pauses for more than 5 minutes between turns, so the longer cache buys nothing here.
+
+Claude Code's `CLAUDE_CODE_PROMPT_CACHE_TTL` outranks the setting, but it is not in the child
+environment's allowlist, so a caller cannot set it. The setting covers the main conversation only;
+the review uses no subagents. An older `claude`, which `wachiman local` may run, ignores the key:
+Claude Code 2.1.200 starts and calls the API with this settings file, on its own default lifetime.
+
 ## The child environment
 
 The adapter builds the `claude` process environment from an allowlist (`CHILD_ENV_ALLOWLIST` and

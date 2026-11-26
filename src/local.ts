@@ -23,12 +23,16 @@ import {
   localSettingsCommit,
   type LocalRefs,
   removeSnapshot,
+  type ResolvedRefs,
   type SettingsScope,
   snapshotHead,
   warnSnapshotDifferences,
 } from "./connectors/local-git";
+import { planExceptions } from "./memory/mute";
 import {
   DEFAULT_EXCLUDE,
+  batchRoom,
+  touchedPathsOf,
   estimateFor,
   filterFiles,
   planBatches,
@@ -38,7 +42,7 @@ import {
   type ReviewInput,
   type ReviewResult,
 } from "./engine";
-import { sizeGate, type ReviewEstimate } from "./estimate";
+import type { ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
 import { personalSourceFor } from "./memory/personal";
 import { assertReviewInputFormat, NO_V1_DISTRIBUTED, REVIEW_INPUT_V2 } from "./formats";
@@ -358,9 +362,10 @@ export function withLocalSettings(
   repoDir: string,
   scope: SettingsScope,
   stderr: (line: string) => void,
+  resolved?: ResolvedRefs,
 ): EngineConfig {
   if (!wantsRepoSettings(config)) return config;
-  const sha = localSettingsCommit(repoDir, scope);
+  const sha = localSettingsCommit(repoDir, scope, undefined, resolved);
   if (sha === undefined) return config;
   const where = `${scope.inputBase !== undefined ? "the input's base" : scope.workingTree ? "HEAD" : "the merge-base"} ${short(sha)}`;
   let settings: RepoSettings | undefined;
@@ -392,13 +397,15 @@ export function openLocalSession(p: {
   deps: LocalDeps;
   /** The scope flags: they decide the commit whose `.wachiman.yml` is read (the one the instruction files are read at). */
   scope?: SettingsScope;
+  /** Receives the refs the settings commit was resolved from; pass the same box to `localScopeInput` as `refs`. */
+  resolved?: ResolvedRefs;
 }): LocalSession {
   const { env, repoDir, deps } = p;
   const loadedEnv = loadConfig(env, p.stderr);
   if (loadedEnv.provider !== "claude-code") {
     throw new UsageError(`WACHIMAN_PROVIDER=${loadedEnv.provider}: the local review runs only on Claude Code, your signed-in \`claude\`.`);
   }
-  const loaded = withLocalSettings(loadedEnv, repoDir, p.scope ?? {}, p.stderr);
+  const loaded = withLocalSettings(loadedEnv, repoDir, p.scope ?? {}, p.stderr, p.resolved);
   // A person ran it: no automatic ceiling (decision 14).
   const config = {
     ...loaded,
@@ -488,6 +495,8 @@ export function localScopeInput(p: {
   paths: string[];
   log: (line: string) => void;
   warn: (line: string) => void;
+  /** The refs `openLocalSession` already resolved for these same flags (its `resolved.refs`), so they are not resolved twice. */
+  refs?: LocalRefs;
 }): { input: ReviewInput; release: () => void } {
   if (p.workingTree) {
     const built = workingTreeInput({
@@ -512,6 +521,7 @@ export function localScopeInput(p: {
     paths: p.paths,
     log: p.log,
     warn: p.warn,
+    refs: p.refs,
   });
   const { refs } = built;
   const commits = `${refs.depth} commit${refs.depth === 1 ? "" : "s"}`;
@@ -536,12 +546,17 @@ export function localScopeInput(p: {
 }
 
 /**
- * The one warning a local run prints when its estimate is above the size gate, or null. Local runs
- * are never refused: the run continues and stops at its budget.
+ * The one warning a local run prints when its estimate is above `budget_usd` (ADR 0062 decision 6;
+ * `size_gate_usd` has no effect), or null. Local runs are never refused: the run continues and
+ * stops at its budget.
  */
-export function sizeWarning(estimate: ReviewEstimate, gate: number, budgetUsd: number, model: string): string | null {
-  if (estimate.usd <= gate) return null;
-  return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}), above the $${gate.toFixed(2)} size gate. Local runs are never refused; this one continues and stops at its budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD).`;
+export function sizeWarning(estimate: ReviewEstimate, budgetUsd: number, model: string, roomUsd = budgetUsd): string | null {
+  if (estimate.usd <= roomUsd) return null;
+  const above =
+    roomUsd < budgetUsd
+      ? `above the $${roomUsd.toFixed(2)} the batches get out of this run's budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD), once the verifier and memory reserves are taken`
+      : `above this run's budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD)`;
+  return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}), ${above}. Local runs are never refused; this one continues and stops at that budget, so the review may be partial. Raise WACHIMAN_BUDGET_USD to cover the estimate, or review less.`;
 }
 
 export async function runLocal(
@@ -581,6 +596,7 @@ export async function runLocal(
         : "distributed-repo: on (--distributed-repo)",
     );
   }
+  const resolved: ResolvedRefs = {};
   const { config, profile, profileNote, provider, verifier, state } = openLocalSession({
     profile: args.profile,
     verify: args.verify,
@@ -588,6 +604,7 @@ export async function runLocal(
     env,
     stderr: io.stderr,
     deps,
+    resolved,
     scope: {
       workingTree: args.workingTree,
       base: args.base,
@@ -620,6 +637,7 @@ export async function runLocal(
         paths: args.paths,
         log: io.stderr,
         warn: io.stderr,
+        refs: resolved.refs,
       });
       input = scope.input;
       release = scope.release;
@@ -655,8 +673,6 @@ export async function runLocal(
     );
     io.stderr(`files: ${kept.length} (${dropped.length} excluded)`);
     io.stderr(`batches: ${batches.length}`);
-    const warning = sizeWarning(estimateFor(kept, config, input.pathRules), sizeGate(config, false), config.budgetUsd, config.model);
-    if (warning) io.stderr(warning);
     io.stderr(
       config.verify
         ? `verify: on (${config.verifierModel}, reserve $${Math.min(config.verifyBudgetUsd, config.budgetUsd / 2).toFixed(2)})`
@@ -695,6 +711,18 @@ export async function runLocal(
           spawnGit,
           personalSourceFor(home, repoDir, spawnGit, io.stderr),
         );
+    // The room is what `reviewChange` gives the batches: the budget less the verifier and memory-match reserves.
+    const room = batchRoom(
+      config.budgetUsd,
+      config.verify ? { budgetUsd: config.verifyBudgetUsd } : undefined,
+      planExceptions(
+        memory,
+        touchedPathsOf(input.files),
+        reviewable.map((f) => f.filename),
+      ),
+    );
+    const warning = sizeWarning(estimateFor(kept, config, input.pathRules), config.budgetUsd, config.model, room);
+    if (warning) io.stderr(warning);
     const result = await reviewChange(
       input,
       {
