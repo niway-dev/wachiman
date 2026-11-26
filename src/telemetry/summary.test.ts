@@ -48,7 +48,9 @@ describe("buildSummary", () => {
   });
 
   test("rounds diff sizes to two significant figures and never goes negative", () => {
-    expect([0, 7, 99, 100, 124, 125, 1234, 99_999, 123_456].map(roundTwoFigures)).toEqual([0, 7, 99, 100, 120, 130, 1200, 100_000, 120_000]);
+    expect([0, 7, 99, 100, 124, 125, 1234, 99_999, 123_456].map(roundTwoFigures)).toEqual([
+      0, 7, 99, 100, 120, 130, 1200, 100_000, 120_000,
+    ]);
     expect([-5, Number.NaN, Infinity, 2.6].map(roundTwoFigures)).toEqual([0, 0, 0, 3]);
     const s = build({ files: [{ filename: "a.ts", additions: 1234, deletions: 56_789 }] });
     expect(s.diff).toEqual({ files: 1, added: 1200, removed: 57_000 });
@@ -105,18 +107,33 @@ describe("languagesOf", () => {
   });
 
   test("uses the extension only: a path, a dotfile or an unknown extension adds nothing", () => {
-    const files = ["/home/octocat/acme-secret/Makefile", ".gitignore", "notes.octocat@example.com", "src/x.TS", "weird.ts/"].map((filename) => ({ filename }));
+    const files = ["/home/octocat/acme-secret/Makefile", ".gitignore", "notes.octocat@example.com", "src/x.TS", "weird.ts/"].map(
+      (filename) => ({ filename }),
+    );
     expect(languagesOf(files)).toEqual(["typescript"]);
   });
 });
 
 describe("what is never in a summary", () => {
-  const MARKERS = ["octocat-login", "someone@example.com", "acme-secret-repo", "ghp_abcdefghijklmnopqrstuvwxyz0123456789", "/Users/jane/work", "api.internal.acme"];
+  const MARKERS = [
+    "octocat-login",
+    "someone@example.com",
+    "acme-secret-repo",
+    "ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+    "/Users/jane/work",
+    "api.internal.acme",
+  ];
   test("markers placed in every place a run could carry them do not appear", () => {
     const hostile = {
       ...base,
       files: [
-        { filename: `/Users/jane/work/acme-secret-repo/src/app.ts`, additions: 5, deletions: 1, patch: "+ ghp_abcdefghijklmnopqrstuvwxyz0123456789", sha: "abc" },
+        {
+          filename: `/Users/jane/work/acme-secret-repo/src/app.ts`,
+          additions: 5,
+          deletions: 1,
+          patch: "+ ghp_abcdefghijklmnopqrstuvwxyz0123456789",
+          sha: "abc",
+        },
         { filename: "docs/octocat-login.someone@example.com", additions: 1, deletions: 0 },
       ],
       model: "claude-opus-4-5 acme-secret-repo",

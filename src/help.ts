@@ -49,10 +49,7 @@ const PROFILE: Row = [
   "--profile <name>",
   "The account to run on: `default` (your own claude), a registered profile, or `isolated[:<name>]`. Default: the project binding, WACHIMAN_PROFILE, the configured default, then `default`",
 ];
-const DO_NOT_TRACK_ENV: Row = [
-  "DO_NOT_TRACK",
-  "Honored: when set to 1, no usage data is sent, whatever the stored opt-in says",
-];
+const DO_NOT_TRACK_ENV: Row = ["DO_NOT_TRACK", "Honored: when set to 1, no usage data is sent, whatever the stored opt-in says"];
 const HOME_ENV: Row = ["WACHIMAN_HOME", "The Wachiman home, an absolute path. Default: ~/.wachiman"];
 const PROFILE_ENV: Row = ["WACHIMAN_PROFILE", "The profile used when there is no --profile and no project binding"];
 const KEY_ENV: Row = ["ANTHROPIC_API_KEY", "Must be unset: the run refuses to start (exit 2) so the call goes to your subscription"];

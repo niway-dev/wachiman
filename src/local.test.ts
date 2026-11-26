@@ -1717,7 +1717,11 @@ describe("usage telemetry after a review (opt-in; src/telemetry/)", () => {
 
   test("a stored yes sends one summary; a hanging endpoint leaves the output and the exit code as they were and adds about the timeout", async () => {
     const bodies: string[] = [];
-    const server = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })) });
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })),
+    });
     const hang = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Promise<Response>(() => {}) });
     try {
       const whome = consented();
@@ -1742,11 +1746,15 @@ describe("usage telemetry after a review (opt-in; src/telemetry/)", () => {
 
   test("without a stored yes, or with DO_NOT_TRACK, CI or GITHUB_ACTIONS set, no request is made", async () => {
     const bodies: string[] = [];
-    const server = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })) });
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })),
+    });
     try {
       const url = { WACHIMAN_TELEMETRY_URL: `http://127.0.0.1:${server.port}/v1/usage` };
       await localAsync({ WACHIMAN_HOME: temp("wachiman-whome-"), ...url });
-      for (const blocker of [{ DO_NOT_TRACK: "1" }, { CI: "true" }, { GITHUB_ACTIONS: "true" }])
+      for (const blocker of [{ DO_NOT_TRACK: "1" }, { CI: "true" }, { GITHUB_ACTIONS: "true" }] as Record<string, string>[])
         await localAsync({ WACHIMAN_HOME: consented(), ...url, ...blocker });
       expect(bodies).toEqual([]);
     } finally {

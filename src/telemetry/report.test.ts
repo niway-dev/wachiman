@@ -6,13 +6,24 @@ import { recordChoice } from "./consent";
 import { askErrorOf, errorOf, outcomeOf, reportRun, runOfAsk, runOfReview } from "./report";
 import type { TelemetryRun } from "./summary";
 
-const run: TelemetryRun = runOfAsk({ model: "opus", kept: [{ filename: "a.ts", additions: 1, deletions: 0 }], usage: undefined, durationMs: 10, error: null, failed: false });
+const run: TelemetryRun = runOfAsk({
+  model: "opus",
+  kept: [{ filename: "a.ts", additions: 1, deletions: 0 }],
+  usage: undefined,
+  durationMs: 10,
+  error: null,
+  failed: false,
+});
 
 let server: ReturnType<typeof Bun.serve>;
 let bodies: string[] = [];
 let home: string;
 beforeAll(() => {
-  server = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })) });
+  server = Bun.serve({
+    port: 0,
+    hostname: "127.0.0.1",
+    fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })),
+  });
 });
 afterAll(() => {
   server.stop(true);
@@ -24,7 +35,11 @@ beforeEach(() => {
   home = mkdtempSync(join(tmpdir(), "wachiman-report-"));
 });
 const send = (env: Record<string, string>) =>
-  reportRun(run, { env: { WACHIMAN_TELEMETRY_URL: `http://127.0.0.1:${server.port}/v1/usage`, ...env }, home: () => home, version: "1.21.0" });
+  reportRun(run, {
+    env: { WACHIMAN_TELEMETRY_URL: `http://127.0.0.1:${server.port}/v1/usage`, ...env },
+    home: () => home,
+    version: "1.21.0",
+  });
 
 describe("reportRun makes a request only with a stored yes in a clean environment", () => {
   test("never asked, or a no: no request", async () => {
@@ -34,11 +49,14 @@ describe("reportRun makes a request only with a stored yes in a clean environmen
     expect(bodies).toEqual([]);
   });
 
-  test.each([{ DO_NOT_TRACK: "1" }, { WACHIMAN_TELEMETRY: "0" }, { CI: "true" }, { GITHUB_ACTIONS: "true" }] as Record<string, string>[])("a stored yes with %j: no request", async (env) => {
-    recordChoice(home, "yes");
-    await send(env);
-    expect(bodies).toEqual([]);
-  });
+  test.each([{ DO_NOT_TRACK: "1" }, { WACHIMAN_TELEMETRY: "0" }, { CI: "true" }, { GITHUB_ACTIONS: "true" }] as Record<string, string>[])(
+    "a stored yes with %j: no request",
+    async (env) => {
+      recordChoice(home, "yes");
+      await send(env);
+      expect(bodies).toEqual([]);
+    },
+  );
 
   test("a stored yes: one request with the summary", async () => {
     const { installation } = recordChoice(home, "yes");
@@ -61,8 +79,19 @@ describe("reportRun makes a request only with a stored yes in a clean environmen
 });
 
 describe("what a result becomes", () => {
-  const result = (execution: object, coverage = { partial: false }, batches: { status: string }[] = [], findings: { severity: string }[] = []) =>
-    ({ provider: { model: "claude-sonnet-5" }, execution: { usage: undefined, durationMs: 5, callsWithOutput: 1, stop: "complete", ...execution }, coverage, batches, findings }) as never;
+  const result = (
+    execution: object,
+    coverage = { partial: false },
+    batches: { status: string }[] = [],
+    findings: { severity: string }[] = [],
+  ) =>
+    ({
+      provider: { model: "claude-sonnet-5" },
+      execution: { usage: undefined, durationMs: 5, callsWithOutput: 1, stop: "complete", ...execution },
+      coverage,
+      batches,
+      findings,
+    }) as never;
 
   test("error categories come from the stop reason and the rejection class, never a message", () => {
     expect(errorOf({ stop: "complete" })).toBeNull();
@@ -82,7 +111,12 @@ describe("what a result becomes", () => {
 
   test("chunks, retries and severities are counted from the batches and findings", () => {
     const r = runOfReview(
-      result({}, { partial: false }, [{ status: "reviewed" }, { status: "reviewed after a retry" }, { status: "2 file(s) left after a retry" }, { status: "timed out" }], [{ severity: "fix" }, { severity: "info" }]),
+      result(
+        {},
+        { partial: false },
+        [{ status: "reviewed" }, { status: "reviewed after a retry" }, { status: "2 file(s) left after a retry" }, { status: "timed out" }],
+        [{ severity: "fix" }, { severity: "info" }],
+      ),
       [],
     );
     expect(r.chunks).toEqual({ planned: 4, completed: 2 });

@@ -22,12 +22,37 @@ function world(extraEnv: Record<string, string> = {}) {
   scratch.push(home);
   const out: string[] = [];
   const err: string[] = [];
-  return { repo, home, out, err, env: { WACHIMAN_HOME: home, ...extraEnv }, io: { stdout: (t: string) => void out.push(t), stderr: (l: string) => void err.push(l) } };
+  return {
+    repo,
+    home,
+    out,
+    err,
+    env: { WACHIMAN_HOME: home, ...extraEnv },
+    io: { stdout: (t: string) => void out.push(t), stderr: (l: string) => void err.push(l) },
+  };
 }
 type World = ReturnType<typeof world>;
-const ARGS = ["--mode", "github", "--operator", "me", "--version", "v1.5.0", "--project-kind", "single", "--no-pr-template", "--no-agent-pointer"];
-const deps = (extra: InitDeps = {}): InitDeps => ({ now: () => "2026-11-26T00:00:00.000Z", version: "1.21.0", defaultWorkflowRef: "v1.5.0", cwd: "/elsewhere", ...extra });
-const init = (w: World, argv: string[], extra: InitDeps = {}) => runInitCommand(parseInitFlags(argv, w.repo), w.env, w.io, deps({ interactive: false, ...extra }));
+const ARGS = [
+  "--mode",
+  "github",
+  "--operator",
+  "me",
+  "--version",
+  "v1.5.0",
+  "--project-kind",
+  "single",
+  "--no-pr-template",
+  "--no-agent-pointer",
+];
+const deps = (extra: InitDeps = {}): InitDeps => ({
+  now: () => "2026-11-26T00:00:00.000Z",
+  version: "1.21.0",
+  defaultWorkflowRef: "v1.5.0",
+  cwd: "/elsewhere",
+  ...extra,
+});
+const init = (w: World, argv: string[], extra: InitDeps = {}) =>
+  runInitCommand(parseInitFlags(argv, w.repo), w.env, w.io, deps({ interactive: false, ...extra }));
 /** An interactive run: the one earlier question (Write it?) takes its default (Enter); the last line answers the telemetry question. */
 const terminal = (answer: string, extra: string[] = []) => scripted([...extra, "", answer]);
 
@@ -69,7 +94,11 @@ describe("init without a terminal stores nothing", () => {
     const io = scripted([]);
     const y = world();
     expect(
-      await init(y, [...ARGS, "--yes"], { interactive: undefined, streams: { stdin: { isTTY: true }, stdout: { isTTY: true } }, promptIO: io }),
+      await init(y, [...ARGS, "--yes"], {
+        interactive: undefined,
+        streams: { stdin: { isTTY: true }, stdout: { isTTY: true } },
+        promptIO: io,
+      }),
     ).toBe(0);
     expect(io.printed()).toBe("");
     expect(existsSync(consentPath(w.home))).toBe(false);

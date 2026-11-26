@@ -16,10 +16,15 @@ function run(argv: string[], env: Record<string, string> = {}, deps: Parameters<
   const out: string[] = [];
   const err: string[] = [];
   const asked: string[] = [];
-  const code = runTelemetry(argv, { WACHIMAN_HOME: home, ...env }, { stdout: (t) => out.push(t), stderr: (l) => err.push(l) }, {
-    ask: (q) => (asked.push(q), "yes"),
-    ...deps,
-  });
+  const code = runTelemetry(
+    argv,
+    { WACHIMAN_HOME: home, ...env },
+    { stdout: (t) => out.push(t), stderr: (l) => err.push(l) },
+    {
+      ask: (q) => (asked.push(q), "yes"),
+      ...deps,
+    },
+  );
   return { code, out: out.join(""), err: err.join("\n"), asked };
 }
 
@@ -33,7 +38,7 @@ describe("wachiman telemetry on", () => {
   });
 
   test("refuses when CI or GITHUB_ACTIONS is set, even on a terminal", () => {
-    for (const env of [{ CI: "true" }, { GITHUB_ACTIONS: "true" }]) {
+    for (const env of [{ CI: "true" }, { GITHUB_ACTIONS: "true" }] as Record<string, string>[]) {
       const r = run(["on"], env, { interactive: true });
       expect(r.code).toBe(2);
       expect(r.err).toMatch(/CI|GITHUB_ACTIONS/);

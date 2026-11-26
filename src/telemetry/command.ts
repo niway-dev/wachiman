@@ -26,7 +26,9 @@ const onTerminal = () => process.stdin.isTTY === true && process.stdout.isTTY ==
 export function runTelemetry(argv: string[], env: Env, io: CommandIo, deps: TelemetryDeps = {}): number {
   const [sub, ...extra] = argv;
   if (sub === undefined || !SUBCOMMANDS.includes(sub) || extra.length > 0) {
-    io.stderr(`wachiman: telemetry takes one of ${SUBCOMMANDS.join(", ")}${extra.length > 0 ? `, and no more arguments (got "${extra[0]}")` : ""}.`);
+    io.stderr(
+      `wachiman: telemetry takes one of ${SUBCOMMANDS.join(", ")}${extra.length > 0 ? `, and no more arguments (got "${extra[0]}")` : ""}.`,
+    );
     return 2;
   }
   const home = wachimanHome(env);
@@ -62,11 +64,15 @@ function status(env: Env, home: string, io: CommandIo): number {
 function turnOn(env: Env, home: string, io: CommandIo, deps: TelemetryDeps): number {
   const ci = ["CI", "GITHUB_ACTIONS"].filter((name) => (env[name] ?? "").trim() !== "");
   if (ci.length > 0) {
-    io.stderr(`wachiman: telemetry on is not available when ${ci.join(" or ")} is set: usage telemetry is for a laptop, and a workflow or an agent never gives this consent.`);
+    io.stderr(
+      `wachiman: telemetry on is not available when ${ci.join(" or ")} is set: usage telemetry is for a laptop, and a workflow or an agent never gives this consent.`,
+    );
     return 2;
   }
   if (!(deps.interactive ?? onTerminal())) {
-    io.stderr("wachiman: telemetry on needs a terminal: it shows what is sent and asks you. Run it in a terminal yourself; an agent never answers it.");
+    io.stderr(
+      "wachiman: telemetry on needs a terminal: it shows what is sent and asks you. Run it in a terminal yourself; an agent never answers it.",
+    );
     return 2;
   }
   io.stderr(consentText(TELEMETRY_DOCS));

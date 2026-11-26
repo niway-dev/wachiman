@@ -372,11 +372,14 @@ export async function runAsk(
       io.stderr(`report: ${path}`);
     } else io.stdout(text);
     // Only with a stored yes (src/telemetry/); after the answer is written, so it can neither change it nor the exit code.
-    await reportRun(runOfAsk({ model: config.model, kept, usage: result.usage, durationMs: result.durationMs, error: null, failed: false }), {
-      env,
-      home: () => home,
-      version: io.engineVersion,
-    });
+    await reportRun(
+      runOfAsk({ model: config.model, kept, usage: result.usage, durationMs: result.durationMs, error: null, failed: false }),
+      {
+        env,
+        home: () => home,
+        version: io.engineVersion,
+      },
+    );
     return 0;
   } finally {
     process.off("SIGINT", onSigint);

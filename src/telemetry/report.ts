@@ -24,12 +24,16 @@ export function errorOf(execution: Execution): ErrorCategory | null {
 }
 
 /** The category of a failed `ask` call: from the provider's error class and terminal reason; `other` when no call returned. */
-export function askErrorOf(result: { terminalReason: string; providerError?: "billing" | "auth" | "rate_limit" | "other" } | undefined): ErrorCategory {
+export function askErrorOf(
+  result: { terminalReason: string; providerError?: "billing" | "auth" | "rate_limit" | "other" } | undefined,
+): ErrorCategory {
   if (result === undefined) return "other";
-  return errorOf({
-    stop: result.terminalReason === "timeout" ? "timeout" : "error",
-    rejection: { kind: result.providerError ?? "other", text: "" },
-  }) ?? "other";
+  return (
+    errorOf({
+      stop: result.terminalReason === "timeout" ? "timeout" : "error",
+      rejection: { kind: result.providerError ?? "other", text: "" },
+    }) ?? "other"
+  );
 }
 
 export function outcomeOf(result: Pick<ReviewResult, "execution" | "coverage">): Outcome {

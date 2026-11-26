@@ -2,7 +2,19 @@ import { describe, expect, test } from "bun:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ENDPOINT } from "./send";
-import { ERRORS, LANGUAGES, LAYOUTS, MAX_LANGUAGES, MAX_SUMMARY_BYTES, MODEL_FAMILIES, MODES, OUTCOMES, SEVERITY_KEYS, SUMMARY_KEYS, TELEMETRY_FORMAT } from "./summary";
+import {
+  ERRORS,
+  LANGUAGES,
+  LAYOUTS,
+  MAX_LANGUAGES,
+  MAX_SUMMARY_BYTES,
+  MODEL_FAMILIES,
+  MODES,
+  OUTCOMES,
+  SEVERITY_KEYS,
+  SUMMARY_KEYS,
+  TELEMETRY_FORMAT,
+} from "./summary";
 import { SEVERITY } from "../engine";
 
 const PAGE = readFileSync(join(import.meta.dir, "..", "..", "docs", "telemetry-api.md"), "utf8");
@@ -32,13 +44,16 @@ describe("docs/telemetry-api.md and the client agree", () => {
     for (const value of ERRORS) expect(row("error")).toContain(`"${value}"`);
     for (const value of LAYOUTS) expect(row("layout")).toContain(`"${value}"`);
     for (const value of SEVERITY_KEYS) expect(row("findings")).toContain(value);
-    expect([...SEVERITY_KEYS]).toEqual(Object.keys(SEVERITY));
+    expect([...SEVERITY_KEYS] as string[]).toEqual(Object.keys(SEVERITY));
     expect(row("languages")).toContain(`up to ${["zero", "one", "two", "three", "four", "five"][MAX_LANGUAGES]}`);
     expect(row("format")).toContain(TELEMETRY_FORMAT);
   });
 
   test("the language list, the route, the size cap and the answers are the client's", () => {
-    const listed = PAGE.slice(PAGE.indexOf("The languages the table can produce:"), PAGE.indexOf("It never carries code")).replace(/[\s]+/g, " ");
+    const listed = PAGE.slice(PAGE.indexOf("The languages the table can produce:"), PAGE.indexOf("It never carries code")).replace(
+      /[\s]+/g,
+      " ",
+    );
     for (const language of LANGUAGES) expect(listed).toContain(language);
     expect(listed.match(/[a-z]+(?=[,.])/g)!.length).toBe(LANGUAGES.length);
     expect(PAGE).toContain(`POST ${ENDPOINT}`);

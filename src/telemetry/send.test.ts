@@ -15,7 +15,11 @@ const run: TelemetryRun = {
   severities: [],
   distributed: false,
 };
-const summary = buildSummary(run, { installation: "7b0f3a52-7f0e-4b0e-9d6a-1f2f3a4b5c6d", version: "1.21.0", now: new Date("2026-11-26T00:00:00Z") });
+const summary = buildSummary(run, {
+  installation: "7b0f3a52-7f0e-4b0e-9d6a-1f2f3a4b5c6d",
+  version: "1.21.0",
+  now: new Date("2026-11-26T00:00:00Z"),
+});
 
 const servers: { stop: (force?: boolean) => void }[] = [];
 afterEach(() => {
@@ -25,7 +29,10 @@ afterEach(() => {
 describe("sendSummary", () => {
   test("posts the JSON to /v1/usage on the public endpoint by default", async () => {
     let seen: { url: string; init?: RequestInit } | undefined;
-    await sendSummary(summary, { env: {}, fetch: (async (url: string, init?: RequestInit) => ((seen = { url, init }), new Response(null, { status: 204 }))) as never });
+    await sendSummary(summary, {
+      env: {},
+      fetch: (async (url: string, init?: RequestInit) => ((seen = { url, init }), new Response(null, { status: 204 }))) as never,
+    });
     expect(ENDPOINT).toBe("https://usage.wachiman-api.dev/v1/usage");
     expect(seen?.url).toBe(ENDPOINT);
     expect(seen?.init?.method).toBe("POST");
@@ -46,7 +53,8 @@ describe("sendSummary", () => {
   test("swallows a throwing fetch, 400, 413 and 500 answers, and makes one attempt", async () => {
     let calls = 0;
     await sendSummary(summary, { env: {}, fetch: (async () => (calls++, Promise.reject(new Error("boom")))) as never });
-    for (const status of [400, 413, 500]) await sendSummary(summary, { env: {}, fetch: (async () => (calls++, new Response(null, { status }))) as never });
+    for (const status of [400, 413, 500])
+      await sendSummary(summary, { env: {}, fetch: (async () => (calls++, new Response(null, { status }))) as never });
     expect(calls).toBe(4);
   });
 
