@@ -75,6 +75,19 @@ function failureReason(r: ReturnType<typeof git>): string {
 
 const NOT_APPLIED = "linguist-generated and linguist-vendored are not applied";
 
+/** Object types already asked for, per repository and sha. The review never fetches, so a type cannot change within one run. */
+const objectTypes = new Map<string, string>();
+
+/** The type git reports for `sha` in `repoDir`; empty when the object is not in the clone. */
+function objectType(repoDir: string, sha: string): string {
+  const key = `${repoDir}\0${sha}`;
+  const known = objectTypes.get(key);
+  if (known !== undefined) return known;
+  const type = git(repoDir, ["cat-file", "-t", sha]).stdout.trim();
+  objectTypes.set(key, type);
+  return type;
+}
+
 /** The marks of `paths` according to attribute files alone, in a throwaway repository. Null when git failed. */
 function markedByFiles(files: AttributeFile[], paths: readonly string[], log: (line: string) => void): Set<string> | null {
   // No attribute file at the base means no mark can come from it: skip the throwaway repository.
@@ -141,7 +154,7 @@ export function linguistExcluded(paths: readonly string[], o: LinguistOptions): 
   };
   try {
     // A range that starts at a root commit has the empty tree as its base: a tree, with no marks.
-    const type = git(o.repoDir, ["cat-file", "-t", o.baseSha]).stdout.trim();
+    const type = objectType(o.repoDir, o.baseSha);
     if (type === "tree") return none;
     if (type !== "commit") {
       if (!o.readBaseAttributes) {

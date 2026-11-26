@@ -188,6 +188,16 @@ describe("linguist exclusion from the base commit", () => {
     expect(logs).toEqual([]);
   });
 
+  test("the base's object type is asked of git once per repository and sha", () => {
+    const f = fixture();
+    withGitShim((calls) => {
+      const opts = { repoDir: f.dir, baseSha: f.base, log: () => {} };
+      linguistExcluded(f.paths, opts);
+      linguistExcluded(f.paths, opts);
+      expect(calls().filter((c) => c.includes(" cat-file ")).length).toBe(1);
+    });
+  });
+
   test("a base commit that is not in the clone excludes nothing and logs one line", () => {
     const f = fixture();
     const logs: string[] = [];
