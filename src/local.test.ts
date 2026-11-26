@@ -167,7 +167,13 @@ function runCli(args: string[], env: Record<string, string>) {
 }
 
 /** `wachiman local` on a fresh branch repository, with the stubs first on PATH and a temporary HOME. */
-function local(variant: Variant, args: string[] = [], extraEnv: Record<string, string> = {}, repo: Pick<BranchRepo, "dir"> = branchRepo(), auth: AuthVariant = "claude.ai") {
+function local(
+  variant: Variant,
+  args: string[] = [],
+  extraEnv: Record<string, string> = {},
+  repo: Pick<BranchRepo, "dir"> = branchRepo(),
+  auth: AuthVariant = "claude.ai",
+) {
   const s = stubs(variant, repo.dir, auth);
   const home = extraEnv.HOME ?? temp("wachiman-home-");
   // `"<unset>"` removes a variable the helper sets, to test the real default.

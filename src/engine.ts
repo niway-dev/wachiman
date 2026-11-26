@@ -1791,9 +1791,13 @@ export function githubFormatOnly(
   try {
     const file = fileAtBase(gh, repo, IGNORE_REVS_PATH, headSha);
     if (!file) return [];
+    if (file.truncated) {
+      note(`${IGNORE_REVS_PATH} is too large to read: every file goes to the main model.`);
+      return [];
+    }
     const hashes = parseIgnoreRevs(file.content);
     if (hashes.length === 0) return [];
-    const range = gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/commits`, "--jq", ".[].sha"])
+    const range = gh(["api", "--paginate", `repos/${repo}/pulls/${pr}/commits?per_page=100`, "--jq", ".[].sha"])
       .split("\n")
       .map((l) => l.trim())
       .filter(Boolean);
@@ -3783,6 +3787,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const batchBudget = options.batchBudgetUsd;
   // A batch starts only with room for about one turn of the model; a retry only needs a call's minimum.
   const startFloor = batchStartFloor(options.model, batchBudget, MIN_BATCH_USD);
+  // A format-group batch is read by `format_model`, so it starts on that model's floor, not the main one.
+  const formatStartFloor = options.format ? batchStartFloor(options.format.model, batchBudget, MIN_BATCH_USD) : startFloor;
   const batchLimits = {
     maxLines: options.batchLines,
     // About 40k tokens at 3.5 characters a token.
@@ -3893,13 +3899,14 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const acquire = async (
     id: number,
     launching: boolean,
+    floor: number = startFloor,
   ): Promise<{ usd: number; runLimited: boolean } | { why: "rejected" | "budget" | "failed" }> => {
     for (;;) {
       if (fatal) return { why: "failed" };
       if (rejection) return { why: "rejected" };
       if (!launching || inFlight < BATCH_CONCURRENCY) {
         const left = room();
-        if (left >= (launching ? startFloor : MIN_BATCH_USD)) {
+        if (left >= (launching ? floor : MIN_BATCH_USD)) {
           const usd = Math.min(batchBudget, left);
           reserved.set(id, usd);
           // Limited by the run itself: even if every reservation came back unspent, the room would be
@@ -4034,7 +4041,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       anyLimit: false,
       rejections: [],
     });
-    const granted = await acquire(i, true);
+    const granted = await acquire(i, true, batch.cheap ? formatStartFloor : startFloor);
     if ("why" in granted) {
       if (granted.why === "failed") break;
       const files = batch.files.map((f) => f.filename);

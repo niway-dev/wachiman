@@ -152,9 +152,10 @@ describe("a file changed only by listed commits is reviewed by format_model (AC1
 
   test("a listing that names no commit of the range reads no commit's files", async () => {
     const w = world(FILES, { ignoreRevs: `${"e".repeat(40)}\n`, commits: COMMITS });
-    const { format } = await run(w);
-    expect(format.requests).toEqual([]);
+    const notes: string[] = [];
+    expect(githubFormatOnly(w.gh, "o/r", 7, HEAD, FILES.map((f) => f.filename), (l) => notes.push(l))).toEqual([]);
     expect(w.calls.some((c) => /repos\/o\/r\/commits\//.test(c))).toBe(false);
+    expect(notes.join("\n")).toContain("lists no commit of this pull request's");
   });
 
   test("an error reading the commits sends every file to the main model and never fails the review", async () => {
