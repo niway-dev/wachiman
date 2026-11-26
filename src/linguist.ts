@@ -11,7 +11,7 @@
  * them. No git ever fetches, so no token ever reaches a git process. This never fails a run.
  */
 import { spawnSync } from "node:child_process";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { GIT_BASE_ARGS, gitEnv } from "./evidence";
@@ -113,6 +113,22 @@ function markedByFiles(files: AttributeFile[], paths: readonly string[], log: (l
 }
 
 /** Of `paths`, those the base commit's `.gitattributes` marks `linguist-generated` or `linguist-vendored`. */
+/** The git version answer, probed once per process: it cannot change while the process runs. */
+let versionProbe: { supported: boolean; text: string } | undefined;
+function gitVersionOutcome(repoDir: string): { supported: boolean; text: string } {
+  if (versionProbe === undefined) {
+    const version = git(repoDir, ["--version"]);
+    versionProbe = { supported: version.status === 0 && gitSupportsAttrSource(version.stdout), text: version.stdout.trim() };
+  }
+  return versionProbe;
+}
+
+/** The top of the work tree that holds `repoDir`, for a layout without `.git` in `repoDir`. */
+function rootOf(repoDir: string): string {
+  const top = git(repoDir, ["rev-parse", "--show-toplevel"]);
+  return top.status === 0 && top.stdout.trim() !== "" ? top.stdout.trim() : repoDir;
+}
+
 export function linguistExcluded(paths: readonly string[], o: LinguistOptions): Set<string> {
   const none = new Set<string>();
   if (paths.length === 0) return none;
@@ -122,11 +138,8 @@ export function linguistExcluded(paths: readonly string[], o: LinguistOptions): 
     return marked;
   };
   try {
-    // Changed paths are relative to the repository root, and check-attr reads them relative to its cwd.
-    const top = git(o.repoDir, ["rev-parse", "--show-toplevel"]);
-    const cwd = top.status === 0 && top.stdout.trim() !== "" ? top.stdout.trim() : o.repoDir;
     // A range that starts at a root commit has the empty tree as its base: a tree, with no marks.
-    const type = git(cwd, ["cat-file", "-t", o.baseSha]).stdout.trim();
+    const type = git(o.repoDir, ["cat-file", "-t", o.baseSha]).stdout.trim();
     if (type === "tree") return none;
     if (type !== "commit") {
       if (!o.readBaseAttributes) {
@@ -136,9 +149,12 @@ export function linguistExcluded(paths: readonly string[], o: LinguistOptions): 
       const marked = markedByFiles(o.readBaseAttributes(), paths, o.log);
       return marked ? report(marked) : none;
     }
-    const version = git(o.repoDir, ["--version"]);
-    if (version.status !== 0 || !gitSupportsAttrSource(version.stdout)) {
-      o.log(`${NOT_APPLIED}: this git (${version.stdout.trim() || "unknown version"}) has no check-attr --source (2.40 or newer).`);
+    // Changed paths are relative to the repository root, and check-attr reads them relative to its cwd.
+    // A directory with `.git` in it is that root; only another layout asks git for it.
+    const cwd = existsSync(join(o.repoDir, ".git")) ? o.repoDir : rootOf(o.repoDir);
+    const version = gitVersionOutcome(o.repoDir);
+    if (!version.supported) {
+      o.log(`${NOT_APPLIED}: this git (${version.text || "unknown version"}) has no check-attr --source (2.40 or newer).`);
       return none;
     }
     const run = git(
