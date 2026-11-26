@@ -527,7 +527,8 @@ Smaller edges:
 
 - A total below a batch's start floor (60% of the model's mean batch figure, never below $0.05) is
   accepted as a setting, but no call ever starts. On the local path the run reports that it ran out of its
-  budget; on the GitHub path the estimate is checked against the room before any batch starts.
+  budget; on the GitHub path the run checks the estimate against the room first and posts the size-gate notice
+  instead, before any batch starts.
 - If no batch produced any output and at least one batch's first call hit its cap, the engine posts
   a short review saying nothing was reviewed reliably, with a hint to review by path, and exits 0.
 - If some batches produced output, the review is posted with partial coverage and exit 0.
