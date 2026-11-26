@@ -54,9 +54,7 @@ diff and files. It handles your key only to pass it to the provider's CLI (`clau
 through `gh`, the optional spend ledger (off unless you set `ledger_url`; it receives spend
 figures, never code), a `curl` download of the pinned Claude Code binary in the workflow, and the
 npm registry for `wachiman upgrade`, plus your git remote for `wachiman memory propose` and
-`memory remember`. A search of the source found no analytics or telemetry
-sender, but Claude Code, Codex and Bun may send their own. If usage metrics are ever added, the proposed design makes them opt-in with no account identifier
-([the proposed rules](on-your-machine.md#telemetry)). Every network call, file written and
+`memory remember`. Wachiman sends no telemetry unless you opted in (in `wachiman init` or with `wachiman telemetry on`): then one small summary of counts and categories, never an account identifier, per `local` or `ask` review ([what it sends](on-your-machine.md#telemetry)). Claude Code, Codex and Bun may send their own. Every network call, file written and
 program started is on [on-your-machine.md](on-your-machine.md), with the file that shows it, and
 `test/egress.test.ts` fails when a source file with a network call site, or a URL host, is not on the page. It checks per file, not per call.
 
