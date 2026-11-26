@@ -196,9 +196,12 @@ function setup(opts: Opts = {}) {
     if (line.startsWith("pr view")) return JSON.stringify({ title: "t", body: "b", author: { login: "u" }, files: [] });
     if (line.startsWith("pr diff")) return "diff";
     if (line.startsWith("pr comment")) {
+      if ((input ?? "").includes("wachi:size-gate")) events.push("comment");
       comments.push(input ?? "");
       return "{}";
     }
+    // The room gate lists the bot's comments to find its own earlier skip comment: there is none.
+    if (line.includes("/issues/7/comments")) return "";
     if (line.includes("/pulls/7/files")) return JSON.stringify(FILE);
     if (line.includes("/pulls/7/reviews") && !args.includes("POST"))
       return reviews.map((body) => JSON.stringify({ body, submitted_at: "2026-11-06T00:00:00Z" })).join("\n");
@@ -380,10 +383,11 @@ describe("review() with the spend ledger", () => {
   });
 
   test("the reserve asks for min(budget, what the ceiling leaves)", async () => {
+    // $0.60 is left, enough for the one-batch estimate ($0.32), so the run goes on and asks for $0.60.
     const spent = `x\n\n<sub>m · $1.90</sub>\n\n${SIGNATURE.auto}\n\n${SIGNATURE.review}`;
-    const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_AUTO_BUDGET_USD: "2" }, reviews: [spent] });
+    const t = setup({ env: { ...WITH_LEDGER, WACHIMAN_AUTO_BUDGET_USD: "2.5" }, reviews: [spent] });
     await review(t.deps, "o/r", 7, []);
-    expect(t.reserves[0]!.wantedUsd as number).toBeCloseTo(0.1, 10);
+    expect(t.reserves[0]!.wantedUsd as number).toBeCloseTo(0.6, 10);
   });
 
   test("the repository's own daily and weekly budgets are sent as the caller's limits", async () => {
@@ -395,7 +399,7 @@ describe("review() with the spend ledger", () => {
     expect(Object.keys(unset.reserves[0]!).sort()).toEqual(["forced", "pr", "trigger", "wantedUsd"]);
   });
 
-  test("a grant smaller than wanted caps the run budget: $0.30 granted runs with $0.30", async () => {
+  test("a grant smaller than wanted caps the run budget: $0.40 granted runs with $0.40", async () => {
     const t = setup({
       env: WITH_LEDGER,
       ledger: {
@@ -403,19 +407,19 @@ describe("review() with the spend ledger", () => {
           status: 200,
           body: {
             reservationId: "res-1",
-            grantedUsd: 0.3,
-            accountLeftUsd: 0.3,
+            grantedUsd: 0.4,
+            accountLeftUsd: 0.4,
             repositoryLeftUsd: null,
             day: DAY,
             week: WEEK,
-            weekLeftUsd: 0.3,
+            weekLeftUsd: 0.4,
           },
         }),
       },
     });
     await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
-    expect(t.provider.requests[0]!.maxBudgetUsd).toBeCloseTo(0.3, 10);
+    expect(t.provider.requests[0]!.maxBudgetUsd).toBeCloseTo(0.4, 10);
   });
 
   test("the settle carries only the reservation, the amount and the calls; each call has exactly the wachiman-cost fields that describe it", async () => {
@@ -461,6 +465,58 @@ describe("review() with the spend ledger", () => {
     const calls = t.settles[0]!.calls as { cost_usd: number | null; costKnown: boolean }[];
     expect(calls[0]).toMatchObject({ cost_usd: null, costKnown: false });
     expect(t.settles[0]!.spentUsd as number).toBeGreaterThan(0.4);
+  });
+});
+
+describe("a grant below the estimate after the gate passed (AC14)", () => {
+  // One file is estimated at $0.32. The ledger grants $0.30: the room gate passed on the budget ($3),
+  // and the same comparison with the grant fails.
+  const grants = (usd: number) => ({
+    reserve: () => ({
+      status: 200,
+      body: {
+        reservationId: "res-1",
+        grantedUsd: usd,
+        accountLeftUsd: usd,
+        repositoryLeftUsd: null,
+        day: DAY,
+        week: WEEK,
+        weekLeftUsd: usd,
+      },
+    }),
+  });
+
+  test("review makes no model call, settles $0.00 before it posts, and the comment names the grant and --force, not --budget", async () => {
+    const t = setup({ env: WITH_LEDGER, ledger: grants(0.3) });
+    await review(t.deps, "o/r", 7, []);
+    expect(t.provider.requests).toHaveLength(0);
+    expect(t.events).toEqual(["token", "reserve", "token", "settle", "comment"]);
+    expect(t.settles[0]).toMatchObject({ reservationId: "res-1", spentUsd: 0, calls: [] });
+    expect(t.comments).toHaveLength(1);
+    const body = t.comments[0]!;
+    expect(body).toContain("this run has room for **$0.30**");
+    expect(body).toContain("the spend ledger's grant is $0.30");
+    expect(body).toContain("/wachiman review --force");
+    expect(body).toContain("made no model call, so nothing was spent");
+    expect(body).not.toContain("--budget");
+    expect(t.notes.join(" ")).toContain("settle with $0.00");
+    expect(t.posted).toHaveLength(0);
+  });
+
+  test("a comment post that fails still leaves the reservation settled at $0.00", async () => {
+    const t = setup({ env: WITH_LEDGER, ledger: { ...grants(0.3), failAfterReserve: "pr comment" } });
+    await expect(review(t.deps, "o/r", 7, [])).rejects.toThrow(/502/);
+    expect(t.provider.requests).toHaveLength(0);
+    expect(t.reserves).toHaveLength(1);
+    expect(t.settles).toHaveLength(1);
+    expect(t.settles[0]!.spentUsd).toBe(0);
+  });
+
+  test("a grant that covers the estimate runs as before", async () => {
+    const t = setup({ env: WITH_LEDGER, ledger: grants(0.32) });
+    await review(t.deps, "o/r", 7, []);
+    expect(t.provider.requests).toHaveLength(1);
+    expect(t.comments).toHaveLength(0);
   });
 });
 

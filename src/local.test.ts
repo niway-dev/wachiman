@@ -471,7 +471,7 @@ describe("wachiman local", () => {
     for (const dir of (r.read("dirs") ?? "").split("\n").filter(Boolean)) expect(existsSync(dir)).toBe(false);
   }, 30_000);
 
-  describe("the size gate only warns", () => {
+  describe("a local run warns above budget_usd and continues (AC13)", () => {
     /** An --input file with `count` files of 1,000 changed lines each, every one in its own module: one batch per file. */
     const sizedInput = (repo: BranchRepo, count: number) => {
       const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
@@ -487,7 +487,7 @@ describe("wachiman local", () => {
       return file;
     };
     const WARNING =
-      /^warning: reviewing all of this would cost about \$\d+\.\d\d at API prices \(\d+ batches × \$0\.\d\d for [^)]+\), above the \$6\.00 size gate\./m;
+      /^warning: reviewing all of this would cost about \$\d+\.\d\d at API prices \(\d+ batches × \$0\.\d\d for [^)]+\), above this run's budget, \$3\.00 \(WACHIMAN_BUDGET_USD\)\./m;
 
     test("a large input prints one warning and still calls the model", () => {
       const repo = branchRepo();
@@ -495,7 +495,7 @@ describe("wachiman local", () => {
       expect(r.code).toBe(0);
       expect(r.stderr.match(/^warning: reviewing all of this/gm)).toHaveLength(1);
       expect(r.stderr).toMatch(WARNING);
-      expect(r.stderr).toContain("stops at its budget, $3.00 (WACHIMAN_BUDGET_USD).");
+      expect(r.stderr).toContain("this one continues and stops at that budget");
       expect(r.calls().length).toBeGreaterThan(0);
     }, 30_000);
 
@@ -503,15 +503,45 @@ describe("wachiman local", () => {
       const repo = branchRepo();
       const r = local("ok", ["--input", sizedInput(repo, 2)], {}, repo);
       expect(r.code).toBe(0);
-      expect(r.stderr).not.toContain("size gate");
+      expect(r.stderr).not.toContain("warning: reviewing all of this");
     }, 30_000);
 
-    test("the warning text names the estimate, the batches, the model, the gate and the budget", () => {
+    test("an estimate between budget_usd and the old $6 gate now warns, whatever size_gate_usd says", () => {
+      // 12 files: $3.84, above the $3 budget and below the old $6 default gate.
+      const repo = branchRepo();
+      for (const gate of [undefined, "100", "0.5"]) {
+        const r = local(
+          "ok",
+          ["--input", sizedInput(repo, 12)],
+          { WACHIMAN_MODEL: "claude-sonnet-5-5", ...(gate ? { WACHIMAN_SIZE_GATE_USD: gate } : {}) },
+          repo,
+        );
+        expect(r.code).toBe(0);
+        expect(r.stderr.match(/^warning: reviewing all of this/gm)).toHaveLength(1);
+        expect(r.calls().length).toBeGreaterThan(0);
+      }
+    }, 60_000);
+
+    test("an estimate below budget_usd prints no warning even with a tiny size_gate_usd", () => {
+      // 5 files: $1.60.
+      const repo = branchRepo();
+      const r = local("ok", ["--input", sizedInput(repo, 5)], { WACHIMAN_MODEL: "claude-sonnet-5-5", WACHIMAN_SIZE_GATE_USD: "0.5" }, repo);
+      expect(r.code).toBe(0);
+      expect(r.stderr).not.toContain("warning: reviewing all of this");
+    }, 30_000);
+
+    test("the warning text names the estimate, the batches, the model and the budget", () => {
       const estimate = { files: 606, lines: 58706, batches: 68, perBatchUsd: 0.32, usd: 21.76 };
-      expect(sizeWarning(estimate, 6, 3, "claude-sonnet-5-5")).toBe(
-        "warning: reviewing all of this would cost about $21.76 at API prices (68 batches × $0.32 for claude-sonnet-5-5), above the $6.00 size gate. Local runs are never refused; this one continues and stops at its budget, $3.00 (WACHIMAN_BUDGET_USD).",
+      expect(sizeWarning(estimate, 3, "claude-sonnet-5-5")).toBe(
+        "warning: reviewing all of this would cost about $21.76 at API prices (68 batches × $0.32 for claude-sonnet-5-5), above this run's budget, $3.00 (WACHIMAN_BUDGET_USD). Local runs are never refused; this one continues and stops at that budget, so the review may be partial. Raise WACHIMAN_BUDGET_USD to cover the estimate, or review less.",
       );
-      expect(sizeWarning({ ...estimate, usd: 6 }, 6, 3, "m")).toBeNull();
+      expect(sizeWarning({ ...estimate, usd: 3 }, 3, "m")).toBeNull();
+    });
+
+    test("an estimate between the batch room and the budget warns and names the reserves", () => {
+      const estimate = { files: 10, lines: 100, batches: 10, perBatchUsd: 0.32, usd: 2.5 };
+      expect(sizeWarning(estimate, 3, "m", 2)).toContain("above the $2.00 the batches get out of this run's budget, $3.00");
+      expect(sizeWarning(estimate, 3, "m", 2.5)).toBeNull();
     });
   });
 

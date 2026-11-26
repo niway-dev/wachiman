@@ -142,6 +142,19 @@ your caller if that is too low. Pass either input only after you move to a relea
 workflow given an input the pinned release does not declare fails. A copied install must copy the
 new `src/` and add the `threads` job from `templates/caller-workflow.yml`.
 
+### Estimates above the run budget are skipped (room gate)
+
+Applies to the first release after this page's current pin. A review whose estimate is above the room the
+run has (`budget_usd` less the reserves, the ceiling left and the ledger grant, see
+[costs.md](costs.md#the-room-gate)) is no longer reviewed in part. It is skipped with one priced comment,
+and nothing is spent. With the defaults, an estimate between $3 and $6 used to get a partial review and
+is now skipped until you approve a budget.
+
+- `size_gate_usd` / `WACHIMAN_SIZE_GATE_USD` is deprecated and ignored. You can delete it.
+- To review the head once, the operator comments `/wachiman review --budget N --head <sha>`, with the
+  `N` and the SHA the skip comment prints, up to `approve_max_usd` (default $20).
+- To make it routine, raise `budget_usd` in your caller file.
+
 ## Dependabot for the caller file
 
 Dependabot is optional, and it is off until you add a configuration file. Releases do not arrive in

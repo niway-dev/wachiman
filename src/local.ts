@@ -27,8 +27,11 @@ import {
   snapshotHead,
   warnSnapshotDifferences,
 } from "./connectors/local-git";
+import { planExceptions } from "./memory/mute";
 import {
   DEFAULT_EXCLUDE,
+  batchRoom,
+  touchedPathsOf,
   estimateFor,
   filterFiles,
   planBatches,
@@ -38,7 +41,7 @@ import {
   type ReviewInput,
   type ReviewResult,
 } from "./engine";
-import { sizeGate, type ReviewEstimate } from "./estimate";
+import type { ReviewEstimate } from "./estimate";
 import { spawnGit } from "./evidence";
 import { personalSourceFor } from "./memory/personal";
 import { assertReviewInputFormat, NO_V1_DISTRIBUTED, REVIEW_INPUT_V2 } from "./formats";
@@ -534,12 +537,17 @@ export function localScopeInput(p: {
 }
 
 /**
- * The one warning a local run prints when its estimate is above the size gate, or null. Local runs
- * are never refused: the run continues and stops at its budget.
+ * The one warning a local run prints when its estimate is above `budget_usd` (ADR 0062 decision 6;
+ * `size_gate_usd` has no effect), or null. Local runs are never refused: the run continues and
+ * stops at its budget.
  */
-export function sizeWarning(estimate: ReviewEstimate, gate: number, budgetUsd: number, model: string): string | null {
-  if (estimate.usd <= gate) return null;
-  return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}), above the $${gate.toFixed(2)} size gate. Local runs are never refused; this one continues and stops at its budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD).`;
+export function sizeWarning(estimate: ReviewEstimate, budgetUsd: number, model: string, roomUsd = budgetUsd): string | null {
+  if (estimate.usd <= roomUsd) return null;
+  const above =
+    roomUsd < budgetUsd
+      ? `above the $${roomUsd.toFixed(2)} the batches get out of this run's budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD), once the verifier and memory reserves are taken`
+      : `above this run's budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD)`;
+  return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}), ${above}. Local runs are never refused; this one continues and stops at that budget, so the review may be partial. Raise WACHIMAN_BUDGET_USD to cover the estimate, or review less.`;
 }
 
 export async function runLocal(
@@ -651,8 +659,6 @@ export async function runLocal(
     );
     io.stderr(`files: ${kept.length} (${dropped.length} excluded)`);
     io.stderr(`batches: ${batches.length}`);
-    const warning = sizeWarning(estimateFor(kept, config, input.pathRules), sizeGate(config, false), config.budgetUsd, config.model);
-    if (warning) io.stderr(warning);
     io.stderr(
       config.verify
         ? `verify: on (${config.verifierModel}, reserve $${Math.min(config.verifyBudgetUsd, config.budgetUsd / 2).toFixed(2)})`
@@ -691,6 +697,18 @@ export async function runLocal(
           spawnGit,
           personalSourceFor(home, repoDir, spawnGit, io.stderr),
         );
+    // The room is what `reviewChange` gives the batches: the budget less the verifier and memory-match reserves.
+    const room = batchRoom(
+      config.budgetUsd,
+      config.verify ? { budgetUsd: config.verifyBudgetUsd } : undefined,
+      planExceptions(
+        memory,
+        touchedPathsOf(input.files),
+        reviewable.map((f) => f.filename),
+      ),
+    );
+    const warning = sizeWarning(estimateFor(kept, config, input.pathRules), config.budgetUsd, config.model, room);
+    if (warning) io.stderr(warning);
     const result = await reviewChange(
       input,
       {
