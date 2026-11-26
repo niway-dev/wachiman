@@ -96,7 +96,14 @@ describe("setup --profile", () => {
     const repo = repositoryKey(w.repo);
     expect(repo.keyedBy).toBe("remote");
     expect(w.config()?.projects).toEqual({
-      [repo.key]: { profile: "work-a", keyedBy: "remote", remote: "https://github.com/acme/app", name: "app", boundAt: NOW, boundFrom: w.repo },
+      [repo.key]: {
+        profile: "work-a",
+        keyedBy: "remote",
+        remote: "https://github.com/acme/app",
+        name: "app",
+        boundAt: NOW,
+        boundFrom: w.repo,
+      },
     });
     expect(JSON.stringify(w.config())).not.toContain("token");
     expect(snapshot(w.repo)).toEqual(before);
@@ -150,7 +157,9 @@ describe("setup --profile", () => {
     const w = world();
     const before = readFileSync(join(w.home, "config.json"), "utf8");
     expect(() => setup(w, ["--profile", "ghost"])).toThrow(/not registered/);
-    expect(() => runSetup({ repoDir: temp("wachiman-plain-"), profile: "work-a", yes: false, json: false }, w.env, w.io, w.deps())).toThrow(/not a git repository/);
+    expect(() => runSetup({ repoDir: temp("wachiman-plain-"), profile: "work-a", yes: false, json: false }, w.env, w.io, w.deps())).toThrow(
+      /not a git repository/,
+    );
     expect(readFileSync(join(w.home, "config.json"), "utf8")).toBe(before);
   });
 
@@ -217,7 +226,15 @@ describe("setup --profile", () => {
 
   test("a planted configuration in the repository has no effect on the binding or the resolution", () => {
     const w = world();
-    commit(w.repo, { ".wachiman.json": JSON.stringify({ profile: "work-b" }), ".wachiman/config.json": JSON.stringify({ profile: "work-b" }), "package.json": JSON.stringify({ wachiman: { profile: "work-b" } }) }, "plant");
+    commit(
+      w.repo,
+      {
+        ".wachiman.json": JSON.stringify({ profile: "work-b" }),
+        ".wachiman/config.json": JSON.stringify({ profile: "work-b" }),
+        "package.json": JSON.stringify({ wachiman: { profile: "work-b" } }),
+      },
+      "plant",
+    );
     expect(setup(w, ["--profile", "work-a"])).toBe(0);
     expect(projectShow(w.repo, w.env, w.deps()).resolved).toMatchObject({ profile: "work-a", rung: "binding" });
   });
@@ -278,7 +295,7 @@ describe("project unbind", () => {
     const w = world({}, ["yes"]);
     setup(w, ["--profile", "work-a"]);
     const other = emptyRepo();
-    commit(other, { "a": "1" }, "init");
+    commit(other, { a: "1" }, "init");
     runSetup({ repoDir: other, profile: "work-b", yes: false, json: false }, w.env, w.io, w.deps());
     expect(Object.keys(w.config()!.projects).length).toBe(2);
     expect(project(w, ["unbind"], w.repo, { interactive: true })).toBe(0);
@@ -307,7 +324,11 @@ describe("project unbind", () => {
     const key = repositoryKey(w.repo).key;
     writeFileSync(
       join(w.home, "config.json"),
-      JSON.stringify({ version: 1, profiles: {}, projects: { [key]: { profile: "gone", keyedBy: "path", name: "app", boundAt: "t", boundFrom: "/x" } } }),
+      JSON.stringify({
+        version: 1,
+        profiles: {},
+        projects: { [key]: { profile: "gone", keyedBy: "path", name: "app", boundAt: "t", boundFrom: "/x" } },
+      }),
     );
     expect(() => project(w, ["show"])).toThrow(/corrupt/);
     expect(project(w, ["unbind", "--yes"])).toBe(0);

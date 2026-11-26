@@ -31,7 +31,17 @@ export const MAX_STATE_BLOCK_CHARS = 2_000;
 export const REVIEW_STATUSES = ["complete", "partial", "scoped", "not-reviewed"] as const;
 export type ReviewStatus = (typeof REVIEW_STATUSES)[number];
 
-export const NOT_REVIEWED_REASONS = ["billing", "auth", "rate_limit", "ceiling", "limit", "size_gate", "turn_limit", "timeout", "budget"] as const;
+export const NOT_REVIEWED_REASONS = [
+  "billing",
+  "auth",
+  "rate_limit",
+  "ceiling",
+  "limit",
+  "size_gate",
+  "turn_limit",
+  "timeout",
+  "budget",
+] as const;
 export type NotReviewedReason = (typeof NOT_REVIEWED_REASONS)[number];
 
 export const SEVERITIES = ["blocker", "fix", "consider", "info"] as const;
@@ -212,7 +222,11 @@ export function decodeStateBlock(encoded: string): ReviewStateBlock | null {
   const carried = data.carried_from;
   if (carried !== undefined && !isId(carried)) return null;
   const scope = data.scope;
-  if (scope !== undefined && scope !== "binary_only" && !(typeof scope === "number" && Number.isInteger(scope) && scope > 0 && scope <= 1_000_000)) {
+  if (
+    scope !== undefined &&
+    scope !== "binary_only" &&
+    !(typeof scope === "number" && Number.isInteger(scope) && scope > 0 && scope <= 1_000_000)
+  ) {
     return null;
   }
   const findings = readFindings(data.findings);

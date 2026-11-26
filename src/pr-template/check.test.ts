@@ -6,7 +6,15 @@ import { renderTemplate } from "./render";
 import { resolveTemplate } from "./resolve";
 import { stripDescription } from "./strip";
 import {
-  ADR_LINK, BREAKING_HYPHEN, BREAKING_TEXT, fixture, HEAD, TITLE, validBody, validCustomBody, withDecisions,
+  ADR_LINK,
+  BREAKING_HYPHEN,
+  BREAKING_TEXT,
+  fixture,
+  HEAD,
+  TITLE,
+  validBody,
+  validCustomBody,
+  withDecisions,
 } from "./fixtures/check/load";
 
 const catalog = loadCatalog();
@@ -72,7 +80,15 @@ describe("ValidBodyTest", () => {
     const row = (label: string, value: string) => {
       body = body.replace(new RegExp(`(\\| \\*\\*${label}\\*\\*\\s*\\|)\\s*\\|`), (_m, a: string) => `${a} ${value} |`);
     };
-    for (const [label, value] of [["Type", "Docs"], ["Issue", "None"], ["Risk", "🟢 Low, docs only"], ["Rollout", "No production effect"], ["Release", "No release"], ["Evidence", "Command output"], ["Decisions", "None"]] as const) {
+    for (const [label, value] of [
+      ["Type", "Docs"],
+      ["Issue", "None"],
+      ["Risk", "🟢 Low, docs only"],
+      ["Rollout", "No production effect"],
+      ["Release", "No release"],
+      ["Evidence", "Command output"],
+      ["Decisions", "None"],
+    ] as const) {
       row(label, value);
     }
     body = body.replace("**Before merge**\n\n- [ ]\n\n**After merge**\n\n- [ ]\n", "Nothing. Merge when checks are green.\n");
@@ -81,8 +97,14 @@ describe("ValidBodyTest", () => {
     };
     section("What", "The format is documented.");
     section("Why", "Descriptions had no fixed shape.");
-    body = body.replace("| Criterion | Evidence |\n| --------- | -------- |\n", "| Criterion | Evidence |\n| --------- | -------- |\n| Format documented | [output](https://example.com/o) |\n");
-    body = body.replace("| Change | Before | After | Where to look |\n| ------ | ------ | ----- | ------------- |\n", "| Change | Before | After | Where to look |\n| ------ | ------ | ----- | ------------- |\n| Template exists | none | one file | docs/format.md |\n");
+    body = body.replace(
+      "| Criterion | Evidence |\n| --------- | -------- |\n",
+      "| Criterion | Evidence |\n| --------- | -------- |\n| Format documented | [output](https://example.com/o) |\n",
+    );
+    body = body.replace(
+      "| Change | Before | After | Where to look |\n| ------ | ------ | ----- | ------------- |\n",
+      "| Change | Before | After | Where to look |\n| ------ | ------ | ----- | ------------- |\n| Template exists | none | one file | docs/format.md |\n",
+    );
     body = body.slice(0, body.indexOf("## Decisions")) + body.slice(body.indexOf("<details><summary><b>Changes"));
     body = body.replace("Describes commit {sha}.", `Describes commit ${HEAD.slice(0, 12)}.`);
     expect(codes(body)).toEqual([]);
@@ -105,7 +127,10 @@ describe("HeadingTest", () => {
   });
 
   test("heading inside code fence or comment is ignored", () => {
-    const body = validBody().replace("The format is documented.", "```\n## Not a heading\n```\n<!--\n## Also not\n-->\nThe format is documented.");
+    const body = validBody().replace(
+      "The format is documented.",
+      "```\n## Not a heading\n```\n<!--\n## Also not\n-->\nThe format is documented.",
+    );
     expect(codes(body)).toEqual([]);
   });
 
@@ -131,7 +156,9 @@ describe("NeedsYouTest", () => {
   });
 
   test("checkbox with text counts", () => {
-    expect(codes(validBody().replace("Nothing. Merge when checks are green.\n", "**Before merge**\n- [ ] Read the template\n"))).toEqual([]);
+    expect(codes(validBody().replace("Nothing. Merge when checks are green.\n", "**Before merge**\n- [ ] Read the template\n"))).toEqual(
+      [],
+    );
   });
 });
 
@@ -302,7 +329,9 @@ describe("DetailsTest", () => {
   });
 
   test("details order", () => {
-    expect(codes(swap(validBody(), "<details><summary><b>How to test", "<details><summary><b>Not verified", "<details><summary><b>Checks"))).toEqual(["details-order"]);
+    expect(
+      codes(swap(validBody(), "<details><summary><b>How to test", "<details><summary><b>Not verified", "<details><summary><b>Checks")),
+    ).toEqual(["details-order"]);
   });
 
   test("details unknown", () => {
@@ -318,7 +347,9 @@ describe("DetailsTest", () => {
     expect(body.indexOf("<b>Checks")).toBeLessThan(body.indexOf("<b>Agent context"));
     expect(body.indexOf("<b>Agent context")).toBeLessThan(body.indexOf("<b>Notes"));
     expect(codes(body)).toEqual([]);
-    expect(codes(swap(body, "<details><summary><b>Checks", "<details><summary><b>Agent context", "<details><summary><b>Notes"))).toEqual(["details-order"]);
+    expect(codes(swap(body, "<details><summary><b>Checks", "<details><summary><b>Agent context", "<details><summary><b>Notes"))).toEqual([
+      "details-order",
+    ]);
   });
 
   test("a summary with no bold title is unknown", () => {
@@ -339,11 +370,20 @@ describe("DetailsTest", () => {
 
 /** A repository that requires a "Migration plan" collapsed block, after Notes. */
 const requiredDetailsTemplate = () =>
-  resolveTemplate(catalog, loadRepoChoice(JSON.stringify({ custom: [{ id: "migration-plan", kind: "details", summary: "Migration plan", required: true, after: "notes" }] }), catalog));
+  resolveTemplate(
+    catalog,
+    loadRepoChoice(
+      JSON.stringify({ custom: [{ id: "migration-plan", kind: "details", summary: "Migration plan", required: true, after: "notes" }] }),
+      catalog,
+    ),
+  );
 
 /** `validBody()` with the Migration plan block before the Wachiman block; `opening` is its opening tag. */
 const withMigrationPlan = (opening: string) =>
-  validBody().replace("<!-- wachiman:confidence:start -->", `${opening}<summary><b>Migration plan</b></summary>\n\nNone.\n\n</details>\n\n<!-- wachiman:confidence:start -->`);
+  validBody().replace(
+    "<!-- wachiman:confidence:start -->",
+    `${opening}<summary><b>Migration plan</b></summary>\n\nNone.\n\n</details>\n\n<!-- wachiman:confidence:start -->`,
+  );
 
 describe("a custom template", () => {
   const custom = () => customTemplate();
@@ -389,7 +429,10 @@ describe("a custom template", () => {
 
   test("a details block the repository added is allowed, one it dropped is not", () => {
     expect(run(validCustomBody())).toEqual([]);
-    const body = validCustomBody().replace("<!-- wachiman:confidence:start -->", "<details><summary><b>Agent context</b></summary>\n\nx\n\n</details>\n\n<!-- wachiman:confidence:start -->");
+    const body = validCustomBody().replace(
+      "<!-- wachiman:confidence:start -->",
+      "<details><summary><b>Agent context</b></summary>\n\nx\n\n</details>\n\n<!-- wachiman:confidence:start -->",
+    );
     expect(run(body)).toEqual(["details-unknown"]);
   });
 
@@ -453,7 +496,10 @@ describe("locked sections", () => {
 
 describe("the Wachiman block", () => {
   test("what the review writes inside the block is not read as the author's structure", () => {
-    const filled = validBody().replace("<!-- wachiman:confidence:start -->\n<!-- wachiman:confidence:end -->\n", fixture("block-with-review.md"));
+    const filled = validBody().replace(
+      "<!-- wachiman:confidence:start -->\n<!-- wachiman:confidence:end -->\n",
+      fixture("block-with-review.md"),
+    );
     expect(filled).toContain("## Not a heading of the author");
     expect(codes(filled)).toEqual([]);
   });
@@ -467,7 +513,16 @@ describe("the Wachiman block", () => {
 describe("the risk floor warnings", () => {
   const files = [{ path: "src/a.py", status: "M", patch: "" }];
   const run = (warn?: (line: string) => void, riskExtension: Record<string, unknown> = { high: { paths: ["("] } }) =>
-    checkDescription({ body: validBody(), title: TITLE, head: HEAD, template: defaultTemplate, catalog, files, riskExtension, ...(warn ? { warn } : {}) });
+    checkDescription({
+      body: validBody(),
+      title: TITLE,
+      head: HEAD,
+      template: defaultTemplate,
+      catalog,
+      files,
+      riskExtension,
+      ...(warn ? { warn } : {}),
+    });
 
   test("an invalid regex in the extension file is reported through warn", () => {
     const warnings: string[] = [];
@@ -490,7 +545,17 @@ describe("the risk floor warnings", () => {
 
   test("a floor given as a level skips the computation, so there is nothing to warn about", () => {
     const warnings: string[] = [];
-    checkDescription({ body: validBody(), title: TITLE, head: HEAD, template: defaultTemplate, catalog, risk: LOW, files, riskExtension: { high: { paths: ["("] } }, warn: (l) => warnings.push(l) });
+    checkDescription({
+      body: validBody(),
+      title: TITLE,
+      head: HEAD,
+      template: defaultTemplate,
+      catalog,
+      risk: LOW,
+      files,
+      riskExtension: { high: { paths: ["("] } },
+      warn: (l) => warnings.push(l),
+    });
     expect(warnings).toEqual([]);
   });
 });

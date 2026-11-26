@@ -18,7 +18,17 @@ import { UsageError } from "../config";
 import type { DistributedContext, ContractReading, ResolvedSibling } from "../distributed";
 import type { ReviewFile } from "../engine";
 import type { GitRunner } from "../evidence";
-import { addSibling, findWorkspace, matchContracts, planReads, repoSlug, type AppliedContract, type Change, type FoundWorkspace, type PlannedRead } from "./discover";
+import {
+  addSibling,
+  findWorkspace,
+  matchContracts,
+  planReads,
+  repoSlug,
+  type AppliedContract,
+  type Change,
+  type FoundWorkspace,
+  type PlannedRead,
+} from "./discover";
 import { workspaceGit } from "./git";
 import type { Contract } from "./manifest";
 import { chooseRule, resolveVersion, type ResolvedVersion } from "./versions";
@@ -124,7 +134,7 @@ export function decideDistributed(request: DecideRequest): Decision {
 function needSibling(siblings: string[]): { on: false } {
   if (siblings.length > 0) {
     throw new UsageError(
-      "--sibling needs distributed-repo mode. Pass --distributed-repo, or set distributedRepo to \"on\" for this workspace in workspaces.json.",
+      '--sibling needs distributed-repo mode. Pass --distributed-repo, or set distributedRepo to "on" for this workspace in workspaces.json.',
     );
   }
   return { on: false };
@@ -148,9 +158,23 @@ export interface PreparedDistributed {
 }
 
 /** What `--sibling` asks for when no contract reads the member: a stand-in contract that no rule is declared for. */
-const HAND_CONTRACT = (reviewedMember: string): Contract => ({ name: "--sibling", sides: [], sourceOfTruth: { member: reviewedMember, paths: [] } });
+const HAND_CONTRACT = (reviewedMember: string): Contract => ({
+  name: "--sibling",
+  sides: [],
+  sourceOfTruth: { member: reviewedMember, paths: [] },
+});
 
-const resolutionKey = (r: ResolvedVersion) => JSON.stringify([r.rule, r.ruleSource, r.readAs, r.fallback ?? "", r.sha ?? "", r.unreadable ?? "", r.uncommitted ?? false, r.fetchedAt ?? ""]);
+const resolutionKey = (r: ResolvedVersion) =>
+  JSON.stringify([
+    r.rule,
+    r.ruleSource,
+    r.readAs,
+    r.fallback ?? "",
+    r.sha ?? "",
+    r.unreadable ?? "",
+    r.uncommitted ?? false,
+    r.fetchedAt ?? "",
+  ]);
 const union = (lists: string[][]) => [...new Set(lists.flat())];
 
 function readingOf(found: FoundWorkspace, applied: AppliedContract): ContractReading {
@@ -204,7 +228,10 @@ export function prepareDistributed(decision: Extract<Decision, { on: true }>, re
       const contractOf = (name: string): Contract =>
         applied.find((a) => a.contract.name === name)?.contract ?? HAND_CONTRACT(found.reviewed.dir);
       // The contracts that asked for this member and name it their source of truth (a hand-added member never does).
-      const sourceOfTruthOf = read.contracts.map((c) => contractOf(c.name)).filter((c) => c.sourceOfTruth.member === read.member.dir).map((c) => c.name);
+      const sourceOfTruthOf = read.contracts
+        .map((c) => contractOf(c.name))
+        .filter((c) => c.sourceOfTruth.member === read.member.dir)
+        .map((c) => c.name);
       const base = {
         member: read.member.dir,
         repo: read.member.repo,
@@ -217,7 +244,16 @@ export function prepareDistributed(decision: Extract<Decision, { on: true }>, re
       if (read.status !== "ready") {
         // Not read, so no version: the row says which rule would have applied, for the report.
         const { rule, ruleSource } = ruleOf(found, contractOf(entries[0]!.name), read);
-        siblings.push({ ...base, ...(sourceOfTruthOf.length > 0 ? { sourceOfTruthOf } : {}), contracts: read.contracts.map((c) => c.name), rule, ruleSource, readAs: rule, paths: [], status: read.status });
+        siblings.push({
+          ...base,
+          ...(sourceOfTruthOf.length > 0 ? { sourceOfTruthOf } : {}),
+          contracts: read.contracts.map((c) => c.name),
+          rule,
+          ruleSource,
+          readAs: rule,
+          paths: [],
+          status: read.status,
+        });
         continue;
       }
 
@@ -225,7 +261,15 @@ export function prepareDistributed(decision: Extract<Decision, { on: true }>, re
       const groups = new Map<string, { resolved: ResolvedVersion; contracts: string[]; globs: string[][] }>();
       for (const entry of entries) {
         const resolved = resolveVersion(
-          { contract: contractOf(entry.name), reviewed: found.reviewed, member: read.member, ...(found.user ? { user: found.user } : {}), reviewedDir: repoTop, reviewedHead: request.headSha, siblingDir: read.dir },
+          {
+            contract: contractOf(entry.name),
+            reviewed: found.reviewed,
+            member: read.member,
+            ...(found.user ? { user: found.user } : {}),
+            reviewedDir: repoTop,
+            reviewedHead: request.headSha,
+            siblingDir: read.dir,
+          },
           git,
         );
         const key = resolutionKey(resolved);
@@ -267,7 +311,10 @@ export function prepareDistributed(decision: Extract<Decision, { on: true }>, re
             droppedSubmodules: snapshot.droppedSubmodules,
             status: resolved.uncommitted ? "uncommitted-not-read" : "read",
           });
-          if (resolved.uncommittedUnknown) request.warn(`distributed-repo: could not check ${read.member.dir} for uncommitted changes; read ${resolved.sha.slice(0, 7)} as committed.`);
+          if (resolved.uncommittedUnknown)
+            request.warn(
+              `distributed-repo: could not check ${read.member.dir} for uncommitted changes; read ${resolved.sha.slice(0, 7)} as committed.`,
+            );
         } catch (error) {
           const why = error instanceof Error ? error.message : String(error);
           siblings.push({ ...row, sha: resolved.sha, status: "unreadable", unreadable: why });
@@ -281,7 +328,12 @@ export function prepareDistributed(decision: Extract<Decision, { on: true }>, re
   }
 
   return {
-    context: { manifestPath: found.manifestPath, reviewed: found.reviewed.dir, contracts: applied.map((a) => readingOf(found, a)), siblings },
+    context: {
+      manifestPath: found.manifestPath,
+      reviewed: found.reviewed.dir,
+      contracts: applied.map((a) => readingOf(found, a)),
+      siblings,
+    },
     release,
   };
 }

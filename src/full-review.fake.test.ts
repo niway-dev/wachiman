@@ -47,7 +47,8 @@ function fakeGh(posts: string[], graphql: string[] = [], reviewed = true): GhFn 
       return "{}";
     }
     if (line.startsWith("pr view")) return JSON.stringify({ headRefOid: HEAD, title: "t", body: "b", author: { login: "u" } });
-    if (line.includes("/pulls/7/files")) return JSON.stringify({ filename: "src/a.ts", additions: 1, deletions: 0, patch: "@@ -0,0 +1 @@\n+x" });
+    if (line.includes("/pulls/7/files"))
+      return JSON.stringify({ filename: "src/a.ts", additions: 1, deletions: 0, patch: "@@ -0,0 +1 @@\n+x" });
     if (line.includes("/pulls/7/reviews") && !reviewed) return "";
     if (line.includes("/pulls/7/reviews"))
       return JSON.stringify({ body: `👮 review\n\n<sub>m · $0.20</sub>\n\n${SIGNATURE.review}\n\n${marker(HEAD)}` });

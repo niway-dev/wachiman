@@ -15,7 +15,7 @@ import { UsageError } from "../config";
 import { spawnGit, type GitRunner } from "../evidence";
 import { parseFlags } from "../flags";
 import { detectInstall, type InstallKind } from "../install-kind";
-import { compareVersions, parseTag, rewritePins, scanWorkflows, type PinFs, type PinOutcome } from "./pin";
+import { compareVersions, parseTag, rewritePins, scanWorkflows, type PinFs, type PinOutcome, type SemVer } from "./pin";
 
 export interface UpgradeOptions {
   repoDir: string;
@@ -52,6 +52,12 @@ export interface UpgradeDeps {
   run?: (command: string, args: string[]) => number | null;
   /** The latest published version (`1.2.3`), or undefined when it cannot be read. */
   latest?: () => string | undefined;
+  /**
+   * The `wachimanDataCollection` field of the release `spec` (`latest` or `1.2.3`) as the registry returns it, or
+   * undefined. Not validated here: `dataNotices` ignores anything malformed. The default shares the one `npm view`
+   * request with `latest`.
+   */
+  dataCollection?: (spec: string) => unknown;
   git?: GitRunner;
   fs?: PinFs & { write: (path: string, text: string) => void };
   /** `process.env`, for `BUN_INSTALL`. */
@@ -71,12 +77,91 @@ export function makeRun(platform: NodeJS.Platform = process.platform, spawn: Spa
 
 const defaultRun = makeRun();
 
-/** `npm view wachiman version`; the one network request of `--check` and the first step. */
-const defaultLatest = () => {
-  const run = spawnSync("npm", ["view", "wachiman", "version"], { encoding: "utf8", timeout: 30_000, ...spawnShell(process.platform) });
-  const version = run.status === 0 ? String(run.stdout).trim() : "";
-  return parseTag(version) ? version : undefined;
+/** What `npm view wachiman version wachimanDataCollection --json` printed: an object, or a bare version string when the field is absent. */
+export interface RegistryView {
+  version?: string;
+  dataCollection?: unknown;
+  /** The request itself failed (non-zero exit, timeout, unparseable output), as opposed to the field being absent. */
+  lookupFailed?: true;
+}
+
+export function parseRegistryView(stdout: string): RegistryView {
+  try {
+    const body: unknown = JSON.parse(stdout);
+    const object = typeof body === "object" && body !== null && !Array.isArray(body) ? (body as Record<string, unknown>) : {};
+    const version = typeof body === "string" ? body : object.version;
+    return { ...(typeof version === "string" && parseTag(version) ? { version } : {}), dataCollection: object.wachimanDataCollection };
+  } catch {
+    return { lookupFailed: true };
+  }
+}
+
+/** The one registry request: `npm view wachiman[@spec] version wachimanDataCollection --json`, asked once per spec. */
+const viewed = new Map<string, RegistryView>();
+const registryView = (spec: string) => {
+  const cached = viewed.get(spec);
+  if (cached) return cached;
+  const name = spec === "latest" ? "wachiman" : `wachiman@${spec}`;
+  const run = spawnSync("npm", ["view", name, "version", "wachimanDataCollection", "--json"], {
+    encoding: "utf8",
+    timeout: 30_000,
+    ...spawnShell(process.platform),
+  });
+  const result = run.status === 0 ? parseRegistryView(String(run.stdout)) : { lookupFailed: true as const };
+  viewed.set(spec, result);
+  return result;
 };
+
+const defaultLatest = () => registryView("latest").version;
+/** Throws when the request failed, so `noticesFor` can tell a failed lookup from an absent field. */
+const defaultDataCollection = (spec: string) => {
+  const view = registryView(spec);
+  if (view.lookupFailed) throw new Error("the registry request failed");
+  return view.dataCollection;
+};
+
+/**
+ * The notices of every release after `installed` up to `target`, oldest first. `field` maps a release version to a
+ * one-line notice; anything that is not that is ignored, so a bad field never fails an upgrade.
+ */
+export function dataNotices(field: unknown, installed: string, target: string): string[] {
+  const from = parseTag(installed);
+  const to = parseTag(target);
+  if (from === undefined || to === undefined || typeof field !== "object" || field === null || Array.isArray(field)) return [];
+  const found: { version: SemVer; text: string }[] = [];
+  for (const [key, text] of Object.entries(field)) {
+    const version = parseTag(key);
+    if (
+      version &&
+      typeof text === "string" &&
+      text.trim() !== "" &&
+      compareVersions(version, from) > 0 &&
+      compareVersions(version, to) <= 0
+    ) {
+      found.push({ version, text: text.trim() });
+    }
+  }
+  found.sort((a, b) => compareVersions(a.version, b.version));
+  return found.map((n) => `  v${n.version.join(".")}: ${n.text}`);
+}
+
+const NOTICES_URL = "https://github.com/niway-dev/wachiman/blob/main/docs/on-your-machine.md";
+
+/**
+ * The notice text for the step from `installed` to `target`. An absent or empty field gives nothing; a failed lookup
+ * gives one line on stderr. Neither fails the upgrade.
+ */
+function noticesFor(deps: UpgradeDeps, io: { stderr: (text: string) => void }, spec: string, installed: string, target: string): string {
+  try {
+    return noticeText(dataNotices((deps.dataCollection ?? defaultDataCollection)(spec), installed, target));
+  } catch {
+    io.stderr(`wachiman: could not check the release for data collection changes; see ${NOTICES_URL}`);
+    return "";
+  }
+}
+
+const noticeText = (lines: string[]) =>
+  lines.length === 0 ? "" : `Data collection changes in this upgrade:\n${lines.join("\n")}\nSee ${NOTICES_URL}\n`;
 
 /** `npm prefix -g`: the directory whose `lib/node_modules` (`node_modules` on Windows) holds npm's global packages. */
 const defaultNpmPrefix = () => {
@@ -127,14 +212,20 @@ export function planCliUpgrade(
   npmPrefix: () => string | undefined = () => undefined,
 ): CliPlan {
   if (install.kind === "source") {
-    return { kind: "refused", reason: "this is a clone or a development build (wachiman-dev); update a clone with `git pull` (then `bun install`), and rebuild a dev build with scripts/dev-build.sh" };
+    return {
+      kind: "refused",
+      reason:
+        "this is a clone or a development build (wachiman-dev); update a clone with `git pull` (then `bun install`), and rebuild a dev build with scripts/dev-build.sh",
+    };
   }
   if (install.kind === "exe") return { kind: "refused", reason: "this is a standalone executable; download the newer one" };
   const custom = env.BUN_INSTALL ? `${slashes(env.BUN_INSTALL)}/install/global/` : undefined;
-  const bun = /[\\/]\.bun[\\/]install[\\/]global[\\/]/.test(install.root) || (custom !== undefined && `${slashes(install.root)}/`.startsWith(custom));
+  const bun =
+    /[\\/]\.bun[\\/]install[\\/]global[\\/]/.test(install.root) || (custom !== undefined && `${slashes(install.root)}/`.startsWith(custom));
   if (bun) return { kind: "command", manager: "bun", command: "bun", args: ["add", "-g", `wachiman@${spec}`] };
   const prefix = npmPrefix();
-  if (prefix !== undefined && under(install.root, prefix)) return { kind: "command", manager: "npm", command: "npm", args: ["install", "-g", `wachiman@${spec}`] };
+  if (prefix !== undefined && under(install.root, prefix))
+    return { kind: "command", manager: "npm", command: "npm", args: ["install", "-g", `wachiman@${spec}`] };
   return {
     kind: "refused",
     reason: `Wachiman was installed with a package manager this command does not drive (${install.root}): update it with that tool, then run \`wachiman upgrade --repo-only\``,
@@ -156,11 +247,14 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
       return 1;
     }
     if (current === undefined) {
-      io.stdout(`Latest:    v${found}\nThe installed version "${deps.version}" is not a release version, so it cannot be compared with v${found}.\n`);
+      io.stdout(
+        `Latest:    v${found}\nThe installed version "${deps.version}" is not a release version, so it cannot be compared with v${found}.\n`,
+      );
       return 0;
     }
     const newer = compareVersions(parseTag(found)!, current) > 0;
     io.stdout(`Latest:    v${found}\n${newer ? "Run `wachiman upgrade` to update.\n" : "You are up to date.\n"}`);
+    if (newer) io.stdout(noticesFor(deps, io, "latest", deps.version, found));
     return 0;
   }
 
@@ -179,7 +273,12 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
     // install kind looks like a normal npm install; the version is the reliable marker.
     const plan: CliPlan = isDevBuild(deps.version)
       ? { kind: "refused", reason: "a development build: update it with scripts/dev-build.sh" }
-      : planCliUpgrade(install, opts.to === undefined ? "latest" : opts.to.slice(1), deps.env ?? process.env, deps.npmPrefix ?? defaultNpmPrefix);
+      : planCliUpgrade(
+          install,
+          opts.to === undefined ? "latest" : opts.to.slice(1),
+          deps.env ?? process.env,
+          deps.npmPrefix ?? defaultNpmPrefix,
+        );
     if (plan.kind === "refused") {
       io.stdout(`The CLI is not upgraded: ${plan.reason}.\n`);
     } else {
@@ -192,6 +291,7 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
         io.stdout(`The CLI is already on v${deps.version}${opts.to ? ` (newer than or equal to ${opts.to})` : ""}; nothing to install.\n`);
         target ??= `v${found}`;
       } else {
+        io.stdout(noticesFor(deps, io, opts.to === undefined ? "latest" : found, deps.version, found));
         const shown = [plan.command, ...plan.args].join(" ");
         io.stdout(`Installing v${found} with ${plan.manager}: ${shown}\n`);
         const status = (deps.run ?? defaultRun)(plan.command, plan.args);
@@ -202,16 +302,22 @@ export function runUpgrade(opts: UpgradeOptions, io: Io, deps: UpgradeDeps): num
           io.stderr(`wachiman: ${shown} ${status === null ? "could not start" : `failed with exit ${status}`}; the CLI is unchanged.`);
           // The pins would name a release the CLI could not install (with --to it may not exist).
           if (opts.to !== undefined) {
-            io.stdout(`The repository pin was not touched: installing ${opts.to} failed. Use \`wachiman upgrade --repo-only --to ${opts.to}\` to pin it without installing.\n`);
+            io.stdout(
+              `The repository pin was not touched: installing ${opts.to} failed. Use \`wachiman upgrade --repo-only --to ${opts.to}\` to pin it without installing.\n`,
+            );
           } else {
-            io.stdout(`The repository pin was not touched: installing v${found} failed. After upgrading the CLI by other means, run \`wachiman upgrade --repo-only\`.\n`);
+            io.stdout(
+              `The repository pin was not touched: installing v${found} failed. After upgrading the CLI by other means, run \`wachiman upgrade --repo-only\`.\n`,
+            );
           }
           return 1;
         }
       }
     }
     if (target === undefined) {
-      io.stdout(`The repository pin was not touched: there is no new version to move it to. After upgrading the CLI by other means, run \`wachiman upgrade --repo-only\`, or pass --to vX.Y.Z.\n`);
+      io.stdout(
+        `The repository pin was not touched: there is no new version to move it to. After upgrading the CLI by other means, run \`wachiman upgrade --repo-only\`, or pass --to vX.Y.Z.\n`,
+      );
       return code;
     }
   }
@@ -236,7 +342,9 @@ function repoStep(opts: UpgradeOptions, target: string, io: Io, deps: UpgradeDep
     return 1;
   };
   if (files.length === 0) {
-    io.stdout(`No ${unreadable.length > 0 ? "readable " : ""}workflow in .github/workflows calls a Wachiman reusable workflow; nothing to pin.\n`);
+    io.stdout(
+      `No ${unreadable.length > 0 ? "readable " : ""}workflow in .github/workflows calls a Wachiman reusable workflow; nothing to pin.\n`,
+    );
     return warnUnreadable();
   }
   const changed: string[] = [];
@@ -272,7 +380,9 @@ function repoStep(opts: UpgradeOptions, target: string, io: Io, deps: UpgradeDep
   }
   if (left.length > 0) io.stdout(`Left as it was:\n${left.join("\n")}\n`);
   if (changed.length > 0) {
-    io.stdout(`\nNothing is committed. To commit it:\n  git add ${changed.join(" ")}\n  git commit -m "chore: pin Wachiman to ${target}"\n`);
+    io.stdout(
+      `\nNothing is committed. To commit it:\n  git add ${changed.join(" ")}\n  git commit -m "chore: pin Wachiman to ${target}"\n`,
+    );
   }
   if (failed.length > 0) io.stderr(`wachiman: could not rewrite, so these were not changed:\n${failed.join("\n")}`);
   return warnUnreadable() || (failed.length > 0 ? 1 : 0);

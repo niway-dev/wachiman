@@ -24,7 +24,16 @@ import { candidatesForRound } from "../memory/candidates";
 import { loadMemorySettings } from "../memory/settings";
 import { location, privateLineFor, privateNote, sha7 } from "../sinks/common";
 import { LOOP_STATE_FORMAT, readLoop, writeLoop, type LedgerEntry, type LoopState } from "./state";
-import { evaluate, isRefutedBy, roundCapReached, type Decision, type LoopFinding, type LoopStatus, type OpenFinding, type Released } from "./stop-rule";
+import {
+  evaluate,
+  isRefutedBy,
+  roundCapReached,
+  type Decision,
+  type LoopFinding,
+  type LoopStatus,
+  type OpenFinding,
+  type Released,
+} from "./stop-rule";
 
 export const LOOP_RESULT_FORMAT = "wachiman.loop-round/1";
 export const DEFAULT_MAX_ROUNDS = 3;
@@ -47,7 +56,19 @@ export interface LoopArgs {
 }
 
 /** The flags `loop` takes, a subset of `local`'s plus `--max-rounds`. */
-const LOOP_LOCAL_FLAGS = LOCAL_FLAGS.filter((f) => ["--base", "--format", "--profile", "--verify", "--no-verify", "--max-depth", "--distributed-repo", "--no-distributed-repo", "--sibling"].includes(f));
+const LOOP_LOCAL_FLAGS = LOCAL_FLAGS.filter((f) =>
+  [
+    "--base",
+    "--format",
+    "--profile",
+    "--verify",
+    "--no-verify",
+    "--max-depth",
+    "--distributed-repo",
+    "--no-distributed-repo",
+    "--sibling",
+  ].includes(f),
+);
 
 /** The arguments after `loop` (`--repo-dir` is already taken out). Both `--x v` and `--x=v`. */
 export function parseLoopArgs(argv: string[]): LoopArgs {
@@ -61,12 +82,14 @@ export function parseLoopArgs(argv: string[]): LoopArgs {
       seenMax = true;
       const v = arg === "--max-rounds" ? argv[++i] : arg.slice("--max-rounds=".length);
       if (v === undefined || v === "" || v.startsWith("--")) throw new UsageError("--max-rounds needs a value.");
-      if (!/^[1-9]\d*$/.test(v) || !Number.isSafeInteger(Number(v))) throw new UsageError(`--max-rounds must be a positive integer, got "${v}".`);
+      if (!/^[1-9]\d*$/.test(v) || !Number.isSafeInteger(Number(v)))
+        throw new UsageError(`--max-rounds must be a positive integer, got "${v}".`);
       maxRounds = Number(v);
     } else rest.push(arg);
   }
   const local = parseFlags(rest, "loop", LOOP_LOCAL_FLAGS);
-  if (local.paths.length > 0) throw new UsageError(`loop takes no path or argument ("${local.paths[0]}"): it reviews the committed branch.`);
+  if (local.paths.length > 0)
+    throw new UsageError(`loop takes no path or argument ("${local.paths[0]}"): it reviews the committed branch.`);
   if (local.format === "markdown") throw new UsageError("--format must be terminal or json for loop.");
   return {
     ...(local.base !== undefined ? { base: local.base } : {}),
@@ -111,7 +134,8 @@ const git = (repoDir: string, args: string[]) => spawnGit(args, { cwd: repoDir, 
 
 function currentBranch(repoDir: string): string {
   const out = git(repoDir, ["symbolic-ref", "--short", "-q", "HEAD"]);
-  if (out.status !== 0 || out.stdout.trim() === "") throw new UsageError("HEAD is detached; the loop is kept per branch, so check out a branch.");
+  if (out.status !== 0 || out.stdout.trim() === "")
+    throw new UsageError("HEAD is detached; the loop is kept per branch, so check out a branch.");
   return out.stdout.trim();
 }
 
@@ -167,11 +191,23 @@ type IdentifiedResult = ReviewResult & { findings: { id: string }[] };
 type Attempt = { ok: true; result: IdentifiedResult } | { ok: false; why: string } | { interrupted: true };
 
 /** One review call: succeeds only with a complete `/2` result in which every finding has a history id. */
-async function attempt(args: LocalArgs, repoDir: string, env: Record<string, string | undefined>, io: LoopIo, deps: LoopDeps): Promise<Attempt> {
+async function attempt(
+  args: LocalArgs,
+  repoDir: string,
+  env: Record<string, string | undefined>,
+  io: LoopIo,
+  deps: LoopDeps,
+): Promise<Attempt> {
   let out = "";
   let code: number;
   try {
-    code = await (deps.review ?? runLocal)(args, repoDir, env, { stdout: (t) => (out += t), stderr: io.stderr, engineVersion: io.engineVersion }, deps);
+    code = await (deps.review ?? runLocal)(
+      args,
+      repoDir,
+      env,
+      { stdout: (t) => (out += t), stderr: io.stderr, engineVersion: io.engineVersion },
+      deps,
+    );
   } catch (error) {
     if (error instanceof UsageError) throw error;
     return { ok: false, why: error instanceof Error ? error.message : String(error) };
@@ -187,7 +223,8 @@ async function attempt(args: LocalArgs, repoDir: string, env: Record<string, str
   }
   if (parsed.execution.stop !== "complete") return { ok: false, why: `the review stopped early (${parsed.execution.stop})` };
   if (parsed.coverage.partial) return { ok: false, why: "the review left files unread" };
-  if (parsed.findings.some((f: { id?: string }) => typeof f.id !== "string")) return { ok: false, why: "the review's history entry was not saved, so its findings have no id" };
+  if (parsed.findings.some((f: { id?: string }) => typeof f.id !== "string"))
+    return { ok: false, why: "the review's history entry was not saved, so its findings have no id" };
   return { ok: true, result: parsed as IdentifiedResult };
 }
 
@@ -198,9 +235,18 @@ interface LoopIo {
 }
 
 const withVerdicts = (ledger: LedgerEntry[], verdicts: ReturnType<typeof readVerdicts>): LoopFinding[] =>
-  ledger.map((e) => ({ ...e, ...(verdicts.get(e.id) ? { verdict: { verdict: verdicts.get(e.id)!.verdict, reason: verdicts.get(e.id)!.reason } } : {}) }));
+  ledger.map((e) => ({
+    ...e,
+    ...(verdicts.get(e.id) ? { verdict: { verdict: verdicts.get(e.id)!.verdict, reason: verdicts.get(e.id)!.reason } } : {}),
+  }));
 
-export async function runLoop(args: LoopArgs, repoDir: string, env: Record<string, string | undefined>, io: LoopIo, deps: LoopDeps = {}): Promise<number> {
+export async function runLoop(
+  args: LoopArgs,
+  repoDir: string,
+  env: Record<string, string | undefined>,
+  io: LoopIo,
+  deps: LoopDeps = {},
+): Promise<number> {
   const home = wachimanHome(env);
   const root = historyRoot(home);
   const key = repositoryKey(repoDir).key;
@@ -216,12 +262,15 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
 
   let state: LoopState;
   if (args.base !== undefined) {
-    if (existing?.status === "open" && existing.rounds.length > 0) io.stderr(`loop: starting over on ${branch}; the open loop had run ${existing.rounds.length} round(s).`);
+    if (existing?.status === "open" && existing.rounds.length > 0)
+      io.stderr(`loop: starting over on ${branch}; the open loop had run ${existing.rounds.length} round(s).`);
     state = { format: LOOP_STATE_FORMAT, branch, base: args.base, status: "open", rounds: [], ledger: [] };
   } else if (!existing) {
     throw new UsageError(`No loop is open on ${branch}; start one with \`wachiman loop --base <ref>\`.`);
   } else if (existing.status === "converged") {
-    throw new UsageError(`The loop on ${branch} converged at round ${existing.rounds.length}; start a new one with \`wachiman loop --base <ref>\`.`);
+    throw new UsageError(
+      `The loop on ${branch} converged at round ${existing.rounds.length}; start a new one with \`wachiman loop --base <ref>\`.`,
+    );
   } else state = existing;
 
   const verdicts = () => readVerdicts(root, key);
@@ -258,13 +307,15 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
     state = { ...state, rounds: [...state.rounds, { round, head, at: now() }], status: decision.converged ? "converged" : "open" };
     writeLoop(root, key, state);
     io.stderr(`loop: no commit since round ${previous.round} (${sha7(head)}); nothing was reviewed, the verdicts were read again.`);
-    return render(report(state, round, args, head, { kind: "none", head }, decision, decision.converged ? 0 : 10, finish(decision, round, args)));
+    return render(
+      report(state, round, args, head, { kind: "none", head }, decision, decision.converged ? 0 : 10, finish(decision, round, args)),
+    );
   }
 
   const dirty = git(repoDir, ["status", "--porcelain", "--untracked-files=no"]);
   if (dirty.status === 0 && dirty.stdout.trim() !== "") io.stderr("loop: uncommitted changes are not reviewed; commit the fix first.");
 
-  const from = previous ? previous.head : args.base ?? state.base;
+  const from = previous ? previous.head : (args.base ?? state.base);
   const localArgs: LocalArgs = {
     paths: [],
     format: "json",
@@ -301,7 +352,9 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
   const { result } = made;
   const decision = settle(state, result, repoDir, key, root, previous?.head ?? from, verdicts());
   // A labelled round that reported findings makes the retained set private; an emptied ledger holds nothing.
-  const members = [...new Set([...(state.privateContext?.members ?? []), ...(result.findings.length > 0 ? result.privateContext?.members ?? [] : [])])];
+  const members = [
+    ...new Set([...(state.privateContext?.members ?? []), ...(result.findings.length > 0 ? (result.privateContext?.members ?? []) : [])]),
+  ];
   const { privateContext: _before, ...stateWithout } = state;
   state = {
     ...stateWithout,
@@ -314,7 +367,16 @@ export async function runLoop(args: LoopArgs, repoDir: string, env: Record<strin
   const range: RoundReport["range"] = previous ? { kind: "since-previous-round", from: previous.head } : { kind: "whole", base: from };
   const privateContext = privateNote(result);
   return render({
-    ...report(state, round, args, result.change.head.sha, range, decision.decision, decision.decision.converged ? 0 : 10, finish(decision.decision, round, args)),
+    ...report(
+      state,
+      round,
+      args,
+      result.change.head.sha,
+      range,
+      decision.decision,
+      decision.decision.converged ? 0 : 10,
+      finish(decision.decision, round, args),
+    ),
     ...(privateContext ? { privateContext } : {}),
   });
 }
@@ -365,7 +427,9 @@ function settle(
   }
   const fresh: Reported[] = [];
   for (const f of unmatched) {
-    const e = prior.find((x) => !reportedBy.has(x.id) && x.path === f.path && x.topic === f.topic && titleKey(x.title) === titleKey(f.title));
+    const e = prior.find(
+      (x) => !reportedBy.has(x.id) && x.path === f.path && x.topic === f.topic && titleKey(x.title) === titleKey(f.title),
+    );
     if (e) reportedBy.set(e.id, f);
     else fresh.push(f);
   }
@@ -374,7 +438,12 @@ function settle(
   let past: Map<string, ReplayedFinding> | undefined;
   const fingerprintOf = (e: LedgerEntry) => {
     if (e.lineText !== undefined || e.blobSha !== undefined) return e;
-    past ??= new Map(replay(readRuns(root, key, () => {}), verdicts).findings.map((f) => [f.firstId, f]));
+    past ??= new Map(
+      replay(
+        readRuns(root, key, () => {}),
+        verdicts,
+      ).findings.map((f) => [f.firstId, f]),
+    );
     return past.get(e.id);
   };
   const seen = (f: Reported): LedgerEntry => ({
@@ -393,12 +462,17 @@ function settle(
     ...prior.map((e): LedgerEntry => {
       const again = reportedBy.get(e.id);
       if (again) return { ...seen(again), id: e.id };
-      const refuted =
-        e.refuted ||
-        droppedKeys.some((d) => isRefutedBy(d, { path: e.path, topic: e.topic, titleKey: titleKey(e.title) }));
+      const refuted = e.refuted || droppedKeys.some((d) => isRefutedBy(d, { path: e.path, topic: e.topic, titleKey: titleKey(e.title) }));
       const fp = readThisRound.has(e.path) ? fingerprintOf(e) : undefined;
       if (!fp || (fp.lineText === undefined && fp.blobSha === undefined)) return { ...e, refuted };
-      return { ...e, refuted, linesChanged: undefined, lineText: fp.lineText, blobSha: fp.blobSha, status: regionChanged(repoDir, head, e.path, fp) ? "probably-fixed" : "not-repeated" };
+      return {
+        ...e,
+        refuted,
+        linesChanged: undefined,
+        lineText: fp.lineText,
+        blobSha: fp.blobSha,
+        status: regionChanged(repoDir, head, e.path, fp) ? "probably-fixed" : "not-repeated",
+      };
     }),
     ...fresh.map(seen),
   ];
@@ -434,10 +508,29 @@ function report(
   exitCode: 0 | 10 | 11,
   outcome: RoundReport["outcome"],
 ): RoundReport {
-  return { branch: state.branch, round, maxRounds: args.maxRounds, range, head, open: d.open, released: d.released, notes: d.notes, outcome, exitCode };
+  return {
+    branch: state.branch,
+    round,
+    maxRounds: args.maxRounds,
+    range,
+    head,
+    open: d.open,
+    released: d.released,
+    notes: d.notes,
+    outcome,
+    exitCode,
+  };
 }
 
-const cleanFinding = (f: LoopFinding) => ({ id: f.id, path: f.path, line: f.line, severity: f.severity, topic: f.topic, title: f.title, status: f.status });
+const cleanFinding = (f: LoopFinding) => ({
+  id: f.id,
+  path: f.path,
+  line: f.line,
+  severity: f.severity,
+  topic: f.topic,
+  title: f.title,
+  status: f.status,
+});
 
 export function renderJson(r: RoundReport): string {
   const doc = {
@@ -458,7 +551,8 @@ export function renderJson(r: RoundReport): string {
   return `${JSON.stringify(doc, null, 2)}\n`;
 }
 
-const row = (f: LoopFinding) => `${SEVERITY[f.severity].emoji} ${SEVERITY[f.severity].word} · ${TOPIC[f.topic].word}  ${location(f)}  ${neutralise(f.title).replace(/\s+/g, " ")}  (id ${f.id})`;
+const row = (f: LoopFinding) =>
+  `${SEVERITY[f.severity].emoji} ${SEVERITY[f.severity].word} · ${TOPIC[f.topic].word}  ${location(f)}  ${neutralise(f.title).replace(/\s+/g, " ")}  (id ${f.id})`;
 
 export function renderTerminal(r: RoundReport): string {
   const range =
@@ -470,7 +564,8 @@ export function renderTerminal(r: RoundReport): string {
   const lines = [`wachiman loop · ${neutralise(r.branch)} · round ${r.round} of ${r.maxRounds} · ${range} → ${sha7(r.head)}`, ""];
   if (r.privateContext) lines.push(r.privateContext, "");
   lines.push(`Keeps the loop open (${r.open.length}):`);
-  for (const f of r.open) lines.push(`  ${row(f)}`, `      history: ${f.status}${f.unreasonedWrong ? " · judged wrong without a reason: still counts" : ""}`);
+  for (const f of r.open)
+    lines.push(`  ${row(f)}`, `      history: ${f.status}${f.unreasonedWrong ? " · judged wrong without a reason: still counts" : ""}`);
   if (r.open.length === 0) lines.push("  none");
   lines.push("", `No longer open (${r.released.length}):`);
   for (const x of r.released) lines.push(`  ${x.why}  ${row(x.finding)}${x.reason ? `\n      reason: ${neutralise(x.reason)}` : ""}`);
@@ -479,7 +574,10 @@ export function renderTerminal(r: RoundReport): string {
   for (const f of r.notes) lines.push(`  ${row(f)}`);
   if (r.notes.length === 0) lines.push("  none");
   if (r.memoryCandidates) {
-    lines.push("", `Memory candidates the owner could approve (${r.memoryCandidates.length}); show one with \`wachiman memory show <id>\`:`);
+    lines.push(
+      "",
+      `Memory candidates the owner could approve (${r.memoryCandidates.length}); show one with \`wachiman memory show <id>\`:`,
+    );
     for (const c of r.memoryCandidates) lines.push(`  ${c.id}  ${neutralise(c.title).replace(/\s+/g, " ")}`);
   }
   lines.push("", `Outcome (exit ${r.exitCode}): ${r.outcome.message}`);

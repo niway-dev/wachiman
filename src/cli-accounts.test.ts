@@ -75,7 +75,10 @@ describe("account commands through the CLI", () => {
     const before = snapshotTree(m.repo);
     expect(m.run(["profile", "add", "work-a", "--config-dir", m.workDir]).code).toBe(0);
     const list = JSON.parse(m.run(["profile", "list", "--json"]).stdout);
-    expect(list).toMatchObject({ format: "wachiman.profiles/1", profiles: [{ name: "work-a", kind: "external", registered: true, usedBy: [] }] });
+    expect(list).toMatchObject({
+      format: "wachiman.profiles/1",
+      profiles: [{ name: "work-a", kind: "external", registered: true, usedBy: [] }],
+    });
     const setup = m.run(["setup", "--profile", "work-a", "--repo-dir", m.repo]);
     expect(setup.code).toBe(0);
     expect(setup.stderr).toContain("bound: app → work-a (home config, nothing written in the repository)");
@@ -102,7 +105,13 @@ describe("account commands through the CLI", () => {
 
   test("--help of each command exits 0 and writes nothing", () => {
     const m = machine();
-    for (const args of [["setup", "--help"], ["doctor", "--help"], ["profile", "--help"], ["profile", "add", "--help"], ["project", "show", "--help"]]) {
+    for (const args of [
+      ["setup", "--help"],
+      ["doctor", "--help"],
+      ["profile", "--help"],
+      ["profile", "add", "--help"],
+      ["project", "show", "--help"],
+    ]) {
       const out = m.run(args);
       expect(out.code).toBe(0);
       expect(out.stdout).toContain("wachiman ");
@@ -116,9 +125,25 @@ describe("account commands through the CLI", () => {
     expect(ok.code).toBe(0);
     const report = JSON.parse(ok.stdout);
     expect(report.checks.map((r: { id: string }) => r.id)).toEqual([
-      "wachiman", "bun", "git", "tar", "config", "profile", "auth", "environment", "project", "settings", "workflow-pin", "history", "skills", "isolation",
+      "wachiman",
+      "bun",
+      "git",
+      "tar",
+      "config",
+      "profile",
+      "auth",
+      "environment",
+      "project",
+      "settings",
+      "workflow-pin",
+      "history",
+      "skills",
+      "isolation",
     ]);
-    expect(report.checks.find((r: { id: string }) => r.id === "auth")).toMatchObject({ status: "ok", detail: { networkObserved: "unknown" } });
+    expect(report.checks.find((r: { id: string }) => r.id === "auth")).toMatchObject({
+      status: "ok",
+      detail: { networkObserved: "unknown" },
+    });
     expect(report).toMatchObject({ format: "wachiman.doctor/1", exitCode: 0, failedRequired: 0 });
     const keyed = m.run(["doctor", "--json"], { ANTHROPIC_API_KEY: "sk-ant-secret" });
     expect(keyed.code).toBe(1);
@@ -139,4 +164,3 @@ describe("account commands through the CLI", () => {
     }
   });
 });
-

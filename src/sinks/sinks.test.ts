@@ -13,7 +13,11 @@ import { renderTerminal } from "./terminal";
 const example = (): ReviewResult => {
   const v1 = JSON.parse(readFileSync(join(import.meta.dir, "../../test/fixtures/formats/review-result.example.json"), "utf8"));
   const verified = annotateUnverified(v1.findings);
-  return { ...v1, format: REVIEW_RESULT_V2, findings: v1.findings.map((f: { anchor: "diff" | "outside" }, i: number) => ({ ...verified[i], anchor: f.anchor })) };
+  return {
+    ...v1,
+    format: REVIEW_RESULT_V2,
+    findings: v1.findings.map((f: { anchor: "diff" | "outside" }, i: number) => ({ ...verified[i], anchor: f.anchor })),
+  };
 };
 
 /** The example as a local run with every file reviewed. */
@@ -148,7 +152,9 @@ describe("renderMarkdown", () => {
     const line = `${r.provider.label} (from .wachiman.yml) · effort ${r.provider.effort} (from .wachiman.yml) · profile`;
     expect(renderMarkdown(r, { settingsFrom: { model: true, effort: true } })).toContain(line);
     expect(renderTerminal(r, { agentPrompt: false, settingsFrom: { model: true, effort: true } })).toContain(line);
-    expect(renderMarkdown(r, { settingsFrom: { effort: true } })).toContain(`${r.provider.label} · effort ${r.provider.effort} (from .wachiman.yml) · profile`);
+    expect(renderMarkdown(r, { settingsFrom: { effort: true } })).toContain(
+      `${r.provider.label} · effort ${r.provider.effort} (from .wachiman.yml) · profile`,
+    );
     expect(renderMarkdown(r, {})).not.toContain("from .wachiman.yml");
     expect(renderJson(r, 1)).not.toContain("from .wachiman.yml");
   });
@@ -264,8 +270,22 @@ describe("the history annotation", () => {
       [1, { status: "new" as const, firstHead: SHA7.padEnd(40, "a"), runs: 1, id: "f0f0f0f0f0" }],
     ]),
     settled: [
-      { firstId: "0f0e0d0c0b", status: "probably-fixed" as const, path: "src/b.ts", line: 40, title: "Unchecked cast of the response", lastHead: "1a2b3c4".padEnd(40, "0") },
-      { firstId: "77aa88bb99", status: "not-repeated" as const, path: "src/c.ts", line: 7, title: "Missing await on save", lastHead: "1a2b3c4".padEnd(40, "0") },
+      {
+        firstId: "0f0e0d0c0b",
+        status: "probably-fixed" as const,
+        path: "src/b.ts",
+        line: 40,
+        title: "Unchecked cast of the response",
+        lastHead: "1a2b3c4".padEnd(40, "0"),
+      },
+      {
+        firstId: "77aa88bb99",
+        status: "not-repeated" as const,
+        path: "src/c.ts",
+        line: 7,
+        title: "Missing await on save",
+        lastHead: "1a2b3c4".padEnd(40, "0"),
+      },
     ],
     unknown: 2,
     lastRun: { head: "1a2b3c4".padEnd(40, "0"), savedAt: "2026-11-04T18:02:33.000Z" },
@@ -277,7 +297,9 @@ describe("the history annotation", () => {
     expect(text).toContain(
       "apps/api/src/main/session/store.ts:2  Should · 🟠🐛 Fix · bug: The store drops the last session (confidence high)  open since 5d6e7f8 · 3 runs · id a1b2c3d4e5 · verdict: wrong\n    `y` overwrites",
     );
-    expect(text).toContain("session-manager.ts  Could · 🟡🧪 Consider · tests: No test covers the export (confidence medium)  new · id f0f0f0f0f0\n");
+    expect(text).toContain(
+      "session-manager.ts  Could · 🟡🧪 Consider · tests: No test covers the export (confidence medium)  new · id f0f0f0f0f0\n",
+    );
     expect(text).toContain(
       [
         "Since the last run (1a2b3c4, 2026-11-04 18:02):",
@@ -294,15 +316,21 @@ describe("the history annotation", () => {
     expect(plain).not.toContain("Since the last run");
 
     const md = renderMarkdown(r, { history: annotation() });
-    expect(md).toContain("`apps/api/src/main/session/store.ts:2`\n\nHistory: open since `5d6e7f8`, 3 runs, id `a1b2c3d4e5`, verdict: wrong\n\n`y` overwrites");
+    expect(md).toContain(
+      "`apps/api/src/main/session/store.ts:2`\n\nHistory: open since `5d6e7f8`, 3 runs, id `a1b2c3d4e5`, verdict: wrong\n\n`y` overwrites",
+    );
     expect(md).toContain("`apps/api/src/main/session/session-manager.ts`\n\nHistory: new, id `f0f0f0f0f0`\n\nAdd a test");
-    expect(md).toContain("## Since the last run\n\nCompared with the run at `1a2b3c4` (2026-11-04 18:02).\n\n- probably fixed: `src/b.ts:40` Unchecked cast of the response (id `0f0e0d0c0b`)");
+    expect(md).toContain(
+      "## Since the last run\n\nCompared with the run at `1a2b3c4` (2026-11-04 18:02).\n\n- probably fixed: `src/b.ts:40` Unchecked cast of the response (id `0f0e0d0c0b`)",
+    );
     expect(md.indexOf("## Since the last run")).toBeLessThan(md.indexOf("## Summary"));
     expect(renderMarkdown(r, {})).not.toContain("Since the last run");
   });
 
   test("the first saved run says so", () => {
     const a = { ...annotation(), settled: [], unknown: 0, lastRun: undefined };
-    expect(renderTerminal(local(), { agentPrompt: false, history: a })).toContain("Since the last run: this is the first saved run of this repository.");
+    expect(renderTerminal(local(), { agentPrompt: false, history: a })).toContain(
+      "Since the last run: this is the first saved run of this repository.",
+    );
   });
 });

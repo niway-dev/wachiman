@@ -32,13 +32,13 @@ here makes a review approve, request changes or block a merge.
 | --- | --- | --- |
 | Caller workflow: `with:` and `secrets:` | The repository that installs Wachiman | Everything the [reusable workflow](#reusable-workflow) accepts. The workflow turns the inputs into `WACHIMAN_*` environment variables for the engine. |
 | Environment variables | Whoever runs the CLI directly, or a copied install | The [engine settings](#engine-settings) and [other variables](#other-environment-variables). Three of them (`DRY_RUN`, `EXCLUDE`, `PRICE_PER_MTOK`) have no reusable-workflow input. |
-| `.wachiman.yml` at the repository root | The repository | `model` and `effort` (read from the base commit, and only where no input or variable set them), `paths` (the repository's own path rules, always read from the base commit) and the metadata `kind`. See [The settings file](#the-settings-file-wachimanyml). |
+| `.wachiman.yml` at the repository root | The repository | `model` and `effort` (read from the base commit, and only where no input or variable set them), `paths` (the repository's own path rules) and `review` (opt-in review behaviors, off unless turned on), both always read from the base commit, and the metadata `kind`. See [The settings file](#the-settings-file-wachimanyml). |
 | Instruction files in the repository | The repository | What the reviewer is told to look for. They are not settings. See [Repository files](#repository-files). |
 
 Rules that hold everywhere:
 
 - Settings are read once, when the process starts. The only file that sets anything is
-  `.wachiman.yml` at the repository root, and only `model`, `effort` and `paths`; it is read from the
+  `.wachiman.yml` at the repository root, and only `model`, `effort`, `paths`, `memory` and `review`; it is read from the
   base commit, so a pull request cannot change its own review through it. There is no per-directory
   file and no per-pull-request override.
 - A pull request's title, body or comments cannot change a setting. The caller file can, and on
@@ -628,6 +628,9 @@ paths:                  # optional: places a person should always look at, see "
   - match: "src/billing/**"
     severity: high
     reason: charges customers
+# Optional. Opt-in review behaviors, each off unless set to true (see "The review key" below).
+# review:
+#   comments_point_to_docs: true
 # Optional. Line budget of the repository memory (see "The memory key" below).
 # memory:
 #   min_evidence: 2
@@ -649,8 +652,21 @@ paths:                  # optional: places a person should always look at, see "
   fails the same way a wrong `WACHIMAN_MODEL` would; set a model that fits the provider your
   workflow uses.
 - `paths` is a list of path rules; see [Path rules](#path-rules-paths) below.
+- `review` holds opt-in review behaviors; see "The `review` key" below.
 - `init` does not ask for `model` or `effort`; a new file carries them commented out, and a commented-out
   `paths:` example.
+
+**The `review` key ([ADR 0064](adr/0064-new-review-behavior-is-opt-in-per-repository-and-off-by-default.md)).**
+Review behavior added after the first release ships off. A repository turns it on here, and
+upgrading Wachiman never turns it on for you. Every key is `true` or `false`; absent means `false`.
+It is read from the same commit as `paths`, in Actions and locally, whatever `model` and `effort`
+say. A value that is not `true` or `false` is ignored with a notice
+(`.wachiman.yml: review.comments_point_to_docs must be true or false, got ...; using false`) and
+the behavior stays off.
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `review.comments_point_to_docs` | `false` | The [comment rule](#the-comment-rule-reviewcomments_point_to_docs), described after the `memory` key below. |
 
 **The `memory` key ([ADR 0056](adr/0056-repository-memory-lives-in-wachiman-memory-and-changes-only-through-one-draft-pull-request.md)).**
 It sets the line budget of the [repository memory](cli.md#memory), a folder of Markdown files in
@@ -687,6 +703,42 @@ The run says when the file decided: a `settings: model …, effort … from .wac
 job log (Actions) or on stderr (local), and `(from .wachiman.yml)` after the model and the effort in
 the last line of a local terminal or Markdown report. The posted review footer is unchanged.
 `wachiman doctor` shows the file and where the effective model and effort come from.
+
+#### The comment rule (`review.comments_point_to_docs`)
+
+Off by default. With nothing set, or `false`, Wachiman says nothing about comments and the prompt
+sent to the model is the one it was before this setting existed.
+
+To turn it on, commit this to `.wachiman.yml` on your default branch:
+
+```yaml
+review:
+  comments_point_to_docs: true
+```
+
+It applies from the next review after the merge, because the file is read at the base commit. A
+pull request that turns it on is not reviewed under it, and one that turns it off still is.
+
+When on, the reviewer reports each comment the diff **adds** that is neither:
+
+- a pointer to a document, such as `// See docs/adr/0053-....md` or a link to a document; nor
+- a tool directive: `@ts-expect-error <reason>`, `eslint-disable ... -- <reason>`, `biome-ignore`,
+  `prettier-ignore`, a shebang, a type annotation such as `/** @type {Foo} */`, a license header.
+
+Each finding is `Consider` severity: the reviewer is told never to go higher, and the engine lowers a
+comment finding titled in that format that arrives as `Fix` or `Blocker` to `Consider`. Its title
+starts with `Comment (<category>):`, and its body names the action:
+
+| Category | Meaning | Action |
+| --- | --- | --- |
+| `tautology` | The comment repeats what the code says. | Delete it. |
+| `stale` | The comment contradicts the code next to it. | Delete it, or move the true reason to a document and leave a pointer. |
+| `excuse` | The comment justifies a hack or workaround. | Delete it and open an issue for the hack. |
+| `decision record` | A real "why" that a person will need later. | Move it to a document and leave a pointer. |
+
+The reviewer is a language model, so the categories are a judgement, not a lint rule. A repository
+that wants every prose comment rejected mechanically needs a linter; this setting asks for a review
+opinion on new comments only.
 
 ### Path rules (`paths`)
 
@@ -762,7 +814,7 @@ Wachiman results.
 
 Each of these is a fixed behaviour of the engine at this release:
 
-- Anything in `.wachiman.yml` beyond `kind`, `model`, `effort` and `paths` (every other setting stays an input or a variable): the verifier's model, budgets, an account, a profile or a binary are not read from it.
+- Anything in `.wachiman.yml` beyond `kind`, `model`, `effort`, `paths`, `memory` and `review` (every other setting stays an input or a variable): the verifier's model, budgets, an account, a profile or a binary are not read from it.
 - A way to include a file that matches a built-in exclude pattern.
 - The built-in file risk scores and the order they produce (a repository can only add [path rules](#path-rules-paths) over them).
 - The set of severities and topics.

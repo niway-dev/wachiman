@@ -12,9 +12,7 @@ describe("review on push (ADR 0011)", () => {
     expect(read("templates/wachiman-review-caller.yml")).toMatch(
       /^\s*pull_request: \{ types: \[opened, ready_for_review, synchronize\] \}$/m,
     );
-    expect(read("templates/caller-workflow.yml")).toMatch(
-      /^\s*pull_request:\n\s*types: \[opened, ready_for_review, synchronize\]$/m,
-    );
+    expect(read("templates/caller-workflow.yml")).toMatch(/^\s*pull_request:\n\s*types: \[opened, ready_for_review, synchronize\]$/m);
   });
 
   test("the reusable workflow has a boolean review_on_push input, true by default", () => {
@@ -62,7 +60,7 @@ describe("push debounce", () => {
     expect(wait).toContain("if: github.event.action == 'synchronize'");
     expect(wait).toContain("DEBOUNCE: ${{ inputs.push_debounce_seconds }}");
     expect(wait).toContain('sleep "$seconds"');
-    expect(wait).toContain('-gt 0');
+    expect(wait).toContain("-gt 0");
     expect(start).toBeLessThan(steps.indexOf("- name: Checkout the pull request head"));
     expect(start).toBeLessThan(steps.indexOf("- name: Install Claude Code"));
     expect(start).toBeLessThan(steps.indexOf("cli.ts review"));
@@ -161,9 +159,7 @@ describe("thread replies without a push (ADR 0012)", () => {
   };
 
   test("both caller templates listen for pull_request_review_comment: created", () => {
-    expect(read("templates/wachiman-review-caller.yml")).toMatch(
-      /^\s*pull_request_review_comment: \{ types: \[created\] \}$/m,
-    );
+    expect(read("templates/wachiman-review-caller.yml")).toMatch(/^\s*pull_request_review_comment: \{ types: \[created\] \}$/m);
     expect(read("templates/caller-workflow.yml")).toMatch(/^\s*pull_request_review_comment:\n\s*types: \[created\]$/m);
   });
 
@@ -179,9 +175,7 @@ describe("thread replies without a push (ADR 0012)", () => {
 
   test("it has its own concurrency group that never cancels, and the review job's permissions", () => {
     const job = jobOf(workflow, "threads");
-    expect(job).toMatch(
-      /group: wachiman-review-threads-\$\{\{ github\.event\.pull_request\.number \}\}\n\s+cancel-in-progress: false/,
-    );
+    expect(job).toMatch(/group: wachiman-review-threads-\$\{\{ github\.event\.pull_request\.number \}\}\n\s+cancel-in-progress: false/);
     expect(job).toMatch(/permissions:\n\s+contents: read\n\s+pull-requests: write\n/);
     // The review job's group is another one, so a reply cannot cancel a push review.
     expect(jobOf(workflow, "review")).toContain("group: wachiman-review-${{ github.event.pull_request.number }}");
@@ -205,7 +199,8 @@ describe("thread replies without a push (ADR 0012)", () => {
   });
 
   test("the ceiling and thread budget are number inputs with the spec's defaults, and each job passes the trigger", () => {
-    const input = (name: string) => workflow.match(new RegExp(`\\n {6}${name}:\\n([\\s\\S]*?)(?=\\n {6}[a-z_]+:\\n|\\n {4}secrets:)`))?.[1] ?? "";
+    const input = (name: string) =>
+      workflow.match(new RegExp(`\\n {6}${name}:\\n([\\s\\S]*?)(?=\\n {6}[a-z_]+:\\n|\\n {4}secrets:)`))?.[1] ?? "";
     expect(input("auto_budget_usd")).toMatch(/type: number/);
     expect(input("auto_budget_usd")).toMatch(/default: 6\b/);
     expect(input("threads_budget_usd")).toMatch(/type: number/);

@@ -49,7 +49,19 @@ import { parseLedgerArgs, runLedger } from "./ledger-read/command";
 import { pullLedger } from "./ledger-read/pull";
 import { parsePrStateArgs, runPrState } from "./pr-state";
 import { realWaitDeps, runPrStateWait } from "./pr-state-wait";
-import { LedgerStopped, SpendLimitReached, comment, defaultGh, isThreadQuestion, review, threadReplies, withBaseSettings, type Deps, type GhFn, type ReviewLineComment } from "./engine";
+import {
+  LedgerStopped,
+  SpendLimitReached,
+  comment,
+  defaultGh,
+  isThreadQuestion,
+  review,
+  threadReplies,
+  withBaseSettings,
+  type Deps,
+  type GhFn,
+  type ReviewLineComment,
+} from "./engine";
 import { parseLocalArgs, runLocal } from "./local";
 import { parseLoopArgs, runLoop } from "./loop/command";
 import { parseAskArgs, runAsk } from "./local-ask";
@@ -191,7 +203,12 @@ function required(env: Record<string, string | undefined>, name: string) {
 }
 
 /** `doctor`, `profile` and `project`: no GitHub, no model call; the account store and the machine only. */
-function runAccountCommand(mode: "doctor" | "profile" | "project", args: string[], repoDir: string, env: Record<string, string | undefined>) {
+function runAccountCommand(
+  mode: "doctor" | "profile" | "project",
+  args: string[],
+  repoDir: string,
+  env: Record<string, string | undefined>,
+) {
   const io = { stdout: (text: string) => writeAll(1, text), stderr: (line: string) => console.error(line) };
   const deps = { doctor: { version: readVersion() } };
   if (mode === "profile") return runProfile(parseProfileArgs(args), env, io, deps);
@@ -216,7 +233,12 @@ function plainWhenMissing(error: unknown): undefined {
 }
 
 /** `setup` and `init`: asked on a terminal, flags and exit code 2 otherwise. A cancellation is exit 130. */
-async function runWizard(mode: "setup" | "init", args: string[], repoDir: string, env: Record<string, string | undefined>): Promise<number> {
+async function runWizard(
+  mode: "setup" | "init",
+  args: string[],
+  repoDir: string,
+  env: Record<string, string | undefined>,
+): Promise<number> {
   const io = { stdout: (text: string) => writeAll(1, text), stderr: (line: string) => console.error(line) };
   const version = readVersion();
   if (mode === "setup") {
@@ -230,7 +252,16 @@ async function runWizard(mode: "setup" | "init", args: string[], repoDir: string
     defaultWorkflowRef: DEFAULT_WORKFLOW_REF,
     githubLogin: ghLogin,
     // Choosing local/both already requests setup, which saves the binding without asking again.
-    bindNow: (prompter, mode, closing) => runSetupCommand({ repoDir }, env, io, { doctor: { version }, interactive: true, prompter, fromInit: true, initMode: mode, unboundHints: projectCommands("setup", repoDir, process.cwd()), closing }),
+    bindNow: (prompter, mode, closing) =>
+      runSetupCommand({ repoDir }, env, io, {
+        doctor: { version },
+        interactive: true,
+        prompter,
+        fromInit: true,
+        initMode: mode,
+        unboundHints: projectCommands("setup", repoDir, process.cwd()),
+        closing,
+      }),
   });
 }
 
@@ -249,19 +280,15 @@ export function runResetConfidence(args: string[], env: Record<string, string | 
   if (!/^\d+$/.test(prArg ?? "") || pr <= 0) throw new UsageError("reset-confidence needs a pull request number.");
   let commit: string | undefined;
   for (let i = 0; i < flags.length; i++) {
-    if (flags[i] !== "--commit" || !flags[i + 1]) throw new UsageError(`reset-confidence: unexpected "${flags[i]}". Accepted form: --commit <sha>.`);
+    if (flags[i] !== "--commit" || !flags[i + 1])
+      throw new UsageError(`reset-confidence: unexpected "${flags[i]}". Accepted form: --commit <sha>.`);
     commit = flags[++i];
   }
   const config = loadConfig(env);
   if (!config.confidence) return 0;
   required(env, "GH_TOKEN");
   const repo = required(env, "GITHUB_REPOSITORY");
-  resetConfidence(
-    { gh, dryRun: config.dryRun, log: (line) => console.log(line), warn: (line) => console.error(line) },
-    repo,
-    pr,
-    commit,
-  );
+  resetConfidence({ gh, dryRun: config.dryRun, log: (line) => console.log(line), warn: (line) => console.error(line) }, repo, pr, commit);
   return 0;
 }
 
@@ -282,7 +309,11 @@ async function runNoArgs(env: Record<string, string | undefined>): Promise<numbe
   if (shouldLaunch(env, streams)) {
     // Without the packages (a clone that never ran `bun install`) the launcher does not open: the help is printed.
     const launcher = await import("./wizard/launcher").catch(plainWhenMissing);
-    const launched = await launcher?.maybeLaunch({ env, version: readVersion(), dispatch: (args) => main(args, { ...env, WACHIMAN_INTRO_DONE: "1" }) });
+    const launched = await launcher?.maybeLaunch({
+      env,
+      version: readVersion(),
+      dispatch: (args) => main(args, { ...env, WACHIMAN_INTRO_DONE: "1" }),
+    });
     if (launched !== undefined) return launched;
   }
   return printRootHelp(env);
@@ -302,7 +333,9 @@ async function refreshLedger(env: Record<string, string | undefined>) {
     console.error(`wachiman: ledger refreshed (${r.entries} entries, ${r.from} to ${r.to}).`);
   } catch (error) {
     if (error instanceof UsageError) throw error;
-    console.error(`wachiman: ledger refresh failed: ${error instanceof Error ? error.message : error}. Showing the entries already downloaded.`);
+    console.error(
+      `wachiman: ledger refresh failed: ${error instanceof Error ? error.message : error}. Showing the entries already downloaded.`,
+    );
   }
 }
 
@@ -345,7 +378,12 @@ export async function main(argv: string[], env: Record<string, string | undefine
       // Before extractRepoDir: no repository is read, so `--repo-dir` is a usage error here.
       const parsed = parseSkillsArgs(argv.slice(1));
       if ("help" in parsed) return (writeAll(1, commandHelp(["skills"])!), 0);
-      return runSkills(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { version: readVersion() });
+      return runSkills(
+        parsed,
+        env,
+        { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) },
+        { version: readVersion() },
+      );
     }
     if (mode === "ledger") {
       // Before extractRepoDir: no repository is read. The only command that contacts the ledger (ADR 0039).
@@ -358,7 +396,13 @@ export async function main(argv: string[], env: Record<string, string | undefine
       const parsed = parsePrStateArgs(argv.slice(1));
       if ("help" in parsed) return (writeAll(1, commandHelp(["pr-state"])!), 0);
       const io = { stdout: (text: string) => writeAll(1, text), stderr: (line: string) => console.error(line) };
-      if (parsed.wait) return await runPrStateWait({ ...parsed, wait: true, timeoutS: parsed.timeoutS!, intervalS: parsed.intervalS! }, defaultGh, io, realWaitDeps);
+      if (parsed.wait)
+        return await runPrStateWait(
+          { ...parsed, wait: true, timeoutS: parsed.timeoutS!, intervalS: parsed.intervalS! },
+          defaultGh,
+          io,
+          realWaitDeps,
+        );
       return runPrState(parsed, defaultGh, io);
     }
     const { repoDir, rest: args } = extractRepoDir(argv);
@@ -392,7 +436,12 @@ export async function main(argv: string[], env: Record<string, string | undefine
     }
     if (mode === "memory") {
       // No model, no provider. `check`, `candidates`, `add` and `show` read files and git; `propose` also pushes with the developer's git credentials and calls `gh`.
-      return runMemory(args.slice(1), repoDir, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) }, { env, ...(canAskOnTerminal(process.stdin, process.stdout, process.stderr) ? { ask: askOnTerminal } : {}) });
+      return runMemory(
+        args.slice(1),
+        repoDir,
+        { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) },
+        { env, ...(canAskOnTerminal(process.stdin, process.stdout, process.stderr) ? { ask: askOnTerminal } : {}) },
+      );
     }
     if (mode === "doctor" || mode === "profile" || mode === "project") {
       return runAccountCommand(mode, args.slice(1), repoDir, env);
@@ -407,7 +456,11 @@ export async function main(argv: string[], env: Record<string, string | undefine
       const parsed = parseStatusArgs(args.slice(1));
       if ("help" in parsed) return (writeAll(1, commandHelp(["status"])!), 0);
       if (parsed.refresh) await refreshLedger(env);
-      return runStatus(parsed, repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line), version: readVersion() });
+      return runStatus(parsed, repoDir, env, {
+        stdout: (text) => writeAll(1, text),
+        stderr: (line) => console.error(line),
+        version: readVersion(),
+      });
     }
     if (mode === "dashboard") {
       const parsed = parseDashboardArgs(args.slice(1));
@@ -416,7 +469,10 @@ export async function main(argv: string[], env: Record<string, string | undefine
       return runDashboard(parsed, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
     }
     if (mode === "history") {
-      return runHistory(parseHistoryArgs(args.slice(1)), repoDir, env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
+      return runHistory(parseHistoryArgs(args.slice(1)), repoDir, env, {
+        stdout: (text) => writeAll(1, text),
+        stderr: (line) => console.error(line),
+      });
     }
     if (mode === "reset-confidence") return runResetConfidence(args.slice(1), env);
     const [, prArg, ...rest] = args;
@@ -436,10 +492,14 @@ export async function main(argv: string[], env: Record<string, string | undefine
     // decision 4); the rest of the thread-only run is unchanged. Its trigger is the question's, not
     // an automatic run's, so it does not spend from the automatic ceiling.
     const effective = routeMode(mode, commentLine, env.REQUEST ?? "", loaded.mention);
-    const routed = effective === "comment" ? { ...loaded, trigger: "comment" } : effective === "threads" ? { ...loaded, trigger: "thread" } : loaded;
+    const routed =
+      effective === "comment" ? { ...loaded, trigger: "comment" } : effective === "threads" ? { ...loaded, trigger: "thread" } : loaded;
     const mainProvider = (c: typeof routed) => getProvider(c.provider, c);
     // The verifier is its own adapter on its own model, always at effort high (ADR 0027).
-    const verifier = routed.verify && mode !== "threads" ? getProvider(routed.provider, { ...routed, model: routed.verifierModel, effort: "high" }) : undefined;
+    const verifier =
+      routed.verify && mode !== "threads"
+        ? getProvider(routed.provider, { ...routed, model: routed.verifierModel, effort: "high" })
+        : undefined;
     let provider = mainProvider(routed);
     required(env, "GH_TOKEN");
     const repo = required(env, "GITHUB_REPOSITORY");
@@ -455,7 +515,14 @@ export async function main(argv: string[], env: Record<string, string | undefine
     // Where no workflow input or WACHIMAN_* set them, the model and the effort come from the base
     // commit's `.wachiman.yml` (never the head's, ADR 0049), so the estimate, the size gate and every
     // call agree. The adapters are rebuilt only when the file changed one of them.
-    let config = withBaseSettings(routed, defaultGh, repo, pr, (line) => console.log(line), (line) => console.error(line));
+    let config = withBaseSettings(
+      routed,
+      defaultGh,
+      repo,
+      pr,
+      (line) => console.log(line),
+      (line) => console.error(line),
+    );
     if (config.model !== routed.model || config.effort !== routed.effort) {
       // Settings never change the verifier (own model, effort high), so only the main provider is rebuilt.
       const before = provider;
@@ -464,7 +531,9 @@ export async function main(argv: string[], env: Record<string, string | undefine
         provider.preflight();
       } catch (error) {
         // A value the base file set that this provider cannot use must not block the pull request that fixes it.
-        console.error(`wachiman: ignored model/effort from .wachiman.yml at the base commit: ${error instanceof Error ? error.message : error}; using the workflow's values.`);
+        console.error(
+          `wachiman: ignored model/effort from .wachiman.yml at the base commit: ${error instanceof Error ? error.message : error}; using the workflow's values.`,
+        );
         provider = before;
         config = routed;
       }
@@ -496,7 +565,17 @@ export async function main(argv: string[], env: Record<string, string | undefine
     if (error instanceof UsageError || error instanceof UnknownProviderError) {
       // `init --json` promises one document on stdout even when the arguments fail before init runs (a bad --repo-dir).
       if (mode === "init" && argv.includes("--json")) {
-        printDocument((text) => writeAll(1, text), failureDocument({ mode: null, dryRun: argv.includes("--dry-run"), repoDir: requestedRepoDir(argv), report: {}, code: "usage", message: error.message }));
+        printDocument(
+          (text) => writeAll(1, text),
+          failureDocument({
+            mode: null,
+            dryRun: argv.includes("--dry-run"),
+            repoDir: requestedRepoDir(argv),
+            report: {},
+            code: "usage",
+            message: error.message,
+          }),
+        );
         return 2;
       }
       return usageError(error.message, mode);

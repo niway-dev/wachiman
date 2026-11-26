@@ -54,10 +54,17 @@ export interface FoundWorkspace {
 }
 
 /** Where a member is cloned: the per-user override, else its `dir` in the coordinator. */
-export const memberDir = (coordinator: string, member: Member, user?: UserWorkspace) => (user && own(user.members, member.dir))?.dir ?? join(coordinator, member.dir);
+export const memberDir = (coordinator: string, member: Member, user?: UserWorkspace) =>
+  (user && own(user.members, member.dir))?.dir ?? join(coordinator, member.dir);
 
 /** The member that is the reviewed repository: by `repo` against the origin, then by where it is cloned. */
-function memberOf(manifest: Manifest, coordinator: string, repoTop: string, slug: string | undefined, user?: UserWorkspace): Member | undefined {
+function memberOf(
+  manifest: Manifest,
+  coordinator: string,
+  repoTop: string,
+  slug: string | undefined,
+  user?: UserWorkspace,
+): Member | undefined {
   const byRepo = slug === undefined ? undefined : manifest.members.find((m) => m.repo.toLowerCase() === slug);
   if (byRepo) return byRepo;
   const top = realOrSelf(repoTop);
@@ -151,7 +158,9 @@ const matcher = (globs: string[]) => {
  * reviewed member holds the source. `reviewed` is the member's `dir`.
  */
 export function matchContracts(manifest: Manifest, reviewed: string, changes: Change[]): AppliedContract[] {
-  const candidates = [...new Set(changes.flatMap((c) => (c.oldPath !== undefined && c.oldPath !== c.path ? [c.path, c.oldPath] : [c.path])))];
+  const candidates = [
+    ...new Set(changes.flatMap((c) => (c.oldPath !== undefined && c.oldPath !== c.path ? [c.path, c.oldPath] : [c.path]))),
+  ];
   const applied: AppliedContract[] = [];
   for (const contract of manifest.contracts) {
     const sideGlobs = contract.sides.filter((s) => s.member === reviewed).flatMap((s) => s.paths);
@@ -221,7 +230,10 @@ export function planReads(found: FoundWorkspace, applied: AppliedContract[]): Pl
  */
 export function addSibling(found: FoundWorkspace, reads: PlannedRead[], dirName: string): PlannedRead[] {
   const member = found.manifest.members.find((m) => m.dir === dirName);
-  if (!member) throw new WorkspaceError(`--sibling "${dirName}" is not a member of ${found.manifestPath} (members: ${found.manifest.members.map((m) => m.dir).join(", ")}).`);
+  if (!member)
+    throw new WorkspaceError(
+      `--sibling "${dirName}" is not a member of ${found.manifestPath} (members: ${found.manifest.members.map((m) => m.dir).join(", ")}).`,
+    );
   if (member.dir === found.reviewed.dir) throw new WorkspaceError(`--sibling "${dirName}" is the reviewed repository itself.`);
   const dir = memberDir(found.coordinator, member, found.user);
   const hand: PlannedRead = { member, dir, globs: ["**"], contracts: [], status: statusOf(found, member, dir) };

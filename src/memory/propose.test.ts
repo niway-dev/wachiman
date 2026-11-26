@@ -68,7 +68,12 @@ function developer(w: ReturnType<typeof world>, name: string, fake = fakePulls()
     let stderr = "";
     let code: number;
     try {
-      code = runMemory(argv, dir, { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) }, { env: { WACHIMAN_HOME: home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls, teamMemory: () => true } });
+      code = runMemory(
+        argv,
+        dir,
+        { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) },
+        { env: { WACHIMAN_HOME: home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls, teamMemory: () => true } },
+      );
     } catch (error) {
       code = 2;
       stderr += (error as Error).message;
@@ -84,7 +89,8 @@ function developer(w: ReturnType<typeof world>, name: string, fake = fakePulls()
 }
 
 const remoteLog = (bare: string, ref = "wachiman/memory") => git(bare, "log", "--format=%H %s", `refs/heads/${ref}`).trim().split("\n");
-const remoteFile = (bare: string, path = ".wachiman/memory/index.md", ref = "wachiman/memory") => git(bare, "show", `refs/heads/${ref}:${path}`);
+const remoteFile = (bare: string, path = ".wachiman/memory/index.md", ref = "wachiman/memory") =>
+  git(bare, "show", `refs/heads/${ref}:${path}`);
 const worktrees = (dir: string) => git(dir, "worktree", "list").trim().split("\n").length;
 
 describe("memory propose", () => {
@@ -98,21 +104,30 @@ describe("memory propose", () => {
     git(d.dir, "add", "src/a.ts");
     writeFileSync(join(d.dir, "src/b.ts"), "export const b = 200;\n");
     writeFileSync(join(d.dir, "scratch.txt"), "untracked\n");
-    const before = { status: git(d.dir, "status", "--porcelain=v2", "--branch"), head: git(d.dir, "rev-parse", "HEAD"), diff: git(d.dir, "diff", "HEAD"), stash: git(d.dir, "stash", "list") };
+    const before = {
+      status: git(d.dir, "status", "--porcelain=v2", "--branch"),
+      head: git(d.dir, "rev-parse", "HEAD"),
+      diff: git(d.dir, "diff", "HEAD"),
+      stash: git(d.dir, "stash", "list"),
+    };
     const id = d.add("Prefer named exports.");
     const shown = d.run("show", id).stdout;
 
     const r = d.run("propose", id);
     expect(r.stderr).toBe("");
     expect(r.code).toBe(0);
-    expect(r.stdout).toMatch(/^recorded: entry [0-9a-f]{7} on wachiman\/memory \([0-9a-f]{7}\)\. Draft pull request: https:\/\/example\.test\/pr\/1\n$/);
+    expect(r.stdout).toMatch(
+      /^recorded: entry [0-9a-f]{7} on wachiman\/memory \([0-9a-f]{7}\)\. Draft pull request: https:\/\/example\.test\/pr\/1\n$/,
+    );
 
     // One commit on the branch, on top of the default branch, touching only the memory index.
     const log = remoteLog(w.bare);
     expect(log).toHaveLength(2);
     const mainHead = git(w.bare, "rev-parse", "refs/heads/main").trim();
     expect(git(w.bare, "rev-parse", "refs/heads/wachiman/memory~1").trim()).toBe(mainHead);
-    expect(git(w.bare, "diff-tree", "--no-commit-id", "--name-status", "-r", "refs/heads/wachiman/memory").trim()).toBe("A\t.wachiman/memory/index.md");
+    expect(git(w.bare, "diff-tree", "--no-commit-id", "--name-status", "-r", "refs/heads/wachiman/memory").trim()).toBe(
+      "A\t.wachiman/memory/index.md",
+    );
     // The text written is the text shown, and it is a valid entry with the shown id.
     expect(remoteFile(w.bare)).toContain(shown);
     const parsed = parseMemoryFile("index.md", remoteFile(w.bare));
@@ -150,7 +165,21 @@ describe("memory propose", () => {
   test("AC8: a candidate that is not proposable is refused and nothing is pushed", () => {
     const w = world();
     const d = developer(w, "ana");
-    const r = d.run("add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "w", "--source", "judged", "--finding", "x");
+    const r = d.run(
+      "add",
+      "--kind",
+      "convention",
+      "--scope",
+      "src/**",
+      "--rule",
+      "Prefer named exports.",
+      "--why",
+      "w",
+      "--source",
+      "judged",
+      "--finding",
+      "x",
+    );
     expect(r.code).toBe(2); // no such finding in the history: not evidence at all
     // A candidate with one piece of tool-found evidence, written directly to the store through a loop-free route.
     const id = d.add("Weak one.");
@@ -199,7 +228,10 @@ describe("memory propose", () => {
     expect(second.stdout).toContain(`evidence for entry ${a}, which was already there`);
     const entries = parseMemoryFile("index.md", remoteFile(w.bare)).entries;
     expect(entries).toHaveLength(1);
-    expect(entries[0].evidence).toEqual(["2026-11-18 operator instruction, pull request 709", "2026-11-18 operator instruction, pull request 812"]);
+    expect(entries[0].evidence).toEqual([
+      "2026-11-18 operator instruction, pull request 709",
+      "2026-11-18 operator instruction, pull request 812",
+    ]);
     expect(remoteLog(w.bare)).toHaveLength(3);
     // The id did not change, and proposing it a third time with nothing new writes nothing.
     expect(entries[0].id).toBe(a);
@@ -221,7 +253,9 @@ describe("memory propose", () => {
     fake.prs.length = 0;
     const again = d.run("propose", id);
     expect(again.code).toBe(0);
-    expect(again.stdout).toBe(`already recorded: ${id} is on main with the same evidence; nothing was written and no pull request is needed.\n`);
+    expect(again.stdout).toBe(
+      `already recorded: ${id} is on main with the same evidence; nothing was written and no pull request is needed.\n`,
+    );
     expect(again.stderr).toBe("");
     expect(fake.created).toHaveLength(1); // only the first proposal's pull request
     expect(git(w.bare, "branch", "--list", "wachiman/memory").trim()).toBe("");
@@ -242,7 +276,12 @@ describe("memory propose", () => {
     };
     expect(d.run("candidates").stdout).not.toContain("proposed");
     let out = "";
-    const code = runMemory(["propose", id], d.dir, { stdout: (t) => (out += t), stderr: () => {} }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: racing, teamMemory: () => true } });
+    const code = runMemory(
+      ["propose", id],
+      d.dir,
+      { stdout: (t) => (out += t), stderr: () => {} },
+      { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: racing, teamMemory: () => true } },
+    );
     expect(code).toBe(0);
     const shown = d.run("show", id).stdout;
     expect(shown).toContain("pull request 709");
@@ -264,7 +303,12 @@ describe("memory propose", () => {
       },
     };
     let err = "";
-    const code = runMemory(["propose", id], d.dir, { stdout: () => {}, stderr: (l) => (err += `${l}\n`) }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: locking, teamMemory: () => true } });
+    const code = runMemory(
+      ["propose", id],
+      d.dir,
+      { stdout: () => {}, stderr: (l) => (err += `${l}\n`) },
+      { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: locking, teamMemory: () => true } },
+    );
     expect(code).toBe(0);
     expect(err).toContain("the entry was recorded, but candidate");
     expect(remoteLog(w.bare)).toHaveLength(2);
@@ -274,7 +318,10 @@ describe("memory propose", () => {
     const w = world();
     const d = developer(w, "ana");
     const id = d.add("Prefer named exports.");
-    writeFileSync(join(w.bare, "hooks", "pre-receive"), `#!/bin/sh\necho "policy: no memory today" >&2\necho x >> "$GIT_DIR/refusals"\nexit 1\n`);
+    writeFileSync(
+      join(w.bare, "hooks", "pre-receive"),
+      `#!/bin/sh\necho "policy: no memory today" >&2\necho x >> "$GIT_DIR/refusals"\nexit 1\n`,
+    );
     chmodSync(join(w.bare, "hooks", "pre-receive"), 0o755);
     const r = d.run("propose", id);
     expect(r.code).toBe(1);
@@ -291,7 +338,8 @@ describe("memory propose", () => {
     const d = developer(w, "ana");
     const id = d.add("Prefer named exports.");
     // The first push to the bare repository loses a race: the hook lands a colleague's commit on the branch and rejects the push.
-    const colleague = "### abcdef0 Colleague entry\n\n- kind: convention\n- scope: src/**\n- rule: r\n- why: w\n- evidence:\n  - 2026-11-18 operator instruction, pull request 5\n- added: 2026-11-18\n";
+    const colleague =
+      "### abcdef0 Colleague entry\n\n- kind: convention\n- scope: src/**\n- rule: r\n- why: w\n- evidence:\n  - 2026-11-18 operator instruction, pull request 5\n- added: 2026-11-18\n";
     writeFileSync(join(w.bare, "colleague.md"), `# Wachiman memory\n\n${colleague}`);
     writeFileSync(
       join(w.bare, "hooks", "pre-receive"),
@@ -433,7 +481,12 @@ fi
     const run = (...argv: string[]) => {
       let stdout = "";
       let stderr = "";
-      const code = runMemory(argv, d.dir, { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: flaky, teamMemory: () => true } });
+      const code = runMemory(
+        argv,
+        d.dir,
+        { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) },
+        { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: flaky, teamMemory: () => true } },
+      );
       return { code, stdout, stderr };
     };
     const first = run("propose", id);
@@ -466,7 +519,12 @@ describe("two approvals racing to open the draft pull request", () => {
     const d = developer(w, "ana", fake);
     const id = d.add("Prefer named exports.");
     let stdout = "";
-    const code = runMemory(["propose", id], d.dir, { stdout: (t) => (stdout += t), stderr: () => {} }, { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: racing, teamMemory: () => true } });
+    const code = runMemory(
+      ["propose", id],
+      d.dir,
+      { stdout: (t) => (stdout += t), stderr: () => {} },
+      { env: { WACHIMAN_HOME: d.home }, now: () => new Date("2026-11-18T10:00:00Z"), deps: { pulls: racing, teamMemory: () => true } },
+    );
     expect(code).toBe(0);
     expect(stdout).toContain("Draft pull request: https://example.test/pr/1");
     expect(fake.created).toHaveLength(1);
@@ -502,13 +560,24 @@ describe("reading the memory folder", () => {
 describe("the write rules", () => {
   test("only files directly under .wachiman/memory/ may be written", () => {
     expect(() => assertMemoryPaths([".wachiman/memory/index.md", ".wachiman/memory/apps-desktop.md"])).not.toThrow();
-    for (const bad of ["src/a.ts", ".wachiman/other.md", ".wachiman/memory/sub/x.md", ".wachiman/memory/../x.md", ".github/workflows/ci.yml", "wachiman/memory/index.md"]) {
+    for (const bad of [
+      "src/a.ts",
+      ".wachiman/other.md",
+      ".wachiman/memory/sub/x.md",
+      ".wachiman/memory/../x.md",
+      ".github/workflows/ci.yml",
+      "wachiman/memory/index.md",
+    ]) {
       expect(() => assertMemoryPaths([bad])).toThrow("only files under");
     }
   });
 
   test("a new entry is appended to index.md as the shown text; an existing id only gains the evidence it lacks, in any file", () => {
-    const c = newCandidate({ kind: "convention", scope: "src/**", rule: "Prefer named exports.", why: "Renames show up." }, { date: "2026-11-18", source: "instruction", pr: 1, agent: false }, "2026-11-18");
+    const c = newCandidate(
+      { kind: "convention", scope: "src/**", rule: "Prefer named exports.", why: "Renames show up." },
+      { date: "2026-11-18", source: "instruction", pr: 1, agent: false },
+      "2026-11-18",
+    );
     const created = applyCandidate({}, c);
     expect(created).toMatchObject({ outcome: "inserted", file: "index.md" });
     expect(created.files["index.md"].startsWith("# Wachiman memory\n\n### ")).toBe(true);
@@ -520,7 +589,9 @@ describe("the write rules", () => {
     const area = `${renderEntry(c)}\n### 1234567 Later entry\n\n- kind: convention\n`;
     const extended = applyCandidate({ "index.md": withTable, "src.md": area }, other);
     expect(extended).toMatchObject({ outcome: "evidence-added", file: "src.md" });
-    expect(extended.files["src.md"]).toContain(`  - ${evidenceLine(c.evidence[0])}\n  - 2026-11-19 operator instruction, pull request 2, written by an agent\n- added: 2026-11-18\n`);
+    expect(extended.files["src.md"]).toContain(
+      `  - ${evidenceLine(c.evidence[0])}\n  - 2026-11-19 operator instruction, pull request 2, written by an agent\n- added: 2026-11-18\n`,
+    );
     expect(extended.files["src.md"].endsWith("### 1234567 Later entry\n\n- kind: convention\n")).toBe(true);
     expect(applyCandidate({ "src.md": area }, c).outcome).toBe("unchanged");
   });

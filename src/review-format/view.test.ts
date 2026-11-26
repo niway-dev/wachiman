@@ -84,10 +84,7 @@ describe("buildView: where each finding goes", () => {
   test("Consider goes to To consider; Info goes to For your information and never has a thread", () => {
     const view = buildView(
       input({
-        findings: [
-          finding({ severity: "consider", anchor: "diff" }),
-          finding({ severity: "info", anchor: "diff", title: "fyi" }),
-        ],
+        findings: [finding({ severity: "consider", anchor: "diff" }), finding({ severity: "info", anchor: "diff", title: "fyi" })],
       }),
     );
     expect(view.findings.consider).toHaveLength(1);
@@ -116,7 +113,11 @@ describe("buildView: where each finding goes", () => {
       input({
         findings: [
           finding({ severity: "blocker", verification: { status: "inconclusive", reason: "x", checked: [] }, title: "settled by nobody" }),
-          finding({ severity: "fix", verification: { status: "inconclusive", reason: "not verified: budget", checked: [], unreached: true }, title: "never reached" }),
+          finding({
+            severity: "fix",
+            verification: { status: "inconclusive", reason: "not verified: budget", checked: [], unreached: true },
+            title: "never reached",
+          }),
           finding({ severity: "consider", verification: { status: "inconclusive", reason: "x", checked: [] }, title: "a nit" }),
         ],
       }),
@@ -127,8 +128,31 @@ describe("buildView: where each finding goes", () => {
   });
 
   test("a row carries severity, priority word, topic, confidence, origin, title, line and the model's raw body", () => {
-    const [r] = buildView(input({ findings: [finding({ severity: "blocker", topic: "security", confidence: "low", title: "x | y", body: "line one\nline two", priority: "could" })] })).findings.toFix;
-    expect(r).toMatchObject({ severity: "blocker", priority: "could", topic: "security", confidence: "low", origin: "unknown", line: 3, title: "x | y", body: "line one\nline two", path: "src/a.ts" });
+    const [r] = buildView(
+      input({
+        findings: [
+          finding({
+            severity: "blocker",
+            topic: "security",
+            confidence: "low",
+            title: "x | y",
+            body: "line one\nline two",
+            priority: "could",
+          }),
+        ],
+      }),
+    ).findings.toFix;
+    expect(r).toMatchObject({
+      severity: "blocker",
+      priority: "could",
+      topic: "security",
+      confidence: "low",
+      origin: "unknown",
+      line: 3,
+      title: "x | y",
+      body: "line one\nline two",
+      path: "src/a.ts",
+    });
   });
 
   test("a result written before priority existed is priced on the fly", () => {
@@ -137,7 +161,9 @@ describe("buildView: where each finding goes", () => {
   });
 
   test("To fix lists Blockers first and keeps the engine's order otherwise", () => {
-    const view = buildView(input({ findings: [finding({ title: "fix 1" }), finding({ severity: "blocker", title: "blocker" }), finding({ title: "fix 2" })] }));
+    const view = buildView(
+      input({ findings: [finding({ title: "fix 1" }), finding({ severity: "blocker", title: "blocker" }), finding({ title: "fix 2" })] }),
+    );
     expect(view.findings.toFix.map((r) => r.title)).toEqual(["blocker", "fix 1", "fix 2"]);
   });
 });
@@ -159,7 +185,16 @@ describe("buildView: counts and the glance table add up", () => {
 
   test("the total is this pull request's findings, Info included; the other origins come after it", () => {
     const counts = countFindingRows(view.findings);
-    expect(counts).toMatchObject({ blockers: 1, fixes: 1, considers: 2, info: 1, total: 5, preExisting: 1, preExistingDemanding: 1, investigate: 1 });
+    expect(counts).toMatchObject({
+      blockers: 1,
+      fixes: 1,
+      considers: 2,
+      info: 1,
+      total: 5,
+      preExisting: 1,
+      preExistingDemanding: 1,
+      investigate: 1,
+    });
     expect(counts.total).toBe(counts.blockers + counts.fixes + counts.considers + counts.info);
     expect(Object.values(counts.byPriority).reduce((a, b) => a + b, 0)).toBe(counts.total);
   });
@@ -213,7 +248,11 @@ describe("buildView: display paths (decision 19, S7)", () => {
     const view = buildView(
       input({
         files: [file("src/init/run.ts"), file("src/setup/run.ts")],
-        findings: [finding({ path: "src/init/run.ts", line: 10 }), finding({ path: "src/setup/run.ts", line: 20 }), finding({ path: "src/engine.ts", line: 1 })],
+        findings: [
+          finding({ path: "src/init/run.ts", line: 10 }),
+          finding({ path: "src/setup/run.ts", line: 20 }),
+          finding({ path: "src/engine.ts", line: 1 }),
+        ],
       }),
     );
     expect(view.findings.toFix.map((r) => r.location)).toEqual(["init/run.ts:10", "setup/run.ts:20", "engine.ts:1"]);
@@ -268,7 +307,17 @@ describe("buildView: coverage, partial and scope", () => {
 
   test("a file that came back not reviewed after an earlier try is named as tried twice, unless it was never reached", () => {
     const files = ["a", "b", "c"].map((n) => file(`src/${n}.ts`));
-    const base = { files, output: { files_reviewed: [], files_skipped: [{ path: "src/a.ts", reason: "not reached: budget" }, { path: "src/b.ts", reason: "the call failed" }] }, tried: ["src/a.ts", "src/b.ts", "src/c.ts"] };
+    const base = {
+      files,
+      output: {
+        files_reviewed: [],
+        files_skipped: [
+          { path: "src/a.ts", reason: "not reached: budget" },
+          { path: "src/b.ts", reason: "the call failed" },
+        ],
+      },
+      tried: ["src/a.ts", "src/b.ts", "src/c.ts"],
+    };
     expect(buildView(input(base)).files.notReviewedTwice).toEqual(["src/b.ts", "src/c.ts"]);
     expect(buildView(input({ ...base, scoped: true })).files.notReviewedTwice).toEqual([]);
   });
@@ -282,8 +331,9 @@ describe("buildView: coverage, partial and scope", () => {
   });
 
   test("the memory notices the engine appends to the summary are split from the model's prose", () => {
-    const notice = "**Muted by memory** (not posted as comments; each was matched by an exception the owner approved):\n- x (`a.ts:1`): muted by entry `e1`";
-    const stale = "ℹ️ **Memory entry `e1` may be out of date** (\"t\"): its `holds while` paths are touched by this diff (a.ts).";
+    const notice =
+      "**Muted by memory** (not posted as comments; each was matched by an exception the owner approved):\n- x (`a.ts:1`): muted by entry `e1`";
+    const stale = 'ℹ️ **Memory entry `e1` may be out of date** ("t"): its `holds while` paths are touched by this diff (a.ts).';
     const view = buildView(input({ output: { summary: `Prose one.\n\nProse two.\n\n${stale}\n\n${notice}` } }));
     expect(view.batchProse).toBe("Prose one.\n\nProse two.");
     expect(view.memoryNotices).toBe(`${stale}\n\n${notice}`);
@@ -292,7 +342,14 @@ describe("buildView: coverage, partial and scope", () => {
   });
 
   test("the row's tier word and the arm, mention and repo pass through", () => {
-    const view = buildView(input({ arm: "word", mention: "/w", repo: "o/r", output: { findings: [{ path: "a.ts", line: 1, severity: "fix", topic: "bug", title: "t", body: "b", anchor: "diff" }] } }));
+    const view = buildView(
+      input({
+        arm: "word",
+        mention: "/w",
+        repo: "o/r",
+        output: { findings: [{ path: "a.ts", line: 1, severity: "fix", topic: "bug", title: "t", body: "b", anchor: "diff" }] },
+      }),
+    );
     expect(view.findings.toFix[0].tier).toBe("Important");
     expect([view.arm, view.mention, view.repo]).toEqual(["word", "/w", "o/r"]);
     expect(buildView(input()).arm).toBe("priority");
@@ -300,7 +357,15 @@ describe("buildView: coverage, partial and scope", () => {
 
   test("coverage rows, the estimate flag, the prose and the notices pass through", () => {
     const batches = [{ label: "batch 1", files: 2, lines: 40, maxRisk: 3, status: "reviewed", turns: 5, costUsd: 0.1 }];
-    const view = buildView(input({ batches, estimate: true, instructionChanges: { files: ["REVIEW.md"], baseSha: SINCE }, pathPolicyChange: { baseSha: SINCE }, unreviewable: [{ path: "x.png", reason: "binary" }] }));
+    const view = buildView(
+      input({
+        batches,
+        estimate: true,
+        instructionChanges: { files: ["REVIEW.md"], baseSha: SINCE },
+        pathPolicyChange: { baseSha: SINCE },
+        unreviewable: [{ path: "x.png", reason: "binary" }],
+      }),
+    );
     expect(view.coverage).toEqual({ rows: batches, estimate: true });
     expect(view.batchProse).toBe("Looks fine.");
     expect(view.notices).toEqual({ instructionChanges: { files: ["REVIEW.md"], baseSha: SINCE }, pathPolicyChange: { baseSha: SINCE } });
@@ -315,27 +380,67 @@ describe("buildView: coverage, partial and scope", () => {
 });
 
 describe("buildView: the verifier", () => {
-  const record = (over: Partial<ResultVerificationV2>): ResultVerificationV2 => ({ status: "verified", model: "m", effort: "high", costUsd: 0.1, entries: [], dropped: 0, inconclusive: 0, ...over });
-  const entry = (unreached: boolean) => ({ id: "c", path: "a", line: 1, title: "t", topic: "bug", severity: "fix", status: "inconclusive", origin: "unknown", reason: "r", checked: [], outcome: "kept", ...(unreached ? { unreached: true } : {}) }) as ResultVerificationV2["entries"][number];
+  const record = (over: Partial<ResultVerificationV2>): ResultVerificationV2 => ({
+    status: "verified",
+    model: "m",
+    effort: "high",
+    costUsd: 0.1,
+    entries: [],
+    dropped: 0,
+    inconclusive: 0,
+    ...over,
+  });
+  const entry = (unreached: boolean) =>
+    ({
+      id: "c",
+      path: "a",
+      line: 1,
+      title: "t",
+      topic: "bug",
+      severity: "fix",
+      status: "inconclusive",
+      origin: "unknown",
+      reason: "r",
+      checked: [],
+      outcome: "kept",
+      ...(unreached ? { unreached: true } : {}),
+    }) as ResultVerificationV2["entries"][number];
 
   test("no verifier is 'none'", () => {
     expect(buildView(input()).verifier).toEqual({ status: "none", notChecked: 0 });
   });
 
   test("a partial verifier counts the findings it never reached, and says why it stopped", () => {
-    const view = buildView(input({ verification: record({ status: "partial", stop: { kind: "budget", detail: "x" }, entries: [entry(true), entry(false), entry(true)] }) }));
+    const view = buildView(
+      input({
+        verification: record({
+          status: "partial",
+          stop: { kind: "budget", detail: "x" },
+          entries: [entry(true), entry(false), entry(true)],
+        }),
+      }),
+    );
     expect(view.verifier).toEqual({ status: "partial", stop: "budget", notChecked: 2 });
   });
 
   test("a failed verifier with no record checked none of the findings it was asked about", () => {
-    const view = buildView(input({ verification: record({ status: "failed" }), findings: [finding(), finding({ severity: "info" }), finding({ severity: "consider" })] }));
+    const view = buildView(
+      input({
+        verification: record({ status: "failed" }),
+        findings: [finding(), finding({ severity: "info" }), finding({ severity: "consider" })],
+      }),
+    );
     expect(view.verifier.notChecked).toBe(2);
   });
 });
 
 describe("buildView: the footer and the earlier threads", () => {
   test("the receipt, the cost line and the markers are passed through unchanged", () => {
-    const footer = { receipt: "<!-- wachi:receipt abc.def -->", costLine: "<sub>m via c · this run $0.10</sub>", markers: ["<!-- wachi:auto -->", "<!-- wachi:review -->", "<!-- wachiman sha=abc -->"] };
+    const footer = {
+      receipt: "<!-- wachi:receipt abc.def -->",
+      costLine: "<sub>m via c · this run $0.10</sub>",
+      markers: ["<!-- wachi:auto -->", "<!-- wachi:review -->", "<!-- wachiman sha=abc -->"],
+    };
     expect(buildView(input({ footer })).footer).toBe(footer);
   });
 

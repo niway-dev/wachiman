@@ -251,7 +251,11 @@ printf '{"is_error":false,"subtype":"success","result":"cwd=%s ls=[%s] args=%s"}
   test("only a finite, non-negative total_cost_usd makes the cost known", async () => {
     const run = (json: string) =>
       new ClaudeCodeProvider({ model: "m", requireApiKey: false, binary: stubBinary(`cat >/dev/null; echo '${json}'`) }).run(request);
-    expect(await run('{"is_error":true,"subtype":"error_during_execution"}')).toMatchObject({ costKnown: false, costUsd: 0, isError: true });
+    expect(await run('{"is_error":true,"subtype":"error_during_execution"}')).toMatchObject({
+      costKnown: false,
+      costUsd: 0,
+      isError: true,
+    });
     expect(await run('{"is_error":false,"subtype":"success","total_cost_usd":-1}')).toMatchObject({ costKnown: false });
     expect(await run('{"is_error":false,"subtype":"success","total_cost_usd":"0.5"}')).toMatchObject({ costKnown: false });
     // A real dollar figure stays known without any token counts, and so does a genuine zero.
@@ -286,9 +290,7 @@ printf '{"is_error":false,"subtype":"success","result":"cwd=%s ls=[%s] args=%s"}
     const binary = stubBinary('echo "2.1.304"');
     const saved = process.env.ANTHROPIC_API_KEY;
     delete process.env.ANTHROPIC_API_KEY;
-    expect(() => new ClaudeCodeProvider({ model: "m", requireApiKey: true, binary }).preflight()).toThrow(
-      "ANTHROPIC_API_KEY",
-    );
+    expect(() => new ClaudeCodeProvider({ model: "m", requireApiKey: true, binary }).preflight()).toThrow("ANTHROPIC_API_KEY");
     if (saved !== undefined) process.env.ANTHROPIC_API_KEY = saved;
   });
 });
@@ -373,7 +375,10 @@ describe("the child environment", () => {
   });
 
   test("on Windows a parent claude_config_dir does not survive next to the profile's CLAUDE_CONFIG_DIR", () => {
-    const child = buildChildEnv({ Path: "C:\\Windows", claude_config_dir: "C:\\evil" }, { platform: "win32", auth: "subscription", configDir: "C:\\profile" });
+    const child = buildChildEnv(
+      { Path: "C:\\Windows", claude_config_dir: "C:\\evil" },
+      { platform: "win32", auth: "subscription", configDir: "C:\\profile" },
+    );
     const keys = Object.keys(child).filter((k) => /^claude_config_dir$/i.test(k));
     expect(keys).toHaveLength(1);
     expect(child[keys[0]]).toBe("C:\\profile");
@@ -642,7 +647,14 @@ printf '{"is_error":false,"subtype":"success","num_turns":1,"total_cost_usd":0,"
 
   test("getProvider hands an external profile's binary to the subscription provider, and preflight names that path", () => {
     const stored = "/nonexistent/opt/claude/claude";
-    const provider = getProvider("claude-code", { model: "m", dryRun: false, effort: "high", auth: "subscription", configDir: "/work", binary: stored });
+    const provider = getProvider("claude-code", {
+      model: "m",
+      dryRun: false,
+      effort: "high",
+      auth: "subscription",
+      configDir: "/work",
+      binary: stored,
+    });
     expect((provider as ClaudeCodeProvider).binaryPath).toBe(stored);
     expect(() => provider.preflight()).toThrow(stored);
     // The API-key (CI) path never takes a stored binary.
@@ -693,7 +705,10 @@ describe("the CI subscription token (CLAUDE_CODE_OAUTH_TOKEN)", () => {
   });
 
   test("on Windows the names are matched without case", () => {
-    const child = buildChildEnv({ Path: "C:\\x", Claude_Code_Oauth_Token: TOKEN, Anthropic_Api_Key: "k" }, { auth: "oauth-token", platform: "win32" });
+    const child = buildChildEnv(
+      { Path: "C:\\x", Claude_Code_Oauth_Token: TOKEN, Anthropic_Api_Key: "k" },
+      { auth: "oauth-token", platform: "win32" },
+    );
     expect(child).toEqual({ Path: "C:\\x", Claude_Code_Oauth_Token: TOKEN });
   });
 

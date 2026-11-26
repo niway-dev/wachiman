@@ -74,7 +74,9 @@ is what `claude -p` bills.
    2026-11-03), never reads or forwards OAuth tokens or `~/.claude` contents, sets the
    non-essential-traffic switches (`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` and the related
    variables) and `--no-session-persistence`, and keeps every hardening flag of the GitHub mode.
-5. **The promise of the local mode is exactly this:** "Wachiman sends no telemetry and makes no
+5. **The promise of the local mode is exactly this** *(clarified 2026-11-23: "Wachiman sends no
+   telemetry" means Wachiman's own code; Claude Code's own traffic is not verified by a packet
+   capture, see [on-your-machine.md](../on-your-machine.md#telemetry))*: "Wachiman sends no telemetry and makes no
    GitHub requests in local mode; your code is sent to your configured Claude account for the
    review." No GitHub call is possible by construction (the core has no `gh`; the `local`
    command builds none), and a test proves it with a `gh` stub that throws.

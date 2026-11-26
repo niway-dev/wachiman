@@ -207,8 +207,7 @@ function stubBinary(body: string) {
 }
 
 /** The value after a flag in the stub's "$@", in shell. */
-const flagValue = (flag: string) =>
-  `prev=""; for a in "$@"; do if [ "$prev" = "${flag}" ]; then echo "$a"; fi; prev="$a"; done`;
+const flagValue = (flag: string) => `prev=""; for a in "$@"; do if [ "$prev" = "${flag}" ]; then echo "$a"; fi; prev="$a"; done`;
 
 describe("CodexProvider with a stub binary", () => {
   const request = {
@@ -251,7 +250,9 @@ echo '{"type":"turn.completed","usage":{"input_tokens":1000000,"cached_input_tok
   });
 
   test("an answer that is not the schema's JSON is an error", async () => {
-    const binary = stubBinary(`out=$(${flagValue("--output-last-message")}); cat >/dev/null; echo "not json" > "$out"; echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":1}}'`);
+    const binary = stubBinary(
+      `out=$(${flagValue("--output-last-message")}); cat >/dev/null; echo "not json" > "$out"; echo '{"type":"turn.completed","usage":{"input_tokens":10,"output_tokens":1}}'`,
+    );
     const result = await new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary }).run(request);
     expect(result).toMatchObject({ isError: true, terminalReason: "error", text: "not json\n" });
   });
@@ -263,7 +264,9 @@ echo '{"type":"turn.completed","usage":{"input_tokens":1000000,"cached_input_tok
   });
 
   test("a stub reporting cache writes reaches the result, and a completed turn has a known cost", async () => {
-    const binary = stubBinary(`out=$(${flagValue("--output-last-message")}); cat >/dev/null; echo '{}' > "$out"; echo '{"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":200,"cache_write_input_tokens":300,"output_tokens":7}}'`);
+    const binary = stubBinary(
+      `out=$(${flagValue("--output-last-message")}); cat >/dev/null; echo '{}' > "$out"; echo '{"type":"turn.completed","usage":{"input_tokens":1000,"cached_input_tokens":200,"cache_write_input_tokens":300,"output_tokens":7}}'`,
+    );
     const result = await new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary }).run(request);
     expect(result.usage).toEqual({ input: 500, output: 7, cacheRead: 200, cacheWrite: 300 });
     expect(result.costKnown).toBe(true);
@@ -292,9 +295,7 @@ echo '{"type":"turn.completed","usage":{"input_tokens":1000000,"cached_input_tok
 
   test("preflight needs a price, the binary and the key", () => {
     const binary = stubBinary('echo "codex-cli 0.164.0"');
-    expect(() => new CodexProvider({ model: "gpt-unknown", requireApiKey: false, binary }).preflight()).toThrow(
-      "WACHIMAN_PRICE_PER_MTOK",
-    );
+    expect(() => new CodexProvider({ model: "gpt-unknown", requireApiKey: false, binary }).preflight()).toThrow("WACHIMAN_PRICE_PER_MTOK");
     new CodexProvider({ model: "gpt-unknown", requireApiKey: false, binary, priceOverride: "1,0.1,8" }).preflight();
     expect(() => new CodexProvider({ model: "gpt-6.1-sol", requireApiKey: false, binary: "/nonexistent/codex" }).preflight()).toThrow(
       "did not run",
@@ -318,7 +319,11 @@ describe("selection", () => {
 
 describe("the schema Codex receives", () => {
   test("the batch's optional risk arrays are required, and nothing else changes", () => {
-    const schema = { type: "object", properties: { a: { type: "string" }, risk_facts: { type: "array" }, judgement: { type: "array" } }, required: ["a"] };
+    const schema = {
+      type: "object",
+      properties: { a: { type: "string" }, risk_facts: { type: "array" }, judgement: { type: "array" } },
+      required: ["a"],
+    };
     expect(strictSchema(schema)).toEqual({ ...schema, required: ["a", "risk_facts", "judgement"] });
   });
 
@@ -338,7 +343,8 @@ describe("the schema Codex receives", () => {
     const node = schema as Record<string, unknown>;
     const out: string[] = [];
     for (const key of Object.keys(node)) {
-      if (!["type", "enum", "properties", "required", "additionalProperties", "items"].includes(key)) out.push(`${path}: unsupported keyword ${key}`);
+      if (!["type", "enum", "properties", "required", "additionalProperties", "items"].includes(key))
+        out.push(`${path}: unsupported keyword ${key}`);
     }
     const types = Array.isArray(node.type) ? node.type : [node.type];
     if (types.includes("object")) {
@@ -353,7 +359,10 @@ describe("the schema Codex receives", () => {
   }
 
   test("every thread schema, as Codex receives it, meets the strict structured-output rules", () => {
-    for (const [name, schema] of [["THREAD_SCHEMA", THREAD_SCHEMA], ["THREAD_SCHEMA_WITH_MEMORY", THREAD_SCHEMA_WITH_MEMORY]] as const) {
+    for (const [name, schema] of [
+      ["THREAD_SCHEMA", THREAD_SCHEMA],
+      ["THREAD_SCHEMA_WITH_MEMORY", THREAD_SCHEMA_WITH_MEMORY],
+    ] as const) {
       expect(strictBreaches(strictSchema(schema)), name).toEqual([]);
     }
   });

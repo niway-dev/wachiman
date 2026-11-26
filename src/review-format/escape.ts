@@ -11,8 +11,7 @@
  * signature: `<!--` becomes `&lt;!--` and `-->` becomes `--&gt;`. Markdown shows both as before.
  * `engine.ts` re-exports it. This file imports nothing from the engine, so it is safe to load first.
  */
-export const neutralise = (text: string) =>
-  text.replaceAll("<!--", "&lt;!--").replaceAll("-->", "--&gt;");
+export const neutralise = (text: string) => text.replaceAll("<!--", "&lt;!--").replaceAll("-->", "--&gt;");
 
 /** `<details` and `</details>` become `&lt;details` and `&lt;/details>`: model text cannot open or close a collapsed block. */
 export const defuseDetails = (text: string) => text.replace(/<(\/?)details/gi, "&lt;$1details");

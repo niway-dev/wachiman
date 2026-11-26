@@ -104,11 +104,7 @@ describe("the partial marker", () => {
 
   test("the last review's state wins; a signed review with no marker (a scoped one) does not erase it", () => {
     const partial = partialMarker({ sha: "aaa1111", rest: ["x.ts"], tried: [] }) as string;
-    const reviews = [
-      { body: signed(marker("old0000")) },
-      { body: signed(partial) },
-      { body: `a scoped review\n\n${SIGNATURE.review}` },
-    ];
+    const reviews = [{ body: signed(marker("old0000")) }, { body: signed(partial) }, { body: `a scoped review\n\n${SIGNATURE.review}` }];
     expect(lastEngineState(reviews)).toEqual({ sha: "aaa1111", rest: ["x.ts"], tried: [] });
     // `lastEngineMarker` keeps answering with the commit, which is all a thread-only run needs.
     expect(lastEngineMarker(reviews)).toBe("aaa1111");
@@ -118,7 +114,14 @@ describe("the partial marker", () => {
   test("a partial review's footer still records its cost for the pull request's ceiling", () => {
     const text = partialMarker({ sha: SHA, rest: ["a.ts"], tried: [] }) as string;
     const body = (attempt: boolean) =>
-      ["review", "<sub>m · $1.25</sub>", SIGNATURE.auto, SIGNATURE.review, text, ...(attempt ? ["<!-- wachi:attempt id=11111111-1111-1111-1111-111111111111 -->"] : [])].join("\n\n");
+      [
+        "review",
+        "<sub>m · $1.25</sub>",
+        SIGNATURE.auto,
+        SIGNATURE.review,
+        text,
+        ...(attempt ? ["<!-- wachi:attempt id=11111111-1111-1111-1111-111111111111 -->"] : []),
+      ].join("\n\n");
     expect(readAutoCost(body(false))).toBe(1.25);
     expect(readAutoCost(body(true))).toBe(1.25);
   });
@@ -156,7 +159,10 @@ describe("buildReview and the partial marker", () => {
   test("a partial review lists what it did not reach in a marker at the head; a complete one writes the plain marker", () => {
     const partial = buildReview({
       ...base,
-      output: out({ files_reviewed: ["a.ts"], files_skipped: [{ path: "c.ts", reason: "not reached: the pull request's budget was spent" }] }),
+      output: out({
+        files_reviewed: ["a.ts"],
+        files_skipped: [{ path: "c.ts", reason: "not reached: the pull request's budget was spent" }],
+      }),
       files: [file("a.ts"), file("b.ts"), file("c.ts")],
     }).body;
     expect(readSignedState(partial)).toEqual({ sha: SHA, rest: ["b.ts", "c.ts"], tried: ["b.ts"] });
@@ -223,7 +229,9 @@ describe("buildReview and the partial marker", () => {
       files: ["fresh.ts", "x.ts", "y.ts"].map(file),
     }).body;
     expect(body.split("\n")[0]).toBe("👮 **Wachiman** · ⚪ **Wachiman found nothing to fix** · changes since `old0000` at `abc1234`");
-    expect(body).toContain("| **Coverage** | 3 of 3 files reviewed, changes since `old0000`, plus the 2 files the previous review did not reach |");
+    expect(body).toContain(
+      "| **Coverage** | 3 of 3 files reviewed, changes since `old0000`, plus the 2 files the previous review did not reach |",
+    );
     const only = buildReview({
       ...base,
       since: "old0000111",
@@ -231,7 +239,9 @@ describe("buildReview and the partial marker", () => {
       output: out({ files_reviewed: ["x.ts"] }),
       files: [file("x.ts")],
     }).body;
-    expect(only).toContain("| **Coverage** | 1 of 1 files reviewed, changes since `old0000`, plus the 1 file the previous review did not reach |");
+    expect(only).toContain(
+      "| **Coverage** | 1 of 1 files reviewed, changes since `old0000`, plus the 1 file the previous review did not reach |",
+    );
   });
 
   test("a list too long to store writes no partial marker, warns, and still fits the body", () => {
@@ -266,7 +276,15 @@ describe("buildReview and the partial marker", () => {
       origin: "pre-existing" as const,
     }));
     // One finding on a diff line: an inline comment GitHub may refuse.
-    const inline = { path: "big.ts", line: 1, severity: "fix" as const, topic: "bug" as const, confidence: "high" as const, title: "inline", body: "c".repeat(30_000) };
+    const inline = {
+      path: "big.ts",
+      line: 1,
+      severity: "fix" as const,
+      topic: "bug" as const,
+      confidence: "high" as const,
+      title: "inline",
+      body: "c".repeat(30_000),
+    };
     const built = buildReview({
       ...base,
       output: out({ files_reviewed: ["big.ts"], findings: [inline, ...findings], summary: "s".repeat(5_000) }),

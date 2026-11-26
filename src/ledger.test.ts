@@ -62,8 +62,14 @@ describe("requestIdToken", () => {
   const TOKEN_ENV = { ACTIONS_ID_TOKEN_REQUEST_URL: "https://a/t?x=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "t" };
 
   test("a 5xx or a 429 from GitHub is LedgerUnavailable; any other refusal or a body without a value is a bad answer that names id-token", () => {
-    for (const status of [500, 503, 429]) expect(() => requestIdToken(TOKEN_ENV, "a", fakeCurl(status, "boom").curl)).toThrow(LedgerUnavailable);
-    for (const [status, body] of [[403, "{}"], [404, "{}"], [200, "{}"], [200, "<html>"]] as const) {
+    for (const status of [500, 503, 429])
+      expect(() => requestIdToken(TOKEN_ENV, "a", fakeCurl(status, "boom").curl)).toThrow(LedgerUnavailable);
+    for (const [status, body] of [
+      [403, "{}"],
+      [404, "{}"],
+      [200, "{}"],
+      [200, "<html>"],
+    ] as const) {
       const thrown = (() => {
         try {
           requestIdToken(TOKEN_ENV, "a", fakeCurl(status, body).curl);
@@ -80,7 +86,15 @@ describe("requestIdToken", () => {
 
 describe("reserve", () => {
   const req = { wantedUsd: 3, callerLimitUsd: 2, callerWeeklyLimitUsd: 9, trigger: "synchronize", forced: false, pr: 7 };
-  const ok = { reservationId: "r1", grantedUsd: 2, accountLeftUsd: 4, repositoryLeftUsd: null, day: "2026-11-06", week: "2026-11-02", weekLeftUsd: null };
+  const ok = {
+    reservationId: "r1",
+    grantedUsd: 2,
+    accountLeftUsd: 4,
+    repositoryLeftUsd: null,
+    day: "2026-11-06",
+    week: "2026-11-02",
+    weekLeftUsd: null,
+  };
 
   test("posts the JSON body to one-slash /v1/reserve with the bearer; a 200 maps to Reservation", () => {
     const { curl, calls, stdins } = fakeCurl(200, JSON.stringify(ok));
@@ -112,7 +126,14 @@ describe("reserve", () => {
   });
 
   test("a refusal throws LedgerRefused with the documented fields", () => {
-    const body = { reason: "weekly_limit", period: "week", accountSpentUsd: 31, accountLimitUsd: 30, week: "2026-11-02", resetsAt: "2026-11-09T00:00:00Z" };
+    const body = {
+      reason: "weekly_limit",
+      period: "week",
+      accountSpentUsd: 31,
+      accountLimitUsd: 30,
+      week: "2026-11-02",
+      resetsAt: "2026-11-09T00:00:00Z",
+    };
     const { curl } = fakeCurl(402, JSON.stringify(body));
     let thrown: unknown;
     try {
@@ -165,8 +186,12 @@ describe("reserve", () => {
 
   test("settle and record read a refusal status without a ledger body as unreachable too", () => {
     expect(() => settle("https://ledger.example", "tok", "r1", 1, [], fakeCurl(403, "<html>").curl)).toThrow(LedgerUnavailable);
-    expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(401, "").curl)).toThrow(LedgerUnavailable);
-    expect(() => settle("https://ledger.example", "tok", "r1", 1, [], fakeCurl(401, JSON.stringify({ reason: "unauthorized" })).curl)).toThrow(/\(unauthorized\) on \/v1\/settle/);
+    expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(401, "").curl)).toThrow(
+      LedgerUnavailable,
+    );
+    expect(() =>
+      settle("https://ledger.example", "tok", "r1", 1, [], fakeCurl(401, JSON.stringify({ reason: "unauthorized" })).curl),
+    ).toThrow(/\(unauthorized\) on \/v1\/settle/);
     expect(() => settle("https://ledger.example", "tok", "r1", 1, [], fakeCurl(404, "<html>").curl)).toThrow(LedgerBadAnswer);
   });
 
@@ -181,17 +206,30 @@ describe("reserve", () => {
     };
     expect(refusalOf(401, JSON.stringify({ reason: "unauthorized", detail: "expired" }))?.reason).toBe("unauthorized");
     expect(refusalOf(403, JSON.stringify({ reason: "not_linked", repository: "o/r" }))?.reason).toBe("not_linked");
-    expect(refusalOf(402, JSON.stringify({ reason: "repository_limit", period: "day" }))).toEqual({ reason: "repository_limit", period: "day" });
+    expect(refusalOf(402, JSON.stringify({ reason: "repository_limit", period: "day" }))).toEqual({
+      reason: "repository_limit",
+      period: "day",
+    });
   });
 
   test("a failed connection (curl status 7), a timeout, any 5xx and a 429 are LedgerUnavailable: the only outages", () => {
     expect(() => reserve("https://ledger.example", "tok", req, fakeCurl(0, "", 7).curl)).toThrow(LedgerUnavailable);
     expect(() => reserve("https://ledger.example", "tok", req, fakeCurl(0, "", 28).curl)).toThrow(LedgerUnavailable);
-    for (const status of [500, 502, 503, 504, 429]) expect(() => reserve("https://ledger.example", "tok", req, fakeCurl(status, "down").curl)).toThrow(LedgerUnavailable);
+    for (const status of [500, 502, 503, 504, 429])
+      expect(() => reserve("https://ledger.example", "tok", req, fakeCurl(status, "down").curl)).toThrow(LedgerUnavailable);
   });
 
   test("anything else unexpected is a bad answer, not an outage: a redirect, a 400 without a reason, 404, 405, a 200 with malformed JSON or without the fields", () => {
-    for (const [status, body] of [[301, ""], [302, "<html>"], [400, "{}"], [404, "Not Found"], [405, ""], [200, "<html>"], [200, "{}"], [200, '{"reservationId":"r"}']] as const) {
+    for (const [status, body] of [
+      [301, ""],
+      [302, "<html>"],
+      [400, "{}"],
+      [404, "Not Found"],
+      [405, ""],
+      [200, "<html>"],
+      [200, "{}"],
+      [200, '{"reservationId":"r"}'],
+    ] as const) {
       const thrown = (() => {
         try {
           reserve("https://ledger.example", "tok", req, fakeCurl(status, body).curl);
@@ -207,7 +245,8 @@ describe("reserve", () => {
   });
 
   test("a grant that is negative or not finite is a malformed answer, never a budget", () => {
-    const granted = (grantedUsd: string) => `{"reservationId":"r","grantedUsd":${grantedUsd},"accountLeftUsd":1,"repositoryLeftUsd":null,"day":"d","week":"w","weekLeftUsd":null}`;
+    const granted = (grantedUsd: string) =>
+      `{"reservationId":"r","grantedUsd":${grantedUsd},"accountLeftUsd":1,"repositoryLeftUsd":null,"day":"d","week":"w","weekLeftUsd":null}`;
     for (const value of ["-1", "-0.01", "1e999", "-1e999"]) {
       expect(() => reserve("https://ledger.example", "tok", req, fakeCurl(200, granted(value)).curl)).toThrow(LedgerBadAnswer);
     }
@@ -254,9 +293,15 @@ describe("record", () => {
   });
 
   test("anything but a 200 throws: a 5xx or a failed connection LedgerUnavailable, a 404 a bad answer", () => {
-    expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(404, "").curl)).toThrow(LedgerBadAnswer);
-    expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(503, "").curl)).toThrow(LedgerUnavailable);
-    expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(0, "", 7).curl)).toThrow(LedgerUnavailable);
+    expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(404, "").curl)).toThrow(
+      LedgerBadAnswer,
+    );
+    expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(503, "").curl)).toThrow(
+      LedgerUnavailable,
+    );
+    expect(() => record("https://ledger.example", "tok", { spentUsd: 0, calls: [], trigger: "cli" }, fakeCurl(0, "", 7).curl)).toThrow(
+      LedgerUnavailable,
+    );
   });
 });
 
@@ -283,8 +328,16 @@ describe("verifyReceipt", () => {
   });
 
   test("the canonical bytes order the keys account, repository, run_id, usd, day", () => {
-    const shuffled: Receipt = { day: receipt.day, usd: receipt.usd, run_id: receipt.run_id, repository: receipt.repository, account: receipt.account };
-    expect(new TextDecoder().decode(canonicalReceipt(shuffled))).toBe('{"account":"acct","repository":"o/r","run_id":"42","usd":1.25,"day":"2026-11-06"}');
+    const shuffled: Receipt = {
+      day: receipt.day,
+      usd: receipt.usd,
+      run_id: receipt.run_id,
+      repository: receipt.repository,
+      account: receipt.account,
+    };
+    expect(new TextDecoder().decode(canonicalReceipt(shuffled))).toBe(
+      '{"account":"acct","repository":"o/r","run_id":"42","usd":1.25,"day":"2026-11-06"}',
+    );
     expect(verifyReceipt(shuffled, signature, pem)).toBe(true);
   });
 
@@ -300,7 +353,7 @@ describe("verifyReceipt", () => {
 // repository): the engine must verify what the ledger signs, byte for byte. If the service changes
 // how it signs, regenerate this fixture from it.
 const LEDGER_SIGNED = {
-  receipt: {"account": "niway", "repository": "niway-dev/wachiman", "run_id": "123456", "usd": 0.42, "day": "2026-11-06"},
+  receipt: { account: "niway", repository: "niway-dev/wachiman", run_id: "123456", usd: 0.42, day: "2026-11-06" },
   signature: "MaRDeNMPljh9YBCVxW5aZ08MnIhlgEVQHV7mA1pt1xXHHxfHqP-50xDns-qUwpQzMQwet10z3L9mG3qqQnEoCw",
   pem: "-----BEGIN PUBLIC KEY-----\nMCowBQYDK2VwAyEAwo528GLfLJwT+fEss8hoivbrzLiaHDOoGuLj5EO0OMU=\n-----END PUBLIC KEY-----\n",
 };
@@ -314,7 +367,10 @@ describe("a receipt signed by the ledger", () => {
 });
 
 describe("secrets and payloads stay out of the argument list", () => {
-  const TOKEN_ENV = { ACTIONS_ID_TOKEN_REQUEST_URL: "https://actions.example/token?api=1", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "REQUEST-SECRET" };
+  const TOKEN_ENV = {
+    ACTIONS_ID_TOKEN_REQUEST_URL: "https://actions.example/token?api=1",
+    ACTIONS_ID_TOKEN_REQUEST_TOKEN: "REQUEST-SECRET",
+  };
   const ID_TOKEN = "ID-TOKEN-SECRET";
   const reserveBody = { wantedUsd: 3, trigger: "opened", forced: false, pr: 7 };
 
@@ -331,7 +387,8 @@ describe("secrets and payloads stay out of the argument list", () => {
     for (const { calls, stdins } of [token, reserved, settled, recorded]) {
       expect(calls).toHaveLength(1);
       const argv = calls[0]!.join("\n");
-      for (const secret of ["REQUEST-SECRET", ID_TOKEN, "Bearer", "wantedUsd", "reservationId", "spentUsd", CALL.label]) expect(argv).not.toContain(secret);
+      for (const secret of ["REQUEST-SECRET", ID_TOKEN, "Bearer", "wantedUsd", "reservationId", "spentUsd", CALL.label])
+        expect(argv).not.toContain(secret);
       expect(argv).toContain("--config\n-");
       expect(stdins[0]).toBeDefined();
       expect(everythingIn(calls[0]!, stdins[0])).toContain("Authorization: Bearer");
@@ -342,11 +399,18 @@ describe("secrets and payloads stay out of the argument list", () => {
     expect(readCurlConfig(reserved.stdins[0]).headers).toContain("Content-Type: application/json");
     expect(bodyOf(reserved.stdins[0])).toBe(JSON.stringify(reserveBody));
     expect(bodyOf(settled.stdins[0])).toBe(JSON.stringify({ reservationId: "r1", spentUsd: 1.25, calls: [CALL] }));
-    expect(bodyOf(recorded.stdins[0])).toBe(JSON.stringify({ spentUsd: 0.5, calls: [CALL], trigger: "opened", pr: 7, reason: "unreserved" }));
+    expect(bodyOf(recorded.stdins[0])).toBe(
+      JSON.stringify({ spentUsd: 0.5, calls: [CALL], trigger: "opened", pr: 7, reason: "unreserved" }),
+    );
   });
 
   test("the configuration escapes what curl would read as syntax, and reads back byte for byte", () => {
-    const nasty = JSON.stringify({ text: 'a "quoted" \\ back\nslash\tand\r\v end', unicode: "ñ 😀 é", at: "@file", hash: "# not a comment" });
+    const nasty = JSON.stringify({
+      text: 'a "quoted" \\ back\nslash\tand\r\v end',
+      unicode: "ñ 😀 é",
+      at: "@file",
+      hash: "# not a comment",
+    });
     expect(readCurlConfig(curlConfig([["data", nasty]])).data).toBe(nasty);
     expect(curlConfig([["header", "A: b"]])).toBe('header = "A: b"\n');
     expect(curlConfig([["data", 'a"b']]).split("\n")).toHaveLength(2);
@@ -391,7 +455,9 @@ describe("secrets and payloads stay out of the argument list", () => {
       const before = process.env.CURL_HOME;
       process.env.CURL_HOME = home;
       try {
-        expect(() => reserve(`http://127.0.0.1:${port}/redirect`, ID_TOKEN, reserveBody, defaultCurl)).toThrow(/does not look like the spend ledger.*HTTP 302/);
+        expect(() => reserve(`http://127.0.0.1:${port}/redirect`, ID_TOKEN, reserveBody, defaultCurl)).toThrow(
+          /does not look like the spend ledger.*HTTP 302/,
+        );
       } finally {
         if (before === undefined) delete process.env.CURL_HOME;
         else process.env.CURL_HOME = before;

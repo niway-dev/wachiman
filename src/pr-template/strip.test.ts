@@ -43,13 +43,17 @@ describe("StripTest", () => {
   });
 
   test("inline and multiline comments", () => {
-    expect(stripDescription("| **Type** | <!-- one\nof --> Docs |\n<!--\nlong\n-->\nend\n", { all: true })).toBe("| **Type** |  Docs |\nend\n");
+    expect(stripDescription("| **Type** | <!-- one\nof --> Docs |\n<!--\nlong\n-->\nend\n", { all: true })).toBe(
+      "| **Type** |  Docs |\nend\n",
+    );
     expect(stripDescription("## What\n<!--\nlong\n-->\nend\n")).toBe("## What\nend\n");
     expect(stripDescription("| **Type** | <!-- one\nof --> Docs |\nend\n")).toBe("| **Type** |  Docs |\nend\n");
   });
 
   test("text after whole line looking comment survives", () => {
-    expect(stripDescription("<!-- note --> Keep this\nmiddle line\n<!-- other -->\nend\n", { all: true })).toBe(" Keep this\nmiddle line\nend\n");
+    expect(stripDescription("<!-- note --> Keep this\nmiddle line\n<!-- other -->\nend\n", { all: true })).toBe(
+      " Keep this\nmiddle line\nend\n",
+    );
   });
 
   test("text between two comments survives", () => {
@@ -57,12 +61,21 @@ describe("StripTest", () => {
   });
 
   test("stripped filled body still passes", () => {
-    const result = checkDescription({ body: stripDescription(validBody()), title: TITLE, head: HEAD, template: resolveTemplate(catalog, null), catalog, risk: 0 });
+    const result = checkDescription({
+      body: stripDescription(validBody()),
+      title: TITLE,
+      head: HEAD,
+      template: resolveTemplate(catalog, null),
+      catalog,
+      risk: 0,
+    });
     expect(result.findings).toEqual([]);
   });
 
   test("the strip command text", () => {
-    expect(stripDescription("## What\n<!-- gone -->\nx\n<!-- wachiman:confidence:start -->\n")).toBe("## What\nx\n<!-- wachiman:confidence:start -->\n");
+    expect(stripDescription("## What\n<!-- gone -->\nx\n<!-- wachiman:confidence:start -->\n")).toBe(
+      "## What\nx\n<!-- wachiman:confidence:start -->\n",
+    );
   });
 });
 
@@ -115,7 +128,11 @@ describe("what strip keeps that the earlier checker removed", () => {
 
   test("the result is the same text with the same lines, minus comments", () => {
     const filled = validBody();
-    expect(stripDescription(filled).split("\n").filter((l) => l.trim() !== "")).toEqual(filled.split("\n").filter((l) => l.trim() !== ""));
+    expect(
+      stripDescription(filled)
+        .split("\n")
+        .filter((l) => l.trim() !== ""),
+    ).toEqual(filled.split("\n").filter((l) => l.trim() !== ""));
   });
 });
 

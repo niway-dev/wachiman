@@ -42,7 +42,16 @@ report and is merged only after its author has accepted the agreement.
 - One behavior per pull request; refactors travel separately.
 - Titles follow [Conventional Commits](https://www.conventionalcommits.org/), because releases and
   the changelog are generated from them (see the README, "Commit messages").
-- Run `bun test` before you push.
+- Run `bun test`, `bun run fmt` (writes the formatting), `bun run lint` and `bun run check` before you
+  push. The last two compare with `scripts/ratchet-baseline.json`: a change may not add a lint
+  diagnostic or a type error, and may remove some (then run `bun run ratchet:update` and commit the
+  baseline). The tools run on pinned Bun versions through `bunx`; see
+  [ADR 0061](docs/adr/0061-bun-is-the-development-toolchain-with-a-ratchet-for-what-already-exists.md).
+- A change that makes Wachiman send any usage or diagnostic data must: (a) gate it on `usageDataAllowed()` in
+  `src/tracking.ts` (never read `doNotTrack()` directly), so a set `DO_NOT_TRACK` always wins over a stored opt-in; (b) be listed in
+  `docs/on-your-machine.md` before the release; (c) add an entry for its release version to
+  `wachimanDataCollection` in `package.json`, which `wachiman upgrade` prints; and (d) be called out
+  in `CHANGELOG.md`.
 - Say whether an AI tool wrote part of the change, and confirm you ran it.
 - Do not add a dependency without an issue first. The review engine has none on purpose (ADR 0002);
   the only runtime dependencies are `chalk`, `@clack/prompts` and `bun`, the first two for the

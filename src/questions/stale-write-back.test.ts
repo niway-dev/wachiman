@@ -96,14 +96,8 @@ describe("stale-write-back question", () => {
 
   describe("rule A: remembered value and a persistent write", () => {
     test.each([
-      [
-        "a deferred snapshot written to a file",
-        ["const snapshot = readCache();", "await writeFile(path, JSON.stringify(snapshot));"],
-      ],
-      [
-        "a cached value put in a settings store",
-        ["const cachedName = entry.name;", "localStorage.setItem('name', cachedName);"],
-      ],
+      ["a deferred snapshot written to a file", ["const snapshot = readCache();", "await writeFile(path, JSON.stringify(snapshot));"]],
+      ["a cached value put in a settings store", ["const cachedName = entry.name;", "localStorage.setItem('name', cachedName);"]],
       [
         "an offline queue flushed with SQL",
         [
@@ -112,10 +106,7 @@ describe("stale-write-back question", () => {
           "}",
         ],
       ],
-      [
-        "a reconnect handler replacing a file",
-        ["onReconnect(() => {", "  fs.rename(tmp, target);", "});"],
-      ],
+      ["a reconnect handler replacing a file", ["onReconnect(() => {", "  fs.rename(tmp, target);", "});"]],
     ])("%s", (_name, added) => {
       expect(QUESTION.applies(added, "src/sync.ts")).toBe(true);
     });
@@ -129,10 +120,7 @@ describe("stale-write-back question", () => {
 
   describe("rule B: another writer named next to remembered state", () => {
     test("a comment about another device next to a cache", () => {
-      const added = [
-        "// The other device may have renamed it; our cache is refreshed on the next probe.",
-        "refreshCache();",
-      ];
+      const added = ["// The other device may have renamed it; our cache is refreshed on the next probe.", "refreshCache();"];
       expect(QUESTION.applies(added, "src/a.ts")).toBe(true);
     });
 
@@ -171,11 +159,7 @@ describe("stale-write-back question", () => {
     });
 
     test("CSS lines, even with cache- and pending-flavoured class names", () => {
-      const added = [
-        ".pending-badge { opacity: 0.5; }",
-        ".cached { color: var(--tag); }",
-        ".offline::after { content: 'write'; }",
-      ];
+      const added = [".pending-badge { opacity: 0.5; }", ".cached { color: var(--tag); }", ".offline::after { content: 'write'; }"];
       expect(QUESTION.applies(added, "src/renderer/badge.module.css")).toBe(false);
     });
 
@@ -206,12 +190,8 @@ describe("stale-write-back question", () => {
     });
 
     test("clipboard and HTTP response writes", () => {
-      expect(
-        QUESTION.applies(["const cached = last;", "await navigator.clipboard.writeText(cached);"], "src/c.ts"),
-      ).toBe(false);
-      expect(
-        QUESTION.applies(["const cachedBody = body;", "res.writeHead(200);", "res.write(cachedBody);"], "src/s.ts"),
-      ).toBe(false);
+      expect(QUESTION.applies(["const cached = last;", "await navigator.clipboard.writeText(cached);"], "src/c.ts")).toBe(false);
+      expect(QUESTION.applies(["const cachedBody = body;", "res.writeHead(200);", "res.write(cachedBody);"], "src/s.ts")).toBe(false);
     });
 
     test("a commented-out write", () => {

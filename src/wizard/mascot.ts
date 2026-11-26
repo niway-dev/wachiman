@@ -152,7 +152,14 @@ export interface IntroOptions {
   sleep?: (ms: number) => Promise<void>;
 }
 
-export async function playIntro({ ui, term, env, version, line = DEFAULT_LINE, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }: IntroOptions): Promise<IntroResult> {
+export async function playIntro({
+  ui,
+  term,
+  env,
+  version,
+  line = DEFAULT_LINE,
+  sleep = (ms) => new Promise((r) => setTimeout(r, ms)),
+}: IntroOptions): Promise<IntroResult> {
   const { output, input } = term;
   const paint = terminalStyle(output, env);
   const scene = mascotScene({ paint, ascii: env.TERM === "dumb", columns: output.columns ?? 80, message: line });

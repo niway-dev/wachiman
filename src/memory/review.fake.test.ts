@@ -22,7 +22,13 @@ class FakeProvider implements ProviderAdapter {
   }
   async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
-    const structuredOutput: ReviewOutput = { files_reviewed: ["src/a.ts"], files_skipped: [], findings: [], thread_replies: [], summary: "Looks fine." };
+    const structuredOutput: ReviewOutput = {
+      files_reviewed: ["src/a.ts"],
+      files_skipped: [],
+      findings: [],
+      thread_replies: [],
+      summary: "Looks fine.",
+    };
     return { costUsd: 0, turns: 1, durationMs: 1, terminalReason: "success", isError: false, raw: {}, structuredOutput };
   }
 }
@@ -39,8 +45,22 @@ function branchInput(): ReviewInput {
   return { ...structuredClone(branchFixture), headDir };
 }
 
-const deps = (provider: FakeProvider): CoreDeps => ({ provider, log: () => {}, warn: () => {}, lineCounter: undefined, sleep: () => {}, rateLimitBackoffMs: 0, git: undefined, now: undefined, costs: undefined, engineVersion: undefined });
-const options = (over: Partial<ReviewOptions> = {}): ReviewOptions => ({ ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "0" }), 5), ...over });
+const deps = (provider: FakeProvider): CoreDeps => ({
+  provider,
+  log: () => {},
+  warn: () => {},
+  lineCounter: undefined,
+  sleep: () => {},
+  rateLimitBackoffMs: 0,
+  git: undefined,
+  now: undefined,
+  costs: undefined,
+  engineVersion: undefined,
+});
+const options = (over: Partial<ReviewOptions> = {}): ReviewOptions => ({
+  ...reviewOptionsOf(loadConfig({ WACHIMAN_VERIFY: "0" }), 5),
+  ...over,
+});
 
 const INDEX = "# Memory\n\n| Glob | File |\n| --- | --- |\n| `src/**` | `src.md` |\n";
 const source = (files: Record<string, string>, settings?: string): MemorySource => ({
@@ -66,7 +86,8 @@ describe("a review with repository memory (layer 1: loaded, selected, budgeted, 
     const memory = loadMemory(source({ "index.md": INDEX, "src.md": "rule\n" }), REV, ["src/a.ts"], () => {})!;
     const result = await reviewChange(branchInput(), options({ memory }), deps(withMemory));
 
-    const prompts = (p: FakeProvider) => p.requests.map((r) => r.prompt.replace(/memory-head-\w+/g, "H").replace(/wachiman-review-\w+/g, "R"));
+    const prompts = (p: FakeProvider) =>
+      p.requests.map((r) => r.prompt.replace(/memory-head-\w+/g, "H").replace(/wachiman-review-\w+/g, "R"));
     expect(prompts(withMemory)).toEqual(prompts(plain));
     expect(result.summary).toBe(plainResult.summary);
     expect(result.memory).toEqual({
@@ -87,7 +108,12 @@ describe("a review with repository memory (layer 1: loaded, selected, budgeted, 
 
   test("over budget, the summary says so and names the files left out; the record says it too", async () => {
     const big = Array.from({ length: 30 }, (_, i) => `line ${i}`).join("\n") + "\n";
-    const memory = loadMemory(source({ "index.md": INDEX, "src.md": big }, "memory:\n  max_loaded_lines: 20\n"), REV, ["src/a.ts"], () => {})!;
+    const memory = loadMemory(
+      source({ "index.md": INDEX, "src.md": big }, "memory:\n  max_loaded_lines: 20\n"),
+      REV,
+      ["src/a.ts"],
+      () => {},
+    )!;
     const result = await reviewChange(branchInput(), options({ memory }), deps(new FakeProvider()));
     expect(result.memory?.overBudget).toBe(true);
     expect(result.memory?.leftOut).toEqual([".wachiman/memory/src.md"]);

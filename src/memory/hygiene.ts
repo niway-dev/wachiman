@@ -93,7 +93,13 @@ export interface ArchiveSuggestion {
 }
 
 /** Live entries whose last use is more than `afterDays` days before `today`, oldest first. `recordingSince` is the date the record began (see `MemoryUse`). */
-export function archiveSuggestions(entries: MemoryEntry[], lastUse: Record<string, string>, afterDays: number, today: string, recordingSince?: string): ArchiveSuggestion[] {
+export function archiveSuggestions(
+  entries: MemoryEntry[],
+  lastUse: Record<string, string>,
+  afterDays: number,
+  today: string,
+  recordingSince?: string,
+): ArchiveSuggestion[] {
   return entries
     .filter((e) => e.file !== ARCHIVE_FILE)
     .map((entry) => {
@@ -137,7 +143,9 @@ function loadMemoryUse(home: string, key: string): UseRecord {
   if (parsed?.format !== MEMORY_USE_FORMAT || typeof parsed.used !== "object" || parsed.used === null) {
     throw new Error(`${path} is not a ${MEMORY_USE_FORMAT} record`);
   }
-  const used = Object.fromEntries(Object.entries(parsed.used).filter(([id, d]) => ID.test(id) && typeof d === "string" && DATE.test(d))) as Record<string, string>;
+  const used = Object.fromEntries(
+    Object.entries(parsed.used).filter(([id, d]) => ID.test(id) && typeof d === "string" && DATE.test(d)),
+  ) as Record<string, string>;
   return { used, ...(typeof parsed.since === "string" && DATE.test(parsed.since) ? { since: parsed.since } : {}) };
 }
 
@@ -150,7 +158,8 @@ export type MemoryUse = { known: true; used: Record<string, string>; since?: str
  */
 export function readMemoryUse(home: string, key: string): MemoryUse {
   const path = memoryUsePath(home, key);
-  if (!existsSync(path)) return { known: false, reason: `no use record at ${path}: no laptop review with history on has loaded memory yet` };
+  if (!existsSync(path))
+    return { known: false, reason: `no use record at ${path}: no laptop review with history on has loaded memory yet` };
   try {
     return { known: true, ...loadMemoryUse(home, key) };
   } catch (error) {
@@ -265,7 +274,8 @@ function lastEntryLine(rows: string[], start: number): number {
  * as they are written; nothing else is rewritten or removed. Pure: the caller writes the files.
  */
 export function archiveEntry(current: Record<string, string>, id: string): ArchiveResult {
-  const archived = current[ARCHIVE_FILE] !== undefined && parseMemoryFile(ARCHIVE_FILE, current[ARCHIVE_FILE]).entries.some((e) => e.id === id);
+  const archived =
+    current[ARCHIVE_FILE] !== undefined && parseMemoryFile(ARCHIVE_FILE, current[ARCHIVE_FILE]).entries.some((e) => e.id === id);
   for (const [name, text] of Object.entries(current)) {
     if (name === ARCHIVE_FILE) continue;
     const entry = parseMemoryFile(name, text).entries.find((e) => e.id === id);
@@ -284,7 +294,10 @@ export function archiveEntry(current: Record<string, string>, id: string): Archi
       rest = [...rows.slice(0, start), ...rows.slice(cut)].join("\n");
     }
     const archive = current[ARCHIVE_FILE];
-    const next = archive === undefined ? `# Wachiman memory archive\n\nEntries moved here are never loaded by a review.\n\n${block}` : `${archive.replace(/\n*$/, "\n")}\n${block}`;
+    const next =
+      archive === undefined
+        ? `# Wachiman memory archive\n\nEntries moved here are never loaded by a review.\n\n${block}`
+        : `${archive.replace(/\n*$/, "\n")}\n${block}`;
     return { ok: true, from: name, files: { [name]: rest, [ARCHIVE_FILE]: next } };
   }
   return { ok: false, reason: archived ? `entry ${id} is already in ${ARCHIVE_FILE}.` : `no entry ${id} in .wachiman/memory/.` };

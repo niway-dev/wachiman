@@ -79,7 +79,12 @@ describe("saveRun when pruning fails", () => {
       savedAt: "2020-01-01T00:00:00.000Z",
       engine: { version: "0" },
       repository,
-      result: { format: "wachiman.review-result/1", change: { head: { sha: "a".repeat(40) } }, coverage: { reviewed: [], expected: [], skipped: [] }, findings: [] },
+      result: {
+        format: "wachiman.review-result/1",
+        change: { head: { sha: "a".repeat(40) } },
+        coverage: { reviewed: [], expected: [], skipped: [] },
+        findings: [],
+      },
       tracking: [{ id: "oldoldoldo", status: "new", firstId: "oldoldoldo", firstHead: "a", runs: 1, reopened: 0, titleKey: "t" }],
       settled: [],
       unknown: 0,
@@ -92,7 +97,12 @@ describe("saveRun when pruning fails", () => {
 
     const sha = git(repo, "rev-parse", "HEAD").trim();
     const headDir = temp("wachiman-hist-snap-");
-    const result = { format: "wachiman.review-result/1", change: { head: { sha } }, coverage: { reviewed: [], expected: [], skipped: [] }, findings: [] } as unknown as ReviewResult;
+    const result = {
+      format: "wachiman.review-result/1",
+      change: { head: { sha } },
+      coverage: { reviewed: [], expected: [], skipped: [] },
+      findings: [],
+    } as unknown as ReviewResult;
     const warnings: string[] = [];
     const annotation = saveRun({
       root,

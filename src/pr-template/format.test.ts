@@ -92,7 +92,12 @@ describe("formatDescription on the fixtures", () => {
 
   test("the output has no ordering problem left for check", () => {
     for (const c of CASES) {
-      const result = checkDescription({ body: formatDescription(read(`${c.name}.md`), c.template), title: "fix: label", template: c.template, catalog });
+      const result = checkDescription({
+        body: formatDescription(read(`${c.name}.md`), c.template),
+        title: "fix: label",
+        template: c.template,
+        catalog,
+      });
       const codes = result.findings.map((f) => f.code);
       for (const code of ["heading-order", "details-order", "heading-unknown", "status-row-missing"] as const) {
         expect(codes, `${c.name}: ${code}`).not.toContain(code);
@@ -117,7 +122,9 @@ describe("formatDescription on the fixtures", () => {
     expect(out).not.toContain("    ##");
     expect(formatDescription(out, defaultTemplate)).toBe(out);
     expect(parseDescription(out).headings.map((h) => h.name)).toEqual(["Needs you", "What", "Why", "Evidence"]);
-    expect(checkDescription({ body: out, title: "fix: label", template: defaultTemplate, catalog }).findings.map((f) => f.code)).not.toContain("heading-unknown");
+    expect(
+      checkDescription({ body: out, title: "fix: label", template: defaultTemplate, catalog }).findings.map((f) => f.code),
+    ).not.toContain("heading-unknown");
   });
 
   test("a ## heading already inside a details block is not moved, and check does not count it as a section", () => {
@@ -158,7 +165,16 @@ describe("formatDescription on the fixtures", () => {
     const input = "| | |\n|---|---|\n| **Risk** | 🟢 Low |\n| **Mood** | fine |\n| **Type** | Fix |\n";
     const out = formatDescription(input, defaultTemplate);
     const rows = out.split("\n").filter((l) => l.startsWith("| **"));
-    expect(rows.map((r) => /\*\*(.+?)\*\*/.exec(r)![1])).toEqual(["Type", "Issue", "Risk", "Mood", "Rollout", "Release", "Evidence", "Decisions"]);
+    expect(rows.map((r) => /\*\*(.+?)\*\*/.exec(r)![1])).toEqual([
+      "Type",
+      "Issue",
+      "Risk",
+      "Mood",
+      "Rollout",
+      "Release",
+      "Evidence",
+      "Decisions",
+    ]);
     expect(formatDescription(out, defaultTemplate)).toBe(out);
   });
 
@@ -183,7 +199,10 @@ describe("formatDescription on the fixtures", () => {
 
   test("text after a collapsed block stays with it", () => {
     const input = `${read("in-order.md").replace("</details>\n\n<details><summary><b>How", "</details>\n\nA note about the table.\n\n<details><summary><b>How")}`;
-    const swapped = input.replace(/(<details><summary><b>Changes[\s\S]*?A note about the table\.)\n\n([\s\S]*?How to test[\s\S]*?<\/details>)/, "$2\n\n$1");
+    const swapped = input.replace(
+      /(<details><summary><b>Changes[\s\S]*?A note about the table\.)\n\n([\s\S]*?How to test[\s\S]*?<\/details>)/,
+      "$2\n\n$1",
+    );
     const out = formatDescription(swapped, defaultTemplate);
     expect(out).toBe(input);
   });
@@ -196,7 +215,10 @@ describe("formatDescription on the fixtures", () => {
   });
 
   test("a heading inside a code fence is not a section", () => {
-    const input = read("in-order.md").replace("Users could not find the export.\n", "Users could not find the export.\n\n```md\n## Pretend heading\n```\n");
+    const input = read("in-order.md").replace(
+      "Users could not find the export.\n",
+      "Users could not find the export.\n\n```md\n## Pretend heading\n```\n",
+    );
     expect(formatDescription(input, defaultTemplate)).toBe(input);
   });
 
@@ -205,13 +227,23 @@ describe("formatDescription on the fixtures", () => {
     const input = read("unknown-section.md").replace(/<details><summary><b>Notes[\s\S]*?<\/details>\n\n/, "");
     const out = formatDescription(input, noNotes);
     expect(out).toContain("## Rollout plan");
-    expect(parseDescription(out).headings.map((h) => h.name)).toEqual(["Needs you", "What", "Why", "Evidence", "Rollout plan", "Open questions"]);
+    expect(parseDescription(out).headings.map((h) => h.name)).toEqual([
+      "Needs you",
+      "What",
+      "Why",
+      "Evidence",
+      "Rollout plan",
+      "Open questions",
+    ]);
     expect(formatDescription(out, noNotes)).toBe(out);
     expect(lostLines(input, out)).toEqual([]);
   });
 
   test("a Notes block closed on a content line cannot take text, so the section stays", () => {
-    const input = read("unknown-section.md").replace(/<details><summary><b>Notes[\s\S]*?<\/details>/, "<details><summary><b>Notes</b></summary>Checked on the preview.</details>");
+    const input = read("unknown-section.md").replace(
+      /<details><summary><b>Notes[\s\S]*?<\/details>/,
+      "<details><summary><b>Notes</b></summary>Checked on the preview.</details>",
+    );
     const out = formatDescription(input, defaultTemplate);
     expect(out).toContain("\n## Rollout plan\n");
     expect(out).toContain("<details><summary><b>Notes</b></summary>Checked on the preview.</details>");
@@ -290,7 +322,10 @@ describe("shuffled input", () => {
     const next = rng(20261114);
     for (let n = 0; n < 200; n++) {
       const body = shuffle(pieces, next);
-      const rows = shuffle(rowAt.map((l) => parsed.lines[l]!), next);
+      const rows = shuffle(
+        rowAt.map((l) => parsed.lines[l]!),
+        next,
+      );
       const head = prefaceLines.map((l, i) => (rowAt.includes(i + preface.startLine) ? rows.shift()! : l));
       const input = `${[head, ...body].map((p) => p.join("\n")).join("\n\n")}\n`;
       const out = formatDescription(input, defaultTemplate);
@@ -347,7 +382,11 @@ describe("runFormat", () => {
     return { io, out: () => out.join(""), err: () => err.join("\n") };
   }
   /** GitHub must never be reached. */
-  const noTools = { run: () => { throw new Error("format ran a tool"); } };
+  const noTools = {
+    run: () => {
+      throw new Error("format ran a tool");
+    },
+  };
 
   test("a file is printed in template order and left alone", () => {
     const dir = tmp();
@@ -450,7 +489,14 @@ describe("runFormat", () => {
     put(dir, ".github/pr-template.json", '{"drop": ["no-such-section"]}');
     let read = false;
     const c = capture();
-    expect(runFormat({ write: false }, dir, c.io, { stdin: () => { read = true; return ""; } })).toBe(2);
+    expect(
+      runFormat({ write: false }, dir, c.io, {
+        stdin: () => {
+          read = true;
+          return "";
+        },
+      }),
+    ).toBe(2);
     expect(c.err()).toContain("no-such-section");
     expect(c.out()).toBe("");
     expect(read).toBe(false);
@@ -468,7 +514,13 @@ describe("runFormat", () => {
 
   test("a failing standard input exits 2", () => {
     const c = capture();
-    expect(runFormat({ write: false }, tmp(), c.io, { stdin: () => { throw new Error("closed"); } })).toBe(2);
+    expect(
+      runFormat({ write: false }, tmp(), c.io, {
+        stdin: () => {
+          throw new Error("closed");
+        },
+      }),
+    ).toBe(2);
     expect(c.err()).toContain("standard input");
   });
 });

@@ -83,7 +83,12 @@ const WARNING = /^(warning:|cancelled:|not written|nothing saved|These already h
  * session the closing `next:` hints are collected into the session's "Next steps" note, and every
  * other line is drawn inside the session frame.
  */
-export function wizardIo<T extends { stderr: (line: string) => void }>(io: T, output: { isTTY?: boolean }, env: Record<string, string | undefined>, session?: NextStepSink): T {
+export function wizardIo<T extends { stderr: (line: string) => void }>(
+  io: T,
+  output: { isTTY?: boolean },
+  env: Record<string, string | undefined>,
+  session?: NextStepSink,
+): T {
   const paint = terminalStyle(output, env);
   return {
     ...io,

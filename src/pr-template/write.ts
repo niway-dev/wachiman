@@ -8,7 +8,18 @@
  * `label` is the command named in the messages ("init", "pr-template").
  */
 import { randomBytes } from "node:crypto";
-import { constants, copyFileSync, linkSync, lstatSync, mkdirSync, realpathSync, renameSync, unlinkSync, writeFileSync, type Stats } from "node:fs";
+import {
+  constants,
+  copyFileSync,
+  linkSync,
+  lstatSync,
+  mkdirSync,
+  realpathSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+  type Stats,
+} from "node:fs";
 import { basename, dirname, join, sep } from "node:path";
 import { UsageError } from "../config";
 
@@ -39,10 +50,12 @@ export function inspectManagedTarget(repoDir: string, relativePath: string, labe
     current = join(current, part);
     const stat = lstatOrNull(current);
     if (stat === null) break;
-    if (stat.isSymbolicLink()) throw new UsageError(`${current} is a symbolic link; ${label} does not write through links. Replace it with a real directory.`);
+    if (stat.isSymbolicLink())
+      throw new UsageError(`${current} is a symbolic link; ${label} does not write through links. Replace it with a real directory.`);
     if (!stat.isDirectory()) throw new UsageError(`${current} is not a directory; ${label} cannot write ${relativePath}.`);
     const real = realpathSync(current);
-    if (real !== root && !real.startsWith(root + sep)) throw new UsageError(`${current} resolves outside the repository (${real}); ${label} refuses it.`);
+    if (real !== root && !real.startsWith(root + sep))
+      throw new UsageError(`${current} resolves outside the repository (${real}); ${label} refuses it.`);
   }
   const target = join(root, relativePath);
   const stat = lstatOrNull(target);
@@ -97,7 +110,9 @@ export function writeManagedFile(p: {
       try {
         mkdirSync(dirname(base), { recursive: true });
       } catch (error) {
-        throw new UsageError(`Cannot create the backup directory ${dirname(base)} (${(error as NodeJS.ErrnoException).code ?? "error"}); the template was not replaced.`);
+        throw new UsageError(
+          `Cannot create the backup directory ${dirname(base)} (${(error as NodeJS.ErrnoException).code ?? "error"}); the template was not replaced.`,
+        );
       }
     }
     for (let n = 1; backup === undefined; n++) {
@@ -117,14 +132,17 @@ export function writeManagedFile(p: {
     if (inspected.exists) {
       const now = lstatOrNull(inspected.target);
       if (now === null || now.isSymbolicLink() || identityOf(now) !== inspected.identity) {
-        throw new UsageError(`${inspected.target} changed while ${label} was running; it was not replaced.${backup ? ` A copy of the earlier file is at ${backup}.` : ""}`);
+        throw new UsageError(
+          `${inspected.target} changed while ${label} was running; it was not replaced.${backup ? ` A copy of the earlier file is at ${backup}.` : ""}`,
+        );
       }
       renameSync(tmp, inspected.target);
     } else {
       try {
         linkSync(tmp, inspected.target);
       } catch (error) {
-        if ((error as NodeJS.ErrnoException).code === "EEXIST") throw new UsageError(`${inspected.target} appeared while ${label} was running; nothing was written.`);
+        if ((error as NodeJS.ErrnoException).code === "EEXIST")
+          throw new UsageError(`${inspected.target} appeared while ${label} was running; nothing was written.`);
         throw error;
       }
     }

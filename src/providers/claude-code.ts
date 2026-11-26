@@ -11,7 +11,16 @@ import { UsageError } from "../config";
 import type { TokenUsage } from "../cost";
 import { locatePrompt } from "./locate";
 import { classifyProviderError } from "./errors";
-import { DEFAULT_CALL_TIMEOUT_S, DEFAULT_EFFORT, type Effort, type NeutralTool, type ProviderAdapter, type ProviderAuth, ProviderRequest, ProviderResult } from "./types";
+import {
+  DEFAULT_CALL_TIMEOUT_S,
+  DEFAULT_EFFORT,
+  type Effort,
+  type NeutralTool,
+  type ProviderAdapter,
+  type ProviderAuth,
+  ProviderRequest,
+  ProviderResult,
+} from "./types";
 
 const BINARY = "claude";
 const SETTINGS_FILE = "claude-code.settings.json";
@@ -135,7 +144,9 @@ export function buildChildEnv(
   // Windows names are case-insensitive and the search path is usually `Path`, so match them so.
   const windows = (opts.platform ?? process.platform) === "win32";
   const allowed = new Set<string>(
-    [...CHILD_ENV_ALLOWLIST, ...(token ? [OAUTH_TOKEN_VAR] : []), ...(windows ? WINDOWS_CHILD_ENV_ALLOWLIST : [])].map((n) => (windows ? n.toUpperCase() : n)),
+    [...CHILD_ENV_ALLOWLIST, ...(token ? [OAUTH_TOKEN_VAR] : []), ...(windows ? WINDOWS_CHILD_ENV_ALLOWLIST : [])].map((n) =>
+      windows ? n.toUpperCase() : n,
+    ),
   );
   const child: Record<string, string> = {};
   for (const [name, value] of Object.entries(env)) {
@@ -328,15 +339,15 @@ export class ClaudeCodeProvider implements ProviderAdapter {
       env: this.childEnv(),
     });
     if (probe.error || probe.status !== 0) {
-      throw new Error(
-        `The Claude Code binary "${this.binary}" did not run (--version): ${probe.error ?? probe.stderr}`,
-      );
+      throw new Error(`The Claude Code binary "${this.binary}" did not run (--version): ${probe.error ?? probe.stderr}`);
     }
     this.version = probe.stdout.match(/\d+\.\d+\.\d+/)?.[0] ?? null;
     if (this.opts.requireApiKey) {
       if (this.auth === "oauth-token" && !process.env[OAUTH_TOKEN_VAR]) throw new Error(`${OAUTH_TOKEN_VAR} is not set`);
       if (this.auth === "api-key" && !process.env.ANTHROPIC_API_KEY) {
-        throw new Error(`Neither ANTHROPIC_API_KEY nor ${OAUTH_TOKEN_VAR} is set: pass a Console API key, or a token from \`claude setup-token\` to review on a Claude subscription.`);
+        throw new Error(
+          `Neither ANTHROPIC_API_KEY nor ${OAUTH_TOKEN_VAR} is set: pass a Console API key, or a token from \`claude setup-token\` to review on a Claude subscription.`,
+        );
       }
     }
   }

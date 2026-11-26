@@ -110,7 +110,16 @@ export function blankBeforeLists(text: string): string {
       else if (mark[0] === fence[0] && mark.length >= fence.length && line.trim() === mark) fence = null;
     }
     const prev = out[out.length - 1];
-    if (fence === null && !mark && LIST_START.test(line) && prev !== undefined && prev.trim() !== "" && !LIST_ITEM.test(prev) && !/^\s/.test(prev)) out.push("");
+    if (
+      fence === null &&
+      !mark &&
+      LIST_START.test(line) &&
+      prev !== undefined &&
+      prev.trim() !== "" &&
+      !LIST_ITEM.test(prev) &&
+      !/^\s/.test(prev)
+    )
+      out.push("");
     out.push(line);
   }
   return out.join("\n");
@@ -142,7 +151,8 @@ const LEVEL_WORD: Record<RiskLevel, string> = { low: "Low", medium: "Medium", hi
 const WHOLE: Fit = { limits: {}, dropped: new Set() };
 
 /** What slot 13a shows: every path, one count per reason, or nothing (the callout and the partial marker keep the rest). */
-const listing = (fit: Fit): "paths" | "counts" | "none" => (fit.dropped.has("notReviewedFiles") ? "none" : fit.filesAsCounts ? "counts" : "paths");
+const listing = (fit: Fit): "paths" | "counts" | "none" =>
+  fit.dropped.has("notReviewedFiles") ? "none" : fit.filesAsCounts ? "counts" : "paths";
 
 /** Where the names of the files not reviewed are, as the end of a sentence. */
 const NAMES_GONE = "The file names are not listed because of GitHub's size limit.";
@@ -187,7 +197,9 @@ function partialCallout(view: ReviewView, fit: Fit): string | null {
 function notices(view: ReviewView): string | null {
   const out: string[] = [];
   if (view.inlineRefused) {
-    out.push("ℹ️ **GitHub would not anchor these findings on their lines**, so none of them is an inline comment. Each finding is listed once below, with a number.");
+    out.push(
+      "ℹ️ **GitHub would not anchor these findings on their lines**, so none of them is an inline comment. Each finding is listed once below, with a number.",
+    );
   }
   const { instructionChanges, pathPolicyChange } = view.notices;
   if (instructionChanges) {
@@ -202,9 +214,13 @@ function notices(view: ReviewView): string | null {
     );
   }
   if (view.verifier.status === "failed") {
-    out.push("⚠️ **Not verified**: the second reader that checks each finding did not finish, so these findings are posted as the review wrote them.");
+    out.push(
+      "⚠️ **Not verified**: the second reader that checks each finding did not finish, so these findings are posted as the review wrote them.",
+    );
   } else if (view.verifier.status === "partial") {
-    out.push("⚠️ **Partly verified**: the second reader that checks each finding stopped early, so some findings are posted as the review wrote them.");
+    out.push(
+      "⚠️ **Partly verified**: the second reader that checks each finding stopped early, so some findings are posted as the review wrote them.",
+    );
   }
   // ADR 0057: every muted finding is shown, so what memory did never goes inside a collapsed block.
   if (view.memoryNotices) out.push(neutralise(view.memoryNotices));
@@ -321,7 +337,14 @@ function glanceTable(view: ReviewView, fit: Fit): string {
         rows.push(["Coverage", coverageCell(view, row, fit)]);
         break;
       case "earlierThreads":
-        rows.push(["Earlier threads", row.count === "unknown" ? "not counted: a page of threads could not be read" : row.count === 0 ? "none open" : `${row.count} open`]);
+        rows.push([
+          "Earlier threads",
+          row.count === "unknown"
+            ? "not counted: a page of threads could not be read"
+            : row.count === 0
+              ? "none open"
+              : `${row.count} open`,
+        ]);
         break;
       case "confidence":
         rows.push(["PR Confidence", confidenceCell(row)]);
@@ -345,7 +368,14 @@ function kindCell(view: ReviewView, row: FindingRow, prefix: RowPrefix): string 
   const topic = TOPIC[row.topic];
   const demanding = row.severity === "blocker" || row.severity === "fix";
   // In a Pre-existing slot the row already says so; the word arm's tier would say it twice.
-  const word = view.arm === "word" ? (row.tier === "Pre-existing" && prefix === "Pre-existing" ? (demanding ? "Important" : "Nit") : row.tier) : PRIORITY_WORD[row.priority];
+  const word =
+    view.arm === "word"
+      ? row.tier === "Pre-existing" && prefix === "Pre-existing"
+        ? demanding
+          ? "Important"
+          : "Nit"
+        : row.tier
+      : PRIORITY_WORD[row.priority];
   return `${prefix ? `${prefix} · ` : ""}${sev.emoji} ${sev.word} · ${word} · ${topic.emoji} ${topic.word}`;
 }
 
@@ -399,7 +429,10 @@ function considerSlot(view: ReviewView, fit: Fit): string | null {
   let inner: string;
   if (rest === 0) inner = findingTable(view, all, "");
   else {
-    const note = view.inlineRefused || fit.limits.consider !== undefined ? `${rest} more to consider, not shown because of GitHub's size limit.` : `${rest} more to consider, on their lines (see Files changed).`;
+    const note =
+      view.inlineRefused || fit.limits.consider !== undefined
+        ? `${rest} more to consider, not shown because of GitHub's size limit.`
+        : `${rest} more to consider, on their lines (see Files changed).`;
     inner = kept.length > 0 ? `${findingTable(view, kept, "")}\n\n${note}` : note;
   }
   return all.length > CONSIDER_OPEN_ROWS ? collapsed(`To consider (${all.length})`, inner) : visible("To consider", all.length, inner);
@@ -495,7 +528,10 @@ function details(view: ReviewView, fit: Fit): string | null {
     const text = fit.bodiesShortened && demanding(r) ? firstParagraph(r.body) : r.body;
     return `**${numbers ? `${numbers.get(r)}. ` : ""}${oneLineText(r.title)}${confidence}** (${where(view, r)})\n\n${block(text)}`;
   });
-  return collapsed(numbers ? `Details of each finding (${rows.length})` : `Details of findings with no thread (${rows.length})`, items.join("\n\n"));
+  return collapsed(
+    numbers ? `Details of each finding (${rows.length})` : `Details of findings with no thread (${rows.length})`,
+    items.join("\n\n"),
+  );
 }
 
 function coverage(view: ReviewView): string | null {
@@ -527,7 +563,9 @@ function notReviewedFiles(view: ReviewView, fit: Fit): string | null {
     (g) => `**${capitalise(because(g.reason))} (${g.paths.length})**\n\n${g.paths.map((p) => `- ${codeSpan(p)}`).join("\n")}`,
   );
   if (files.notReviewable.length > 0) {
-    groups.push(`**Not reviewable by a model (${files.notReviewable.length})**\n\n${files.notReviewable.map((u) => `- ${codeSpan(u.path)} (${oneLineText(u.reason)})`).join("\n")}`);
+    groups.push(
+      `**Not reviewable by a model (${files.notReviewable.length})**\n\n${files.notReviewable.map((u) => `- ${codeSpan(u.path)} (${oneLineText(u.reason)})`).join("\n")}`,
+    );
   }
   return collapsed(`Files not reviewed (${total})`, groups.join("\n\n"));
 }
@@ -553,7 +591,10 @@ export function renderSlots(view: ReviewView, fit: Fit = WHOLE): Slot[] {
   add("glance", glanceTable(view, fit));
   if (f.toFix.length > 0) add("toFix", visible("To fix", f.toFix.length, findingTable(view, f.toFix, "", limits.toFix)));
   if (f.investigate.length > 0) {
-    add("investigate", visible("Needs investigation", f.investigate.length, findingTable(view, f.investigate, "Needs investigation", limits.investigate)));
+    add(
+      "investigate",
+      visible("Needs investigation", f.investigate.length, findingTable(view, f.investigate, "Needs investigation", limits.investigate)),
+    );
   }
   if (!dropped.has("consider")) add("consider", considerSlot(view, fit));
   add("needsPerson", questions(view));
@@ -561,9 +602,13 @@ export function renderSlots(view: ReviewView, fit: Fit = WHOLE): Slot[] {
   if (f.preExisting.length > 0 && !dropped.has("preExisting")) {
     const table = findingTable(view, f.preExisting, "Pre-existing", limits.preExisting);
     const holdsFix = f.preExisting.some(demanding);
-    add("preExisting", holdsFix ? visible("Pre-existing", f.preExisting.length, table) : collapsed(`Pre-existing (${f.preExisting.length})`, table));
+    add(
+      "preExisting",
+      holdsFix ? visible("Pre-existing", f.preExisting.length, table) : collapsed(`Pre-existing (${f.preExisting.length})`, table),
+    );
   }
-  if (f.info.length > 0 && !dropped.has("info")) add("info", collapsed(`For your information (${f.info.length})`, findingTable(view, f.info, "", limits.info)));
+  if (f.info.length > 0 && !dropped.has("info"))
+    add("info", collapsed(`For your information (${f.info.length})`, findingTable(view, f.info, "", limits.info)));
   const contracts = [...view.contracts.open, ...view.contracts.closed];
   add("connects", renderContracts(contracts));
   if (view.batchProse.trim()) add("checked", collapsed("What the reviewer checked", block(view.batchProse)));
@@ -648,10 +693,7 @@ function fit(view: ReviewView, limit: number): string {
   const whole = render(view, state);
   if (whole.length <= limit) return whole;
   for (const step of stepsOf(view)) {
-    state =
-      "drop" in step
-        ? { ...state, dropped: new Set([...state.dropped, step.drop]) }
-        : { ...state, [step.shrink]: true };
+    state = "drop" in step ? { ...state, dropped: new Set([...state.dropped, step.drop]) } : { ...state, [step.shrink]: true };
     const text = render(view, state);
     if (text.length <= limit) return text;
   }
@@ -659,10 +701,27 @@ function fit(view: ReviewView, limit: number): string {
   // Still over. The memory list keeps what fits next to the smallest body the tables can make.
   const f = view.findings;
   const bullets = riskFactBullets(view).length;
-  const sizes: Record<keyof RowLimits, number> = { info: f.info.length, consider: f.consider.length, riskFacts: bullets, preExisting: f.preExisting.length, investigate: f.investigate.length, toFix: f.toFix.length };
+  const sizes: Record<keyof RowLimits, number> = {
+    info: f.info.length,
+    consider: f.consider.length,
+    riskFacts: bullets,
+    preExisting: f.preExisting.length,
+    investigate: f.investigate.length,
+    toFix: f.toFix.length,
+  };
   // Risk facts keep the one that sets the level, To fix and Needs investigation their first row (a Blocker when there is one): a body a little over the limit is better than one with no finding in it.
   const least = (key: keyof RowLimits) => (key === "preExisting" || key === "consider" || key === "info" ? 0 : Math.min(1, sizes[key]));
-  const smallest: Fit = { ...state, limits: { info: 0, consider: 0, riskFacts: least("riskFacts"), preExisting: 0, investigate: least("investigate"), toFix: least("toFix") } };
+  const smallest: Fit = {
+    ...state,
+    limits: {
+      info: 0,
+      consider: 0,
+      riskFacts: least("riskFacts"),
+      preExisting: 0,
+      investigate: least("investigate"),
+      toFix: least("toFix"),
+    },
+  };
   let shownView = view;
   if (view.memoryNotices) {
     const rest = render({ ...view, memoryNotices: "" }, smallest).length;

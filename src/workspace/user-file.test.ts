@@ -40,12 +40,19 @@ describe("parseUserFile", () => {
   });
 
   test("distributedRepo, members and versions are optional; the default is off", () => {
-    expect(parse(file()).workspaces[0]).toEqual({ manifest: "/work/acme/workspace.manifest.json", distributedRepo: "off", members: {}, versions: {} });
+    expect(parse(file()).workspaces[0]).toEqual({
+      manifest: "/work/acme/workspace.manifest.json",
+      distributedRepo: "off",
+      members: {},
+      versions: {},
+    });
     expect(parse(file({ distributedRepo: "on" })).workspaces[0].distributedRepo).toBe("on");
   });
 
   test("a member or version key written as in the manifest (./app/) is found under the normalised dir", () => {
-    const [workspace] = parse(file({ members: { "./app/": { watch: false } }, versions: { "./web-site": { rule: "local" }, "ui-kit-api": { rule: "tip" } } })).workspaces;
+    const [workspace] = parse(
+      file({ members: { "./app/": { watch: false } }, versions: { "./web-site": { rule: "local" }, "ui-kit-api": { rule: "tip" } } }),
+    ).workspaces;
     expect(workspace.members.app).toEqual({ watch: false });
     expect(workspace.versions["web-site"]).toEqual({ rule: "local" });
     expect(workspace.versions["ui-kit-api"]).toEqual({ rule: "tip" });
@@ -69,7 +76,11 @@ describe("parseUserFile", () => {
   });
 
   test("unknown keys are ignored at every level", () => {
-    const parsed = parse({ version: 1, theme: "x", workspaces: [{ manifest: "/m/workspace.manifest.json", note: 1, members: { a: { dir: "/x/a", colour: "red" } } }] });
+    const parsed = parse({
+      version: 1,
+      theme: "x",
+      workspaces: [{ manifest: "/m/workspace.manifest.json", note: 1, members: { a: { dir: "/x/a", colour: "red" } } }],
+    });
     expect(parsed.workspaces[0].members).toEqual({ a: { dir: "/x/a" } });
   });
 

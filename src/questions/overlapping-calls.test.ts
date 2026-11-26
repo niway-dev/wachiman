@@ -14,16 +14,16 @@ const APPLY_FOLDER_482: string[] = [
   "    ws: { id: string; path: string },",
   "    keys: FolderOverrideKey[],",
   "    changes: Changes,",
-  "  ): Promise<\"pending\" | \"unreadable\" | null> {",
+  '  ): Promise<"pending" | "unreadable" | null> {',
   "    // Always from the disk: the cache may predate a sync.",
   "    const read = await this.read(ws.path);",
   "    this.reads.set(ws.id, read);",
   "    const state = folderState(read, this.deps.machine.get(ws.id).folderOverrides);",
-  "    if (state === \"unreadable\") return \"unreadable\";",
+  '    if (state === "unreadable") return "unreadable";',
   "    // The user has not seen these values: writing now would activate them by the back door.",
-  "    if (state === \"pending\") return \"pending\";",
+  '    if (state === "pending") return "pending";',
   "    // An ignored file is replaced by the keys this Mac now writes (spec, decision 26).",
-  "    const base: FolderOverrides = state === \"active\" && read.kind === \"ok\" ? read.overrides : {};",
+  '    const base: FolderOverrides = state === "active" && read.kind === "ok" ? read.overrides : {};',
   "    const next: Record<string, unknown> = { ...base };",
   "    for (const key of keys) {",
   "      if (changes[key] === null) delete next[key];",
@@ -31,13 +31,13 @@ const APPLY_FOLDER_482: string[] = [
   "    }",
   "    const unchanged =",
   "      JSON.stringify(next) === JSON.stringify(base) &&",
-  "      (state === \"active\" || Object.keys(next).length === 0);",
+  '      (state === "active" || Object.keys(next).length === 0);',
   "    if (unchanged) return null;",
   "    const sha256 = await writeFolderOverrides(ws.path, next as FolderOverrides);",
-  "    this.reads.set(ws.id, { kind: \"ok\", overrides: next as FolderOverrides, sha256 });",
+  '    this.reads.set(ws.id, { kind: "ok", overrides: next as FolderOverrides, sha256 });',
   "    await this.deps.machine.update(ws.id, (entry) => ({",
   "      ...entry,",
-  "      folderOverrides: { sha256, decision: \"use\", at: this.deps.now() },",
+  '      folderOverrides: { sha256, decision: "use", at: this.deps.now() },',
   "    }));",
   "    return null;",
   "  }",
@@ -52,7 +52,7 @@ const REFRESH_482: string[] = [
   "    const before = JSON.stringify(this.overridesOf(id));",
   "    this.reads.set(",
   "      id,",
-  "      (await this.deps.isAvailable(id)) ? await this.read(ws.path) : { kind: \"unreadable\" },",
+  '      (await this.deps.isAvailable(id)) ? await this.read(ws.path) : { kind: "unreadable" },',
   "    );",
   "    if (id === this.deps.activeId() && before !== JSON.stringify(this.overridesOf(id))) {",
   "      this.deps.changed();",
@@ -63,7 +63,7 @@ const REFRESH_482: string[] = [
 // `setActive` sets `this.key.activeId`, awaits `persist`, then rolls back (audit F4, second scenario).
 const SET_ACTIVE_449: string[] = [
   "  async setActive(id: string): Promise<void> {",
-  "    if (this.readOnly) throw new Error(\"workspaces: preferences are read-only this session\");",
+  '    if (this.readOnly) throw new Error("workspaces: preferences are read-only this session");',
   "    if (!this.get(id)) throw new Error(`workspaces: unknown workspace ${id}`);",
   "    const previous = this.key.activeId;",
   "    this.key.activeId = id;",
@@ -91,7 +91,7 @@ const ADOPTION_449: string[] = [
   "  const active = reg.active();",
   "  const { availability, id } = await reg.availability(active.id);",
   "  if (id !== workspaceGate().stamp.workspaceId) rebindAfterAdoption(id);",
-  "  if (availability.state !== \"available\") throw new WorkspaceNotConnectedError(active.name);",
+  '  if (availability.state !== "available") throw new WorkspaceNotConnectedError(active.name);',
   "  return reg.active();",
   "}",
   "",
@@ -102,7 +102,7 @@ const ADOPTION_449: string[] = [
   "  // A copy: a probe may update an entry (a pending one adopting its folder's id).",
   "  for (const entry of reg.entries().slice()) {",
   "    const { availability } = await reg.availability(entry.id);",
-  "    if (availability.state === \"available\") paths.push(entry.path);",
+  '    if (availability.state === "available") paths.push(entry.path);',
   "  }",
   "  return paths;",
   "}",
@@ -142,8 +142,19 @@ describe("overlapping-calls: applies to real shared-state writes around an await
   });
 
   test("small synthetic shapes: map set after await, file write after await, Python", () => {
-    const mapWrite = ["const cache = new Map();", "export async function load(id) {", "  const v = await fetchOne(id);", "  cache.set(id, v);", "}"];
-    const fileWrite = ["async function save(path, text) {", "  const old = await Bun.file(path).text();", "  await writeFile(path, old + text);", "}"];
+    const mapWrite = [
+      "const cache = new Map();",
+      "export async function load(id) {",
+      "  const v = await fetchOne(id);",
+      "  cache.set(id, v);",
+      "}",
+    ];
+    const fileWrite = [
+      "async function save(path, text) {",
+      "  const old = await Bun.file(path).text();",
+      "  await writeFile(path, old + text);",
+      "}",
+    ];
     const pyWrite = ["async def save(path, text):", "    old = await read(path)", "    path.write_text(old + text)"];
     expect(QUESTION.applies(mapWrite, "src/cache.ts")).toBe(true);
     expect(QUESTION.applies(fileWrite, "src/save.js")).toBe(true);
@@ -172,7 +183,12 @@ describe("overlapping-calls: stays quiet when there is no shared-state write", (
   });
 
   test("a React class component that calls this.setState after an await", () => {
-    const lines = ["async componentDidMount() {", "  const res = await fetch(this.props.url);", "  this.setState({ data: await res.json() });", "}"];
+    const lines = [
+      "async componentDidMount() {",
+      "  const res = await fetch(this.props.url);",
+      "  this.setState({ data: await res.json() });",
+      "}",
+    ];
     expect(QUESTION.applies(lines, "src/Legacy.jsx")).toBe(false);
   });
 
@@ -226,7 +242,11 @@ describe("overlapping-calls: stays quiet when there is no shared-state write", (
   });
 
   test("comparisons and arrow functions are not assignments", () => {
-    const lines = ["if (this.state.ready === true) await go();", "const f = this.handler => 1;", "if (this.a >= 1 && this.b != 2) await go();"];
+    const lines = [
+      "if (this.state.ready === true) await go();",
+      "const f = this.handler => 1;",
+      "if (this.a >= 1 && this.b != 2) await go();",
+    ];
     expect(QUESTION.applies(lines, "src/x.ts")).toBe(false);
   });
 

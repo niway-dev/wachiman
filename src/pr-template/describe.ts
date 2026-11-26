@@ -309,7 +309,23 @@ export function parseDescription(input: string): ParsedDescription {
 
   const segments = buildSegments(lines.length, headings, details, blocks, subs);
 
-  return { source, eol, lines, lineStarts, clean, structural, comments, blocks, headings, headerEndLine, statusRows, sections, details, subs, segments };
+  return {
+    source,
+    eol,
+    lines,
+    lineStarts,
+    clean,
+    structural,
+    comments,
+    blocks,
+    headings,
+    headerEndLine,
+    statusRows,
+    sections,
+    details,
+    subs,
+    segments,
+  };
 }
 
 /** Walk the lines once: details, blocks and footers are whole runs; a heading starts a section; the rest is text. */
@@ -320,7 +336,11 @@ function buildSegments(
   blocks: DescriptionBlock[],
   subs: DescriptionSub[],
 ): DescriptionSegment[] {
-  interface Event { line: number; endLine: number; kind: SegmentKind }
+  interface Event {
+    line: number;
+    endLine: number;
+    kind: SegmentKind;
+  }
   const atoms: Event[] = [
     ...details.map((d) => ({ line: d.startLine, endLine: d.endLine + 1, kind: "details" as const })),
     ...blocks.map((b) => ({ line: b.startLine, endLine: b.endLine + 1, kind: "wachiman" as const })),

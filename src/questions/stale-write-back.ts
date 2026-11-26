@@ -34,8 +34,7 @@ const WINDOW = 40;
 const MAX_LINE = 500;
 
 const SOURCE_FILE = /\.(?:[cm]?[jt]sx?|py|go|rs|swift|kt|java|rb|php|cs|scala|dart)$/i;
-const TEST_FILE =
-  /(?:\.(?:test|spec|stories)\.[a-z]+$|_test\.(?:go|py)$|(?:^|\/)(?:__tests__|__mocks__|tests?|specs?|fixtures?|e2e)\/)/i;
+const TEST_FILE = /(?:\.(?:test|spec|stories)\.[a-z]+$|_test\.(?:go|py)$|(?:^|\/)(?:__tests__|__mocks__|tests?|specs?|fixtures?|e2e)\/)/i;
 
 /** A value remembered from an earlier moment: pending, deferred, cached, snapshotted, offline. */
 const REMEMBERED =

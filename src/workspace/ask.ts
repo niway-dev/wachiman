@@ -94,7 +94,14 @@ export function rematerialiseSiblings(rows: readonly ResultSibling[], request: A
       for (const path of row.paths ?? []) entry.paths.add(path);
       wanted.set(key, entry);
     } else if (!notRead.some((n) => n.member === row.member)) {
-      notRead.push({ ...row, paths: [], droppedSymlinks: row.droppedSymlinks ?? [], droppedSubmodules: row.droppedSubmodules ?? [], status: "unreadable", unreadable: notReadThen(row) });
+      notRead.push({
+        ...row,
+        paths: [],
+        droppedSymlinks: row.droppedSymlinks ?? [],
+        droppedSubmodules: row.droppedSubmodules ?? [],
+        status: "unreadable",
+        unreadable: notReadThen(row),
+      });
     }
   }
 

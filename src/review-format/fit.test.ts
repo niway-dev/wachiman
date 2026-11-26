@@ -17,11 +17,17 @@ const footer = { costLine: COST, markers: MARKERS };
 const para = (n: number, word = "word") => Array.from({ length: n }, () => word).join(" ");
 
 const rows = (n: number, over: Partial<FindingRow> = {}, name = "Finding") =>
-  Array.from({ length: n }, (_, i) => row({ title: `${name} ${i + 1}`, path: `src/f${i}.ts`, displayPath: `f${i}.ts`, location: `f${i}.ts:${i + 1}`, line: i + 1, ...over }));
+  Array.from({ length: n }, (_, i) =>
+    row({ title: `${name} ${i + 1}`, path: `src/f${i}.ts`, displayPath: `f${i}.ts`, location: `f${i}.ts:${i + 1}`, line: i + 1, ...over }),
+  );
 
 /** Every collapsible slot present and long enough that the order of the drops is visible. */
 function fullView(extra: Partial<ReviewView> = {}): ReviewView {
-  const closed: Contract[] = Array.from({ length: 6 }, (_, i) => ({ ...contract("closed"), action: `closed action ${i}`, visible_effect: para(40) }));
+  const closed: Contract[] = Array.from({ length: 6 }, (_, i) => ({
+    ...contract("closed"),
+    action: `closed action ${i}`,
+    visible_effect: para(40),
+  }));
   const findings = {
     toFix: rows(2, { severity: "blocker", priority: "must" }, "Blocker").concat(rows(2, {}, "Fix")),
     consider: rows(10, { severity: "consider", priority: "could", inlineThread: true }, "Consider"),
@@ -36,7 +42,18 @@ function fullView(extra: Partial<ReviewView> = {}): ReviewView {
     ],
     contracts: { open: [], closed },
     batchProse: para(300),
-    coverage: { rows: Array.from({ length: 12 }, (_, i) => ({ label: `Batch ${i + 1} of 12`, files: 3, lines: 40, maxRisk: 3, status: "reviewed", turns: 5, costUsd: 0.1 })), estimate: false },
+    coverage: {
+      rows: Array.from({ length: 12 }, (_, i) => ({
+        label: `Batch ${i + 1} of 12`,
+        files: 3,
+        lines: 40,
+        maxRisk: 3,
+        status: "reviewed",
+        turns: 5,
+        costUsd: 0.1,
+      })),
+      estimate: false,
+    },
     ...partial(40, 45),
     footer,
     ...extra,
@@ -53,7 +70,13 @@ const SLOT_MARKS: [string, string][] = [
 ];
 
 describe("slot 7: questions for you", () => {
-  const open = { ...contract("open"), action: "the new button", location: "src/a.ts:7", open_question: "does the server accept it?", candidates: ["docs/api.md"] };
+  const open = {
+    ...contract("open"),
+    action: "the new button",
+    location: "src/a.ts:7",
+    open_question: "does the server accept it?",
+    candidates: ["docs/api.md"],
+  };
   const view = makeView({ needsPerson: [person()], contracts: { open: [open], closed: [] }, footer });
   const body = renderReviewBody(view);
 
@@ -124,7 +147,12 @@ describe("size fitting: whole slots go in the named order", () => {
   });
 
   test("Pre-existing that holds a Fix is never dropped", () => {
-    const v = fullView({ findings: { ...fullView().findings, preExisting: rows(3, { severity: "fix", origin: "pre-existing", inlineThread: false }, "Old fix") } });
+    const v = fullView({
+      findings: {
+        ...fullView().findings,
+        preExisting: rows(3, { severity: "fix", origin: "pre-existing", inlineThread: false }, "Old fix"),
+      },
+    });
     const body = renderReviewBody(v, 3600);
     expect(body).toContain("Old fix 1");
     expect(body.length).toBeLessThanOrEqual(3600);
@@ -145,7 +173,10 @@ describe("size fitting: Files not reviewed (slot 13a)", () => {
       const names = body.includes("src/f0.ts");
       if (summary && !names) {
         counts = true;
-        const slot = body.slice(body.indexOf("<summary>Files not reviewed"), body.indexOf("</details>", body.indexOf("<summary>Files not reviewed")));
+        const slot = body.slice(
+          body.indexOf("<summary>Files not reviewed"),
+          body.indexOf("</details>", body.indexOf("<summary>Files not reviewed")),
+        );
         expect(slot).toMatch(/Because the pull request's budget was spent: 40 files/);
       }
       if (!summary) gone = true;
@@ -191,7 +222,14 @@ describe("size fitting: To consider (slot 6) shrinks last among the slots, keepi
 });
 
 describe("size fitting: the never-dropped slots alone pass the limit", () => {
-  const facts = Array.from({ length: 30 }, (_, i) => ({ kind: "data" as const, path: `src/r${i}.ts`, line: i + 1, displayPath: `r${i}.ts`, location: `r${i}.ts:${i + 1}`, why: para(12) }));
+  const facts = Array.from({ length: 30 }, (_, i) => ({
+    kind: "data" as const,
+    path: `src/r${i}.ts`,
+    line: i + 1,
+    displayPath: `r${i}.ts`,
+    location: `r${i}.ts:${i + 1}`,
+    why: para(12),
+  }));
   const view = makeView({
     findings: {
       toFix: [...rows(2, { severity: "blocker" }, "Blocker"), ...rows(40, {}, "Fix")],
@@ -231,7 +269,10 @@ describe("size fitting: the never-dropped slots alone pass the limit", () => {
   test("the cut To fix table keeps the Blockers before any Fix", () => {
     const body = renderReviewBody(view, 1700);
     expect(body.length).toBeLessThanOrEqual(1700);
-    const shown = body.slice(body.indexOf("### To fix"), body.indexOf("### Needs investigation") === -1 ? undefined : body.indexOf("### Needs investigation"));
+    const shown = body.slice(
+      body.indexOf("### To fix"),
+      body.indexOf("### Needs investigation") === -1 ? undefined : body.indexOf("### Needs investigation"),
+    );
     expect(shown).toContain("Blocker 1");
     expect(shown).toContain("Blocker 2");
   });
@@ -247,7 +288,8 @@ describe("the 422 body", () => {
     expect(body).not.toContain("Answer a finding in its thread");
     expect(body).toContain("GitHub would not anchor these findings on their lines");
     expect(body).toContain("| # | | Where | Finding |");
-    for (const title of ["Blocker 1", "Fix 2", "Consider 10", "Old 4", "Info 6"]) expect(body.split(`| ${title} |`).length - 1, title).toBe(1);
+    for (const title of ["Blocker 1", "Fix 2", "Consider 10", "Old 4", "Info 6"])
+      expect(body.split(`| ${title} |`).length - 1, title).toBe(1);
     const numbers = [...body.matchAll(/^\| (\d+) \| /gm)].map((m) => Number(m[1]));
     expect(numbers).toEqual(Array.from({ length: numbers.length }, (_, i) => i + 1));
     expect(numbers.length).toBe(24);
@@ -266,7 +308,14 @@ describe("the 422 body", () => {
     const withBodies = refusedView(
       fullView({
         findings: {
-          toFix: [...rows(1, { severity: "blocker", body: `First paragraph of the blocker.\n\nSecond paragraph of the blocker. ${para(250)}` }, "Blocker"), ...rows(1, { body: `First of the fix.\n\nSecond of the fix. ${para(250)}` }, "Fix")],
+          toFix: [
+            ...rows(
+              1,
+              { severity: "blocker", body: `First paragraph of the blocker.\n\nSecond paragraph of the blocker. ${para(250)}` },
+              "Blocker",
+            ),
+            ...rows(1, { body: `First of the fix.\n\nSecond of the fix. ${para(250)}` }, "Fix"),
+          ],
           consider: rows(10, { severity: "consider", body: "A consider body one. A consider body two." }, "Consider"),
           preExisting: rows(3, { severity: "consider", origin: "pre-existing" }, "Old"),
           info: rows(6, { severity: "info" }, "Info"),

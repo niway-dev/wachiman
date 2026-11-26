@@ -7,7 +7,14 @@ const botThread = (id: number, over: Partial<RawThread> = {}): RawThread => ({
   path: "src/a.ts",
   line: 1,
   comments: {
-    nodes: [{ databaseId: id, author: { login: "github-actions" }, authorAssociation: "NONE", body: `| 👮 **Wachiman** | t |\n\nbody\n\n${SIGNATURE.finding}` }],
+    nodes: [
+      {
+        databaseId: id,
+        author: { login: "github-actions" },
+        authorAssociation: "NONE",
+        body: `| 👮 **Wachiman** | t |\n\nbody\n\n${SIGNATURE.finding}`,
+      },
+    ],
   },
   ...over,
 });
@@ -80,7 +87,10 @@ describe("fetchThreadPages", () => {
   });
 
   test("a cursor that does not advance stops instead of looping, and the read is incomplete", () => {
-    const { gh, asked } = pagedGh([{ nodes: [botThread(1)], next: "same" }, { nodes: [botThread(2)], next: "same" }]);
+    const { gh, asked } = pagedGh([
+      { nodes: [botThread(1)], next: "same" },
+      { nodes: [botThread(2)], next: "same" },
+    ]);
     const result = fetchThreadPages(gh, "o/r", 7);
     expect(result.complete).toBe(false);
     expect(asked).toHaveLength(2);
@@ -88,7 +98,11 @@ describe("fetchThreadPages", () => {
 
   test("hasNextPage with no endCursor is an incomplete read, not the last page", () => {
     const gh: GhFn = () =>
-      JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage: true, endCursor: null }, nodes: [botThread(1)] } } } } });
+      JSON.stringify({
+        data: {
+          repository: { pullRequest: { reviewThreads: { pageInfo: { hasNextPage: true, endCursor: null }, nodes: [botThread(1)] } } },
+        },
+      });
     expect(fetchThreadPages(gh, "o/r", 7).complete).toBe(false);
     expect(earlierThreadCount(gh, "o/r", 7)).toBe("unknown");
   });

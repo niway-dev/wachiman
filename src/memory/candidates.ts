@@ -9,7 +9,20 @@
  *
  * Reactions and silence are never evidence; there is no source for them.
  */
-import { chmodSync, closeSync, existsSync, fsyncSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeSync } from "node:fs";
+import {
+  chmodSync,
+  closeSync,
+  existsSync,
+  fsyncSync,
+  mkdirSync,
+  openSync,
+  readdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+  statSync,
+  writeSync,
+} from "node:fs";
 import { join } from "node:path";
 import { UsageError } from "../config";
 import { loopFiles, readVerdicts } from "../history/store";
@@ -143,7 +156,11 @@ export function candidateProblem(c: Candidate): string | undefined {
     ["why", c.why],
     ["holds while", c.holdsWhile],
     ["added", c.added],
-    ...c.evidence.flatMap((e, i): [string, string | undefined][] => [[`evidence ${i + 1} date`, e.date], [`evidence ${i + 1} branch`, e.branch], [`evidence ${i + 1} text`, e.text]]),
+    ...c.evidence.flatMap((e, i): [string, string | undefined][] => [
+      [`evidence ${i + 1} date`, e.date],
+      [`evidence ${i + 1} branch`, e.branch],
+      [`evidence ${i + 1} text`, e.text],
+    ]),
   ];
   for (const [name, value] of texts) {
     const bad = value === undefined ? undefined : UNSAFE_CHARACTER.exec(value);
@@ -153,7 +170,8 @@ export function candidateProblem(c: Candidate): string | undefined {
     }
   }
   const digest = entryId({ kind: c.kind, scope: c.scope, rule: c.rule, why: c.why, ...(c.holdsWhile ? { holdsWhile: c.holdsWhile } : {}) });
-  if (digest !== c.id) return `The id ${c.id} is not the digest ${digest} of the entry's fields, so the text shown would not be the text recorded.`;
+  if (digest !== c.id)
+    return `The id ${c.id} is not the digest ${digest} of the entry's fields, so the text shown would not be the text recorded.`;
   const parsed = parseMemoryFile("index.md", renderEntry(c));
   if (parsed.problems.length > 0 || parsed.entries.length !== 1 || parsed.entries[0].id !== c.id) {
     return `The entry does not read back as one valid memory entry (${parsed.problems[0]?.message ?? "unreadable"}).`;
@@ -269,7 +287,8 @@ export function withCandidateLock<T>(home: string, key: string, id: string, fn: 
       } catch {
         // Released between the two calls: try again.
       }
-      if (Date.now() > deadline) throw new UsageError(`Another wachiman memory command is changing candidate ${id}; try again in a moment.`);
+      if (Date.now() > deadline)
+        throw new UsageError(`Another wachiman memory command is changing candidate ${id}; try again in a moment.`);
       Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 25);
     }
   }
@@ -311,7 +330,14 @@ function validCandidate(v: any): v is Candidate {
     (v.holdsWhile === undefined || typeof v.holdsWhile === "string") &&
     typeof v.added === "string" &&
     Array.isArray(v.evidence) &&
-    v.evidence.every((e: any) => e && EVIDENCE_SOURCES.includes(e.source) && typeof e.date === "string" && typeof e.agent === "boolean" && (typeof e.pr === "number" || typeof e.branch === "string"))
+    v.evidence.every(
+      (e: any) =>
+        e &&
+        EVIDENCE_SOURCES.includes(e.source) &&
+        typeof e.date === "string" &&
+        typeof e.agent === "boolean" &&
+        (typeof e.pr === "number" || typeof e.branch === "string"),
+    )
   );
 }
 
@@ -356,7 +382,10 @@ export function readCandidates(home: string, key: string, skipped: (name: string
     try {
       parsed = JSON.parse(readFileSync(join(dir, name), "utf8"));
     } catch (error) {
-      skipped(name, error instanceof SyntaxError ? "it is not JSON" : `it cannot be read (${error instanceof Error ? error.message : error})`);
+      skipped(
+        name,
+        error instanceof SyntaxError ? "it is not JSON" : `it cannot be read (${error instanceof Error ? error.message : error})`,
+      );
       continue;
     }
     if (!validCandidate(parsed)) {
@@ -382,7 +411,13 @@ export function readCandidates(home: string, key: string, skipped: (name: string
  * taken on trust: `judged` needs a `wrong` verdict with a reason; `fixed` needs the loop to have marked
  * the finding probably fixed. The reference is `pr` when given, else the branch of the loop that saw it.
  */
-export function evidenceFromFinding(key: string, historyRoot: string, finding: string, source: "judged" | "fixed", opts: { pr?: number; agent: boolean; date: string }): Evidence {
+export function evidenceFromFinding(
+  key: string,
+  historyRoot: string,
+  finding: string,
+  source: "judged" | "fixed",
+  opts: { pr?: number; agent: boolean; date: string },
+): Evidence {
   let found: { branch: string; status: string } | undefined;
   for (const path of loopFiles(historyRoot, key)) {
     try {
@@ -396,11 +431,14 @@ export function evidenceFromFinding(key: string, historyRoot: string, finding: s
       // an unreadable loop file is not evidence
     }
   }
-  if (!found) throw new UsageError(`No finding ${finding} in the loop history of this repository; run \`wachiman history\` to list the ids.`);
+  if (!found)
+    throw new UsageError(`No finding ${finding} in the loop history of this repository; run \`wachiman history\` to list the ids.`);
   if (source === "judged") {
     const verdict = readVerdicts(historyRoot, key).get(finding);
     if (verdict?.verdict !== "wrong" || !verdict.reason?.trim()) {
-      throw new UsageError(`Finding ${finding} has no verdict "wrong" with a reason; record one first: wachiman history --verdict ${finding} wrong --reason "<why>".`);
+      throw new UsageError(
+        `Finding ${finding} has no verdict "wrong" with a reason; record one first: wachiman history --verdict ${finding} wrong --reason "<why>".`,
+      );
     }
   } else if (found.status !== "probably-fixed") {
     throw new UsageError(`The loop did not mark finding ${finding} as fixed (its status is ${found.status}), so it is not evidence.`);
@@ -412,12 +450,19 @@ export function evidenceFromFinding(key: string, historyRoot: string, finding: s
  * Proposable candidates relevant to a loop round: one cites a finding of the round's ledger, or its
  * scope matches the path of one. Never throws: the round's report does not depend on memory.
  */
-export function candidatesForRound(home: string, key: string, minEvidence: number, ledger: { id: string; path: string }[]): { id: string; title: string }[] {
+export function candidatesForRound(
+  home: string,
+  key: string,
+  minEvidence: number,
+  ledger: { id: string; path: string }[],
+): { id: string; title: string }[] {
   try {
     const ids = new Set(ledger.map((e) => e.id));
     return readCandidates(home, key)
       .filter((c) => !c.proposed && !c.personal && proposability(c, minEvidence).proposable)
-      .filter((c) => c.evidence.some((e) => e.finding !== undefined && ids.has(e.finding)) || ledger.some((e) => matchesGlob(c.scope, e.path)))
+      .filter(
+        (c) => c.evidence.some((e) => e.finding !== undefined && ids.has(e.finding)) || ledger.some((e) => matchesGlob(c.scope, e.path)),
+      )
       .map((c) => ({ id: c.id, title: c.title }));
   } catch {
     return [];

@@ -56,13 +56,22 @@ const aliasNote = (again: string) =>
 
 const defaultInteractiveSpawn: InteractiveSpawn = (binary, args, opts) => spawnSync(binary, args, opts);
 
-export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, string | undefined>, io: CommandIo, deps: SetupDeps = {}): Promise<number> {
-  const interactive = !flags.yes && (deps.interactive ?? isInteractive(flags, env, deps.streams ?? { stdin: process.stdin, stdout: process.stdout }));
+export async function runSetupCommand(
+  flags: RawSetupFlags,
+  env: Record<string, string | undefined>,
+  io: CommandIo,
+  deps: SetupDeps = {},
+): Promise<number> {
+  const interactive =
+    !flags.yes && (deps.interactive ?? isInteractive(flags, env, deps.streams ?? { stdin: process.stdin, stdout: process.stdout }));
   if (!interactive) {
     const resolved = resolveSetupOptions(flags, { interactive: false });
     if (!resolved.ok) throw new UsageError(resolved.error);
     const { options } = resolved;
-    return runSetup({ repoDir: options.repoDir, profile: options.profile, yes: flags.yes === true, json: options.json }, env, io, { ...deps, interactive: false });
+    return runSetup({ repoDir: options.repoDir, profile: options.profile, yes: flags.yes === true, json: options.json }, env, io, {
+      ...deps,
+      interactive: false,
+    });
   }
 
   const repoDir = flags.repoDir ?? ".";
@@ -125,7 +134,11 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     if (ownsPrompter) await prompter.intro(deps.doctor?.version ?? "unknown", "Let's choose which Claude account stands guard.");
     let answers;
     try {
-      answers = await promptForSetup(flags, { repo, current, config, home, userHome, createManaged, fromInit: deps.fromInit, initMode: deps.initMode }, prompter);
+      answers = await promptForSetup(
+        flags,
+        { repo, current, config, home, userHome, createManaged, fromInit: deps.fromInit, initMode: deps.initMode },
+        prompter,
+      );
     } catch (error) {
       // A failed sign-in step still leaves the managed directory behind; say so before the error surfaces.
       reportEffects();
@@ -156,7 +169,9 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
       reportEffects();
       throw error;
     }
-    io.stderr(`bound: ${repo.name} → ${name} (home config${answers.pending ? `, with the new profile ${answers.pending.name}` : ""}; nothing written in the repository)`);
+    io.stderr(
+      `bound: ${repo.name} → ${name} (home config${answers.pending ? `, with the new profile ${answers.pending.name}` : ""}; nothing written in the repository)`,
+    );
 
     const after = loadConfig(home);
     const found = lookup(after?.profiles ?? {}, name);
@@ -165,7 +180,9 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
     io.stderr(profileLine(resolvedProfile));
     // The real probe is asynchronous, so the spinner turns while `claude` runs; a test's fake `spawn` is synchronous and is called as it always was.
     const probe = () =>
-      deps.spawn ? confirmProfile(resolvedProfile, env, deps.spawn, deps.doctor?.confirmIo) : confirmProfileAsync(resolvedProfile, env, deps.spawnAsync, deps.doctor?.confirmIo);
+      deps.spawn
+        ? confirmProfile(resolvedProfile, env, deps.spawn, deps.doctor?.confirmIo)
+        : confirmProfileAsync(resolvedProfile, env, deps.spawnAsync, deps.doctor?.confirmIo);
     // An Enter typed meanwhile must not reach "Sign in now?" through a live readline.
     prompter.suspend();
     let status = await prompter.task("Checking your Claude account", probe, (s) => s.ok);
@@ -180,13 +197,19 @@ export async function runSetupCommand(flags: RawSetupFlags, env: Record<string, 
       io.stderr(status.problem);
       const answer = await prompter.confirm("Sign in now?", true);
       if (answer === null) {
-        io.stderr(`cancelled: the binding of ${repo.name} to ${name} was saved and stays; you are not signed in (run \`wachiman profile login ${name}\`).`);
+        io.stderr(
+          `cancelled: the binding of ${repo.name} to ${name} was saved and stays; you are not signed in (run \`wachiman profile login ${name}\`).`,
+        );
         outcome = "cancelled";
         return 130;
       }
       if (answer) {
         prompter.suspend();
-        const code = runProfile({ kind: "login", profile: name }, env, io, { ...deps, interactive: true, interactiveSpawn: deps.interactiveSpawn });
+        const code = runProfile({ kind: "login", profile: name }, env, io, {
+          ...deps,
+          interactive: true,
+          interactiveSpawn: deps.interactiveSpawn,
+        });
         if (code === 130) {
           io.stderr(`cancelled: the binding of ${repo.name} to ${name} was saved and stays.`);
           outcome = "cancelled";
@@ -253,13 +276,19 @@ function save(p: {
     const { pending } = p;
     if (pending?.kind === "external") {
       checkNewProfileName(pending.name, p.home);
-      if (Object.hasOwn(profiles, pending.name)) throw new UsageError(`"${pending.name}" was registered meanwhile; run \`wachiman setup\` again.`);
+      if (Object.hasOwn(profiles, pending.name))
+        throw new UsageError(`"${pending.name}" was registered meanwhile; run \`wachiman setup\` again.`);
       const configDir = checkExternalConfigDir(pending.configDir, p.home, p.userHome, "Configuration directory");
       if (pending.binary !== undefined) {
         const problem = binaryProblem(pending.binary);
         if (problem) throw new UsageError(`${pending.binary} ${problem}.`);
       }
-      const entry: ProfileEntry = { kind: "external", configDir, ...(pending.binary ? { binary: pending.binary } : {}), createdAt: p.now() };
+      const entry: ProfileEntry = {
+        kind: "external",
+        configDir,
+        ...(pending.binary ? { binary: pending.binary } : {}),
+        createdAt: p.now(),
+      };
       profiles = { ...profiles, [pending.name]: entry };
     } else if (pending?.kind === "managed") {
       if (!existsSync(pending.configDir)) throw new UsageError(`${pending.configDir} no longer exists; run \`wachiman setup\` again.`);
