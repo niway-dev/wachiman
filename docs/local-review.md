@@ -10,6 +10,10 @@ token, no `gh`, and nothing is posted anywhere.
 > **In local mode Wachiman sends no telemetry of its own and makes no GitHub requests; your code is
 > sent to your configured Claude account for the review. Claude Code's own telemetry switches are
 > set but not verified by a packet capture (section 7).**
+>
+> Under the proposed design, any future usage metrics would be opt-in, asked once in
+> `wachiman init`, and never carry an account identifier
+> ([on-your-machine.md](on-your-machine.md#telemetry)).
 
 It is for a developer who wants a second reader before opening a pull request, including on an
 employer's code that cannot run through a CI key. The design is in
