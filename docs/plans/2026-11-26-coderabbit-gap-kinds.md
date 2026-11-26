@@ -26,9 +26,9 @@ before any rule is tuned.
 - **Variance.** Three runs per PR, before and after. A case counts as caught when at least 2 of the
   3 runs state it.
 - **Guards.**
-  - The 8 cases caught today (ao-8720-C1, ao-8832-C1, ao-9036-C1, ao-9036-C3, ao-9148-C1, ao-9148-C2,
-    ao-8764-C4, ao-8764-C5) stay caught.
-  - Findings per PR stay within +25% of 3.2, and cost per run within +25% of $0.51.
+  - The cases caught by the baseline stay caught. On v1.17.0 they were ao-8720-C1, ao-8832-C1, ao-9036-C1, ao-9036-C3, ao-9148-C1, ao-9148-C2,
+    ao-8764-C4 and ao-8764-C5; point 0 reruns the baseline on current `main`.
+  - Findings per PR and cost per run stay within +25% of the baseline (3.2 findings and $0.51 per PR on v1.17.0).
 - **A rule names a kind of check, never agent-orchestrator code.** It enters the rule inventory
   ([#315](https://github.com/niway-dev/wachiman/issues/315)) with the cases that justify it.
 
@@ -43,9 +43,14 @@ The work happens in wachiman-benchmarks. Nothing changes in the engine.
 2. **Judge CodeRabbit's 25 inline comments** on the same PRs that are not in the answer key. They were
    never fixed, or were raised on a later commit.
 3. **Mine a second batch.** Include "Outside diff range" comments from review bodies, which the first
-   batch skipped; that is the kind of the #9068 gap. Fill the held-out side of kinds 3, 4 and 5.
+   batch skipped; that is the kind of the gap on [agent-orchestrator#9068](https://github.com/OrchestratorInc/agent-orchestrator/pull/9068), where a second account picker outside the changed lines never got the new badge. Fill the held-out side of kinds 3, 4 and 5.
 
-Output: precision for both tools on the same 10 PRs, and a second answer key.
+4. **Rerun the baseline on current `main`.** The numbers above are from v1.17.0, and `main` has moved on
+   since. Run 3 times per PR on the commit the first tuning branch starts from. That run sets the
+   "caught today" list and the noise and cost guards; the v1.17.0 figures stay in history as the first row.
+
+Output: precision for both tools on the same 10 PRs, a second answer key, and the baseline every point is
+compared against.
 
 ## Points 1 to 6, with their cases
 
