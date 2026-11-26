@@ -166,7 +166,9 @@ record, goes in the review body. Every comment opens with "👮 **Wachiman**".
   read-only tools and no shell; that is a tested configuration, not a sandbox
   ([SECURITY.md](SECURITY.md)).
 - It does not check every changed file in every case: lockfiles, build output and generated files
-  are dropped first, and coverage is what the model reports per file. If some files are not
+  are dropped first (a changed `bun.lock` or `package-lock.json` can still get a check with no model
+  call, see [`review.lockfile_check`](docs/configuration.md#the-lockfile-check-reviewlockfile_check)),
+  and coverage is what the model reports per file. If some files are not
   reviewed, the first line of the review says so.
 - It is not a sandbox, and it is not a tool for reviewing code from people you do not trust (see
   below).

@@ -85,6 +85,12 @@ export interface ReviewInput {
    * or a tool directive. Set by the connector; absent when the setting is off or unset.
    */
   commentsPointToDocs?: true;
+  /**
+   * `review.lockfile_check` is on in `.wachiman.yml` at `change.base.sha`, never the head (ADR 0064):
+   * a changed `bun.lock` or `package-lock.json` is read, with no model call, for a package no
+   * package.json declares and for a new install-script allowance. Set by the connector; absent when off.
+   */
+  lockfileCheck?: true;
 }
 
 /** Which Claude Code profile ran the review; every GitHub-mode run is "ci". */

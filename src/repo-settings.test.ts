@@ -427,6 +427,23 @@ describe("the review key (ADR 0064)", () => {
     }
   });
 
+  test("true turns the lockfile check on, and it is independent of the comment rule", () => {
+    const settings = parse("review:\n  lockfile_check: true\n");
+    expect(settings.review).toEqual({ lockfileCheck: true });
+    expect(reviewPolicyOf(settings, () => {})).toEqual({ lockfileCheck: true });
+    const both = parse("review:\n  comments_point_to_docs: true\n  lockfile_check: true\n");
+    expect(reviewPolicyOf(both, () => {})).toEqual({ commentsPointToDocs: true, lockfileCheck: true });
+  });
+
+  test("the lockfile check is off when false, empty, absent or unreadable", () => {
+    expect(reviewPolicyOf(parse("review:\n  lockfile_check: false\n"), () => {})).toEqual({});
+    expect(parse("review:\n  lockfile_check:\n").review).toBeUndefined();
+    const warnings: string[] = [];
+    const settings = parse("review:\n  lockfile_check: yes please\n");
+    expect(reviewPolicyOf(settings, (l) => warnings.push(l))).toEqual({});
+    expect(warnings[0]).toContain(".wachiman.yml: review.lockfile_check must be true or false, got ");
+  });
+
   test("a review that is not a mapping is ignored with a notice", () => {
     for (const yaml of ["review: true\n", "review: [a]\n"]) {
       const settings = parse(yaml);

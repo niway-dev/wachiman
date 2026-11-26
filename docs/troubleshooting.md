@@ -109,6 +109,9 @@ them.
 
 The built-in exclude list (lockfiles, build output, generated files) removed every file, or your
 paths matched only excluded files. `WACHIMAN_EXCLUDE` adds patterns where it can be set. See [configuration.md](configuration.md).
+A lockfile is excluded from the model's review on purpose; to have a changed `bun.lock` or
+`package-lock.json` checked for undeclared packages and install-script allowances (no model call),
+turn on [`review.lockfile_check`](configuration.md#the-lockfile-check-reviewlockfile_check).
 
 **7. A reply in a review thread got no answer.** Check, in this order: (a) your caller lists
 `pull_request_review_comment: { types: [created] }` (a caller written before ADR 0012 does not, and

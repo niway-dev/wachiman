@@ -229,7 +229,9 @@ Read the number as "files in this run", not "files in the pull request":
   `package-lock.json`, `yarn.lock`, `pnpm-lock.yaml`), build output (`dist/`, `build/`, `out/`),
   minified files, source maps, snapshots, `*.generated.*` files and `worker-configuration.d.ts`.
   "All files reviewed" does not include them. The exact list is `DEFAULT_EXCLUDE` in
-  `src/engine.ts`. The reusable workflow cannot add to it.
+  `src/engine.ts`. The reusable workflow cannot add to it. A changed `bun.lock` or
+  `package-lock.json` still gets a check with no model call when the repository turns on
+  [`review.lockfile_check`](configuration.md#the-lockfile-check-reviewlockfile_check).
 - **A scoped review counts only its paths.** Its first line still says "the whole pull request",
   and the count is the number of scoped files that ran.
 - **Coverage is reported by the model.** The engine asks the model to list the files it reviewed
@@ -350,7 +352,7 @@ push posts one "Automatic reviews paused" notice and no review, and `/wachiman r
 | `/wachiman review`, no complete review yet | Reviews the whole pull request. |
 | `/wachiman review`, head unchanged since the last complete review | Posts "Already reviewed at `…`. Push changes, or ask `/wachiman review <paths>`." No model call. |
 | `/wachiman review`, the branch was rewritten since the last complete review (a rebase, a force-push) | Compares the pull request's lines as in [Reviews on push](#reviews-on-push): no model call if they are the same, only the files that differ otherwise, the whole pull request if that cannot be compared. |
-| `/wachiman review`, but every changed file is excluded | Posts "Nothing to review at `…`", saying the files are lockfiles, build output, generated, or outside the requested paths. |
+| `/wachiman review`, but every changed file is excluded | Posts "Nothing to review at `…`", saying the files are lockfiles, build output, generated, or outside the requested paths. With [`review.lockfile_check`](configuration.md#the-lockfile-check-reviewlockfile_check) on and a lockfile finding, it posts that finding as a review instead, with no model call. |
 
 Only a **complete, unscoped** review moves the starting point for the next one. A partial review
 or a scoped review does not, so after either, the next plain `/wachiman review` starts from the last

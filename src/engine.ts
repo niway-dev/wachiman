@@ -132,6 +132,7 @@ import { defuseDetails, neutralise } from "./review-format/escape";
 import { renderReviewBody } from "./review-format/render";
 import { buildView, refusedView, type ReviewView } from "./review-format/view";
 import { batchDistributed, distributedResultFields, plainText, verifierDistributed, type DistributedContext } from "./distributed";
+import { isCheckedLockfile, lockfileCheckOf } from "./lockfile-check";
 import { settleModelText } from "./sibling-references";
 import { armFor, priorityOf, PRIORITY_GLOSS, PRIORITY_WORD, type Arm, type Priority } from "./priority";
 import {
@@ -3631,6 +3632,10 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const { change } = input;
   const filtered = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...options.exclude], input.scope);
   const { dropped } = filtered;
+  // The lockfiles the exclusion dropped, read without a model (`review.lockfile_check`, ADR 0064).
+  const lockfile = input.lockfileCheck ? lockfileCheckOf(dropped, input.headDir) : { findings: [], unchecked: [] };
+  for (const u of lockfile.unchecked) core.log(`Lockfile check: \`${u.path}\` was not checked: ${u.reason}.`);
+  if (lockfile.findings.length > 0) core.log(`Lockfile check: ${lockfile.findings.length} finding(s), no model call.`);
   const { reviewable: kept, unreviewable } = splitUnreviewable(filtered.kept, input.headDir);
   const totalBudget = options.totalBudgetUsd;
   // The memory exceptions that may act on this diff (ADR 0057). The reserves of the verifier and of
@@ -3979,6 +3984,9 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     checked = verified.findings;
     verification = verified.record;
   } else checked = annotateUnverified(merged.findings);
+  // The lockfile check's findings are the engine's own, worded the same every time: the verifier never
+  // sees them, so it cannot refute a comparison that needs no judgement. Memory may still mute one.
+  if (lockfile.findings.length > 0) checked = [...checked, ...annotateUnverified(lockfile.findings)];
   // After verification, so the floor applies to the final severity (ADR 0057). Muted findings leave
   // the list here: nothing below, the anchors, the fidelity grade or the posting, ever sees them.
   const memoryStep = await matchExceptions(core, options, context, exceptionPlan, checked, Math.max(totalBudget - spent, 0), refused?.text);
@@ -3999,6 +4007,9 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
 
   // The anchor is decided here, so a sink needs no patch to know which findings sit on a diff line.
   const commentable = new Map(kept.map((f) => [f.filename, commentableLines(f.patch ?? "")]));
+  // A lockfile is not in `kept`, but a finding on one of its diff lines is anchored like any other.
+  for (const f of dropped)
+    if (lockfile.findings.some((x) => x.path === f.filename)) commentable.set(f.filename, commentableLines(f.patch ?? ""));
   // A distributed-repo run (ADR 0043): a reference into a sibling stays only if its line exists in that
   // member's snapshot at that commit, in every text the model wrote that reaches the result. The snapshots
   // are still on disk here; the caller removes them after.
@@ -4447,6 +4458,8 @@ export function githubReviewInput(p: {
   pathPolicyChanged?: boolean;
   /** `review.comments_point_to_docs` is on at the base commit. */
   commentsPointToDocs?: boolean;
+  /** `review.lockfile_check` is on at the base commit. */
+  lockfileCheck?: boolean;
 }): ReviewInput {
   return {
     format: REVIEW_INPUT_FORMAT,
@@ -4480,6 +4493,7 @@ export function githubReviewInput(p: {
     ...(p.pathRules?.length ? { pathRules: p.pathRules } : {}),
     ...(p.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
     ...(p.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
+    ...(p.lockfileCheck ? { lockfileCheck: true as const } : {}),
   };
 }
 
@@ -4804,7 +4818,66 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     files = [...files.filter((f) => !unreadNames.has(f.filename)), ...carried];
   }
   const { kept, dropped } = filterFiles(files, [...DEFAULT_EXCLUDE, ...config.exclude], paths);
+  const headDir = deps.repoDir ?? process.cwd();
+  // The base commit and its `.wachiman.yml` policy, read once and only when something needs them.
+  let basePolicy: { base: string; policy: ReviewPolicy } | undefined;
+  const policyAtBase = () => {
+    if (!basePolicy) {
+      const base = baseSha(gh, repo, pr);
+      basePolicy = { base, policy: readBasePolicy(gh, repo, base, deps.warn) };
+    }
+    return basePolicy;
+  };
+  // A push with nothing to send a model that still changed a lockfile (`review.lockfile_check`, ADR 0064):
+  // the check needs no model, so its findings are posted as a review, at no cost. False when the
+  // setting is off, no lockfile of a checked kind changed, or the check found nothing.
+  const postLockfileOnly = async (): Promise<boolean> => {
+    if (!dropped.some((f) => isCheckedLockfile(f.filename) !== null)) return false;
+    const { base, policy } = policyAtBase();
+    if (!policy.lockfileCheck) return false;
+    const instructions = readBaseInstructions(gh, repo, base, deps.warn);
+    const input = githubReviewInput({
+      repo,
+      pr,
+      headSha,
+      baseSha: base,
+      meta,
+      files,
+      instructions,
+      headDir,
+      scope: paths,
+      since,
+      rebased,
+      commits,
+      carried: resumed,
+      threads: [],
+      lockfileCheck: true,
+    });
+    const result = await reviewChange(input, reviewOptionsOf(config, 0), deps);
+    if (result.findings.length === 0) return false;
+    // Not flagged automatic: the run cost nothing, and a $0.00 automatic run would be counted by the ceiling.
+    const built = githubReview(result, {
+      since,
+      rebased,
+      commits,
+      carried: resumed,
+      tried: paths.length === 0 ? state?.tried : undefined,
+      warn: deps.warn,
+      scoped: paths.length > 0,
+      scopePaths: paths.length,
+      mention: config.mention,
+      repo,
+      earlierThreads: earlierThreadCount(gh, repo, pr),
+      automatic: false,
+      instructionChanges: { files: changedInstructionFiles(prFiles.map((f) => f.filename)), baseSha: instructions.baseSha },
+      estimate: onSubscription(deps),
+    });
+    refuseLeak(deps, [built.body, ...built.comments.map((c) => c.body)]);
+    postReview(deps, repo, pr, headSha, built);
+    return true;
+  };
   if (kept.length === 0) {
+    if (await postLockfileOnly()) return;
     // Signed, with a block: an unsigned notice would leave `pr-state` at `review_missing` for a head
     // the engine decided on purpose has nothing to review. The marker moves unless the request was scoped.
     postReview(deps, repo, pr, headSha, {
@@ -4823,9 +4896,9 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // A push whose kept files are all binaries has nothing to send a model: it costs nothing, so it
   // neither consults the ceiling nor records a $0.00 automatic run. The marker moves, as after a
   // rebase with no content change, unless the request was scoped.
-  const headDir = deps.repoDir ?? process.cwd();
   const allBinary = splitUnreviewable(kept, headDir);
   if (allBinary.reviewable.length === 0) {
+    if (await postLockfileOnly()) return;
     const named = allBinary.unreviewable.map((u) => `\`${neutralise(u.path)}\` (${u.reason})`).join(", ");
     deps.log(`Nothing to send a model: every kept file is not reviewable (${named}).`);
     postReview(deps, repo, pr, headSha, {
@@ -4844,8 +4917,10 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // review and no marker is written, so the next push sees no marker and gates again.
   // The path rules come from the base commit whatever the model and effort inputs say; they reorder
   // the batches, so the estimate is made with them.
-  const base = baseSha(gh, repo, pr);
-  const { pathRules: baseRules, commentsPointToDocs } = readBasePolicy(gh, repo, base, deps.warn);
+  const {
+    base,
+    policy: { pathRules: baseRules, commentsPointToDocs, lockfileCheck },
+  } = policyAtBase();
   // A pull request that edits the rules is reviewed under the base's, and `.wachiman.yml` itself is
   // a critical path for that review: the head's rules are never applied, only compared.
   const pathPolicyChanged = touchesSettingsFile(prFiles) && headEditsPathRules(gh, repo, headSha, baseRules);
@@ -4943,6 +5018,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     pathRules,
     pathPolicyChanged,
     commentsPointToDocs,
+    lockfileCheck,
   });
   // Everything the run reads from GitHub is read by now. The ledger is asked last, just before the
   // first paid step, so a failing read cannot leave a reservation that nobody settles.

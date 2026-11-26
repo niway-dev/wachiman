@@ -53,6 +53,10 @@
     "commentsPointToDocs": {
       "description": "True when `review.comments_point_to_docs` is on in `.wachiman.yml` at change.base.sha, never the head: the review also reports each added comment that is not a pointer to a document or a tool directive. Optional; absent when the setting is off or unset.",
       "const": true
+    },
+    "lockfileCheck": {
+      "description": "True when `review.lockfile_check` is on in `.wachiman.yml` at change.base.sha, never the head: a changed `bun.lock` or `package-lock.json` is also read, with no model call, for a package no package.json declares and for a new install-script allowance. Optional; absent when the setting is off or unset.",
+      "const": true
     }
   },
   "$defs": {
