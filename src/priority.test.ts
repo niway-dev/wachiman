@@ -71,14 +71,20 @@ describe("floors and caps (spec decision 10, AC10)", () => {
   const worthless: CalibrationTable = {
     version: "test-low",
     cells: Object.fromEntries(
-      SEVERITIES.map((s) => [s, Object.fromEntries(CONFIDENCE.map((c) => [c, { priority: "fyi", rank: 0, provenance: { basis: "seed" } }]))]),
+      SEVERITIES.map((s) => [
+        s,
+        Object.fromEntries(CONFIDENCE.map((c) => [c, { priority: "fyi", rank: 0, provenance: { basis: "seed" } }])),
+      ]),
     ) as CalibrationTable["cells"],
   };
   // A table that measured every cell as highly actionable: only the caps can hold the line.
   const glowing: CalibrationTable = {
     version: "test-high",
     cells: Object.fromEntries(
-      SEVERITIES.map((s) => [s, Object.fromEntries(CONFIDENCE.map((c) => [c, { priority: "must", rank: 100, provenance: { basis: "seed" } }]))]),
+      SEVERITIES.map((s) => [
+        s,
+        Object.fromEntries(CONFIDENCE.map((c) => [c, { priority: "must", rank: 100, provenance: { basis: "seed" } }])),
+      ]),
     ) as CalibrationTable["cells"],
   };
 

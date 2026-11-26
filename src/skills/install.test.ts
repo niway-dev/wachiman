@@ -4,7 +4,19 @@
  * the real home.
  */
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { UsageError } from "../config";
@@ -95,7 +107,11 @@ describe("skills install: where the copies land", () => {
 
   test("a target named twice (CLAUDE_CONFIG_DIR is ~/.claude, plus --dir) is copied once", () => {
     const f = fixture();
-    const report = installSkills({ action: "install", dirs: [join(f.userHome, ".claude", "skills")] }, { ...f.env, CLAUDE_CONFIG_DIR: join(f.userHome, ".claude") }, f.deps);
+    const report = installSkills(
+      { action: "install", dirs: [join(f.userHome, ".claude", "skills")] },
+      { ...f.env, CLAUDE_CONFIG_DIR: join(f.userHome, ".claude") },
+      f.deps,
+    );
     const claude = report.entries.filter((e) => e.target.startsWith(join(f.userHome, ".claude", "skills")));
     expect(claude).toHaveLength(SKILL_NAMES.length);
   });
@@ -110,7 +126,12 @@ function tree(dir: string, prefix = ""): string[] {
 }
 
 describe("skills install: the Wachiman home is refused", () => {
-  const refuses = (f: ReturnType<typeof fixture>, opts: Parameters<typeof installSkills>[0], env = f.env, action: "install" | "uninstall" = "install") => {
+  const refuses = (
+    f: ReturnType<typeof fixture>,
+    opts: Parameters<typeof installSkills>[0],
+    env = f.env,
+    action: "install" | "uninstall" = "install",
+  ) => {
     let error: unknown;
     try {
       installSkills({ ...opts, action }, env, f.deps);
@@ -232,7 +253,10 @@ describe("skills install: copies it does not own", () => {
     const copy = join(f.userHome, ".agents", "skills", "wachiman-review");
     mkdirSync(copy, { recursive: true });
     writeFileSync(join(copy, "SKILL.md"), "mine\n");
-    writeFileSync(join(copy, MARKER_FILE), JSON.stringify({ format: "wachiman.skill-install/1", version: "1", installedAt: "x", files: { "../escape.md": "00" } }));
+    writeFileSync(
+      join(copy, MARKER_FILE),
+      JSON.stringify({ format: "wachiman.skill-install/1", version: "1", installedAt: "x", files: { "../escape.md": "00" } }),
+    );
     only(f);
     expect(readFileSync(join(copy, "SKILL.md"), "utf8")).toBe("mine\n");
     expect(f.warnings.some((w) => w.includes(copy))).toBe(true);
@@ -515,12 +539,26 @@ describe("skills uninstall: only what it installed", () => {
 
 describe("skills command line", () => {
   test("--dir repeats, --json belongs to install, and every other shape is a usage error", () => {
-    expect(parseSkillsArgs(["install", "--dir", "/a", "--dir=/b", "--json"])).toEqual({ action: "install", dirs: ["/a", "/b"], json: true });
+    expect(parseSkillsArgs(["install", "--dir", "/a", "--dir=/b", "--json"])).toEqual({
+      action: "install",
+      dirs: ["/a", "/b"],
+      json: true,
+    });
     expect(parseSkillsArgs(["uninstall", "--dir", "/a"])).toEqual({ action: "uninstall", dirs: ["/a"], json: false });
     expect(parseSkillsArgs(["install"])).toEqual({ action: "install", dirs: [], json: false });
     expect(parseSkillsArgs(["install", "--help"])).toEqual({ help: true });
     expect(parseSkillsArgs(["--help"])).toEqual({ help: true });
-    for (const bad of [[], ["frob"], ["install", "extra"], ["install", "--dir"], ["install", "--dir="], ["install", "--dir", "--json"], ["uninstall", "--json"], ["install", "--json=1"], ["install", "--force"]]) {
+    for (const bad of [
+      [],
+      ["frob"],
+      ["install", "extra"],
+      ["install", "--dir"],
+      ["install", "--dir="],
+      ["install", "--dir", "--json"],
+      ["uninstall", "--json"],
+      ["install", "--json=1"],
+      ["install", "--force"],
+    ]) {
       expect(() => parseSkillsArgs(bad)).toThrow(UsageError);
     }
   });

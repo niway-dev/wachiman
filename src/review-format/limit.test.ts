@@ -76,9 +76,15 @@ describe("open-question text cannot open or close a details block", () => {
 
 describe("whatever the view holds, the body fits and keeps what must survive", () => {
   const shapes: Record<string, Found[]> = {
-    "huge bodies, outside the diff": Array.from({ length: 30 }, (_, i) => finding(i, { anchor: "outside", body: `${"b".repeat(20_000)}\n\nsecond paragraph` })),
-    "hundreds of each priority": SEVERITIES.flatMap((severity, s) => Array.from({ length: 150 }, (_, i) => finding(s * 1000 + i, { severity }))),
-    "hundreds of outside-diff Fix findings with long bodies": Array.from({ length: 300 }, (_, i) => finding(i, { anchor: "outside", title: `${"T".repeat(200)} ${i}`, body: "p".repeat(5_000) })),
+    "huge bodies, outside the diff": Array.from({ length: 30 }, (_, i) =>
+      finding(i, { anchor: "outside", body: `${"b".repeat(20_000)}\n\nsecond paragraph` }),
+    ),
+    "hundreds of each priority": SEVERITIES.flatMap((severity, s) =>
+      Array.from({ length: 150 }, (_, i) => finding(s * 1000 + i, { severity })),
+    ),
+    "hundreds of outside-diff Fix findings with long bodies": Array.from({ length: 300 }, (_, i) =>
+      finding(i, { anchor: "outside", title: `${"T".repeat(200)} ${i}`, body: "p".repeat(5_000) }),
+    ),
     "huge titles": Array.from({ length: 200 }, (_, i) => finding(i, { severity: SEVERITIES[i % 4], title: `${"T".repeat(400)} ${i}` })),
   };
   for (const [name, findings] of Object.entries(shapes)) {
@@ -94,7 +100,8 @@ describe("whatever the view holds, the body fits and keeps what must survive", (
         expect(demanding.length).toBeGreaterThan(0);
         expect(body).toContain("### To fix");
         expect(body).toContain(`| ${demanding[0]!.title} |`);
-        if (!body.includes(`| ${demanding[demanding.length - 1]!.title} |`)) expect(body).toMatch(/- … and \d+ more not shown because of GitHub's size limit/);
+        if (!body.includes(`| ${demanding[demanding.length - 1]!.title} |`))
+          expect(body).toMatch(/- … and \d+ more not shown because of GitHub's size limit/);
       });
     }
   }

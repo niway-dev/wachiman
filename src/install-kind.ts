@@ -45,6 +45,7 @@ export function readAsset(install: InstallKind, name: AssetName): string | Uint8
     throw new Error("readAsset: the executable layout is not implemented yet");
   }
   const path = resolve(install.root, name);
-  if (name.split(/[\\/]/).includes("..") || !path.startsWith(resolve(install.root) + sep)) throw new Error(`readAsset: ${name} is outside the package`);
+  if (name.split(/[\\/]/).includes("..") || !path.startsWith(resolve(install.root) + sep))
+    throw new Error(`readAsset: ${name} is outside the package`);
   return name.startsWith("skills/") ? new Uint8Array(readFileSync(path)) : readFileSync(path, "utf8");
 }

@@ -40,7 +40,8 @@ describe("parseDescription", () => {
   });
 
   test("comments know their place, and the markers are marked", () => {
-    const text = "<!-- top -->\nx <!-- inline --> y\n<!-- wachiman:confidence:start -->\n<!-- inner -->\n<!-- wachiman:confidence:end -->\n";
+    const text =
+      "<!-- top -->\nx <!-- inline --> y\n<!-- wachiman:confidence:start -->\n<!-- inner -->\n<!-- wachiman:confidence:end -->\n";
     const p = parseDescription(text);
     expect(p.comments.map((c) => [c.text, c.wholeLine, c.marker, c.inBlock])).toEqual([
       ["top", true, null, false],
@@ -66,12 +67,15 @@ describe("parseDescription", () => {
   });
 
   test("details and footers inside fenced code are not structure, like headings", () => {
-    const text = "## What\n```html\n<details><summary><b>Notes</b></summary>\nx\n</details>\n<sub>Describes commit abc1234.</sub>\n```\n~~~\n<sub>tilde</sub>\n~~~\n";
+    const text =
+      "## What\n```html\n<details><summary><b>Notes</b></summary>\nx\n</details>\n<sub>Describes commit abc1234.</sub>\n```\n~~~\n<sub>tilde</sub>\n~~~\n";
     const p = parseDescription(text);
     expect(p.details).toHaveLength(0);
     expect(p.subs).toHaveLength(0);
     expect(p.segments.map((s) => s.kind)).toEqual(["section"]);
-    const real = parseDescription(`${text}<details><summary><b>Notes</b></summary>\n\ny\n\n</details>\n<sub>Describes commit abc1234.</sub>\n`);
+    const real = parseDescription(
+      `${text}<details><summary><b>Notes</b></summary>\n\ny\n\n</details>\n<sub>Describes commit abc1234.</sub>\n`,
+    );
     expect(real.details.map((d) => d.name)).toEqual(["Notes"]);
     expect(real.subs).toHaveLength(1);
   });
@@ -120,7 +124,13 @@ describe("parseDescription", () => {
   });
 
   test("segments cover every line once, in order", () => {
-    for (const text of [validBody(), fixture("block-with-review.md"), "", "just text", "## A\n## B\n<details><summary><b>X</b></summary>\n\n</details>\ntail\n"]) {
+    for (const text of [
+      validBody(),
+      fixture("block-with-review.md"),
+      "",
+      "just text",
+      "## A\n## B\n<details><summary><b>X</b></summary>\n\n</details>\ntail\n",
+    ]) {
       const p = parseDescription(text);
       let at = 0;
       for (const s of p.segments) {

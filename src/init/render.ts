@@ -19,10 +19,14 @@ export function callerHeader(p: { version: string; now: string }) {
  */
 export function renderCallerWorkflow(template: string, p: { operator: string; tag: string; header?: string }) {
   if (template.split(OPERATOR_ANCHOR).length - 1 !== 1) {
-    throw new Error(`the caller template must contain "${OPERATOR_ANCHOR}" exactly once; init and templates/wachiman-review-caller.yml are out of step.`);
+    throw new Error(
+      `the caller template must contain "${OPERATOR_ANCHOR}" exactly once; init and templates/wachiman-review-caller.yml are out of step.`,
+    );
   }
   if (count(template, new RegExp(PIN_ANCHOR.source, "g")) !== 1) {
-    throw new Error("the caller template must pin the reusable workflow once, as `…/review.yml@<tag>`; init and templates/wachiman-review-caller.yml are out of step.");
+    throw new Error(
+      "the caller template must pin the reusable workflow once, as `…/review.yml@<tag>`; init and templates/wachiman-review-caller.yml are out of step.",
+    );
   }
   const body = template
     .replace(OPERATOR_ANCHOR, () => `operator: "${p.operator}"`)

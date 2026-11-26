@@ -81,7 +81,14 @@ describe("cli", () => {
       writeFileSync(join(bin, "claude"), '#!/bin/sh\necho "9.9.9 (Claude Code)"\n');
       writeFileSync(join(bin, "gh"), "#!/bin/sh\nexit 1\n");
       for (const name of ["claude", "gh"]) chmodSync(join(bin, name), 0o755);
-      const env = { GH_TOKEN: "x", GITHUB_REPOSITORY: "o/r", WACHIMAN_DRY_RUN: "1", WACHIMAN_HISTORY: "1", WACHIMAN_HISTORY_DAYS: "x", HOME: home };
+      const env = {
+        GH_TOKEN: "x",
+        GITHUB_REPOSITORY: "o/r",
+        WACHIMAN_DRY_RUN: "1",
+        WACHIMAN_HISTORY: "1",
+        WACHIMAN_HISTORY_DAYS: "x",
+        HOME: home,
+      };
       const started = run(["review", "1"], { ...env, PATH: `${bin}:${process.env.PATH ?? ""}` });
       expect(started.code).toBe(1);
       expect(started.stderr).not.toContain("WACHIMAN_HISTORY");
@@ -184,7 +191,10 @@ describe("exit code 3: the spend ledger stopped the run", () => {
     const w = world();
     try {
       for (const unavailable of ["run", "stop"]) {
-        const out = run(["review", "1"], w.env({ LEDGER_STATUS: "404", LEDGER_BODY: "Not Found", WACHIMAN_LEDGER_UNAVAILABLE: unavailable }));
+        const out = run(
+          ["review", "1"],
+          w.env({ LEDGER_STATUS: "404", LEDGER_BODY: "Not Found", WACHIMAN_LEDGER_UNAVAILABLE: unavailable }),
+        );
         expect(out.code).toBe(3);
         expect(out.stderr).toContain("`ledger_url` does not look like the spend ledger");
         expect(out.stderr).toContain("HTTP 404");
@@ -205,10 +215,16 @@ describe("exit code 3: the spend ledger stopped the run", () => {
     const w = world();
     try {
       for (const unavailable of ["run", "stop"]) {
-        const unlinked = run(["review", "1"], w.env({ LEDGER_STATUS: "403", LEDGER_BODY: JSON.stringify({ reason: "not_linked" }), WACHIMAN_LEDGER_UNAVAILABLE: unavailable }));
+        const unlinked = run(
+          ["review", "1"],
+          w.env({ LEDGER_STATUS: "403", LEDGER_BODY: JSON.stringify({ reason: "not_linked" }), WACHIMAN_LEDGER_UNAVAILABLE: unavailable }),
+        );
         expect(unlinked.code).toBe(3);
         expect(unlinked.stderr).toContain("not linked");
-        const bare = run(["review", "1"], w.env({ ACTIONS_ID_TOKEN_REQUEST_URL: "", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "", WACHIMAN_LEDGER_UNAVAILABLE: unavailable }));
+        const bare = run(
+          ["review", "1"],
+          w.env({ ACTIONS_ID_TOKEN_REQUEST_URL: "", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "", WACHIMAN_LEDGER_UNAVAILABLE: unavailable }),
+        );
         expect(bare.code).toBe(3);
         expect(bare.stderr).toContain("wachiman-platform.yml");
       }
@@ -221,7 +237,16 @@ describe("exit code 3: the spend ledger stopped the run", () => {
   test("a laptop with the URL set (no GITHUB_ACTIONS, no OIDC variables) reaches the model and is not stopped by the ledger (exit is not 3; the fake claude returns no review)", () => {
     const w = world();
     try {
-      const laptop = run(["review", "1"], w.env({ GITHUB_ACTIONS: "", ACTIONS_ID_TOKEN_REQUEST_URL: "", ACTIONS_ID_TOKEN_REQUEST_TOKEN: "", LEDGER_STATUS: "402", LEDGER_BODY: LIMIT }));
+      const laptop = run(
+        ["review", "1"],
+        w.env({
+          GITHUB_ACTIONS: "",
+          ACTIONS_ID_TOKEN_REQUEST_URL: "",
+          ACTIONS_ID_TOKEN_REQUEST_TOKEN: "",
+          LEDGER_STATUS: "402",
+          LEDGER_BODY: LIMIT,
+        }),
+      );
       expect(laptop.code).not.toBe(3);
       expect(laptop.stderr.match(/not a GitHub Actions run/g)).toHaveLength(1);
       expect(w.modelCalled()).toBe(true);

@@ -28,7 +28,15 @@ import {
 } from "./candidates";
 import type { GhFn } from "../engine";
 import { proposeCandidate, teamHasMemory, type ProposeDeps } from "./propose";
-import { candidatesFromPersonal, FIRST_PROPOSE_QUESTION, parseMemoryChoice, personalMemoryDir, proposePersonal, readMemoryChoice, writeMemoryChoice } from "./personal";
+import {
+  candidatesFromPersonal,
+  FIRST_PROPOSE_QUESTION,
+  parseMemoryChoice,
+  personalMemoryDir,
+  proposePersonal,
+  readMemoryChoice,
+  writeMemoryChoice,
+} from "./personal";
 
 export const CAPTURE_SUBCOMMANDS = ["candidates", "add", "show", "propose"] as const;
 
@@ -37,7 +45,10 @@ export const CAPTURE_OPTIONS: Record<(typeof CAPTURE_SUBCOMMANDS)[number], { val
   candidates: { values: ["--format"], flags: [] },
   show: { values: [], flags: [] },
   propose: { values: [], flags: ["--personal", "--team", "--from-personal"] },
-  add: { values: ["--file", "--kind", "--scope", "--rule", "--why", "--holds-while", "--title", "--source", "--finding", "--pr", "--branch"], flags: ["--agent"] },
+  add: {
+    values: ["--file", "--kind", "--scope", "--rule", "--why", "--holds-while", "--title", "--source", "--finding", "--pr", "--branch"],
+    flags: ["--agent"],
+  },
 };
 
 export interface CaptureIo {
@@ -79,7 +90,10 @@ function parseOptions(argv: string[], sub: string, valueOptions: readonly string
       if (out.values.has(name)) throw new UsageError(`${name} was given twice.`);
       const v = eq === -1 ? argv[++i] : arg.slice(eq + 1);
       if (v === undefined) throw new UsageError(`${name} needs a value.`);
-      if (eq === -1 && v.startsWith("--")) throw new UsageError(`${name} needs a value, and "${v}" looks like another option. A value that starts with "--" is written ${name}=${v}.`);
+      if (eq === -1 && v.startsWith("--"))
+        throw new UsageError(
+          `${name} needs a value, and "${v}" looks like another option. A value that starts with "--" is written ${name}=${v}.`,
+        );
       out.values.set(name, v);
     } else {
       throw new UsageError(`Unknown option "${name}" for wachiman memory ${sub}.`);
@@ -111,14 +125,24 @@ const need = (c: Candidate, minEvidence: number) => proposability(c, minEvidence
  * this machine. Read again under the candidate's lock, so evidence added by `memory add` while the push was in flight is not
  * overwritten. A failure is said, never thrown: the entry is already written, and a second propose is idempotent.
  */
-function markCandidate(home: string, key: string, id: string, fallback: Candidate | undefined, mark: "proposed" | "personal", at: string, io: CaptureIo) {
+function markCandidate(
+  home: string,
+  key: string,
+  id: string,
+  fallback: Candidate | undefined,
+  mark: "proposed" | "personal",
+  at: string,
+  io: CaptureIo,
+) {
   try {
     withCandidateLock(home, key, id, () => {
       const latest = readCandidate(home, key, id) ?? fallback;
       if (latest) writeCandidate(home, key, { ...latest, [mark]: { at } });
     });
   } catch (error) {
-    io.stderr(`memory propose: the entry was recorded, but candidate ${id} could not be marked as ${mark === "personal" ? "written to personal memory" : "proposed"} (${(error as Error).message}).`);
+    io.stderr(
+      `memory propose: the entry was recorded, but candidate ${id} could not be marked as ${mark === "personal" ? "written to personal memory" : "proposed"} (${(error as Error).message}).`,
+    );
   }
 }
 
@@ -127,7 +151,9 @@ function sendPersonal(ids: string[], repoDir: string, home: string, key: string,
   for (const id of ids) if (!/^[0-9a-f]{7}$/.test(id)) throw new UsageError(`"${id}" is not a memory entry id (seven hex characters).`);
   const dir = personalMemoryDir(home, repoDir);
   if (dir === undefined) {
-    io.stderr("memory propose: this repository has no remote named origin with a host, an owner and a repository, so it has no personal memory; nothing was sent.");
+    io.stderr(
+      "memory propose: this repository has no remote named origin with a host, an owner and a repository, so it has no personal memory; nothing was sent.",
+    );
     return 1;
   }
   const { candidates, unknown, skipped } = candidatesFromPersonal(dir, ids);
@@ -148,7 +174,13 @@ function sendPersonal(ids: string[], repoDir: string, home: string, key: string,
   return failed ? 1 : 0;
 }
 
-export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: string[], repoDir: string, io: CaptureIo, ctx: CaptureContext = {}): number {
+export function runCapture(
+  sub: (typeof CAPTURE_SUBCOMMANDS)[number],
+  rest: string[],
+  repoDir: string,
+  io: CaptureIo,
+  ctx: CaptureContext = {},
+): number {
   const env = ctx.env ?? process.env;
   const home = wachimanHome(env);
   const key = repositoryKey(repoDir).key;
@@ -161,11 +193,25 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     if (p.positional.length > 0) throw new UsageError(`wachiman memory candidates takes no argument, got "${p.positional[0]}".`);
     const format = p.values.get("--format") ?? "terminal";
     if (format !== "terminal" && format !== "json") throw new UsageError(`--format must be terminal or json, got "${format}".`);
-    const list = readCandidates(home, key, (name, why) => io.stderr(`note: ${name} is not listed: ${why}; remove it to start that candidate again.`));
+    const list = readCandidates(home, key, (name, why) =>
+      io.stderr(`note: ${name} is not listed: ${why}; remove it to start that candidate again.`),
+    );
     if (format === "json") {
       const candidates = list.map((c) => {
         const q = need(c, minEvidence);
-        return { id: c.id, title: c.title, kind: c.kind, scope: c.scope, evidence: q.counted, distinct: q.distinct, needed: q.needed, proposable: q.proposable, ...(q.why ? { why: q.why } : {}), ...(c.proposed ? { proposed: c.proposed.at } : {}), ...(c.personal && !c.proposed ? { personal: c.personal.at } : {}) };
+        return {
+          id: c.id,
+          title: c.title,
+          kind: c.kind,
+          scope: c.scope,
+          evidence: q.counted,
+          distinct: q.distinct,
+          needed: q.needed,
+          proposable: q.proposable,
+          ...(q.why ? { why: q.why } : {}),
+          ...(c.proposed ? { proposed: c.proposed.at } : {}),
+          ...(c.personal && !c.proposed ? { personal: c.personal.at } : {}),
+        };
       });
       io.stdout(`${JSON.stringify({ format: "wachiman.memory-candidates/1", candidates }, null, 2)}\n`);
       return 0;
@@ -176,7 +222,13 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     }
     for (const c of list) {
       const q = need(c, minEvidence);
-      const state = c.proposed ? `proposed ${c.proposed.at.slice(0, 10)}` : c.personal ? `personal ${c.personal.at.slice(0, 10)}${q.proposable ? ", proposable to the team" : ""}` : q.proposable ? "proposable" : `not proposable: ${q.why}`;
+      const state = c.proposed
+        ? `proposed ${c.proposed.at.slice(0, 10)}`
+        : c.personal
+          ? `personal ${c.personal.at.slice(0, 10)}${q.proposable ? ", proposable to the team" : ""}`
+          : q.proposable
+            ? "proposable"
+            : `not proposable: ${q.why}`;
       io.stdout(`${c.id}  ${c.kind}  ${c.scope}  ${c.title}\n    ${state}\n`);
     }
     return 0;
@@ -193,11 +245,15 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
   if (sub === "propose") {
     const parsed = parseOptions(rest, sub, CAPTURE_OPTIONS.propose.values, CAPTURE_OPTIONS.propose.flags);
     if (parsed.flags.has("--from-personal")) {
-      if (parsed.flags.has("--personal") || parsed.flags.has("--team")) throw new UsageError("--from-personal already sends to the team's memory pull request; it cannot be combined with --personal or --team.");
+      if (parsed.flags.has("--personal") || parsed.flags.has("--team"))
+        throw new UsageError(
+          "--from-personal already sends to the team's memory pull request; it cannot be combined with --personal or --team.",
+        );
       return sendPersonal(parsed.positional, repoDir, home, key, io, ctx);
     }
     const id = oneId(parsed, sub);
-    if (parsed.flags.has("--personal") && parsed.flags.has("--team")) throw new UsageError("--personal and --team exclude each other: choose where the entry goes.");
+    if (parsed.flags.has("--personal") && parsed.flags.has("--team"))
+      throw new UsageError("--personal and --team exclude each other: choose where the entry goes.");
     let personal = parsed.flags.has("--personal");
     const c = readCandidate(home, key, id);
     if (!c) throw new UsageError(`No memory candidate ${id} for this repository; list them with \`wachiman memory candidates\`.`);
@@ -213,13 +269,17 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
       const teamMemory = choice === "team" ? undefined : (ctx.deps?.teamMemory ?? teamHasMemory)(repositoryRoot(repoDir));
       if (choice === "personal" && teamMemory === true) {
         // The team adopted memory after the answer was given: the entry goes to the team again.
-        io.stdout("this repository's team now has .wachiman/memory/, so this entry goes to the team's memory pull request; pass --personal to keep it on this machine.\n");
+        io.stdout(
+          "this repository's team now has .wachiman/memory/, so this entry goes to the team's memory pull request; pass --personal to keep it on this machine.\n",
+        );
         choice = "team";
       }
       if (!choice && teamMemory === false) {
         choice = parseMemoryChoice(ctx.ask?.(FIRST_PROPOSE_QUESTION));
         if (!choice) {
-          io.stderr(`memory propose: this repository's default branch has no .wachiman/memory/, so nothing was pushed or written. Run it again with --personal (keep the entry on this machine) or --team (propose it to the team's repository).`);
+          io.stderr(
+            `memory propose: this repository's default branch has no .wachiman/memory/, so nothing was pushed or written. Run it again with --personal (keep the entry on this machine) or --team (propose it to the team's repository).`,
+          );
           return 1;
         }
         writeMemoryChoice(home, key, choice, (ctx.now ?? (() => new Date()))());
@@ -245,15 +305,20 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     } catch (error) {
       throw new UsageError(`--file ${file} is not a readable JSON entry (${error instanceof Error ? error.message : error}).`);
     }
-    if (!base || typeof base !== "object" || Array.isArray(base)) throw new UsageError(`--file ${file} must hold a JSON object with kind, scope, rule and why.`);
+    if (!base || typeof base !== "object" || Array.isArray(base))
+      throw new UsageError(`--file ${file} must hold a JSON object with kind, scope, rule and why.`);
   }
   for (const name of ["kind", "scope", "rule", "why", "holdsWhile", "holds while", "title"]) {
     const v = (base as Record<string, unknown>)[name];
-    if (v !== undefined && typeof v !== "string") throw new UsageError(`--file ${file}: "${name}" must be a string, got ${Array.isArray(v) ? "an array" : v === null ? "null" : typeof v}.`);
+    if (v !== undefined && typeof v !== "string")
+      throw new UsageError(
+        `--file ${file}: "${name}" must be a string, got ${Array.isArray(v) ? "an array" : v === null ? "null" : typeof v}.`,
+      );
   }
   const field = (flag: string, name: string) => p.values.get(flag) ?? (typeof base[name] === "string" ? base[name] : undefined);
   const sourceText = p.values.get("--source") ?? "instruction";
-  if (!(EVIDENCE_SOURCES as readonly string[]).includes(sourceText)) throw new UsageError(`--source must be one of: ${EVIDENCE_SOURCES.join(", ")}. A reaction or silence is never evidence.`);
+  if (!(EVIDENCE_SOURCES as readonly string[]).includes(sourceText))
+    throw new UsageError(`--source must be one of: ${EVIDENCE_SOURCES.join(", ")}. A reaction or silence is never evidence.`);
   const source = sourceText as EvidenceSource;
   const kind = field("--kind", "kind");
   if (kind === "exception" && source === "fixed") throw new UsageError("A fix supports only a convention, never an exception.");
@@ -265,10 +330,12 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
   if (source === "instruction") {
     if (finding !== undefined) throw new UsageError("--finding is for --source judged or fixed.");
     const branch = p.values.get("--branch") ?? currentBranch(repoDir);
-    if (pr === undefined && branch === undefined) throw new UsageError("HEAD is detached: say where the instruction came from with --pr <n> or --branch <name>.");
+    if (pr === undefined && branch === undefined)
+      throw new UsageError("HEAD is detached: say where the instruction came from with --pr <n> or --branch <name>.");
     first = { date, source, agent, ...(pr !== undefined ? { pr } : { branch }) };
   } else {
-    if (finding === undefined) throw new UsageError(`--source ${source} needs --finding <id>: the evidence is read from the local history, not taken on trust.`);
+    if (finding === undefined)
+      throw new UsageError(`--source ${source} needs --finding <id>: the evidence is read from the local history, not taken on trust.`);
     first = evidenceFromFinding(key, historyRoot(home), finding, source, { ...(pr !== undefined ? { pr } : {}), agent, date });
   }
 
@@ -293,6 +360,8 @@ export function runCapture(sub: (typeof CAPTURE_SUBCOMMANDS)[number], rest: stri
     return next;
   });
   const q = need(saved, minEvidence);
-  io.stdout(`candidate ${saved.id} saved: ${saved.title}\n${q.proposable ? "proposable: show it to the owner with `wachiman memory show " + saved.id + "`, then `wachiman memory propose " + saved.id + "`." : `not proposable yet: ${q.why}.`}\n`);
+  io.stdout(
+    `candidate ${saved.id} saved: ${saved.title}\n${q.proposable ? "proposable: show it to the owner with `wachiman memory show " + saved.id + "`, then `wachiman memory propose " + saved.id + "`." : `not proposable yet: ${q.why}.`}\n`,
+  );
   return 0;
 }

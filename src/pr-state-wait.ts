@@ -11,7 +11,17 @@
  */
 import { UsageError } from "./config";
 import { GhTimeoutError, ghWithin, type GhFn } from "./engine";
-import { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, EXIT_FOR, MIN_INTERVAL_S, PR_STATE_FORMAT, readPrState, resolveTarget, type PrState, type PrStateArgs } from "./pr-state";
+import {
+  DEFAULT_INTERVAL_S,
+  DEFAULT_TIMEOUT_S,
+  EXIT_FOR,
+  MIN_INTERVAL_S,
+  PR_STATE_FORMAT,
+  readPrState,
+  resolveTarget,
+  type PrState,
+  type PrStateArgs,
+} from "./pr-state";
 
 export { DEFAULT_INTERVAL_S, DEFAULT_TIMEOUT_S, MIN_INTERVAL_S };
 
@@ -169,7 +179,11 @@ export function openGhEventListener(repo: string, gh: GhProbe = realGhProbe, rem
   try {
     if (!gh.supported(remainingMs)) return null;
     const proc = gh.start(repo);
-    return listenerOver(proc.stdout, proc.exited.then(() => undefined), proc.kill);
+    return listenerOver(
+      proc.stdout,
+      proc.exited.then(() => undefined),
+      proc.kill,
+    );
   } catch {
     return null;
   }
@@ -222,7 +236,7 @@ export function listenerOver(events: ReadableStream<Uint8Array>, ended: Promise<
       for (;;) {
         const { done, value } = await reader.read();
         if (done) break;
-        if (value && value.length > 0) (pending = true, poke());
+        if (value && value.length > 0) ((pending = true), poke());
       }
     } catch {
       // A broken stream is the same as an ended process.
@@ -231,17 +245,20 @@ export function listenerOver(events: ReadableStream<Uint8Array>, ended: Promise<
     dead = true;
     poke();
   })();
-  void ended.then(() => (dead = true, poke()), () => (dead = true, poke()));
+  void ended.then(
+    () => ((dead = true), poke()),
+    () => ((dead = true), poke()),
+  );
   return {
     async wake(ms) {
-      if (pending) return (pending = false, "event");
+      if (pending) return ((pending = false), "event");
       if (dead) return "failed";
       await new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, ms);
         notify = () => (clearTimeout(timer), resolve());
       });
       notify = null;
-      if (pending) return (pending = false, "event");
+      if (pending) return ((pending = false), "event");
       return dead ? "failed" : "elapsed";
     },
     close: () => {

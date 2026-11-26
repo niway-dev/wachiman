@@ -77,7 +77,8 @@ describe("the GitHub mode does not import the workspace code", () => {
   const roots = [join(SRC, "engine.ts"), ...files(join(SRC, "sinks")).filter((f) => f.endsWith(".ts") && !f.endsWith(".test.ts"))];
   // The laptop-only commands: `local`, `ask` and `loop` read siblings, so the GitHub path must never reach them.
   const laptopOnly = (p: string) => ["local.ts", "local-ask.ts"].includes(relative(SRC, p)) || relative(SRC, p).startsWith("loop/");
-  const inWorkspace = (reached: Set<string>) => [...reached].filter((p) => relative(SRC, p).startsWith("workspace/") || laptopOnly(p)).map((p) => relative(SRC, p));
+  const inWorkspace = (reached: Set<string>) =>
+    [...reached].filter((p) => relative(SRC, p).startsWith("workspace/") || laptopOnly(p)).map((p) => relative(SRC, p));
 
   test("nothing reachable from the review engine or the sinks is in src/workspace or is a laptop-only command (local, ask, loop)", () => {
     expect(roots.length).toBeGreaterThan(1);
@@ -152,7 +153,8 @@ function gh(): Deps["gh"] {
   return (args) => {
     const line = args.join(" ");
     if (line.startsWith("api repos/acme/web-site/pulls/7 ")) return "b".repeat(40);
-    if (line.startsWith("pr view")) return JSON.stringify({ headRefOid: "head1234567", baseRefName: "main", title: "t", body: "b", author: { login: "u" } });
+    if (line.startsWith("pr view"))
+      return JSON.stringify({ headRefOid: "head1234567", baseRefName: "main", title: "t", body: "b", author: { login: "u" } });
     if (line.includes("/pulls/7/files")) return files.map((f) => JSON.stringify(f)).join("\n");
     if (line.includes("/pulls/7/reviews") && !args.includes("POST")) return "";
     if (line.includes("-X POST repos/acme/web-site/pulls/7/reviews")) return "{}";
@@ -163,7 +165,14 @@ function gh(): Deps["gh"] {
 
 async function githubReview(repoDir: string) {
   const provider = new FakeProvider();
-  const deps: Deps = { gh: gh(), provider, config: loadConfig({ WACHIMAN_VERIFY: "0", WACHIMAN_BATCH_LINES: "10" }), log: () => {}, warn: () => {}, repoDir };
+  const deps: Deps = {
+    gh: gh(),
+    provider,
+    config: loadConfig({ WACHIMAN_VERIFY: "0", WACHIMAN_BATCH_LINES: "10" }),
+    log: () => {},
+    warn: () => {},
+    repoDir,
+  };
   await review(deps, "acme/web-site", 7, []);
   return provider.requests;
 }
@@ -188,7 +197,10 @@ describe("review() of a pull request with a workspace around it", () => {
     mkdirSync(join(head, "packages/tokens/src"), { recursive: true });
     writeFileSync(join(head, TRIGGER), "export const brand = '#0a7';\n");
     const home = temp("wachiman-home-");
-    writeFileSync(userFilePath(home), JSON.stringify({ version: 1, workspaces: [{ manifest: join(coordinator, MANIFEST_FILE), distributedRepo: "on" }] }));
+    writeFileSync(
+      userFilePath(home),
+      JSON.stringify({ version: 1, workspaces: [{ manifest: join(coordinator, MANIFEST_FILE), distributedRepo: "on" }] }),
+    );
     const after = await withHome(home, () => githubReview(head));
 
     // A harness that never reached the provider would compare two empty lists.
@@ -221,7 +233,8 @@ async function withHome<T>(home: string, body: () => Promise<T>): Promise<T> {
 }
 
 describe("the GitHub sink and a distributed-repo result (ADR 0042 decision 6)", () => {
-  const distributed = (): ReviewResult => JSON.parse(readFileSync(join(SRC, "../test/fixtures/formats/review-result.v2.distributed.example.json"), "utf8"));
+  const distributed = (): ReviewResult =>
+    JSON.parse(readFileSync(join(SRC, "../test/fixtures/formats/review-result.v2.distributed.example.json"), "utf8"));
   const plain = (): ReviewResult => JSON.parse(readFileSync(join(SRC, "../test/fixtures/formats/review-result.v2.example.json"), "utf8"));
   const github = {
     since: null,

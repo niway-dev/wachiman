@@ -51,18 +51,25 @@ export function withPointer(current: string, file: string): string {
   const ends = lines.flatMap((line, i) => (stripCr(line) === POINTER_END ? [i] : []));
   if (begins.length === 0 && ends.length === 0) {
     if (current.includes(POINTER_BEGIN) || current.includes(POINTER_END)) {
-      throw new UsageError(`${file} has a wachiman marker that is not alone on its line; init will not guess where the pointer goes. Put each marker on its own line, or remove it, and run init again.`);
+      throw new UsageError(
+        `${file} has a wachiman marker that is not alone on its line; init will not guess where the pointer goes. Put each marker on its own line, or remove it, and run init again.`,
+      );
     }
     if (current === "") return block;
     return `${current}${current.endsWith("\n") ? eol : eol + eol}${block}`;
   }
   if (begins.length !== 1 || ends.length !== 1 || ends[0] < begins[0]) {
-    throw new UsageError(`${file} has ${begins.length} wachiman begin marker(s) and ${ends.length} end marker(s); init needs one pair, begin first. Keep one pair, or remove the block by hand, and run init again.`);
+    throw new UsageError(
+      `${file} has ${begins.length} wachiman begin marker(s) and ${ends.length} end marker(s); init needs one pair, begin first. Keep one pair, or remove the block by hand, and run init again.`,
+    );
   }
   const before = lines.slice(0, begins[0]);
   const after = lines.slice(ends[0] + 1);
   const endHadCr = lines[ends[0]].endsWith("\r");
-  const inner = pointerBlock().trimEnd().split("\n").map((line, i, all) => (i < all.length - 1 ? line + (crlf ? "\r" : "") : line + (endHadCr ? "\r" : "")));
+  const inner = pointerBlock()
+    .trimEnd()
+    .split("\n")
+    .map((line, i, all) => (i < all.length - 1 ? line + (crlf ? "\r" : "") : line + (endHadCr ? "\r" : "")));
   return [...before, ...inner, ...after].join("\n");
 }
 
@@ -96,7 +103,11 @@ export function planPointer(repoDir: string): PointerPlan {
         return { action: "skip", file, reason: `${file} is a symbolic link that does not resolve; init leaves it alone. ${manualHint()}` };
       }
       if (real !== root && !real.startsWith(root + sep)) {
-        return { action: "skip", file, reason: `${file} is a symbolic link to ${real}, outside the repository; init does not write there. ${manualHint()}` };
+        return {
+          action: "skip",
+          file,
+          reason: `${file} is a symbolic link to ${real}, outside the repository; init does not write there. ${manualHint()}`,
+        };
       }
       writePath = relative(root, real).split(sep).join("/");
     }

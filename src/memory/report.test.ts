@@ -29,7 +29,10 @@ afterAll(() => {
 const entryText = (kind: string, scope: string, rule: string) => {
   const why = `${rule} because.`;
   const id = entryId({ kind, scope, rule, why });
-  return { id, text: `### ${id} ${rule}\n\n- kind: ${kind}\n- scope: ${scope}\n- rule: ${rule}\n- why: ${why}\n- evidence:\n  - 2026-11-01 operator instruction, pull request 1\n- added: 2026-10-01\n` };
+  return {
+    id,
+    text: `### ${id} ${rule}\n\n- kind: ${kind}\n- scope: ${scope}\n- rule: ${rule}\n- why: ${why}\n- evidence:\n  - 2026-11-01 operator instruction, pull request 1\n- added: 2026-10-01\n`,
+  };
 };
 const MUTER = entryText("exception", "docs/**", "Do not report stale dates on wording edits");
 const IDLE = entryText("exception", "src/legacy/**", "Do not report the legacy naming");
@@ -57,18 +60,43 @@ const record = (loadedLines: number, files: string[]) => ({
   indexOverBudget: false,
   budget: { maxIndexLines: 150, maxLoadedLines: 400, loadedLines },
 });
-const muted = (entry: string, title: string) => ({ path: "docs/a.md", line: 1, severity: "consider", topic: "cleanup", title, entry, reason: "r" });
+const muted = (entry: string, title: string) => ({
+  path: "docs/a.md",
+  line: 1,
+  severity: "consider",
+  topic: "cleanup",
+  title,
+  entry,
+  reason: "r",
+});
 
 /** October: three comments (F1 stays open, F2 is fixed later, F3 is judged wrong). November: F1 again, plus one new comment and three muted. */
 function runs(): HistoryRun[] {
   const base = { format: HISTORY_RUN_FORMAT, engine: { version: "0" }, repository, unknown: 0, unknownIds: [] };
-  const result = (head: string, findings: unknown[], extra: object) => ({ format: "wachiman.review-result/2", change: { head: { sha: head } }, coverage: { reviewed: [], expected: [], skipped: [] }, findings, ...extra });
+  const result = (head: string, findings: unknown[], extra: object) => ({
+    format: "wachiman.review-result/2",
+    change: { head: { sha: head } },
+    coverage: { reviewed: [], expected: [], skipped: [] },
+    findings,
+    ...extra,
+  });
   return [
-    { ...base, savedAt: "2026-10-20T10:00:00.000Z", result: result("h1", [finding("src/a.ts", "F1"), finding("src/b.ts", "F2"), finding("src/c.ts", "F3")], { memory: record(30, ["index.md", "src.md"]) }), tracking: [tr("f1", "new"), tr("f2", "new"), tr("f3", "new")], settled: [] },
+    {
+      ...base,
+      savedAt: "2026-10-20T10:00:00.000Z",
+      result: result("h1", [finding("src/a.ts", "F1"), finding("src/b.ts", "F2"), finding("src/c.ts", "F3")], {
+        memory: record(30, ["index.md", "src.md"]),
+      }),
+      tracking: [tr("f1", "new"), tr("f2", "new"), tr("f3", "new")],
+      settled: [],
+    },
     {
       ...base,
       savedAt: "2026-11-03T10:00:00.000Z",
-      result: result("h2", [finding("src/a.ts", "F1"), finding("src/d.ts", "F4")], { memory: record(40, ["index.md", "src.md"]), muted: [muted(MUTER.id, "M1"), muted(MUTER.id, "M2"), muted("0000000", "M3")] }),
+      result: result("h2", [finding("src/a.ts", "F1"), finding("src/d.ts", "F4")], {
+        memory: record(40, ["index.md", "src.md"]),
+        muted: [muted(MUTER.id, "M1"), muted(MUTER.id, "M2"), muted("0000000", "M3")],
+      }),
       tracking: [{ ...tr("f1x", "open"), firstId: "f1", runs: 2 }, tr("f4", "new")],
       settled: [{ firstId: "f2", status: "probably-fixed", path: "src/b.ts", line: 1, title: "F2", lastHead: "h1" }],
     },
@@ -81,13 +109,30 @@ describe("buildReport", () => {
   test("counts each comment once, in the month of its first run, by its outcome today", () => {
     const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use: USED });
     const [october, november] = report.periods;
-    expect(october).toMatchObject({ period: "2026-10", comments: 3, outcomes: { fixed: 1, wrong: 1, intentional: 0, notImportant: 0, unjudged: 1 } });
-    expect(november).toMatchObject({ period: "2026-11", comments: 1, outcomes: { fixed: 0, wrong: 0, intentional: 0, notImportant: 1, unjudged: 0 } });
-    expect(report.total).toMatchObject({ period: "total", comments: 4, outcomes: { fixed: 1, wrong: 1, intentional: 0, notImportant: 1, unjudged: 1 } });
+    expect(october).toMatchObject({
+      period: "2026-10",
+      comments: 3,
+      outcomes: { fixed: 1, wrong: 1, intentional: 0, notImportant: 0, unjudged: 1 },
+    });
+    expect(november).toMatchObject({
+      period: "2026-11",
+      comments: 1,
+      outcomes: { fixed: 0, wrong: 0, intentional: 0, notImportant: 1, unjudged: 0 },
+    });
+    expect(report.total).toMatchObject({
+      period: "total",
+      comments: 4,
+      outcomes: { fixed: 1, wrong: 1, intentional: 0, notImportant: 1, unjudged: 1 },
+    });
   });
 
   test("a verdict beats the loop's own settling, and correct or partial without a fix stays unjudged", () => {
-    const report = buildReport({ runs: runs(), verdicts: new Map([verdict("f2", "intentional"), verdict("f1", "correct")]), files: FILES, use: USED });
+    const report = buildReport({
+      runs: runs(),
+      verdicts: new Map([verdict("f2", "intentional"), verdict("f1", "correct")]),
+      files: FILES,
+      use: USED,
+    });
     expect(report.periods[0].outcomes).toEqual({ fixed: 0, wrong: 0, intentional: 1, notImportant: 0, unjudged: 2 });
   });
 
@@ -131,7 +176,10 @@ describe("buildReport", () => {
   });
 
   test("no readable record of use: never-used is unknown, not every entry", () => {
-    for (const use of [{ known: false, reason: "no use record" }, { known: false, reason: "memory-use.json is not valid JSON" }] as MemoryUse[]) {
+    for (const use of [
+      { known: false, reason: "no use record" },
+      { known: false, reason: "memory-use.json is not valid JSON" },
+    ] as MemoryUse[]) {
       const report = buildReport({ runs: runs(), verdicts: VERDICTS, files: FILES, use });
       expect(report.neverUsed).toBeNull();
       expect(report.neverUsedReason).toBe("no-use-recorded");
@@ -199,7 +247,13 @@ describe("buildReport", () => {
 
   test("no runs: the text still lists the personal memory", () => {
     const mine = entryText("convention", "src/**", "Prefer early returns");
-    const report = buildReport({ runs: [], verdicts: new Map(), files: FILES, personalFiles: { "index.md": `# Memory\n\n${mine.text}` }, use: USED });
+    const report = buildReport({
+      runs: [],
+      verdicts: new Map(),
+      files: FILES,
+      personalFiles: { "index.md": `# Memory\n\n${mine.text}` },
+      use: USED,
+    });
     expect(report.empty).toBe(true);
     const text = renderReport(report);
     expect(text).toContain("No review history");
@@ -296,7 +350,9 @@ describe("wachiman memory report", () => {
     expect(text.code).toBe(0);
     expect(text.stdout).toMatch(/total\s+4\s+1\s+1\s+0\s+1\s+1\s+3/);
     const json = JSON.parse(run(["--format", "json"]).stdout);
-    expect(Object.keys(json).sort()).toEqual(["empty", "format", "memory", "neverUsed", "neverUsedReason", "periods", "personal", "since", "total", "useRecordedSince"].sort());
+    expect(Object.keys(json).sort()).toEqual(
+      ["empty", "format", "memory", "neverUsed", "neverUsedReason", "periods", "personal", "since", "total", "useRecordedSince"].sort(),
+    );
     expect(json.total.outcomes).toEqual({ fixed: 1, wrong: 1, intentional: 0, notImportant: 1, unjudged: 1 });
     expect(json.memory.entries).toBe(4);
     expect(json.neverUsed.map((e: { id: string }) => e.id).sort()).toEqual([IDLE.id, IDLE_CONVENTION.id].sort());

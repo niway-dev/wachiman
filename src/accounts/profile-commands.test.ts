@@ -1,5 +1,16 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import {
+  chmodSync,
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { UsageError } from "../config";
@@ -49,21 +60,30 @@ function harness(opts: { answers?: ("yes" | "no" | "cancel")[]; authHelp?: strin
     run(argv, deps = {}) {
       const spawn: SpawnFn = (binary, args) => {
         h.probes.push({ binary, args });
-        return { status: opts.probeStatus ?? 0, stdout: opts.authHelp ?? "Commands:\n  login [options]   Sign in\n  logout\n  status [options]\n", stderr: "" };
+        return {
+          status: opts.probeStatus ?? 0,
+          stdout: opts.authHelp ?? "Commands:\n  login [options]   Sign in\n  logout\n  status [options]\n",
+          stderr: "",
+        };
       };
       const interactiveSpawn: InteractiveSpawn = (binary, args, o) => {
         h.interactiveCalls.push({ binary, args, cwd: o.cwd, env: o.env, stdio: o.stdio });
         return { status: 0 };
       };
-      return runProfile(parseProfileArgs(argv), env, { stdout: (t) => h.out.push(t), stderr: (l) => h.err.push(l) }, {
-        spawn,
-        interactiveSpawn,
-        now: () => NOW,
-        userHome,
-        ask: (q) => (h.asked.push(q), answers.shift() ?? "cancel"),
-        interactive: true,
-        ...deps,
-      });
+      return runProfile(
+        parseProfileArgs(argv),
+        env,
+        { stdout: (t) => h.out.push(t), stderr: (l) => h.err.push(l) },
+        {
+          spawn,
+          interactiveSpawn,
+          now: () => NOW,
+          userHome,
+          ask: (q) => (h.asked.push(q), answers.shift() ?? "cancel"),
+          interactive: true,
+          ...deps,
+        },
+      );
     },
     config() {
       const read = readConfig(home);
@@ -265,7 +285,10 @@ describe("profile remove", () => {
   });
 
   test("--delete-dir keeps the entry and the directory when the second confirmation is declined (0) or cancelled (130)", () => {
-    for (const [second, code] of [["no", 0], ["cancel", 130]] as const) {
+    for (const [second, code] of [
+      ["no", 0],
+      ["cancel", 130],
+    ] as const) {
       const h = harness({ answers: ["yes", second] });
       const dir = managedWithDir(h);
       writeFileSync(join(dir, "anything"), "x");

@@ -12,10 +12,12 @@ function entry(rule: string, scope: string, over: { why?: string } = {}) {
   const fields = { kind: "convention" as const, scope, rule, why: over.why ?? "because" };
   return `### ${entryId(fields)} ${rule}\n\n- kind: convention\n- scope: ${scope}\n- rule: ${rule}\n- why: ${fields.why}\n- evidence:\n  - 2026-11-18 instruction\n- added: 2026-11-18\n`;
 }
-const INDEX = (rows: [string, string][], body = "") => `# Memory\n\n| Glob | File |\n| --- | --- |\n${rows.map(([g, f]) => `| \`${g}\` | \`${f}\` |`).join("\n")}\n\n${body}`;
+const INDEX = (rows: [string, string][], body = "") =>
+  `# Memory\n\n| Glob | File |\n| --- | --- |\n${rows.map(([g, f]) => `| \`${g}\` | \`${f}\` |`).join("\n")}\n\n${body}`;
 const REPO = ["src/a.ts", "docs/adr/0001.md", "README.md"];
 const lines = (n: number) => Array.from({ length: n }, (_, i) => `line ${i}`).join("\n") + "\n";
-const check = (files: Record<string, string>, settings?: string) => checkMemory({ files, repoFiles: REPO, settings: settings === undefined ? undefined : parseRepoSettings(settings) });
+const check = (files: Record<string, string>, settings?: string) =>
+  checkMemory({ files, repoFiles: REPO, settings: settings === undefined ? undefined : parseRepoSettings(settings) });
 
 describe("checkMemory", () => {
   test("a healthy memory has no problems", () => {
@@ -48,7 +50,11 @@ describe("checkMemory", () => {
   });
 
   test("a folder without index.md is reported", () => {
-    expect(check({ "src.md": "x\n" })).toContainEqual({ file: "index.md", line: 1, message: "is missing: without it no review loads any memory" });
+    expect(check({ "src.md": "x\n" })).toContainEqual({
+      file: "index.md",
+      line: 1,
+      message: "is missing: without it no review loads any memory",
+    });
   });
 
   test("the archive is checked for malformed entries but needs no index row", () => {
@@ -88,7 +94,10 @@ describe("wachiman memory check", () => {
   });
 
   test("exits non-zero and prints each problem as path:line: message", () => {
-    const dir = repo({ ".wachiman/memory/index.md": INDEX([["nowhere/**", "src.md"]]), ".wachiman/memory/src.md": entry("r", "src/**").replace("- why: because\n", "") });
+    const dir = repo({
+      ".wachiman/memory/index.md": INDEX([["nowhere/**", "src.md"]]),
+      ".wachiman/memory/src.md": entry("r", "src/**").replace("- why: because\n", ""),
+    });
     const o = io();
     expect(runMemory(["check"], dir, o.io)).toBe(1);
     const text = o.err.join("\n");

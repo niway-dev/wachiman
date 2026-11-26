@@ -6,7 +6,18 @@ import { emptyRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import { snapshotTree } from "../../test/support/tree-snapshot";
 import { UsageError } from "../config";
 import { PrTemplateConfigError, loadCatalog, loadRepoChoice } from "./catalog";
-import { installUsage, parseInstallArgs, parseShowArgs, parseStatusArgs, runInstall, runShow, runStatus, showUsage, statusUsage, type GitRunner } from "./install";
+import {
+  installUsage,
+  parseInstallArgs,
+  parseShowArgs,
+  parseStatusArgs,
+  runInstall,
+  runShow,
+  runStatus,
+  showUsage,
+  statusUsage,
+  type GitRunner,
+} from "./install";
 import { renderTemplate } from "./render";
 import { resolveTemplate } from "./resolve";
 import { golden, reformat } from "./fixtures/golden/load";
@@ -370,7 +381,10 @@ describe("install: adopting an unmanaged template", () => {
     install(w);
     const choice = JSON.parse(w.read(CHOICE));
     expect(choice.preamble[0]).toContain("outside contributors sign the contributor agreement");
-    expect(choice.custom.map((c: { id: string; after: string }) => [c.id, c.after])).toEqual([["ticket", "type"], ["migration-notes", "why"]]);
+    expect(choice.custom.map((c: { id: string; after: string }) => [c.id, c.after])).toEqual([
+      ["ticket", "type"],
+      ["migration-notes", "why"],
+    ]);
     expect(() => loadRepoChoice(w.read(CHOICE), catalog)).not.toThrow();
     const out = w.read(TEMPLATE);
     const headings = [...out.matchAll(/^## (.+)$/gm)].map((m) => m[1]);
@@ -594,7 +608,10 @@ describe("--commit", () => {
     git(w.repo, "commit", "-q", "-m", "old template");
     install(w, ["--commit"]);
     expect(commits(w)[0]).toBe("docs: install the Wachiman PR description template");
-    expect(git(w.repo, "show", "--name-only", "--format=").trim().split("\n").sort()).toEqual([".github/pr-template.json", ".github/pull_request_template.md"]);
+    expect(git(w.repo, "show", "--name-only", "--format=").trim().split("\n").sort()).toEqual([
+      ".github/pr-template.json",
+      ".github/pull_request_template.md",
+    ]);
     expect(w.read(bak(TEMPLATE))).toBe("- [ ] Mine\n");
     expect(git(w.repo, "status", "--short").trim()).toBe("");
   });
@@ -615,7 +632,10 @@ describe("--commit", () => {
     const from = w.scratchFile("c.json", JSON.stringify({ preamble: ["- [ ] Read CLA.md"] }));
     install(w, ["--from", from, "--commit"]);
     expect(commits(w)[0]).toBe("docs: update the PR description template to version 1");
-    expect(git(w.repo, "show", "--name-only", "--format=").trim().split("\n").sort()).toEqual([".github/pr-template.json", ".github/pull_request_template.md"]);
+    expect(git(w.repo, "show", "--name-only", "--format=").trim().split("\n").sort()).toEqual([
+      ".github/pr-template.json",
+      ".github/pull_request_template.md",
+    ]);
   });
 
   test("a failure while writing the temporary file leaves no temporary file behind", () => {
@@ -657,7 +677,8 @@ describe("--commit", () => {
 
   test("when git fails it is reported, the exit code is 1 and the files stay written", () => {
     const w = world();
-    const fake: GitRunner = (args) => (args[0] === "commit" ? { status: 1, stdout: "", stderr: "hook said no" } : { status: 0, stdout: "", stderr: "" });
+    const fake: GitRunner = (args) =>
+      args[0] === "commit" ? { status: 1, stdout: "", stderr: "hook said no" } : { status: 0, stdout: "", stderr: "" };
     expect(install(w, ["--commit"], { git: fake })).toBe(1);
     expect(w.read(TEMPLATE)).toBe(defaultTemplate);
     expect(w.err.join("\n")).toContain("git commit failed");

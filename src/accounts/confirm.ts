@@ -164,7 +164,12 @@ export function confirmProfile(p: ResolvedProfile, env: Env, spawn: SpawnFn = de
 }
 
 /** The same confirmation with `claude` run off the event loop; the default spawn is asynchronous. */
-export async function confirmProfileAsync(p: ResolvedProfile, env: Env, spawn: AsyncSpawnFn = defaultAsyncSpawn, io: ConfirmIo = defaultIo): Promise<Confirmation> {
+export async function confirmProfileAsync(
+  p: ResolvedProfile,
+  env: Env,
+  spawn: AsyncSpawnFn = defaultAsyncSpawn,
+  io: ConfirmIo = defaultIo,
+): Promise<Confirmation> {
   const steps = confirmSteps(p, env, io);
   let step = steps.next();
   while (!step.done) step = steps.next(await spawn(...step.value));
@@ -174,8 +179,7 @@ export async function confirmProfileAsync(p: ResolvedProfile, env: Env, spawn: A
 function* confirmSteps(p: ResolvedProfile, env: Env, io: ConfirmIo): Generator<Parameters<SpawnFn>, Confirmation, SpawnResult> {
   const { profile } = p;
   const label = profile.kind === "default" ? "default" : profile.name;
-  const login =
-    profile.kind === "default" ? "sign in with your own claude: `claude auth login`" : `wachiman profile login ${profile.name}`;
+  const login = profile.kind === "default" ? "sign in with your own claude: `claude auth login`" : `wachiman profile login ${profile.name}`;
   const configDir = profile.kind === "default" ? undefined : profile.configDir;
 
   if (configDir !== undefined && !io.isDirectory(configDir)) {
@@ -192,13 +196,14 @@ function* confirmSteps(p: ResolvedProfile, env: Env, io: ConfirmIo): Generator<P
 
   const stored = profile.kind === "external" ? profile.binary : undefined;
   if (stored !== undefined) {
-    const bad = !isAbsolute(stored) && !/^[A-Za-z]:[\\/]/.test(stored)
-      ? "is not an absolute path"
-      : WINDOWS_SHIMS.test(stored)
-        ? "is a script shim, which is never run"
-        : !io.isExecutableFile(stored)
-          ? "is not an executable file"
-          : undefined;
+    const bad =
+      !isAbsolute(stored) && !/^[A-Za-z]:[\\/]/.test(stored)
+        ? "is not an absolute path"
+        : WINDOWS_SHIMS.test(stored)
+          ? "is a script shim, which is never run"
+          : !io.isExecutableFile(stored)
+            ? "is not an executable file"
+            : undefined;
     if (bad) {
       return {
         ok: false,
@@ -249,7 +254,8 @@ function* confirmSteps(p: ResolvedProfile, env: Env, io: ConfirmIo): Generator<P
       // Not JSON: no method to read, which is a failure below.
     }
     const method = typeof json.authMethod === "string" ? json.authMethod : undefined;
-    const authMethod: AuthMethod | undefined = method === undefined ? undefined : AUTH_METHODS.includes(method) ? (method as AuthMethod) : "unknown";
+    const authMethod: AuthMethod | undefined =
+      method === undefined ? undefined : AUTH_METHODS.includes(method) ? (method as AuthMethod) : "unknown";
     const reported = typeof json.configDirectory === "string" && json.configDirectory !== "" ? json.configDirectory : undefined;
     const directory: AuthStatus["directory"] =
       configDir === undefined ? "n/a" : reported === undefined ? "unverified" : samePath(reported, configDir, io) ? "matches" : "differs";
@@ -264,12 +270,22 @@ function* confirmSteps(p: ResolvedProfile, env: Env, io: ConfirmIo): Generator<P
     const fail = (problem: string, fix: string): Confirmation => ({ ok: false, stage: "auth", problem, fix, auth });
 
     if (run.status !== 0) return fail(`\`claude auth status\` reports no sign-in for profile "${label}" (exit ${run.status}).`, login);
-    if (authMethod === undefined) return fail(`\`claude auth status\` did not report an authentication method for profile "${label}".`, "update Claude Code, then run wachiman doctor");
+    if (authMethod === undefined)
+      return fail(
+        `\`claude auth status\` did not report an authentication method for profile "${label}".`,
+        "update Claude Code, then run wachiman doctor",
+      );
     if (authMethod === "api_key") {
-      return fail(`Profile "${label}" signs in with an API key: a local run would be billed to a key.`, "remove the key from that profile and sign in with your subscription");
+      return fail(
+        `Profile "${label}" signs in with an API key: a local run would be billed to a key.`,
+        "remove the key from that profile and sign in with your subscription",
+      );
     }
     if (authMethod !== "claude.ai") {
-      return fail(`Profile "${label}" signs in with ${authMethod}, which is unsupported by the local mode (it needs a claude.ai sign-in).`, login);
+      return fail(
+        `Profile "${label}" signs in with ${authMethod}, which is unsupported by the local mode (it needs a claude.ai sign-in).`,
+        login,
+      );
     }
     if (directory === "differs") {
       return fail(

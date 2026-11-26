@@ -99,11 +99,7 @@ for f in ask.diff ask.json review.md; do
   if [ -n "$material" ] && [ -f "$material/$f" ]; then cat "$material/$f" > "${log}.$f"; fi
 done
 if grep -q "Rules for every answer" "${log}.prompt"; then
-  ${
-    garbage
-      ? `echo 'not json at all'; exit 3`
-      : `cat <<'JSON'\n${envelope(ANSWER_OUTPUT)}\nJSON\nexit 0`
-  }
+  ${garbage ? `echo 'not json at all'; exit 3` : `cat <<'JSON'\n${envelope(ANSWER_OUTPUT)}\nJSON\nexit 0`}
 fi
 cat <<'JSON'
 ${envelope(REVIEW_OUTPUT)}

@@ -100,7 +100,9 @@ export function publishConfidence(deps: SinkDeps, repo: string, pr: number, p: P
     if (live.headRefOid !== p.headSha) {
       // The review read an older commit. The run for the newer commit owns the block (it reset it,
       // and may have finished): writing here could wipe its grade.
-      deps.log(`PR Confidence not written: the pull request has a newer commit (${live.headRefOid.slice(0, 7)}) than this review's ${p.headSha.slice(0, 7)}.`);
+      deps.log(
+        `PR Confidence not written: the pull request has a newer commit (${live.headRefOid.slice(0, 7)}) than this review's ${p.headSha.slice(0, 7)}.`,
+      );
       return;
     }
     let block: string;
@@ -125,7 +127,9 @@ export function resetConfidence(deps: SinkDeps, repo: string, pr: number, commit
   try {
     const live = readLive(deps.gh, repo, pr);
     if (commit !== undefined && commit !== live.headRefOid) {
-      deps.log(`PR Confidence reset skipped: the pull request has a newer commit (${live.headRefOid.slice(0, 7)}) than this run's ${commit.slice(0, 7)}.`);
+      deps.log(
+        `PR Confidence reset skipped: the pull request has a newer commit (${live.headRefOid.slice(0, 7)}) than this run's ${commit.slice(0, 7)}.`,
+      );
       return;
     }
     write(deps, repo, pr, live, cannotSayBlock(live.headRefOid, RESET_REASON, { date: dateOf(deps) }));

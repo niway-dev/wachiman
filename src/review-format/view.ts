@@ -221,7 +221,13 @@ export function refusedView(view: ReviewView): ReviewView {
   return {
     ...view,
     inlineRefused: true,
-    findings: { toFix: none(f.toFix), investigate: none(f.investigate), consider: none(f.consider), preExisting: none(f.preExisting), info: none(f.info) },
+    findings: {
+      toFix: none(f.toFix),
+      investigate: none(f.investigate),
+      consider: none(f.consider),
+      preExisting: none(f.preExisting),
+      info: none(f.info),
+    },
   };
 }
 
@@ -357,7 +363,12 @@ export function buildView(input: ViewInput): ReviewView {
         floor: risk.floor,
         pushOnly: input.pushOnly === true,
         facts: risk.facts.map((f: RiskFact) => ({ kind: f.kind, path: f.path, line: f.line, ...where(f.path, f.line), why: f.why })),
-        pathReasons: risk.pathReasons.map((r) => ({ path: r.path, displayPath: name(r.path), why: r.why, ...(r.rule ? { rule: true as const } : {}) })),
+        pathReasons: risk.pathReasons.map((r) => ({
+          path: r.path,
+          displayPath: name(r.path),
+          why: r.why,
+          ...(r.rule ? { rule: true as const } : {}),
+        })),
         readFirst: risk.readFirst.map((path) => ({ path, displayPath: name(path) })),
         unreadFiles: risk.unreadFiles,
         droppedFacts: risk.droppedFacts,
@@ -378,12 +389,18 @@ export function buildView(input: ViewInput): ReviewView {
   if (riskView) glance.push({ key: "risk", level: riskView.level, floor: riskView.floor, pushOnly: riskView.pushOnly, topReason });
   if (needsPerson.length > 0) {
     const kinds = [...new Set(needsPerson.map((n) => n.kind))];
-    glance.push({ key: "needsPerson", count: needsPerson.length, kinds, first: { displayPath: needsPerson[0].displayPath, line: needsPerson[0].line, location: needsPerson[0].location } });
+    glance.push({
+      key: "needsPerson",
+      count: needsPerson.length,
+      kinds,
+      first: { displayPath: needsPerson[0].displayPath, line: needsPerson[0].line, location: needsPerson[0].location },
+    });
   }
   glance.push({ key: "coverage", reviewed: expected.length - notReviewed.length, total: expected.length, scope: scope.kind });
   // A row that reads the same on every review is not one: threads show on a re-review, or when there are some, or when they could not be counted.
   if (earlierThreads !== 0 || scope.kind !== "whole") glance.push({ key: "earlierThreads", count: earlierThreads });
-  if (input.fidelity) glance.push({ key: "confidence", grade: input.fidelity.grade, trial: input.fidelity.trial, reasons: input.fidelity.reasons });
+  if (input.fidelity)
+    glance.push({ key: "confidence", grade: input.fidelity.grade, trial: input.fidelity.trial, reasons: input.fidelity.reasons });
   if (riskView && riskView.readFirst.length > 0) glance.push({ key: "readFirst", paths: riskView.readFirst });
 
   const v = input.verification;
@@ -393,7 +410,10 @@ export function buildView(input: ViewInput): ReviewView {
         status: v.status,
         ...(v.stop ? { stop: v.stop.kind } : {}),
         // A failed verifier that left no per-finding record still checked none of the findings it was asked about.
-        notChecked: v.status === "failed" && unreached === 0 ? v.entries.length || output.findings.filter((f) => f.severity !== "info").length : unreached,
+        notChecked:
+          v.status === "failed" && unreached === 0
+            ? v.entries.length || output.findings.filter((f) => f.severity !== "info").length
+            : unreached,
       }
     : { status: "none", notChecked: 0 };
 

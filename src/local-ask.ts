@@ -37,7 +37,17 @@ export const askUsage = `wachiman ask [question…] [--base <ref> | --from <comm
                [--format terminal|markdown|json] [--output <file>] [--distributed-repo]`;
 
 /** The flags `ask` takes: the scope flags `local` has, and the output and account ones. */
-const ASK_FLAGS = ["--base", "--from", "--commit", "--working-tree", "--max-depth", "--profile", "--format", "--output", "--distributed-repo"] as const;
+const ASK_FLAGS = [
+  "--base",
+  "--from",
+  "--commit",
+  "--working-tree",
+  "--max-depth",
+  "--profile",
+  "--format",
+  "--output",
+  "--distributed-repo",
+] as const;
 
 export interface AskArgs extends LocalArgs {
   /** The question's words joined with spaces; "" asks for the walkthrough. */
@@ -90,7 +100,13 @@ const RUN_LOCAL_FIRST = 'Run "wachiman local --distributed-repo --history" first
  * stored review read. `--distributed-repo` on a change whose stored review read no sibling, or has none, is a
  * usage error. A per-user default of `on` in that situation does nothing, and one line says so.
  */
-function checkDistributedFlag(args: AskArgs, stored: ReviewResult | undefined, repoDir: string, home: string, io: { stderr: (line: string) => void }) {
+function checkDistributedFlag(
+  args: AskArgs,
+  stored: ReviewResult | undefined,
+  repoDir: string,
+  home: string,
+  io: { stderr: (line: string) => void },
+) {
   if ((stored?.siblings ?? []).length > 0) return;
   const why = stored === undefined ? "there is no stored review of this change" : "the stored review of this change read no sibling";
   if (args.distributedRepo === true) {
@@ -118,7 +134,9 @@ function notReadNotes(siblings: readonly ResolvedSibling[]): string[] {
     const name = `${manifestText(s.member)}${s.sha ? `@${s.sha.slice(0, 7)}` : ""}`;
     if (seen.has(name)) continue;
     seen.add(name);
-    notes.push(`Could not read sibling ${name}: ${manifestText(s.unreadable ?? "unknown reason")}. A reference into it is removed and counted.`);
+    notes.push(
+      `Could not read sibling ${name}: ${manifestText(s.unreadable ?? "unknown reason")}. A reference into it is removed and counted.`,
+    );
   }
   return notes;
 }
@@ -191,12 +209,20 @@ export async function runAsk(
       )}\n`,
     );
     const home = wachimanHome(env);
-    const stored = storedReviewOf(historyRoot(home), repoDir, input, kept.map((f) => f.filename), io.stderr);
+    const stored = storedReviewOf(
+      historyRoot(home),
+      repoDir,
+      input,
+      kept.map((f) => f.filename),
+      io.stderr,
+    );
     // The flag rules come before anything is written or paid for.
     checkDistributedFlag(args, stored, repoDir, home, io);
     // A review that read siblings is answered on the same evidence: their snapshots are re-created at the stored
     // commits, flag or not. Never fetches; a sibling that cannot be read again is named, not fatal.
-    const rematerialised = stored?.siblings?.length ? rematerialiseSiblings(stored.siblings, { repoDir, home, warn: io.stderr }) : undefined;
+    const rematerialised = stored?.siblings?.length
+      ? rematerialiseSiblings(stored.siblings, { repoDir, home, warn: io.stderr })
+      : undefined;
     releaseSiblings = rematerialised?.release;
     const siblings = rematerialised?.siblings ?? [];
     const sibling = askDistributed(siblings);
@@ -255,7 +281,8 @@ export async function runAsk(
     const lineCount = repoLineCounter(input.headDir);
     const readable = siblings.filter((s) => s.dir !== undefined && s.sha !== undefined && s.status === "read");
     const siblingCounters = new Map<string, ReturnType<typeof repoLineCounter>>();
-    const siblingOf = (member: string, sha: string) => (sha.length >= 7 ? readable.find((s) => s.member === member && s.sha!.startsWith(sha)) : undefined);
+    const siblingOf = (member: string, sha: string) =>
+      sha.length >= 7 ? readable.find((s) => s.member === member && s.sha!.startsWith(sha)) : undefined;
     const checkedRefs = checkRefs(parsed, (path, line, ref) => {
       if (ref.member === undefined && ref.sha === undefined) {
         const count = lineCount(path);
@@ -273,7 +300,9 @@ export async function runAsk(
       ...checkedRefs.answer,
       sections: checkedRefs.answer.sections.map((section) => ({
         ...section,
-        refs: section.refs.map((r) => (r.member !== undefined && r.sha !== undefined ? { ...r, sha: siblingOf(r.member, r.sha)!.sha! } : r)),
+        refs: section.refs.map((r) =>
+          r.member !== undefined && r.sha !== undefined ? { ...r, sha: siblingOf(r.member, r.sha)!.sha! } : r,
+        ),
       })),
     };
     let removedRefs = checkedRefs.removed;
@@ -300,7 +329,11 @@ export async function runAsk(
               sections: answer.sections.map((s) => ({
                 title: s.title,
                 body: s.body,
-                refs: s.refs.map((r) => ({ path: r.path, line: r.line, ...(r.member !== undefined ? { member: r.member, sha: r.sha } : {}) })),
+                refs: s.refs.map((r) => ({
+                  path: r.path,
+                  line: r.line,
+                  ...(r.member !== undefined ? { member: r.member, sha: r.sha } : {}),
+                })),
               })),
               notAnswered: answer.not_answered,
               removedRefs,

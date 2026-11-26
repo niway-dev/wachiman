@@ -51,7 +51,8 @@ function snapshotDirectories(siblings: readonly ResolvedSibling[]) {
   for (const s of siblings) {
     if (s.dir === undefined) continue;
     const name = s.sha === undefined ? s.member : `${s.member}@${s.sha.slice(0, 7)}`;
-    for (const dir of [s.dir, safeRealpath(s.dir)]) if (dir !== undefined && dir !== "" && dir !== "/") spellings.set(dir.replace(/\/+$/, ""), name);
+    for (const dir of [s.dir, safeRealpath(s.dir)])
+      if (dir !== undefined && dir !== "" && dir !== "/") spellings.set(dir.replace(/\/+$/, ""), name);
   }
   const ordered = [...spellings].sort((a, b) => b[0].length - a[0].length);
   if (ordered.length === 0) return (text: string) => text;
@@ -114,10 +115,19 @@ function referenceChecker(siblings: readonly ResolvedSibling[]) {
     kept.length = 0;
     const title = settle(f.title);
     const body = settle(f.body);
-    const references = kept.filter((r, i) => kept.findIndex((o) => o.member === r.member && o.sha === r.sha && o.path === r.path && o.line === r.line) === i);
+    const references = kept.filter(
+      (r, i) => kept.findIndex((o) => o.member === r.member && o.sha === r.sha && o.path === r.path && o.line === r.line) === i,
+    );
     const reason = f.verification ? settle(f.verification.reason) : undefined;
     const originReason = f.originReason !== undefined ? settle(f.originReason) : undefined;
-    if (title === f.title && body === f.body && reason === f.verification?.reason && originReason === f.originReason && references.length === 0) return f;
+    if (
+      title === f.title &&
+      body === f.body &&
+      reason === f.verification?.reason &&
+      originReason === f.originReason &&
+      references.length === 0
+    )
+      return f;
     return {
       ...f,
       title,
@@ -149,7 +159,16 @@ export function checkSiblingReferences<T extends FindingText>(
 }
 
 /** Every field of a contract entry that the model wrote as prose (the rest are paths and a status; `evidence_checked` is the engine's, set before this runs, so rewriting `evidence` here never changes it). */
-const CONTRACT_TEXT = ["action", "equivalent_path", "before_after", "visible_effect", "failure_mode", "open_question", "evidence", "candidates"] as const;
+const CONTRACT_TEXT = [
+  "action",
+  "equivalent_path",
+  "before_after",
+  "visible_effect",
+  "failure_mode",
+  "open_question",
+  "evidence",
+  "candidates",
+] as const;
 
 /**
  * The model-written text of a whole result, each field checked as a finding's is: the findings, the
@@ -168,7 +187,18 @@ export function settleModelText<
   S extends { reason: string },
 >(
   siblings: readonly ResolvedSibling[],
-  input: { findings: readonly F[]; summary: string; contracts: readonly C[]; riskFacts: readonly W[]; judgement: readonly W[]; verification?: V; muted: readonly M[]; threadReplies: readonly R[]; skipped: readonly S[]; texts?: readonly string[] },
+  input: {
+    findings: readonly F[];
+    summary: string;
+    contracts: readonly C[];
+    riskFacts: readonly W[];
+    judgement: readonly W[];
+    verification?: V;
+    muted: readonly M[];
+    threadReplies: readonly R[];
+    skipped: readonly S[];
+    texts?: readonly string[];
+  },
 ) {
   const check = referenceChecker(siblings);
   const some = <T extends object, K extends keyof T>(item: T, keys: readonly K[]): T => {
@@ -185,10 +215,25 @@ export function settleModelText<
   const contracts = input.contracts.map((c) => some(c, CONTRACT_TEXT));
   const riskFacts = input.riskFacts.map((f) => some(f, ["why"] as const));
   const judgement = input.judgement.map((f) => some(f, ["why"] as const));
-  const verification = input.verification && { ...input.verification, entries: input.verification.entries.map((e) => some(e, ["title", "reason", "originReason"] as const)) };
+  const verification = input.verification && {
+    ...input.verification,
+    entries: input.verification.entries.map((e) => some(e, ["title", "reason", "originReason"] as const)),
+  };
   const muted = input.muted.map((m) => some(m, ["title", "reason"] as const));
   const threadReplies = input.threadReplies.map((r) => some(r, ["reply"] as const));
   const skipped = input.skipped.map((s) => some(s, ["reason"] as const));
   const texts = (input.texts ?? []).map(check.settle);
-  return { findings, summary, contracts, riskFacts, judgement, verification, muted, threadReplies, skipped, texts, removed: check.removed() };
+  return {
+    findings,
+    summary,
+    contracts,
+    riskFacts,
+    judgement,
+    verification,
+    muted,
+    threadReplies,
+    skipped,
+    texts,
+    removed: check.removed(),
+  };
 }

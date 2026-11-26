@@ -652,7 +652,9 @@ answers the client relies on are written down in [ledger-api.md](ledger-api.md).
 - Budgets and batch sizes come from the caller's inputs or the environment, never from the pull
   request.
 - The core (`reviewChange`) has no `gh` in its dependencies and makes no network call of its own;
-  the only senders are `defaultGh` and the provider adapter.
+  on the review path the senders are `defaultGh`, the provider adapter and, outside the core, the optional spend-ledger
+  client in `src/ledger.ts` (`curl`). `ledger pull` (`fetch`) is a separate read command. The full list is
+  [on-your-machine.md](on-your-machine.md).
 - Each batch's run directory is removed after its call.
 - The local mode never constructs a `gh` function (a test runs it with a `gh` that exits 99), and
   never forwards `ANTHROPIC_API_KEY`: it refuses to start when the key is set.

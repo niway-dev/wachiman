@@ -55,8 +55,9 @@ A GitHub App is a design only; it is not implemented.
 
 **Review your branch before you push.** `wachiman local` reviews the committed change on your
 branch with your own signed-in `claude` and prints the findings in the terminal, or writes them as
-Markdown or JSON. Nothing is posted, no GitHub requests are made and no telemetry is sent; your
-code goes to your configured Claude account. Read [docs/local-review.md](docs/local-review.md)
+Markdown or JSON. Nothing is posted, Wachiman makes no GitHub requests and sends no telemetry of
+its own, and it switches off Claude Code's (not yet verified by a packet capture); your code goes to
+your configured Claude account. Read [docs/local-review.md](docs/local-review.md)
 before running it on an employer's code.
 
 ```sh
@@ -112,6 +113,7 @@ same material, in this repository:
 | Tell the reviewer what matters in my repository | [docs/review-policy.md](docs/review-policy.md) |
 | Adopt a new release, or roll one back | [docs/upgrading.md](docs/upgrading.md) |
 | Turn it off and remove it | [docs/uninstall.md](docs/uninstall.md) |
+| What it installs, runs, reads, writes and sends, to check the code against | [docs/on-your-machine.md](docs/on-your-machine.md) |
 | Quick answers and limitations | [docs/faq.md](docs/faq.md) |
 | Run the engine from the command line | [docs/cli.md](docs/cli.md) |
 | Review a branch on my laptop, on my own Claude subscription | [docs/local-review.md](docs/local-review.md) |
@@ -181,6 +183,10 @@ you do:
 - **Your code goes to the model provider.** The review sends the pull request's diff, and the
   files the agent chooses to read, to the provider you configured (Anthropic, for Claude Code)
   from your runner.
+- **What it does on your machine is listed.** Every program it starts, file it writes and network
+  destination, each with the file that shows it, is on
+  [docs/on-your-machine.md](docs/on-your-machine.md); a test fails when a source file with a network
+  call site, or a URL host, is not on the page (it checks per file, not per call). Ask your own agent to check the code against it.
 - **The version you pin decides what runs with your key.** See
   [docs/install.md](docs/install.md#what-pinning-a-version-does-and-does-not-guarantee).
 

@@ -9,7 +9,17 @@ import { join } from "node:path";
 import { appendVerdict, historyRoot, repositoryKey, writeLoopFile } from "../history/store";
 import { branchRepo, git, removeTempRepos } from "../../test/support/temp-repo";
 import { parseMemoryFile } from "./entries";
-import { candidatesDir, newCandidate, proposability, readCandidate, renderEntry, withCandidateLock, withEvidence, writeCandidate, type Evidence } from "./candidates";
+import {
+  candidatesDir,
+  newCandidate,
+  proposability,
+  readCandidate,
+  renderEntry,
+  withCandidateLock,
+  withEvidence,
+  writeCandidate,
+  type Evidence,
+} from "./candidates";
 import { runMemory } from "./command";
 
 const temps: string[] = [];
@@ -24,7 +34,13 @@ afterAll(() => {
 });
 
 const FIELDS = { kind: "convention", scope: "src/**", rule: "Prefer named exports.", why: "Renames then show up in every importer." };
-const ev = (source: Evidence["source"], ref: { pr?: number; branch?: string }, extra: Partial<Evidence> = {}): Evidence => ({ date: "2026-11-18", source, agent: false, ...ref, ...extra });
+const ev = (source: Evidence["source"], ref: { pr?: number; branch?: string }, extra: Partial<Evidence> = {}): Evidence => ({
+  date: "2026-11-18",
+  source,
+  agent: false,
+  ...ref,
+  ...extra,
+});
 
 describe("the evidence rule (AC7)", () => {
   test("AC7: a candidate found by the tool is not proposable until it has min_evidence pieces from different pull requests", () => {
@@ -70,7 +86,13 @@ describe("the entry text", () => {
     const text = renderEntry(c);
     const parsed = parseMemoryFile("index.md", text);
     expect(parsed.problems).toEqual([]);
-    expect(parsed.entries[0]).toMatchObject({ id: c.id, kind: "convention", scope: "src/**", holdsWhile: "src/gateway.ts", added: "2026-11-18" });
+    expect(parsed.entries[0]).toMatchObject({
+      id: c.id,
+      kind: "convention",
+      scope: "src/**",
+      holdsWhile: "src/gateway.ts",
+      added: "2026-11-18",
+    });
     expect(parsed.entries[0].evidence).toEqual(["2026-11-18 operator instruction, pull request 709, written by an agent"]);
     expect(withEvidence(c, [ev("judged", { pr: 2 })]).id).toBe(c.id);
     expect(text.endsWith("\n")).toBe(true);
@@ -94,7 +116,12 @@ function setup() {
     let stderr = "";
     let code: number;
     try {
-      code = runMemory(argv, repo.dir, { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) }, { env, now: () => new Date("2026-11-18T10:00:00Z") });
+      code = runMemory(
+        argv,
+        repo.dir,
+        { stdout: (t) => (stdout += t), stderr: (l) => (stderr += `${l}\n`) },
+        { env, now: () => new Date("2026-11-18T10:00:00Z") },
+      );
     } catch (error) {
       code = 2;
       stderr += (error as Error).message;
@@ -104,7 +131,17 @@ function setup() {
   return { repo, home, run, key: repositoryKey(repo.dir).key, root: historyRoot(home) };
 }
 
-const ADD = ["add", "--kind", "convention", "--scope", "src/**", "--rule", "Prefer named exports.", "--why", "Renames then show up in every importer."];
+const ADD = [
+  "add",
+  "--kind",
+  "convention",
+  "--scope",
+  "src/**",
+  "--rule",
+  "Prefer named exports.",
+  "--why",
+  "Renames then show up in every importer.",
+];
 
 describe("memory add, candidates and show", () => {
   test("show still prints a stored entry when .wachiman.yml is broken, while candidates and add report the file", () => {
@@ -132,7 +169,9 @@ describe("memory add, candidates and show", () => {
     const list = s.run("candidates", "--format", "json");
     expect(JSON.parse(list.stdout)).toEqual({
       format: "wachiman.memory-candidates/1",
-      candidates: [expect.objectContaining({ id, kind: "convention", title: "Prefer named exports.", proposable: true, evidence: 1, needed: 2 })],
+      candidates: [
+        expect.objectContaining({ id, kind: "convention", title: "Prefer named exports.", proposable: true, evidence: 1, needed: 2 }),
+      ],
     });
     expect(s.run("candidates").stdout).toContain("proposable");
   });
@@ -148,7 +187,11 @@ describe("memory add, candidates and show", () => {
   test("a judged finding needs a wrong verdict with a reason in the local history; a fixed one needs probably-fixed; the loop branch is the reference", () => {
     const s = setup();
     const state = (branch: string, status: string) => ({
-      format: "wachiman.loop-state/1", branch, base: "main", status: "open", rounds: [],
+      format: "wachiman.loop-state/1",
+      branch,
+      base: "main",
+      status: "open",
+      rounds: [],
       ledger: [{ id: "f1f1f1f1f1", path: "src/a.ts", line: 2, severity: "consider", topic: "style", title: "t", status, refuted: false }],
     });
     writeLoopFile(s.root, s.key, "feat/x", state("feat/x", "open"));
@@ -168,10 +211,15 @@ describe("memory add, candidates and show", () => {
 
   test("an exception cannot be recorded from a fix; --file supplies the fields; reactions are not a source", () => {
     const s = setup();
-    expect(s.run("add", "--kind", "exception", "--scope", "src/**", "--rule", "r", "--why", "w", "--source", "fixed", "--finding", "x").stderr).toContain("A fix supports only a convention");
+    expect(
+      s.run("add", "--kind", "exception", "--scope", "src/**", "--rule", "r", "--why", "w", "--source", "fixed", "--finding", "x").stderr,
+    ).toContain("A fix supports only a convention");
     const dir = temp("wachiman-cand-file-");
     const file = join(dir, "entry.json");
-    writeFileSync(file, JSON.stringify({ kind: "exception", scope: "docs/**", rule: "Skip dates.", why: "ADRs version themselves.", title: "No date nags" }));
+    writeFileSync(
+      file,
+      JSON.stringify({ kind: "exception", scope: "docs/**", rule: "Skip dates.", why: "ADRs version themselves.", title: "No date nags" }),
+    );
     expect(s.run("add", "--file", file, "--pr", "5").code).toBe(0);
     expect(s.run("candidates").stdout).toContain("No date nags");
     expect(s.run("add", "--file", file, "--source", "reaction").stderr).toContain("--source must be");
@@ -196,7 +244,7 @@ describe("option values that start with --", () => {
     const refused = s.run("add", "--kind", "convention", "--scope", "src/**", "--rule", "--strict is required.", "--why", "w", "--pr", "1");
     expect(refused.code).toBe(2);
     expect(refused.stderr).toContain('"--strict is required." looks like another option');
-    expect(refused.stderr).toContain('--rule=--strict is required.');
+    expect(refused.stderr).toContain("--rule=--strict is required.");
     const ok = s.run("add", "--kind", "convention", "--scope", "src/**", "--rule=--strict is required.", "--why", "w", "--pr", "1");
     expect(ok.code).toBe(0);
     expect(s.run("add", "--kind").stderr).toContain("--kind needs a value.");
@@ -223,7 +271,9 @@ describe("what show prints is what propose commits", () => {
       expect(r.code, label).toBe(2);
       expect(r.stderr, label).toContain("control or invisible character");
     }
-    expect(s.run("add", ...ADD.slice(1), "--branch", "feat/\u001b]0;x\u0007").stderr).toContain("evidence 1 branch holds the control or invisible character U+001B");
+    expect(s.run("add", ...ADD.slice(1), "--branch", "feat/\u001b]0;x\u0007").stderr).toContain(
+      "evidence 1 branch holds the control or invisible character U+001B",
+    );
     expect(s.run("candidates").stdout).toContain("no memory candidates");
   });
 
@@ -251,7 +301,15 @@ describe("input that the format cannot carry", () => {
   test("a field of --file that is not a string is refused instead of being dropped, which would change the id", () => {
     const s = setup();
     const file = join(temp("wachiman-cand-file-"), "entry.json");
-    writeFileSync(file, JSON.stringify({ kind: "convention", scope: ["src/**", "lib/**"], rule: "Prefer named exports.", why: "Renames then show up in every importer." }));
+    writeFileSync(
+      file,
+      JSON.stringify({
+        kind: "convention",
+        scope: ["src/**", "lib/**"],
+        rule: "Prefer named exports.",
+        why: "Renames then show up in every importer.",
+      }),
+    );
     const r = s.run("add", "--file", file, "--pr", "1");
     expect(r.code).toBe(2);
     expect(r.stderr).toContain('"scope" must be a string, got an array');
@@ -282,7 +340,9 @@ describe("the candidate lock", () => {
     mkdirSync(candidatesDir(s.home, s.key), { recursive: true });
     mkdirSync(lock);
     let ran = false;
-    expect(() => withCandidateLock(s.home, s.key, "abcdef0", () => (ran = true))).toThrow("Another wachiman memory command is changing candidate abcdef0");
+    expect(() => withCandidateLock(s.home, s.key, "abcdef0", () => (ran = true))).toThrow(
+      "Another wachiman memory command is changing candidate abcdef0",
+    );
     expect(ran).toBe(false);
     expect(existsSync(lock)).toBe(true);
   }, 20_000);
@@ -296,7 +356,11 @@ describe("the candidate lock", () => {
     utimesSync(lock, old, old);
     expect(withCandidateLock(s.home, s.key, "abcdef0", () => 7)).toBe(7);
     expect(existsSync(lock)).toBe(false);
-    expect(() => withCandidateLock(s.home, s.key, "abcdef0", () => { throw new Error("boom"); })).toThrow("boom");
+    expect(() =>
+      withCandidateLock(s.home, s.key, "abcdef0", () => {
+        throw new Error("boom");
+      }),
+    ).toThrow("boom");
     expect(existsSync(lock)).toBe(false);
   });
 });

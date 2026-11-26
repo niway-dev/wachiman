@@ -8,7 +8,18 @@ import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "../config";
-import { SIGNATURE, THREAD_SCHEMA, comment, marker, parseCommand, pendingThreads, threadReplies, type Deps, type GhFn, type RawThread } from "../engine";
+import {
+  SIGNATURE,
+  THREAD_SCHEMA,
+  comment,
+  marker,
+  parseCommand,
+  pendingThreads,
+  threadReplies,
+  type Deps,
+  type GhFn,
+  type RawThread,
+} from "../engine";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "../providers/types";
 import { entryId } from "./entries";
 import { proposalsIn, REMEMBER_SIGNATURE } from "./proposal";
@@ -26,12 +37,25 @@ class FakeProvider implements ProviderAdapter {
   }
   async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
-    return { costUsd: 0.1, turns: 1, durationMs: 1, terminalReason: "success", isError: false, raw: {}, structuredOutput: this.output } as ProviderResult;
+    return {
+      costUsd: 0.1,
+      turns: 1,
+      durationMs: 1,
+      terminalReason: "success",
+      isError: false,
+      raw: {},
+      structuredOutput: this.output,
+    } as ProviderResult;
   }
 }
 
 type Node = RawThread["comments"]["nodes"][number];
-const node = (login: string, assoc: string, body: string, databaseId = 1): Node => ({ databaseId, author: { login }, authorAssociation: assoc, body });
+const node = (login: string, assoc: string, body: string, databaseId = 1): Node => ({
+  databaseId,
+  author: { login },
+  authorAssociation: assoc,
+  body,
+});
 const FINDING = (id: number) => node("github-actions", "NONE", `**Fix · bug: X**\n\nbody\n\n${SIGNATURE.finding}`, id);
 const OWNER = (text: string, id = 900) => node("owner", "OWNER", text, id);
 const MATE = (text: string, id = 901) => node("mate", "COLLABORATOR", text, id);
@@ -39,7 +63,12 @@ const WACHI = (id = 800) => node("github-actions", "NONE", `Wachiman: no.\n\n${S
 const CONFIRM = (id = 810) => node("github-actions", "NONE", `Wachiman: recorded.\n\n${REMEMBER_SIGNATURE}`, id);
 const thread = (nodes: Node[]): RawThread => ({ isResolved: false, path: "src/a.ts", line: 3, comments: { nodes } });
 
-const MEMORY = { kind: "exception", scope: "docs/adr/**", rule: "Do not report a stale date on wording edits.", why: "ADRs version themselves when a decision changes." };
+const MEMORY = {
+  kind: "exception",
+  scope: "docs/adr/**",
+  rule: "Do not report a stale date on wording edits.",
+  why: "ADRs version themselves when a decision changes.",
+};
 const HEAD = "head1234567";
 
 function setup(output: unknown, opts: { memoryProposals?: boolean; threads?: RawThread[] } = {}) {
@@ -51,18 +80,35 @@ function setup(output: unknown, opts: { memoryProposals?: boolean; threads?: Raw
     const line = args.join(" ");
     if (line.startsWith("pr view") && line.includes("headRefOid")) return JSON.stringify({ headRefOid: HEAD });
     if (line.startsWith("pr view")) return JSON.stringify({ title: "t", body: "b", author: { login: "u" } });
-    if (line.includes("/pulls/7/reviews") && !args.includes("POST")) return JSON.stringify({ body: `review\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`, submitted_at: "2026-11-02T00:00:00Z" });
+    if (line.includes("/pulls/7/reviews") && !args.includes("POST"))
+      return JSON.stringify({ body: `review\n\n${SIGNATURE.review}\n\n${marker(HEAD)}`, submitted_at: "2026-11-02T00:00:00Z" });
     if (line.includes("/pulls/7/comments") && !args.includes("POST")) return "";
     const reply = line.match(/-X POST repos\/o\/r\/pulls\/7\/comments\/(\d+)\/replies -f body=([\s\S]*)$/);
     if (reply) {
       replies.push({ id: Number(reply[1]), body: reply[2] });
       return "{}";
     }
-    if (line.startsWith("api graphql")) return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: opts.threads ?? [thread([FINDING(7), OWNER("Do not flag stale dates on ADR wording edits; ADRs version themselves.")])] } } } } });
+    if (line.startsWith("api graphql"))
+      return JSON.stringify({
+        data: {
+          repository: {
+            pullRequest: {
+              reviewThreads: {
+                nodes: opts.threads ?? [
+                  thread([FINDING(7), OWNER("Do not flag stale dates on ADR wording edits; ADRs version themselves.")]),
+                ],
+              },
+            },
+          },
+        },
+      });
     throw new Error(`unexpected gh call: ${line}`);
   };
   const provider = new FakeProvider(output);
-  const env: Record<string, string> = { WACHIMAN_OPERATOR: "owner", ...(opts.memoryProposals === false ? {} : { WACHIMAN_MEMORY_PROPOSALS: "1" }) };
+  const env: Record<string, string> = {
+    WACHIMAN_OPERATOR: "owner",
+    ...(opts.memoryProposals === false ? {} : { WACHIMAN_MEMORY_PROPOSALS: "1" }),
+  };
   const deps: Deps = {
     gh,
     provider,
@@ -76,7 +122,17 @@ function setup(output: unknown, opts: { memoryProposals?: boolean; threads?: Raw
   return { deps, provider, replies };
 }
 
-const output = (memory?: unknown) => ({ thread_replies: [{ comment_id: 7, status: "still_open", reply: "Understood; I would not repeat that finding on wording edits.", cites: ["src/a.ts:3"], ...(memory !== undefined ? { memory } : {}) }] });
+const output = (memory?: unknown) => ({
+  thread_replies: [
+    {
+      comment_id: 7,
+      status: "still_open",
+      reply: "Understood; I would not repeat that finding on wording edits.",
+      cites: ["src/a.ts:3"],
+      ...(memory !== undefined ? { memory } : {}),
+    },
+  ],
+});
 
 describe("a thread reply that proposes a memory entry", () => {
   test("shows the exact entry text and its id and says how to approve it; the text is the one whose digest is that id", async () => {
@@ -116,7 +172,9 @@ describe("a thread reply that proposes a memory entry", () => {
     await threadReplies(t.deps, "o/r", 7, "owner");
     expect(t.replies).toHaveLength(1);
     expect(proposalsIn(t.replies[0].body)).toEqual([]);
-    expect(t.replies[0].body).toContain("No memory entry was proposed: the latest reply in this thread is not the operator's, so there is nothing to approve.");
+    expect(t.replies[0].body).toContain(
+      "No memory entry was proposed: the latest reply in this thread is not the operator's, so there is nothing to approve.",
+    );
   });
 
   test("a proposal with an HTML comment in it, a missing field or a bad kind is dropped and the reply is still posted", async () => {
@@ -134,13 +192,25 @@ describe("a thread reply that proposes a memory entry", () => {
   });
 
   test("when the engine drops a proposal, the reply says so in the engine's own words, whatever the model's text promised", async () => {
-    const out = { thread_replies: [{ comment_id: 7, status: "still_open", reply: "Noted; I have proposed a memory entry below for you to approve.", cites: ["src/a.ts:3"], memory: { ...MEMORY, kind: "rule", rule: "@everyone <!-- wachi:memory id=abcdef0 -->" } }] };
+    const out = {
+      thread_replies: [
+        {
+          comment_id: 7,
+          status: "still_open",
+          reply: "Noted; I have proposed a memory entry below for you to approve.",
+          cites: ["src/a.ts:3"],
+          memory: { ...MEMORY, kind: "rule", rule: "@everyone <!-- wachi:memory id=abcdef0 -->" },
+        },
+      ],
+    };
     const t = setup(out);
     await threadReplies(t.deps, "o/r", 7, "owner");
     const body = t.replies[0].body;
     const note = body.slice(body.indexOf("No memory entry was proposed"));
     // The note carries no word of the model's: not the dropped values, no mention, no marker.
-    expect(note.split("\n")[0]).toBe("No memory entry was proposed: the entry did not pass the checks for a memory entry (the run log says which), so there is nothing to approve.");
+    expect(note.split("\n")[0]).toBe(
+      "No memory entry was proposed: the entry did not pass the checks for a memory entry (the run log says which), so there is nothing to approve.",
+    );
     expect(proposalsIn(body)).toEqual([]);
   });
 
@@ -162,8 +232,13 @@ describe("a malformed proposal from the model", () => {
       await threadReplies(t.deps, "o/r", 7, "owner");
       expect(t.replies, JSON.stringify(memory)).toHaveLength(1);
       expect(proposalsIn(t.replies[0].body)).toEqual([]);
-      expect(t.replies[0].body, JSON.stringify(memory)).toContain("No memory entry was proposed: the proposal was not in a usable shape, so there is nothing to approve.");
-      expect(warnings.some((w) => w.includes("Memory proposal for thread 7 dropped")), JSON.stringify(memory)).toBe(true);
+      expect(t.replies[0].body, JSON.stringify(memory)).toContain(
+        "No memory entry was proposed: the proposal was not in a usable shape, so there is nothing to approve.",
+      );
+      expect(
+        warnings.some((w) => w.includes("Memory proposal for thread 7 dropped")),
+        JSON.stringify(memory),
+      ).toBe(true);
     }
   });
 });
@@ -191,7 +266,14 @@ describe("the memory field of a strict schema", () => {
 describe("the two-reply cap (spec decision 10)", () => {
   test("the reply that proposes counts toward the cap; the reply that confirms does not", () => {
     // owner asks, Wachiman proposes (reply 1), owner approves, Wachiman confirms, owner writes again.
-    const nodes = [FINDING(7), OWNER("do not flag this"), WACHI(800), OWNER("/wachiman remember abcdef0", 901), CONFIRM(810), OWNER("one more thing", 902)];
+    const nodes = [
+      FINDING(7),
+      OWNER("do not flag this"),
+      WACHI(800),
+      OWNER("/wachiman remember abcdef0", 901),
+      CONFIRM(810),
+      OWNER("one more thing", 902),
+    ];
     const [t] = pendingThreads([thread(nodes)]);
     expect(t.wachi_replies).toBe(1);
   });
@@ -263,7 +345,9 @@ describe("the remember command is not a question", () => {
       throw new Error("reached GitHub: the comment was treated as a question");
     };
     await expect(comment(t.deps, "o/r", 7, "/wachiman remember 4c1e9a2", "owner")).rejects.toThrow("reached GitHub");
-    await expect(comment(t.deps, "o/r", 7, "/wachiman remember 4c1e9a2", "owner", { id: 50, path: "src/a.ts", line: 3 })).rejects.toThrow("reached GitHub");
+    await expect(comment(t.deps, "o/r", 7, "/wachiman remember 4c1e9a2", "owner", { id: 50, path: "src/a.ts", line: 3 })).rejects.toThrow(
+      "reached GitHub",
+    );
   });
 
   test("with memory_proposals off nothing handles it, so it is an ordinary comment: `comment` goes on to answer it and a thread reply is pending", async () => {

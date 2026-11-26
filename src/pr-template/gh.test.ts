@@ -45,10 +45,16 @@ describe("gitFileAt", () => {
   });
 
   test("a failing ls-tree is a real failure, not an absent file, in any language", () => {
-    for (const stderr of ["fatal: Not a valid object name nope", "fatal: Ce n'est pas un nom d'objet valide nope", "fatal: 無効なオブジェクト名 nope"]) {
+    for (const stderr of [
+      "fatal: Not a valid object name nope",
+      "fatal: Ce n'est pas un nom d'objet valide nope",
+      "fatal: 無効なオブジェクト名 nope",
+    ]) {
       expect(() => gitFileAt(fake({ lsTree: fail(stderr) }).run, "/repo", "nope", "a.toml")).toThrow(ToolError);
     }
-    expect(() => gitFileAt(fake({ lsTree: fail("fatal: nope") }).run, "/repo", "nope", "a.toml")).toThrow("git ls-tree nope -- a.toml failed: fatal: nope");
+    expect(() => gitFileAt(fake({ lsTree: fail("fatal: nope") }).run, "/repo", "nope", "a.toml")).toThrow(
+      "git ls-tree nope -- a.toml failed: fatal: nope",
+    );
   });
 
   test("a listed file that git show cannot read is a failure even when the message looks like absence", () => {

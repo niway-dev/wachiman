@@ -19,7 +19,10 @@ const rule = "Do not report stale comments";
 const scope = "src/**";
 const entryBlock = (holdsWhile: string) => {
   const id = entryId({ kind: "exception", scope, rule, why, holdsWhile });
-  return { id, text: `# Memory\n\n### ${id} ${rule}\n\n- kind: exception\n- scope: ${scope}\n- rule: ${rule}\n- why: ${why}\n- holds while: ${holdsWhile}\n- evidence:\n  - 2026-11-18 operator instruction\n- added: 2026-11-18\n` };
+  return {
+    id,
+    text: `# Memory\n\n### ${id} ${rule}\n\n- kind: exception\n- scope: ${scope}\n- rule: ${rule}\n- why: ${why}\n- holds while: ${holdsWhile}\n- evidence:\n  - 2026-11-18 operator instruction\n- added: 2026-11-18\n`,
+  };
 };
 
 class FakeProvider implements ProviderAdapter {
@@ -37,10 +40,39 @@ class FakeProvider implements ProviderAdapter {
   }
   async run(request: ProviderRequest): Promise<ProviderResult> {
     this.requests.push(request);
-    if (request.prompt.includes("<exceptions>")) return { costUsd: 0.01, turns: 1, durationMs: 1, terminalReason: "success", isError: false, raw: {}, structuredOutput: { matches: [] } };
-    const files = [...request.prompt.split("This part holds exactly these files")[1].split("\n\n")[0].matchAll(/^- (\S+) \+/gm)].map((m) => m[1]);
-    const finding = { path: files[0], line: 1, severity: "consider", topic: "cleanup", confidence: "high", title: "stale comment", body: "b" } as const;
-    const output: ReviewOutput = { files_reviewed: files, files_skipped: [], findings: [finding], contracts: [], thread_replies: [], summary: "ok" };
+    if (request.prompt.includes("<exceptions>"))
+      return {
+        costUsd: 0.01,
+        turns: 1,
+        durationMs: 1,
+        terminalReason: "success",
+        isError: false,
+        raw: {},
+        structuredOutput: { matches: [] },
+      };
+    const files = [
+      ...request.prompt
+        .split("This part holds exactly these files")[1]
+        .split("\n\n")[0]
+        .matchAll(/^- (\S+) \+/gm),
+    ].map((m) => m[1]);
+    const finding = {
+      path: files[0],
+      line: 1,
+      severity: "consider",
+      topic: "cleanup",
+      confidence: "high",
+      title: "stale comment",
+      body: "b",
+    } as const;
+    const output: ReviewOutput = {
+      files_reviewed: files,
+      files_skipped: [],
+      findings: [finding],
+      contracts: [],
+      thread_replies: [],
+      summary: "ok",
+    };
     return { costUsd: 0.1, turns: 1, durationMs: 1, terminalReason: "success", isError: false, raw: {}, structuredOutput: output };
   }
 }
@@ -63,7 +95,9 @@ async function run(holdsWhile: string, prFiles: PrFile[], sinceLast?: PrFile[]) 
       return "{}";
     }
     if (line.includes("/pulls/7/reviews")) {
-      return sinceLast ? JSON.stringify({ body: `Reviewed.\n\n${SIGNATURE.review}\n\n${marker(LAST)}`, submitted_at: "2026-11-18T00:00:00Z" }) : "";
+      return sinceLast
+        ? JSON.stringify({ body: `Reviewed.\n\n${SIGNATURE.review}\n\n${marker(LAST)}`, submitted_at: "2026-11-18T00:00:00Z" })
+        : "";
     }
     if (line.includes("/pulls/7/comments")) return "";
     if (args.includes("POST") || args.includes("PATCH") || line.startsWith("pr comment")) return "{}";
@@ -71,13 +105,15 @@ async function run(holdsWhile: string, prFiles: PrFile[], sinceLast?: PrFile[]) 
     const memoryPath = line.match(/contents\/\.wachiman\/memory(?:\/(\S+?))?\?ref=/);
     if (memoryPath) {
       if (!memoryPath[1]) return JSON.stringify([{ type: "file", name: "index.md" }]);
-      if (memoryPath[1] === "index.md") return JSON.stringify({ type: "file", encoding: "base64", content: Buffer.from(memory.text).toString("base64") });
+      if (memoryPath[1] === "index.md")
+        return JSON.stringify({ type: "file", encoding: "base64", content: Buffer.from(memory.text).toString("base64") });
     }
     if (line.includes("/contents/")) throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
     const compare = line.match(/compare\/(\S+?)\.\.\.(\S+)/);
     if (compare) {
       // base...last is the change at the last review; last...head is what came after it.
-      const files = compare[1] === BASE ? prFiles.filter((f) => !sinceLast?.some((s) => s.filename === f.filename)) : (sinceLast ?? prFiles);
+      const files =
+        compare[1] === BASE ? prFiles.filter((f) => !sinceLast?.some((s) => s.filename === f.filename)) : (sinceLast ?? prFiles);
       return JSON.stringify({ status: "ahead", files: files.map(file) });
     }
     throw new Error(`unexpected gh call: ${line}`);
@@ -110,7 +146,11 @@ describe("holds while on the GitHub path covers the whole pull request", () => {
 
   test("on an incremental run, a holds-while path only an earlier commit touched makes the exception stale", async () => {
     // src/gateway.ts changed before the last review; the delta since it is src/a.ts alone.
-    const { provider, reviews, id } = await run("src/gateway.ts", [{ filename: "src/gateway.ts" }, { filename: "src/a.ts" }], [{ filename: "src/a.ts" }]);
+    const { provider, reviews, id } = await run(
+      "src/gateway.ts",
+      [{ filename: "src/gateway.ts" }, { filename: "src/a.ts" }],
+      [{ filename: "src/a.ts" }],
+    );
     expect(provider.requests.some((r) => r.prompt.includes("src/a.ts"))).toBe(true);
     expect(provider.requests.some((r) => r.prompt.includes("- src/gateway.ts +"))).toBe(false);
     expect(provider.matchingCalls).toHaveLength(0);

@@ -5,7 +5,16 @@ import { join } from "node:path";
 import { UsageError } from "../config";
 import type { GitRunner } from "../evidence";
 import type { InstallKind } from "../install-kind";
-import { makeRun, parseUpgradeArgs, planCliUpgrade, runUpgrade, type UpgradeDeps, type UpgradeOptions } from "./command";
+import {
+  dataNotices,
+  makeRun,
+  parseRegistryView,
+  parseUpgradeArgs,
+  planCliUpgrade,
+  runUpgrade,
+  type UpgradeDeps,
+  type UpgradeOptions,
+} from "./command";
 import { classifyRef, rewritePins } from "./pin";
 
 const scratch: string[] = [];
@@ -16,7 +25,8 @@ const temp = () => {
 };
 afterAll(() => scratch.forEach((d) => rmSync(d, { recursive: true, force: true })));
 
-const caller = (ref: string, extra = "") => `# header\r\nname: Wachiman\r\njobs:\r\n  review:\r\n    uses: niway-dev/wachiman/.github/workflows/review.yml@${ref} # keep\r\n${extra}    secrets: inherit\r\n`;
+const caller = (ref: string, extra = "") =>
+  `# header\r\nname: Wachiman\r\njobs:\r\n  review:\r\n    uses: niway-dev/wachiman/.github/workflows/review.yml@${ref} # keep\r\n${extra}    secrets: inherit\r\n`;
 
 describe("rewritePins", () => {
   test("moves an older tag and keeps every other byte", () => {
@@ -27,7 +37,13 @@ describe("rewritePins", () => {
   });
 
   test("leaves a commit SHA, a branch, a floating tag and a newer tag alone", () => {
-    for (const [ref, kind] of [["a".repeat(40), "sha"], ["main", "other"], ["v1", "other"], ["v1.2.0-rc.1", "other"], ["v2.0.0", "newer"]] as const) {
+    for (const [ref, kind] of [
+      ["a".repeat(40), "sha"],
+      ["main", "other"],
+      ["v1", "other"],
+      ["v1.2.0-rc.1", "other"],
+      ["v2.0.0", "newer"],
+    ] as const) {
       const text = caller(ref);
       const out = rewritePins(text, "v1.3.0");
       expect(out.text).toBe(text);
@@ -42,7 +58,8 @@ describe("rewritePins", () => {
   });
 
   test("handles several pins in one file, including list items and quotes", () => {
-    const text = '- uses: "niway-dev/wachiman/.github/workflows/review.yml@v1.0.0"\n  uses: niway-dev/wachiman/.github/workflows/review-platform.yml@v1.1.0\n';
+    const text =
+      '- uses: "niway-dev/wachiman/.github/workflows/review.yml@v1.0.0"\n  uses: niway-dev/wachiman/.github/workflows/review-platform.yml@v1.1.0\n';
     const out = rewritePins(text, "v1.4.0");
     expect(out.text).toBe(text.replace("@v1.0.0", "@v1.4.0").replace("@v1.1.0", "@v1.4.0"));
     expect(out.outcomes).toHaveLength(2);
@@ -62,8 +79,14 @@ describe("parseUpgradeArgs", () => {
 describe("planCliUpgrade", () => {
   test("picks bun or npm from the package root, and refuses a clone and an executable", () => {
     const at = (root: string): InstallKind => ({ kind: "npm", root });
-    expect(planCliUpgrade(at("/Users/me/.bun/install/global/node_modules/wachiman"))).toMatchObject({ command: "bun", args: ["add", "-g", "wachiman@latest"] });
-    expect(planCliUpgrade(at("/usr/local/lib/node_modules/wachiman"), "latest", {}, () => "/usr/local")).toMatchObject({ command: "npm", args: ["install", "-g", "wachiman@latest"] });
+    expect(planCliUpgrade(at("/Users/me/.bun/install/global/node_modules/wachiman"))).toMatchObject({
+      command: "bun",
+      args: ["add", "-g", "wachiman@latest"],
+    });
+    expect(planCliUpgrade(at("/usr/local/lib/node_modules/wachiman"), "latest", {}, () => "/usr/local")).toMatchObject({
+      command: "npm",
+      args: ["install", "-g", "wachiman@latest"],
+    });
     expect(planCliUpgrade({ kind: "source", root: "/code/wachiman" }).kind).toBe("refused");
     expect(planCliUpgrade({ kind: "exe", version: "1.0.0" }).kind).toBe("refused");
   });
@@ -135,7 +158,11 @@ function rig(files: Record<string, string>, { inRepo = true }: { inRepo?: boolea
   for (const [name, text] of Object.entries(files)) writeFileSync(join(repo, ".github/workflows", name), text);
   const git: GitRunner = () => ({ status: inRepo ? 0 : 128, stdout: inRepo ? `${repo}\n` : "", stderr: "" }) as ReturnType<GitRunner>;
   const r: Rig = {
-    repo, out: [], err: [], runs: [], latestCalls: 0,
+    repo,
+    out: [],
+    err: [],
+    runs: [],
+    latestCalls: 0,
     read: (file) => readFileSync(join(repo, ".github/workflows", file), "utf8"),
     go: (opts, deps = {}) =>
       runUpgrade(
@@ -148,6 +175,7 @@ function rig(files: Record<string, string>, { inRepo = true }: { inRepo?: boolea
           run: (c, a) => (r.runs.push([c, ...a].join(" ")), 0),
           latest: () => (r.latestCalls++, "1.3.0"),
           npmPrefix: () => "/usr",
+          dataCollection: () => undefined,
           ...deps,
         },
       ),
@@ -158,7 +186,12 @@ function rig(files: Record<string, string>, { inRepo = true }: { inRepo?: boolea
 describe("runUpgrade", () => {
   test("upgrades the CLI with npm, rewrites the pins in several files, and prints the commit commands", () => {
     const a = caller("v1.2.0");
-    const r = rig({ "a.yml": a, "b.yaml": caller("v1.1.0"), "ci.yml": "name: ci\non: push\n", "c.yml": caller("v1.2.0").replace("review.yml", "review-platform.yml") });
+    const r = rig({
+      "a.yml": a,
+      "b.yaml": caller("v1.1.0"),
+      "ci.yml": "name: ci\non: push\n",
+      "c.yml": caller("v1.2.0").replace("review.yml", "review-platform.yml"),
+    });
     expect(r.go({})).toBe(0);
     expect(r.runs).toEqual(["npm install -g wachiman@latest"]);
     expect(r.read("a.yml")).toBe(a.replace("@v1.2.0", "@v1.3.0"));
@@ -178,10 +211,18 @@ describe("runUpgrade", () => {
 
   test("a custom $BUN_INSTALL home runs bun, with either slash style", () => {
     const at = (root: string): InstallKind => ({ kind: "npm", root });
-    expect(planCliUpgrade(at("/opt/bunhome/install/global/node_modules/wachiman"), "latest", { BUN_INSTALL: "/opt/bunhome" })).toMatchObject({ command: "bun" });
-    expect(planCliUpgrade(at("D:\\tools\\bun\\install\\global\\node_modules\\wachiman"), "latest", { BUN_INSTALL: "D:\\tools\\bun\\" })).toMatchObject({ command: "bun" });
-    expect(planCliUpgrade(at("/opt/bunhome/install/global/node_modules/wachiman"), "latest", {}, () => "/opt/bunhome")).toMatchObject({ command: "npm" });
-    expect(planCliUpgrade(at("/usr/lib/node_modules/wachiman"), "latest", { BUN_INSTALL: "/opt/bunhome" }, () => "/usr")).toMatchObject({ command: "npm" });
+    expect(
+      planCliUpgrade(at("/opt/bunhome/install/global/node_modules/wachiman"), "latest", { BUN_INSTALL: "/opt/bunhome" }),
+    ).toMatchObject({ command: "bun" });
+    expect(
+      planCliUpgrade(at("D:\\tools\\bun\\install\\global\\node_modules\\wachiman"), "latest", { BUN_INSTALL: "D:\\tools\\bun\\" }),
+    ).toMatchObject({ command: "bun" });
+    expect(planCliUpgrade(at("/opt/bunhome/install/global/node_modules/wachiman"), "latest", {}, () => "/opt/bunhome")).toMatchObject({
+      command: "npm",
+    });
+    expect(planCliUpgrade(at("/usr/lib/node_modules/wachiman"), "latest", { BUN_INSTALL: "/opt/bunhome" }, () => "/usr")).toMatchObject({
+      command: "npm",
+    });
   });
 
   test("--check reports both versions, installs nothing and writes nothing", () => {
@@ -219,7 +260,10 @@ describe("runUpgrade", () => {
   test("a development build is refused even when it looks like an npm install", () => {
     const a = caller("v1.0.0");
     const r = rig({ "a.yml": a });
-    const npm = { install: { kind: "npm", root: "/home/u/.local/share/wachiman-dev/prefix/lib/node_modules/wachiman" } as InstallKind, version: "1.15.0-dev-abc1234" };
+    const npm = {
+      install: { kind: "npm", root: "/home/u/.local/share/wachiman-dev/prefix/lib/node_modules/wachiman" } as InstallKind,
+      version: "1.15.0-dev-abc1234",
+    };
     expect(r.go({}, npm)).toBe(0);
     expect(r.runs).toEqual([]);
     expect(r.latestCalls).toBe(0);
@@ -356,5 +400,98 @@ describe("runUpgrade", () => {
     expect(r.go({})).toBe(0);
     expect(r.out.join("")).toContain("is not a git repository");
     expect(r.read("a.yml")).toContain("@v1.0.0");
+  });
+});
+
+describe("data collection notices", () => {
+  const field = { "1.3.0": "Sends the command name.", "1.2.5": "Older notice.", "1.4.0": "Too new." };
+
+  test("dataNotices keeps releases after the installed one up to the target, oldest first", () => {
+    expect(dataNotices(field, "1.2.0", "1.3.0")).toEqual(["  v1.2.5: Older notice.", "  v1.3.0: Sends the command name."]);
+    expect(dataNotices(field, "1.3.0", "1.3.9")).toEqual([]);
+    expect(dataNotices(field, "1.2.0", "1.2.4")).toEqual([]);
+  });
+
+  test("dataNotices ignores a missing or malformed field and bad entries", () => {
+    for (const bad of [undefined, null, "text", 3, ["1.3.0"], {}]) expect(dataNotices(bad, "1.2.0", "1.3.0")).toEqual([]);
+    expect(dataNotices({ "1.3.0": 5, nope: "x", "1.2.5": "  " }, "1.2.0", "1.3.0")).toEqual([]);
+    expect(dataNotices(field, "not-a-version", "1.3.0")).toEqual([]);
+  });
+
+  test("the upgrade prints the heading and the pointer before the package manager runs", () => {
+    const r = rig({});
+    expect(r.go({}, { dataCollection: () => field })).toBe(0);
+    const out = r.out.join("");
+    expect(out).toContain("Data collection changes in this upgrade:");
+    expect(out).toContain("v1.3.0: Sends the command name.");
+    expect(out).not.toContain("Too new.");
+    expect(out.indexOf("Data collection changes")).toBeLessThan(out.indexOf("Installing v1.3.0"));
+    expect(out).toContain("https://github.com/niway-dev/wachiman/blob/main/docs/on-your-machine.md");
+  });
+
+  test("--check prints them only when an upgrade is available", () => {
+    const r = rig({});
+    expect(r.go({ check: true }, { dataCollection: () => field })).toBe(0);
+    expect(r.out.join("")).toContain("Data collection changes in this upgrade:");
+    const upToDate = rig({});
+    upToDate.go({ check: true }, { latest: () => "1.2.0", dataCollection: () => field });
+    expect(upToDate.out.join("")).not.toContain("Data collection");
+  });
+
+  test("nothing is printed for an absent, empty or malformed field", () => {
+    for (const dataCollection of [() => undefined, () => ({}), () => "junk"]) {
+      const r = rig({});
+      expect(r.go({}, { dataCollection })).toBe(0);
+      expect(r.out.join("")).not.toContain("Data collection");
+      const c = rig({});
+      expect(c.go({ check: true }, { dataCollection })).toBe(0);
+      expect(c.out.join("")).toContain("Latest:    v1.3.0");
+      expect(c.out.join("")).not.toContain("Data collection");
+    }
+  });
+
+  test("a failed lookup prints one stderr line and the upgrade continues; an absent field prints none", () => {
+    const boom = () => {
+      throw new Error("boom");
+    };
+    const r = rig({});
+    expect(r.go({}, { dataCollection: boom })).toBe(0);
+    expect(r.err.filter((l) => l.includes("could not check the release for data collection changes"))).toHaveLength(1);
+    expect(r.err.join("")).toContain("docs/on-your-machine.md");
+    expect(r.out.join("")).toContain("The CLI is now v1.3.0");
+    const c = rig({});
+    expect(c.go({ check: true }, { dataCollection: boom })).toBe(0);
+    expect(c.out.join("")).toContain("Latest:    v1.3.0");
+    expect(c.err.join("")).toContain("could not check the release");
+    const absent = rig({});
+    absent.go({}, { dataCollection: () => undefined });
+    expect(absent.err.join("")).not.toContain("could not check");
+  });
+
+  test("the notices come before the install, so a failed install still shows them", () => {
+    const r = rig({});
+    expect(r.go({}, { run: () => 1, dataCollection: () => field })).toBe(1);
+    expect(r.out.join("")).toContain("Data collection");
+  });
+});
+
+describe("parseRegistryView", () => {
+  test("reads an object with both fields", () => {
+    expect(parseRegistryView('{"version":"1.3.0","wachimanDataCollection":{"1.3.0":"x"}}')).toEqual({
+      version: "1.3.0",
+      dataCollection: { "1.3.0": "x" },
+    });
+  });
+  test("a bare version string (no field published) still gives the version", () => {
+    expect(parseRegistryView('"1.3.0"')).toEqual({ version: "1.3.0", dataCollection: undefined });
+  });
+  test("an object without the field still gives the version", () => {
+    expect(parseRegistryView('{"version":"1.3.0"}')).toEqual({ version: "1.3.0", dataCollection: undefined });
+  });
+  test("malformed JSON and non-release versions give no version", () => {
+    expect(parseRegistryView("not json")).toEqual({ lookupFailed: true });
+    expect(parseRegistryView("")).toEqual({ lookupFailed: true });
+    expect(parseRegistryView('{"version":"1.3.0-beta.1"}').version).toBeUndefined();
+    expect(parseRegistryView('"latest"').version).toBeUndefined();
   });
 });

@@ -35,7 +35,12 @@ export interface Ui {
   /** A list the person filters by typing. */
   autocomplete(o: { message: string; options: UiOption[]; initial: number; placeholder?: string }): Promise<number | null>;
   /** `validate` gets the typed text; an empty answer with a `defaultValue` is validated as that default. */
-  text(o: { message: string; placeholder?: string; defaultValue?: string; validate: (value: string) => string | undefined }): Promise<string | null>;
+  text(o: {
+    message: string;
+    placeholder?: string;
+    defaultValue?: string;
+    validate: (value: string) => string | undefined;
+  }): Promise<string | null>;
   confirm(o: { message: string; initial: boolean }): Promise<boolean | null>;
   note(message: string, title?: string): void;
   log(kind: LogKind, message: string): void;
@@ -58,14 +63,26 @@ export async function loadUi(streams: UiStreams): Promise<Ui> {
     cancel: (message) => clack.cancel(message, io),
     select: async (o) => answer(await clack.select<number>({ message: o.message, options: o.options, initialValue: o.initial, ...io })),
     autocomplete: async (o) =>
-      answer(await clack.autocomplete<number>({ message: o.message, options: o.options, initialValue: o.initial, placeholder: o.placeholder, maxItems: 8, ...io })),
+      answer(
+        await clack.autocomplete<number>({
+          message: o.message,
+          options: o.options,
+          initialValue: o.initial,
+          placeholder: o.placeholder,
+          maxItems: 8,
+          ...io,
+        }),
+      ),
     text: async (o) =>
       answer(
         await clack.text({
           message: o.message,
           placeholder: o.placeholder,
           defaultValue: o.defaultValue,
-          validate: (value) => o.validate(value === undefined || (value.trim() === "" && o.defaultValue !== undefined) ? (o.defaultValue ?? "") : value.trim()),
+          validate: (value) =>
+            o.validate(
+              value === undefined || (value.trim() === "" && o.defaultValue !== undefined) ? (o.defaultValue ?? "") : value.trim(),
+            ),
           ...io,
         }),
       ),

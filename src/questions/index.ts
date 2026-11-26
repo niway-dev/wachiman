@@ -17,13 +17,7 @@ import type { DataPathQuestion } from "./types";
 export type { DataPathQuestion } from "./types";
 
 /** The order here is the order of the prompt section and of the log line: never sort it. */
-export const QUESTIONS: readonly DataPathQuestion[] = [
-  destructiveStep,
-  readErrorAsEmpty,
-  overlappingCalls,
-  boundedWait,
-  staleWriteBack,
-];
+export const QUESTIONS: readonly DataPathQuestion[] = [destructiveStep, readErrorAsEmpty, overlappingCalls, boundedWait, staleWriteBack];
 
 /**
  * The questions that apply to at least one of `files`, each once, in registry order. A file with

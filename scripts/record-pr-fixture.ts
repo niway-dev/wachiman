@@ -29,7 +29,14 @@ export interface PrFixture {
 }
 
 export function recordPrFixture(gh: GhFn, repo: string, pr: number, warn: (line: string) => void = () => {}): PrFixture {
-  const pull = JSON.parse(gh(["api", `repos/${repo}/pulls/${pr}`, "--jq", "{head: .head.sha, base: .base.sha, ref: .base.ref, title, body, author: {login: .user.login}}"]));
+  const pull = JSON.parse(
+    gh([
+      "api",
+      `repos/${repo}/pulls/${pr}`,
+      "--jq",
+      "{head: .head.sha, base: .base.sha, ref: .base.ref, title, body, author: {login: .user.login}}",
+    ]),
+  );
   const mergeBase = gh(["api", `repos/${repo}/compare/${pull.base}...${pull.head}`, "--jq", ".merge_base_commit.sha"]).trim();
   if (!/^[0-9a-f]{40}$/.test(mergeBase)) throw new Error(`No merge-base for #${pr}: ${mergeBase}`);
   return {

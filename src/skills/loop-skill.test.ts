@@ -15,7 +15,11 @@ describe("the wachiman-loop skill carries the agent instructions (AC12)", () => 
     expect(commands.map((c) => c.sub)).toEqual(expect.arrayContaining(["add", "candidates", "show", "propose"]));
     for (const { sub, rest } of commands) {
       expect(CAPTURE_SUBCOMMANDS as readonly string[]).toContain(sub);
-      const known = [...CAPTURE_OPTIONS[sub as keyof typeof CAPTURE_OPTIONS].values, ...CAPTURE_OPTIONS[sub as keyof typeof CAPTURE_OPTIONS].flags, ...GLOBAL];
+      const known = [
+        ...CAPTURE_OPTIONS[sub as keyof typeof CAPTURE_OPTIONS].values,
+        ...CAPTURE_OPTIONS[sub as keyof typeof CAPTURE_OPTIONS].flags,
+        ...GLOBAL,
+      ];
       for (const flag of rest.match(/--[a-z-]+/g) ?? []) expect(known).toContain(flag);
     }
   });

@@ -10,11 +10,15 @@ export function parseInitFlags(argv: string[], repoDir: string): RawInitFlags {
   if (argv.includes("--help") || argv.includes("-h")) return { help: true, repoDir };
   const { positionals, values, booleans } = parseFlags(
     argv,
-    { values: ["--mode", "--project-kind", "--operator", "--version", "--path"], booleans: ["--force", "--dry-run", "--yes", "--json", "--pr-template", "--no-pr-template", "--no-agent-pointer"] },
+    {
+      values: ["--mode", "--project-kind", "--operator", "--version", "--path"],
+      booleans: ["--force", "--dry-run", "--yes", "--json", "--pr-template", "--no-pr-template", "--no-agent-pointer"],
+    },
     "init",
   );
   if (positionals.length > 0) throw new UsageError(`init takes no argument "${positionals[0]}".`);
-  if (booleans["--pr-template"] && booleans["--no-pr-template"]) throw new UsageError("--pr-template and --no-pr-template contradict each other; give one.");
+  if (booleans["--pr-template"] && booleans["--no-pr-template"])
+    throw new UsageError("--pr-template and --no-pr-template contradict each other; give one.");
   return {
     ...(values["--mode"] !== undefined ? { mode: values["--mode"] } : {}),
     ...(values["--project-kind"] !== undefined ? { projectKind: values["--project-kind"] } : {}),
