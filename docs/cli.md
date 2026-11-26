@@ -1167,6 +1167,15 @@ repository's key. It runs no `claude` and calls no GitHub. With no history, `--j
 Exit codes: 0 listed, recorded or forgotten (a missing history prints one line and exits 0); 2 usage
 error, including a `--verdict` id that matches no finding.
 
+### `calibrate`
+
+`wachiman calibrate <owner/repo>` reads the last `--prs` (default 50) pull requests through `gh` and
+prints, per severity and confidence cell, how many findings were fixed, declined, judged wrong or left
+unanswered, split by owner and agent pull requests. `--judge` writes a blind sample of findings to the
+Wachiman home for you to judge, and `--propose` fits the next priority table to those judgements and
+writes it to a file; neither changes anything the engine reads. Exit codes: 0 done; 1 a `gh` call
+failed; 2 usage error. The details are in [calibration.md](calibration.md).
+
 ### `status`
 
 `wachiman status` shows what this laptop kept of its local runs and what they cost, so you can see
