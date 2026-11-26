@@ -1723,3 +1723,27 @@ describe("memory use", () => {
     expect(existsSync(join(plain, ".wachiman"))).toBe(false);
   }, 30_000);
 });
+
+describe("one resolution of the refs per review", () => {
+  /** Puts a `git` first on PATH that logs each call and then runs the real one. */
+  function loggedGit(binDir: string) {
+    const log = join(binDir, "git-calls");
+    const real = Bun.which("git");
+    if (!real) throw new Error("git is not on PATH");
+    writeFileSync(join(binDir, "git"), `#!/bin/sh\necho "$*" >> "${log}"\nexec "${real}" "$@"\n`);
+    chmodSync(join(binDir, "git"), 0o755);
+    return () => (existsSync(log) ? readFileSync(log, "utf8").split("\n").filter(Boolean) : []);
+  }
+
+  test("`wachiman local` asks git for the merge-base once, not once per stage", () => {
+    const repo = branchRepo();
+    const s = stubs("none", repo.dir);
+    const calls = loggedGit(s.bin);
+    const env = { PATH: `${s.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-home-"), USER: "dev", WACHIMAN_VERIFY: "0" };
+    const out = runCli(["local", "--repo-dir", repo.dir, "--base", "main"], env);
+    expect(out.code).toBe(0);
+    // The settings stage and the input stage read the same flags; the second reuses the first's refs.
+    expect(calls().filter((l) => / merge-base /.test(l) && !l.includes("--is-ancestor"))).toHaveLength(1);
+    expect(s.calls()).toHaveLength(1);
+  }, 30_000);
+});

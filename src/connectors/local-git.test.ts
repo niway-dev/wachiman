@@ -11,11 +11,13 @@ import { A_HEAD, branchRepo, commit, emptyRepo, git, removeTempRepos } from "../
 import { personalMemoryDir, personalSourceFor } from "../memory/personal";
 import { entryId } from "../memory/entries";
 import {
+  blobReader,
   buildLocalInput,
   localFiles,
   localInstructions,
   localMemory,
   localMemorySource,
+  localRepoSettings,
   removeSnapshot,
   resolveRefs,
   snapshotHead,
@@ -50,6 +52,67 @@ describe("resolveRefs", () => {
       depth: 2,
     });
     expect(resolveRefs(r.dir, "main").mergeBase).toBe(r.mergeBase);
+  });
+
+  test("each revision is resolved by one git process, and the answer does not change", () => {
+    const r = branchRepo();
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const refs = resolveRefs(r.dir, undefined, counting);
+    expect(refs).toEqual(resolveRefs(r.dir, undefined));
+    // HEAD and the default base `main`: probing a revision and then reading it was two processes each.
+    expect(calls.filter((c) => c[0] === "rev-parse")).toEqual([
+      ["rev-parse", "--verify", "-q", "HEAD^{commit}"],
+      ["rev-parse", "--verify", "-q", "main^{commit}"],
+    ]);
+    calls.length = 0;
+    expect(resolveRefs(r.dir, "main", counting)).toEqual(refs);
+    expect(calls.filter((c) => c[0] === "rev-parse").length).toBe(2);
+  });
+
+  test("--commit reads its revision with one git process and still refuses a non-commit", () => {
+    const r = branchRepo();
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const refs = resolveRefs(r.dir, undefined, counting, undefined, { commit: r.head });
+    expect(refs).toEqual(resolveRefs(r.dir, undefined, undefined, undefined, { commit: r.head }));
+    expect(calls.filter((c) => c.includes(`${r.head}^{commit}`))).toEqual([["rev-parse", "--verify", "-q", `${r.head}^{commit}`]]);
+    expect(() => resolveRefs(r.dir, undefined, undefined, undefined, { commit: "nope" })).toThrow(
+      "--commit nope is not a commit in this clone.",
+    );
+    const tree = spawnGit(["rev-parse", "HEAD^{tree}"], { cwd: r.dir, timeoutMs: 10_000 }).stdout.trim();
+    expect(() => resolveRefs(r.dir, undefined, undefined, undefined, { commit: tree })).toThrow(
+      `--commit ${tree} is not a commit in this clone.`,
+    );
+  });
+
+  test("--from reads HEAD and its revision with one git process each", () => {
+    const r = branchRepo();
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const refs = resolveRefs(r.dir, undefined, counting, 50, { from: r.head });
+    expect(refs).toEqual(resolveRefs(r.dir, undefined, undefined, 50, { from: r.head }));
+    expect(refs.headSha).toBe(r.head);
+    expect(calls.filter((c) => c[0] === "rev-parse" && c.some((a) => a.endsWith("^{commit}")))).toEqual([
+      ["rev-parse", "--verify", "-q", "HEAD^{commit}"],
+      ["rev-parse", "--verify", "-q", `${r.head}^{commit}`],
+    ]);
+  });
+
+  test("a missing commit or base is still refused, in the same order", () => {
+    const dir = emptyRepo();
+    expect(() => resolveRefs(dir, "main")).toThrow("has no commit yet");
+    const r = branchRepo();
+    expect(() => resolveRefs(r.dir, "nope")).toThrow("--base nope is not a commit in this clone.");
   });
 
   test("the upstream's default branch wins over main when origin/HEAD resolves", () => {
@@ -218,6 +281,47 @@ describe("localInstructions", () => {
     const dir = emptyRepo();
     const base = commit(dir, { "CLAUDE.md/inner.md": "not a file\n" }, "base");
     expect(localInstructions(dir, base, () => {}).files).toEqual([]);
+  });
+
+  test("one listing of the tree serves every instruction file and the settings file, with the same answers", () => {
+    const dir = emptyRepo();
+    const long = `${"x".repeat(MAX_INSTRUCTION_BYTES)}é and more`;
+    const base = commit(
+      dir,
+      {
+        ".github/claude-review.md": "focus\n",
+        "AGENTS.md": long,
+        "CLAUDE.md/inner.md": "a directory, not a file\n",
+        ".wachiman.yml": "effort: high\n",
+      },
+      "base",
+    );
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const read = blobReader(dir, base, counting);
+    const separate: string[] = [];
+    const shared: string[] = [];
+    expect(localInstructions(dir, base, (l) => shared.push(l), counting, read)).toEqual(
+      localInstructions(dir, base, (l) => separate.push(l)),
+    );
+    expect(shared).toEqual(separate);
+    expect(localRepoSettings(dir, base, counting, read)).toEqual(localRepoSettings(dir, base));
+    expect(read(".wachiman.yml")?.toString()).toBe("effort: high\n");
+    expect(read("CLAUDE.md")).toBeNull();
+    expect(read("not-listed.txt")).toBeNull();
+    // Three instruction paths, the old focus path and the settings file: one `ls-tree`, plus the one for the unlisted path.
+    expect(calls.filter((c) => c[0] === "ls-tree").length).toBe(2);
+  });
+
+  test("a tree this clone does not have fails every read, as separate listings did", () => {
+    const r = branchRepo();
+    const read = blobReader(r.dir, "0".repeat(40));
+    expect(() => read("CLAUDE.md")).toThrow();
+    expect(() => read(".wachiman.yml")).toThrow();
+    expect(() => localInstructions(r.dir, "0".repeat(40), () => {})).toThrow();
   });
 });
 
@@ -563,6 +667,24 @@ describe("buildLocalInput", () => {
     expect(validate(schema, JSON.parse(JSON.stringify(onDisk)))).toEqual([]);
     removeSnapshot(snapshotDir);
     expect(existsSync(snapshotDir)).toBe(false);
+  });
+
+  test("refs the caller already resolved give the same input and are not resolved again", () => {
+    const r = branchRepo();
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const refs = resolveRefs(r.dir, undefined);
+    const fresh = buildLocalInput({ repoDir: r.dir, paths: [], log: () => {}, warn: () => {} });
+    const reused = buildLocalInput({ repoDir: r.dir, paths: [], log: () => {}, warn: () => {}, git: counting, refs });
+    snapshots.push(fresh.snapshotDir, reused.snapshotDir);
+    expect(reused.refs).toEqual(fresh.refs);
+    const { headDir: a, ...freshInput } = fresh.input;
+    const { headDir: b, ...reusedInput } = reused.input;
+    expect(reusedInput).toEqual(freshInput);
+    expect(calls.filter((c) => c[0] === "merge-base" || c[0] === "symbolic-ref")).toEqual([]);
   });
 
   test("a refused HEAD leaves no snapshot behind", () => {

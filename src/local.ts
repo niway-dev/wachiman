@@ -23,6 +23,7 @@ import {
   localSettingsCommit,
   type LocalRefs,
   removeSnapshot,
+  type ResolvedRefs,
   type SettingsScope,
   snapshotHead,
   warnSnapshotDifferences,
@@ -359,9 +360,10 @@ export function withLocalSettings(
   repoDir: string,
   scope: SettingsScope,
   stderr: (line: string) => void,
+  resolved?: ResolvedRefs,
 ): EngineConfig {
   if (!wantsRepoSettings(config)) return config;
-  const sha = localSettingsCommit(repoDir, scope);
+  const sha = localSettingsCommit(repoDir, scope, undefined, resolved);
   if (sha === undefined) return config;
   const where = `${scope.inputBase !== undefined ? "the input's base" : scope.workingTree ? "HEAD" : "the merge-base"} ${short(sha)}`;
   let settings: RepoSettings | undefined;
@@ -393,13 +395,15 @@ export function openLocalSession(p: {
   deps: LocalDeps;
   /** The scope flags: they decide the commit whose `.wachiman.yml` is read (the one the instruction files are read at). */
   scope?: SettingsScope;
+  /** Receives the refs the settings commit was resolved from; pass the same box to `localScopeInput` as `refs`. */
+  resolved?: ResolvedRefs;
 }): LocalSession {
   const { env, repoDir, deps } = p;
   const loadedEnv = loadConfig(env, p.stderr);
   if (loadedEnv.provider !== "claude-code") {
     throw new UsageError(`WACHIMAN_PROVIDER=${loadedEnv.provider}: the local review runs only on Claude Code, your signed-in \`claude\`.`);
   }
-  const loaded = withLocalSettings(loadedEnv, repoDir, p.scope ?? {}, p.stderr);
+  const loaded = withLocalSettings(loadedEnv, repoDir, p.scope ?? {}, p.stderr, p.resolved);
   // A person ran it: no automatic ceiling (decision 14).
   const config = {
     ...loaded,
@@ -489,6 +493,8 @@ export function localScopeInput(p: {
   paths: string[];
   log: (line: string) => void;
   warn: (line: string) => void;
+  /** The refs `openLocalSession` already resolved for these same flags (its `resolved.refs`), so they are not resolved twice. */
+  refs?: LocalRefs;
 }): { input: ReviewInput; release: () => void } {
   if (p.workingTree) {
     const built = workingTreeInput({
@@ -513,6 +519,7 @@ export function localScopeInput(p: {
     paths: p.paths,
     log: p.log,
     warn: p.warn,
+    refs: p.refs,
   });
   const { refs } = built;
   const commits = `${refs.depth} commit${refs.depth === 1 ? "" : "s"}`;
@@ -587,6 +594,7 @@ export async function runLocal(
         : "distributed-repo: on (--distributed-repo)",
     );
   }
+  const resolved: ResolvedRefs = {};
   const { config, profile, profileNote, provider, verifier, state } = openLocalSession({
     profile: args.profile,
     verify: args.verify,
@@ -594,6 +602,7 @@ export async function runLocal(
     env,
     stderr: io.stderr,
     deps,
+    resolved,
     scope: {
       workingTree: args.workingTree,
       base: args.base,
@@ -624,6 +633,7 @@ export async function runLocal(
         paths: args.paths,
         log: io.stderr,
         warn: io.stderr,
+        refs: resolved.refs,
       });
       input = scope.input;
       release = scope.release;
