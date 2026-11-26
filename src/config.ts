@@ -281,7 +281,9 @@ export function loadConfig(env: Env, warn: (line: string) => void = console.erro
   const sizeGate = number("SIZE_GATE_USD", Number.NaN);
   const sizeGateUsd = Number.isNaN(sizeGate) ? undefined : sizeGate;
   if (sizeGateUsd !== undefined) {
-    warn("WACHIMAN_SIZE_GATE_USD (size_gate_usd) is deprecated and no longer gates a review: the gate is the room the run may spend. Remove it; it will be removed in the next major version.");
+    warn(
+      "WACHIMAN_SIZE_GATE_USD (size_gate_usd) is deprecated and no longer gates a review: the gate is the room the run may spend. Remove it; it will be removed in the next major version.",
+    );
   }
   return {
     budgetUsd: number("BUDGET_USD", 3),

@@ -213,16 +213,23 @@ describe("thread replies without a push (ADR 0012)", () => {
   });
 
   test("size_gate_usd has no default and approve_max_usd defaults to 20, passed by the review and on-demand jobs (AC9)", () => {
-    for (const file of [".github/workflows/review.yml", ".github/workflows/review-platform.yml", ".github/workflows/wachiman-platform.yml"]) {
+    for (const file of [
+      ".github/workflows/review.yml",
+      ".github/workflows/review-platform.yml",
+      ".github/workflows/wachiman-platform.yml",
+    ]) {
       const text = read(file);
-      const input = (name: string) => text.match(new RegExp(`\\n {6}${name}:\\n([\\s\\S]*?)(?=\\n {6}[a-z_]+:\\n|\\n {4}secrets:)`))?.[1] ?? "";
+      const input = (name: string) =>
+        text.match(new RegExp(`\\n {6}${name}:\\n([\\s\\S]*?)(?=\\n {6}[a-z_]+:\\n|\\n {4}secrets:)`))?.[1] ?? "";
       expect(input("size_gate_usd")).toMatch(/type: number/);
       expect(input("size_gate_usd")).not.toMatch(/default:/);
       expect(input("size_gate_usd")).toMatch(/Deprecated, no effect/);
       expect(input("approve_max_usd")).toMatch(/type: number/);
       expect(input("approve_max_usd")).toMatch(/default: 20\b/);
       // An unset number input reaches the env as 0, which loadConfig rejects: it is mapped to empty (unset), like daily_budget_usd.
-      expect(text.match(/WACHIMAN_SIZE_GATE_USD: \$\{\{ inputs\.size_gate_usd != 0 && inputs\.size_gate_usd \|\| '' \}\}/g)).toHaveLength(2);
+      expect(text.match(/WACHIMAN_SIZE_GATE_USD: \$\{\{ inputs\.size_gate_usd != 0 && inputs\.size_gate_usd \|\| '' \}\}/g)).toHaveLength(
+        2,
+      );
       expect(text.match(/WACHIMAN_APPROVE_MAX_USD: \$\{\{ inputs\.approve_max_usd \}\}/g)).toHaveLength(2);
     }
   });

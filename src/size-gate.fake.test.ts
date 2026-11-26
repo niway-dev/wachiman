@@ -3,7 +3,18 @@ import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { loadConfig } from "./config";
-import { GhError, SIGNATURE, SIZE_GATE_MARKER, comment, partialMarker, readAutoCost, review, type Deps, type GhFn, type ReviewOutput } from "./engine";
+import {
+  GhError,
+  SIGNATURE,
+  SIZE_GATE_MARKER,
+  comment,
+  partialMarker,
+  readAutoCost,
+  review,
+  type Deps,
+  type GhFn,
+  type ReviewOutput,
+} from "./engine";
 import type { ProviderAdapter, ProviderRequest, ProviderResult } from "./providers/types";
 
 // The room gate (ADR 0062): a review whose estimate is above the room the run may spend is not
@@ -113,7 +124,13 @@ async function run(w: ReturnType<typeof world>, env: Record<string, string> = {}
   const deps: Deps = {
     gh: w.gh,
     provider,
-    config: loadConfig({ WACHIMAN_VERIFY: "0", WACHIMAN_TRIGGER: "synchronize", WACHIMAN_MODEL: "claude-sonnet-5-5", WACHIMAN_OPERATOR: "owner", ...env }),
+    config: loadConfig({
+      WACHIMAN_VERIFY: "0",
+      WACHIMAN_TRIGGER: "synchronize",
+      WACHIMAN_MODEL: "claude-sonnet-5-5",
+      WACHIMAN_OPERATOR: "owner",
+      ...env,
+    }),
     repoDir: mkdtempSync(join(tmpdir(), "size-gate-head-")),
     log: (l) => void logs.push(l),
     warn: () => {},
@@ -131,7 +148,13 @@ async function say(w: ReturnType<typeof world>, request: string, author = "owner
   const deps: Deps = {
     gh: w.gh,
     provider,
-    config: loadConfig({ WACHIMAN_VERIFY: "0", WACHIMAN_TRIGGER: "comment", WACHIMAN_MODEL: "claude-sonnet-5-5", WACHIMAN_OPERATOR: "owner", ...env }),
+    config: loadConfig({
+      WACHIMAN_VERIFY: "0",
+      WACHIMAN_TRIGGER: "comment",
+      WACHIMAN_MODEL: "claude-sonnet-5-5",
+      WACHIMAN_OPERATOR: "owner",
+      ...env,
+    }),
     repoDir: mkdtempSync(join(tmpdir(), "size-gate-head-")),
     log: (l) => void logs.push(l),
     warn: (l) => void logs.push(l),
@@ -209,7 +232,9 @@ describe("a review the run cannot pay for in full is skipped with one comment", 
     await run(w, { WACHIMAN_VERIFY: "1" });
     const body = w.posted[0].body;
     expect(body).toContain("this run has room for **$2.00**");
-    expect(body).toContain("$3.00, less $1.00 that the reserves keep (the verifier, memory matching and, with PR Confidence, the claims call)");
+    expect(body).toContain(
+      "$3.00, less $1.00 that the reserves keep (the verifier, memory matching and, with PR Confidence, the claims call)",
+    );
     expect(body).toContain("--budget 16 --head abc1234");
   });
 
@@ -413,7 +438,8 @@ describe("the operator approves one head (AC6, AC7, AC8)", () => {
   });
 
   test("AC7: from anyone but the operator the command is ignored as today: no call, no reply", async () => {
-    for (const env of [{}, { WACHIMAN_ASKERS: "write" }]) {
+    const envs: Record<string, string>[] = [{}, { WACHIMAN_ASKERS: "write" }];
+    for (const env of envs) {
       const w = world(LARGE);
       const { provider } = await say(w, APPROVE, "someone-else", env);
       expect(provider.requests).toHaveLength(0);
