@@ -1,6 +1,7 @@
 👮 **Wachiman** · ⚠️ **Partial: 10 of 18 files not reviewed** · 2 blockers before merge · 2 to fix in this PR · 1 pre-existing issue to fix, not from this PR · 10 to consider · whole PR at `d6f4431`
 
-> ⚠️ **Partial review: 8 of 18 files reviewed.** 10 not reviewed because the pull request's budget was spent. The file names are not listed because of GitHub's size limit. Ask `/wachiman review <paths>` for the rest.
+> ⚠️ **Partial review.** Reviewed 8 of 18 files. Not reviewed: 10 (10 files — not reached: the pull request's budget was spent).
+> The file names are not listed because of GitHub's size limit. Ask `/wachiman review <paths>` for the rest.
 
 | At a glance | |
 | --- | --- |

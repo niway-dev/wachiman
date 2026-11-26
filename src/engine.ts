@@ -55,7 +55,7 @@ import {
   type ReviewStateBlock,
   type ReviewStateDraft,
 } from "./review-state";
-import { estimateReview, type ReviewEstimate } from "./estimate";
+import { batchStartFloor, estimateReview, type ReviewEstimate } from "./estimate";
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
 import {
   SETTINGS_PATH,
@@ -3644,6 +3644,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const { match: matchReserve } = reserveSplit(totalBudget, options.verify, exceptionPlan);
   const batchTotal = batchRoom(totalBudget, options.verify, exceptionPlan);
   const batchBudget = options.batchBudgetUsd;
+  // A batch starts only with room for about one turn of the model; a retry only needs a call's minimum.
+  const startFloor = batchStartFloor(options.model, batchBudget, MIN_BATCH_USD);
   const batches = planBatches(
     kept,
     {
@@ -3695,6 +3697,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     if (claimsStep.claims && claimsStep.claims.length > 0) context.claims = claimsStep.claims.map((c) => c.text);
   }
   let budgetError = false;
+  // A batch that never started for want of room. It counts as a budget stop only when no limit stopped the run.
+  let notRunBudget = false;
   let limitError: "turns" | "timeout" | undefined;
   // Any call, a retry included, that ended on a turn or time limit or on its budget: a batch that
   // still gave usable output is not a finished review, so PR Confidence cannot grade it.
@@ -3745,16 +3749,21 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
    * below the minimum but money is reserved by batches in flight, it waits: what they do not spend
    * comes back, and giving up now would skip a batch that a sequential run would have afforded.
    */
-  const acquire = async (id: number, launching: boolean): Promise<{ usd: number } | { why: "rejected" | "budget" | "failed" }> => {
+  const acquire = async (
+    id: number,
+    launching: boolean,
+  ): Promise<{ usd: number; runLimited: boolean } | { why: "rejected" | "budget" | "failed" }> => {
     for (;;) {
       if (fatal) return { why: "failed" };
       if (rejection) return { why: "rejected" };
       if (!launching || inFlight < BATCH_CONCURRENCY) {
         const left = room();
-        if (left >= MIN_BATCH_USD) {
+        if (left >= (launching ? startFloor : MIN_BATCH_USD)) {
           const usd = Math.min(batchBudget, left);
           reserved.set(id, usd);
-          return { usd };
+          // Limited by the run itself: even if every reservation came back unspent, the room would be
+          // below the per-call cap. A cap shrunk only by other batches' reservations is not.
+          return { usd, runLimited: batchTotal - spent < batchBudget };
         }
         if (reserved.size === 0) return { why: "budget" };
       }
@@ -3762,7 +3771,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     }
   };
 
-  const runBatch = async (i: number, batch: Batch, firstBudget: number): Promise<BatchOutcome> => {
+  const runBatch = async (i: number, batch: Batch, firstBudget: number, runLimited: boolean): Promise<BatchOutcome> => {
     const label = `Batch ${i + 1} of ${batches.length}`;
     const out: BatchOutcome = {
       report: { label, files: batch.files.length, lines: batch.lines, maxRisk: batch.maxRisk, status: "", turns: 0, costUsd: 0 },
@@ -3821,7 +3830,11 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     // A refused call (no credit, bad key) would be refused again: no retry.
     // Only this batch's own refusal explains its gaps; another batch's refusal only stops new calls.
     const ownRefusal = first.rejection !== undefined && first.rejection.kind !== "other";
-    const grant = gaps.length > 0 && first.stopped !== "timeout" && !ownRefusal ? await acquire(i, false) : undefined;
+    // A call cut on a budget that was the run's own remaining room would meet the same limit again with
+    // less room; one cut at the full cap gets a fresh cap. A cap that only other batches' reservations
+    // shrank is not the run's limit: that money comes back, and the retry waits for it.
+    const roomCut = first.budget && runLimited;
+    const grant = gaps.length > 0 && first.stopped !== "timeout" && !ownRefusal && !roomCut ? await acquire(i, false) : undefined;
     if (gaps.length > 0 && grant && "usd" in grant) {
       const retry = await reviewBatchBackingOff(
         core,
@@ -3891,7 +3904,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       break;
     }
     inFlight++;
-    const task: Promise<void> = runBatch(i, batch, granted.usd)
+    const task: Promise<void> = runBatch(i, batch, granted.usd, granted.runLimited)
       .then(
         (outcome) => void (outcomes[i] = outcome),
         (error) => void (fatal ??= { error }),
@@ -3923,9 +3936,13 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     budgetCut.push(...outcome.budgetCut);
     usage = addUsage(usage, outcome.usage);
     if (outcome.budgetError) budgetError = true;
+    // A batch that never started for want of room: with no batch output the run stopped on its budget,
+    // so the review posts the budget notice instead of failing with "no review for any batch".
+    if (outcome.notRun.length > 0 && otherError === undefined) notRunBudget = true;
     if (outcome.stopped) limitError = outcome.stopped;
     if (outcome.anyLimit) anyLimit = true;
   }
+  if (notRunBudget && limitError === undefined) budgetError = true;
 
   // Set by the callbacks above, which the compiler does not follow.
   const refused = rejection as { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;

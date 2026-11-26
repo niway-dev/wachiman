@@ -460,7 +460,7 @@ inline replies. It keeps those signed by this engine whose footer carries the au
 amount on their cost line. Model text cannot forge either part: `<!--` is defused in everything a
 model writes, and the footer is read only at the very end of the body.
 
-- If `auto_budget_usd` minus that sum is less than $0.05 (a batch's minimum), the run posts one
+- If `auto_budget_usd` minus that sum is less than $0.05 (the gate's threshold, lower than the start floor a batch needs), the run posts one
   notice, "Automatic reviews paused: $X of $Y spent on this pull request. Comment `/wachiman review`
   to review now.", and starts no model call. A second notice for the same ceiling is not posted:
   later pushes post nothing. Raising `auto_budget_usd` lets the next push run.
@@ -481,8 +481,8 @@ What one review does, in order:
 1. Batches start in risk order, riskiest first, and up to four run at once. The limit is a constant
    in the engine (`BATCH_CONCURRENCY`), not a setting, and it is the same in CI and on a laptop.
 2. Before each call, the engine computes what is left: `budget_usd` minus what the finished calls
-   reported, minus what the calls still running may spend (their reservations). If less than $0.05
-   is left and some call is still running, the batch waits, because that call may give money back.
+   reported, minus what the calls still running may spend (their reservations). If less than the start
+   floor for a batch (or $0.05 for a retry) is left and some call is still running, the batch waits, because that call may give money back.
    If nothing is running, no more calls start, and the remaining files are listed as not reviewed
    (`not run: budget spent`).
 3. A call gets the smaller of `batch_budget_usd` and what is left, and that amount is reserved
@@ -490,7 +490,11 @@ What one review does, in order:
    total can never pass `budget_usd` by more than a call's own overshoot.
 4. **If a batch comes back with files unaccounted for, the engine makes one more call for those
    files**, in the same slot and by the same rule: the smaller of `batch_budget_usd` and what is
-   left, as long as at least $0.05 remains. Money reserved by the batches still running is not
+   left, as long as at least $0.05 remains. A call that ended on its budget when that budget was
+   what the run had left (below `batch_budget_usd`) is not retried: the files are reported as not
+   reached because the call ran out of its budget. A batch starts only when the room is at least
+   60% of the model's mean batch cost (never below $0.05); below that it waits for room from
+   batches still running, and is reported as not reached when none comes back. Money reserved by the batches still running is not
    available to it, so a retry can get a smaller cap than the first call. A batch can therefore
    cost up to two calls. This also happens when the first call failed or returned nothing: the
    retry then covers every file of the batch.
@@ -521,8 +525,10 @@ What "cap" means depends on the provider:
 
 Smaller edges:
 
-- A total below $0.05 is accepted as a setting, but no call ever starts. The run ends with
-  `The agent did not return a review for any batch.` and exit 1.
+- A total below a batch's start floor (60% of the model's mean batch figure, never below $0.05) is
+  accepted as a setting, but no call ever starts. On the local path the run reports that it ran out of its
+  budget; on the GitHub path the run checks the estimate against the room first and posts the size-gate notice
+  instead, before any batch starts.
 - If no batch produced any output and at least one batch's first call hit its cap, the engine posts
   a short review saying nothing was reviewed reliably, with a hint to review by path, and exits 0.
 - If some batches produced output, the review is posted with partial coverage and exit 0.

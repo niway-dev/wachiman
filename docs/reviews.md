@@ -215,7 +215,7 @@ The first line of the review says whether everything was covered:
   a review partial and does not keep the incremental marker from moving. A push that changes only
   binaries posts a one-line "Nothing to review … not reviewable" notice with the marker and no
   cost line: no model was called.
-- Partial: "⚠️ **Partial review**: reviewed 3 of 4 files … Not reviewed: … Ask
+- Partial: "⚠️ **Partial review.** Reviewed 3 of 4 files. Not reviewed: 1 (1 file — reason) … Ask
   `/wachiman review <paths>` for the rest." A partial review of the whole change also records which
   files it did not reach. The next push reviews the changes since plus those files (with their whole
   diff), and its headline says so: "review of the changes since `a1b2c3d` and the 4 files the previous

@@ -186,7 +186,7 @@ describe("size fitting: Files not reviewed (slot 13a)", () => {
       } else {
         expect(body, `limit ${limit}`).not.toContain('listed under "Files not reviewed"');
         expect(body, `limit ${limit}`).not.toContain("listed under Files not reviewed");
-        expect(body, `limit ${limit}`).toContain("40 not reviewed because the pull request's budget was spent");
+        expect(body, `limit ${limit}`).toContain("Not reviewed: 40 (40 files — not reached: the pull request's budget was spent)");
         expect(body, `limit ${limit}`).toContain("not listed because of GitHub's size limit");
       }
     }

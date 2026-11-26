@@ -237,12 +237,18 @@ Four rules follow from that code:
    engine makes one retry with only those files. The retry is a second call with its own cap, again
    `min(batch_budget_usd, what is left)`. A batch can therefore cost up to twice the per-batch
    figure. A call that failed without a result (the process crashed, say) is retried the same way.
+   A call cut on a budget that was the run's remaining room is not retried, because the retry would
+   meet the same limit with less room. A batch also never starts with room below 60% of the model's
+   mean batch figure (never below $0.05).
 2. **A call that fails is counted at its cap.** The engine cannot know what it spent, so it assumes
    the worst case it allowed. The real figure may be lower, or higher if the provider's cap was
    exceeded.
-3. **The engine does not start a call with less than $0.05 left.** The same limit applies to the
-   retry. A total below $0.05 is accepted as a setting but starts no batch: the run ends with the
-   error "The agent did not return a review for any batch."
+3. **The engine does not start a batch with less than its start floor left, and no call with less
+   than $0.05.** The start floor is 60% of the model's mean batch figure, never below $0.05 (about
+   $0.19 for Sonnet). A model outside the Sonnet, Opus and Haiku families has no measured figure, so
+   its floor is 60% of the per-call cap (about $0.45 at the default $0.75). The $0.05 limit applies to the retry. A total below the start floor is accepted
+   as a setting but starts no batch: on the local path the run reports that it ran out of its budget,
+   and the GitHub path stops before any batch starts (see the troubleshooting page).
 4. **The total can be overshot.** The engine checks `spent` after each call, using what the call
    reported. The last call can push the total past `budget_usd`, because the cap on a call is not
    exact (see the next section).
@@ -289,12 +295,14 @@ gate let through can still reach its budget.
 
 The engine does not stop the review early with an error. It posts what it has:
 
-- A batch is **not started** when less than $0.05 is left. Its files are listed in the review as not
+- A batch is **not started** when less than its start floor is left (60% of the model's mean batch
+  figure, never below $0.05). Its files are listed in the review as not
   reviewed, with the reason "not reached: the pull request's budget was spent", and the coverage table
   shows `not run: budget spent` for that batch.
-- A batch whose call ended on its cap without a usable result has no review for its files. The
-  engine retries it if at least $0.05 is left; otherwise the table shows
-  `N file(s) left: budget spent`.
+- A batch whose call ended on its cap without a usable result has no review for its files. If the
+  cap was the full per-call cap, the engine retries it when at least $0.05 is left. If the cap was
+  the run's own remaining room (below the per-call cap even with every other batch's reservation
+  returned), it is not retried; the table shows `N file(s) left: budget spent`.
 - A batch whose call stopped at the **turn cap** (`max_turns`) has no review either, because Claude Code
   prints no answer when it stops there. It is handled like a spent budget: one retry for its files if
   at least $0.05 is left, the table shows `hit the turn limit`, and files still missing are listed as
@@ -474,8 +482,8 @@ into six batches.
 | Batch 2, retry | min(0.75, 1.63) = 0.75 | 0.50 | 1.87 | Files reviewed after a retry |
 | Batch 3, first call | min(0.75, 1.13) = 0.75 | 0.70 | 2.57 | Every file reviewed |
 | Batch 4, first call | min(0.75, 0.43) = 0.43 | 0.43 | 3.00 | Hit its cap, no usable review |
-| Batch 4, retry | not started | none | 3.00 | Less than $0.05 left |
-| Batches 5 and 6 | not started | none | 3.00 | Less than $0.05 left |
+| Batch 4, retry | not started | none | 3.00 | The call was cut on the run's own remaining room, so a retry would meet the same limit |
+| Batches 5 and 6 | not started | none | 3.00 | The room is below the start floor |
 
 What the review shows: a "Partial review" line naming the files of batches 4, 5 and 6; the footer
 `... · 6 batches · $3.00`; and a coverage table with batch 2 at `reviewed after a retry` and `$1.25`,

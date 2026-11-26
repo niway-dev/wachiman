@@ -12,10 +12,19 @@ import type { ReviewFile } from "./engine";
 export const PER_BATCH_USD = { sonnet: 0.32, opus: 0.5, haiku: 0.28 } as const;
 
 /** The mean cost of one batch call for `model`, never above the per-call cap. */
-function perBatchFor(model: string, batchBudgetUsd: number) {
+export function perBatchFor(model: string, batchBudgetUsd: number) {
   const id = model.toLowerCase();
   const family = (Object.keys(PER_BATCH_USD) as (keyof typeof PER_BATCH_USD)[]).find((f) => id.includes(f));
   return family ? Math.min(PER_BATCH_USD[family], batchBudgetUsd) : batchBudgetUsd;
+}
+
+/**
+ * The room a batch needs before it starts: 60% of the model's mean batch, never below `minUsd`.
+ * Below it, a call is cut before its first turn pays for anything (the cheapest first turn on
+ * pull request 287 cost $0.17).
+ */
+export function batchStartFloor(model: string, batchBudgetUsd: number, minUsd: number) {
+  return Math.max(minUsd, 0.6 * perBatchFor(model, batchBudgetUsd));
 }
 
 export interface ReviewEstimate {
