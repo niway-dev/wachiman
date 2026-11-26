@@ -121,12 +121,18 @@ Wachiman replies, since after two Wachiman stays silent there. A scoped `/wachim
 answers open threads. Only replies from `OWNER`, `MEMBER` and `COLLABORATOR` are passed to the
 agent. See [reviews.md](reviews.md#reply-to-a-finding).
 
-**7a. "Not reviewed: this pull request is above the size gate."** The engine estimated the cost of
-reviewing the whole pull request (batches times a per-batch figure, no model call) and it is above
-`size_gate_usd` (default $6) and above the run budget, so nothing was sent and nothing was spent. The
-comment gives the estimate. Set `budget_usd` in your caller to the figure it suggests, then comment
-`/wachiman review`; also raise `auto_budget_usd` to have pushes reviewed automatically. Or comment
-`/wachiman review <path>` for part of it. See [costs.md](costs.md#the-size-gate) and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
+**7a. "Not reviewed: this review would cost more than the run can spend."** The engine estimated the
+cost of reviewing the whole pull request (batches times a per-batch figure, no model call) and it is
+above the room the run has (the smallest of `budget_usd`, what is left of `auto_budget_usd` and the
+ledger's grant, less the verifier and memory reserves), so nothing was sent and nothing was spent.
+The comment gives the estimate, the room and the head. The operator comments the command it offers,
+`/wachiman review --budget N --head <sha>`, to approve a budget for that head only (it is offered
+when `N` is at or below `approve_max_usd`, default $20; otherwise raise `approve_max_usd` in your
+caller). If the ceiling was the limit, a plain `/wachiman review` is offered; if the ledger's grant
+was, `/wachiman review --force`. A push cancels an approval. Or comment `/wachiman review <path>`
+for part of it. A refused approval (stale head, `N` out of range, one flag without the other)
+gets one reply and no model call. See [costs.md](costs.md#the-room-gate) and the
+[ADR on the room gate](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md).
 
 **7b. "Automatic reviews paused: $X of $Y spent on this pull request."** The pull request's automatic
 runs (first review, push reviews, thread replies) reached `auto_budget_usd`. Comment `/wachiman review`

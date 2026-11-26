@@ -1,5 +1,6 @@
 {
   "permissions": {
     "deny": ["Bash", "Read(//proc/**)", "Grep(//proc/**)", "Glob(//proc/**)"]
-  }
+  },
+  "promptCacheTtl": "5m"
 }

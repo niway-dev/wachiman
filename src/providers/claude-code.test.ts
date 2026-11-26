@@ -88,6 +88,18 @@ describe("findEngineSettings", () => {
     expect(findEngineSettings(import.meta.dir)).toEndWith("claude-code.settings.json");
     expect(() => findEngineSettings("/nonexistent/dir")).toThrow("claude-code.settings.json");
   });
+
+  test("forces the 5-minute prompt cache, and no caller variable can override it", () => {
+    // On a subscription Claude Code writes the cache for 1 hour, which costs more per turn, so a
+    // batch reaches its budget in fewer turns (docs/providers/claude-code.md, "The prompt cache").
+    const settings = JSON.parse(readFileSync(findEngineSettings(import.meta.dir), "utf8"));
+    expect(settings.promptCacheTtl).toBe("5m");
+    // The environment variable outranks the setting in Claude Code; the allowlist must drop it.
+    const parent = { PATH: "/usr/bin", CLAUDE_CODE_OAUTH_TOKEN: "t", CLAUDE_CODE_PROMPT_CACHE_TTL: "1h" };
+    for (const auth of ["api-key", "oauth-token", "subscription"] as const) {
+      expect(buildChildEnv(parent, { auth })).not.toHaveProperty("CLAUDE_CODE_PROMPT_CACHE_TTL");
+    }
+  });
 });
 
 describe("leaksKey", () => {

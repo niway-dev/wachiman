@@ -210,7 +210,7 @@ wachiman local --repo-dir . --from abc1234        # that commit and everything a
 | `--base <ref>` | What the branch is compared with. Default: `origin/HEAD` when it resolves (the remote's default branch), else `main`. No fetch is made: fetch first if your base is stale |
 | `--from <commit>` | Review from that commit forward, inclusive: `<commit>^ → HEAD`. It must be an ancestor of `HEAD`, which must be a branch |
 | `--commit <commit>` | Review exactly that commit: `<commit>^ → <commit>`. `HEAD` can be anywhere, even detached; your working tree is not touched |
-| `--max-depth <n>` | The most commits the review may span, from its start commit to `HEAD`. Default 250. The cap catches a wrong base, such as reviewing all of `main` by accident; it does not limit cost, the size gate does. Over it, the run stops with exit 2 before any call; raise it (or lower it) for one run. A positive integer; no environment variable |
+| `--max-depth <n>` | The most commits the review may span, from its start commit to `HEAD`. Default 250. The cap catches a wrong base, such as reviewing all of `main` by accident; it does not limit cost, `WACHIMAN_BUDGET_USD` does. Over it, the run stops with exit 2 before any call; raise it (or lower it) for one run. A positive integer; no environment variable |
 | `[paths…]` | Review only the changed files under these paths. A word that names no changed file is ignored, with a line on stderr |
 | `--input <file>` | Review a `wachiman.review-input/1` file ([formats](formats/README.md)) instead of computing the diff; its `change.head.sha` must exist in `--repo-dir` |
 | `--format terminal\|markdown\|json` | Default `terminal` (plain text). `markdown` holds every finding and ends with the prompt for your agent. `json` is the [`ReviewResult`](formats/README.md) |
@@ -423,12 +423,14 @@ export WACHIMAN_DIR="$PWD"   # in your shell profile
   `WACHIMAN_CALL_TIMEOUT_S`; the run by `WACHIMAN_BUDGET_USD` (default $3), counted in the
   API-equivalent estimate. See [configuration](configuration.md#local-mode).
 - **Size warning, never a refusal.** Before the first call, `local` estimates what reviewing all of
-  the change would cost. When that is above `WACHIMAN_SIZE_GATE_USD` (default $6) and above your
-  budget, it prints one warning line on stderr and carries on. The money caps are
+  the change would cost. When that is above your budget (`WACHIMAN_BUDGET_USD`, less the verifier and memory reserves when they apply), it prints one
+  warning line on stderr and carries on, so the review may be partial. `WACHIMAN_SIZE_GATE_USD` has
+  no effect. The money caps are
   `WACHIMAN_BUDGET_USD` for the run (default $3) and `WACHIMAN_BATCH_BUDGET_USD` for each
   call (passed to Claude Code as `--max-budget-usd`, a soft cap); there is no per-pull-request
   ceiling. On a subscription the cost is Claude Code's API-equivalent figure, not a bill. See
-  [the size gate](costs.md#the-size-gate) and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
+  [the room gate](costs.md#the-room-gate), which GitHub mode applies instead of a warning, and the
+  [ADR on the room gate](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md).
 - **A usage limit ends the run.** When your plan's usage runs out mid-review, the run stops (it
   never waits for the window to reset) and prints a partial report:
   `stop: quota — the account's usage limit ended the run; N file(s) not reviewed: …`. Exit code 0.
