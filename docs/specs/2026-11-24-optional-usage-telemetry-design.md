@@ -2,7 +2,7 @@
 
 - **Status:** proposed (2026-11-25). Designed, not built. Building waits for the trigger in
   [When to build it](#when-to-build-it).
-- **ADRs:** [Wachiman may send usage metrics only after the owner opts in, and never an account
+- **ADRs:** [Usage metrics are sent only after opt-in, and never carry an account
   identifier](../adr/0065-usage-metrics-are-sent-only-after-opt-in-and-never-carry-an-account-identifier.md)
   (amends decision 5 of
   [the local-review architecture decision](../adr/0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)).
@@ -77,12 +77,15 @@ Share usage metrics? [y/N]
   is asked at the next interactive `init`. `init --json` reports `"telemetry": "pending"` so an
   agent relays the question to the owner, who answers it or runs `wachiman telemetry on`; the agent
   never answers it. `init --dry-run` writes no choice and no UUID.
-- **Later:** `wachiman telemetry on|off|status`. Off stops sending from the next review on. It
+- **Later:** `wachiman telemetry on|off|status`. `on` is a consent like `init`'s: it needs a
+  terminal, shows the same text and asks `[y/N]`, and refuses when `CI` or `GITHUB_ACTIONS` is set;
+  `off` and `status` work anywhere. Off stops sending from the next review on. It
   does not delete what was received. A new `on` after an `off` keeps the same UUID;
   `wachiman telemetry reset` makes a new one.
 - **`DO_NOT_TRACK`:** when it is set ([donottrack.sh](https://donottrack.sh/)), telemetry is off
   whatever the stored choice, exactly like `WACHIMAN_TELEMETRY=0`, and interactive `init` does not
-  ask the question. The gate is `usageDataAllowed()` in `src/tracking.ts`.
+  ask the question. The gate is `usageDataAllowed()` in `src/tracking.ts`; telemetry also
+  checks that `CI` and `GITHUB_ACTIONS` are unset, which keeps the first version laptop only.
 - **Environment override:** `WACHIMAN_TELEMETRY=0` turns it off for one process, whatever the
   stored choice. Nothing turns it on without the stored yes.
 
@@ -150,6 +153,8 @@ the output. A summary over the size cap is not sent.
   with `WACHIMAN_TELEMETRY=0`.
 - A test that a failing or hanging endpoint leaves the review's output and exit code unchanged and
   adds no more than the timeout to its wall time.
+- A test that with a stored yes and `CI` or `GITHUB_ACTIONS` set no call is made (laptop only), and
+  that `wachiman telemetry on` refuses without a terminal.
 - A test that with a stored yes and `DO_NOT_TRACK` set no call is made, and that interactive `init`
   does not ask while it is set.
 - The schema in `docs/` and the client's builder are checked against each other by a test.
