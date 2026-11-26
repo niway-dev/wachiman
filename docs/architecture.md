@@ -486,8 +486,12 @@ hold spaces or colons without an ambiguous split, and no JSON is parsed for outp
 The engine, not `rg`, decides which names a line holds (by word boundaries), because `rg` only says that
 a line holds at least one, and sorts each name's matches by path then line, the order of `git grep`.
 
-Known differences from `git grep`: it reads tracked files and `rg` reads the directory it is given, which is the head snapshot
-(`wachiman local`) or a clean CI checkout, so no ignored or untracked file is read in either case; and `rg` has no 8 MB cut per name. `git grep` stops a name that is
+`rg` walks the whole directory it is given, which can hold files `git grep` never reads: the CI job's
+`.ci-main/` checkout, a submodule, an untracked file. The engine keeps its matches only in files
+`git ls-files` lists, and if that list cannot be read the search counts as failed and the review uses
+`git grep`.
+
+Known difference from `git grep`: `rg` has no 8 MB cut per name. `git grep` stops a name that is
 a very common word (`get`, `has`) at about 8 MB of output and the evidence then notes that the list is
 partial; `rg` lists every match, so for such a name `total_matches` is higher and that note is absent.
 Nothing else in `evidence.json` differs. A row with a CR or a Unicode line separator is dropped by both backends, a quirk of the existing

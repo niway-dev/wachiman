@@ -212,8 +212,10 @@ export async function installRipgrep(env: Env, deps: InstallDeps = {}): Promise<
       reason: `SHA-256 mismatch for ${entry.asset}: expected ${entry.sha256}, got ${actual}. Nothing was installed.`,
     };
   }
-  const work = mkdtempSync(join(tmpdir(), "wachiman-rg-"));
+  let work: string | undefined;
+  let staged: string | undefined;
   try {
+    work = mkdtempSync(join(tmpdir(), "wachiman-rg-"));
     const archive = join(work, entry.asset);
     writeFileSync(archive, bytes);
     const unpacked = spawnSync("tar", ["-xzf", archive, "-C", work], { encoding: "utf8", timeout: 60_000 });
@@ -225,15 +227,17 @@ export async function installRipgrep(env: Env, deps: InstallDeps = {}): Promise<
     const dir = ripgrepInstallDir(env);
     mkdirSync(dir, { recursive: true });
     const target = join(dir, "rg");
-    const staged = join(dir, `rg.tmp-${process.pid}`);
+    staged = join(dir, `rg.tmp-${process.pid}`);
     writeFileSync(staged, readFileSync(binary));
     chmodSync(staged, 0o755);
     renameSync(staged, target);
+    staged = undefined;
     return { status: "installed", path: target, version: RIPGREP_VERSION };
   } catch (error) {
     return { status: "unavailable", reason: `could not install ripgrep: ${(error as Error).message}` };
   } finally {
-    rmSync(work, { recursive: true, force: true });
+    if (staged) rmSync(staged, { force: true });
+    if (work) rmSync(work, { recursive: true, force: true });
   }
 }
 

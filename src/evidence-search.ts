@@ -32,9 +32,12 @@
  * U+2028/9 (its row parser's `.` stops at them), so this backend drops those rows too. Fixing it
  * belongs to a change that touches both.
  *
- * Known differences from `git grep`: this searches the directory the engine passes, which is a
- * snapshot of the head (`wachiman local`) or a clean CI checkout, never a developer's dirty working
- * tree, so `--no-ignore` finds no ignored or untracked file there; and there is no 8 MB output
+ * Tracked files only: `rg` walks the whole directory (`--hidden --no-ignore`), which can hold files
+ * `git grep` never reads (a nested checkout such as the CI job's `.ci-main/`, a submodule, an
+ * untracked file), so its matches are kept only in files `git ls-files` lists. If that list cannot
+ * be read the search counts as failed and the review uses `git grep`.
+ *
+ * Known difference from `git grep`: there is no 8 MB output
  * limit per name: `git grep` stops a name with a very common word (`get`) at about 8 MB of output
  * and the engine then says its list is partial, while this backend lists every match (the count and
  * that note then differ).
@@ -332,6 +335,30 @@ export function binaryFiles(
   return binary;
 }
 
+/**
+ * The files among `files` that `git ls-files` does not list in `repoDir`: the ones `git grep`
+ * never searches. One `git ls-files -z` for the whole tree; a failure is returned, not guessed.
+ */
+export function untrackedFiles(
+  repoDir: string,
+  files: string[],
+  git: GitRunner = spawnGit,
+): { files: Set<string> } | { failed: string } {
+  if (files.length === 0) return { files: new Set() };
+  let why: string;
+  try {
+    const run = git(["ls-files", "-z"], { cwd: repoDir, timeoutMs: 20_000, maxBytes: 256 * 1024 * 1024 });
+    if (!run.timedOut && !run.outputCut && !run.error && run.status === 0) {
+      const tracked = new Set(run.stdout.split("\0"));
+      return { files: new Set(files.filter((f) => !tracked.has(f))) };
+    }
+    why = run.timedOut ? "timed out" : run.outputCut ? "output cut" : (run.error ?? `exit status ${run.status}`);
+  } catch (error) {
+    why = (error as Error).message;
+  }
+  return { failed: `git ls-files failed (${why}), so ripgrep's matches cannot be limited to tracked files` };
+}
+
 /** The environment `rg` gets: no token, no proxy, no configuration file. */
 const rgEnv = () => ({ PATH: process.env.PATH ?? "", HOME: process.env.HOME ?? "", LC_ALL: "C" });
 
@@ -344,9 +371,10 @@ export async function runRipgrep(
 ): Promise<RipgrepRun> {
   const now = opts.now ?? Date.now;
   const started = now();
-  const dir = mkdtempSync(join(tmpdir(), "wachiman-rg-patterns-"));
+  let dir: string | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    dir = mkdtempSync(join(tmpdir(), "wachiman-rg-patterns-"));
     const patternFile = join(dir, "patterns");
     writeFileSync(patternFile, names.join("\n") + "\n");
     const proc = Bun.spawn([binary, ...ripgrepArgs(patternFile)], {
@@ -380,6 +408,9 @@ export async function runRipgrep(
         failed: `ripgrep exited with status ${code}${stderr ? `: ${stderr.split("\n")[0].slice(0, 200)}` : ""}`,
         ms: ms(),
       };
+    const untracked = untrackedFiles(repoDir, collector.files(), opts.git);
+    if ("failed" in untracked) return { ok: false, failed: untracked.failed, ms: ms() };
+    collector.drop(untracked.files);
     // The attribute check and the file reads are part of the search step: counted in `ms`.
     collector.drop(binaryFiles(repoDir, collector.files(), opts.git, opts.log));
     return { ok: true, byName: collector.result(), lines: collector.lines, ms: ms() };
@@ -387,7 +418,7 @@ export async function runRipgrep(
     return { ok: false, failed: `ripgrep could not run: ${(error as Error).message}`, ms: now() - started };
   } finally {
     if (timer) clearTimeout(timer);
-    rmSync(dir, { recursive: true, force: true });
+    if (dir) rmSync(dir, { recursive: true, force: true });
   }
 }
 
@@ -495,8 +526,19 @@ export function ripgrepMissingLine(tried: string[]): string {
  * Starts the evidence step of a review: plans the evidence of every batch, and with ripgrep
  * searches the union of their names in one call before the first batch starts. With a fake `git`
  * (tests) or no ripgrep it starts nothing and each batch searches with `git grep` as before.
+ * Never throws: evidence helps a review and is never a condition of it, so an error here only
+ * sends the batches to `git grep`.
  */
-export async function startEvidenceRun(args: {
+export async function startEvidenceRun(args: Parameters<typeof startEvidenceRunUnguarded>[0]): Promise<EvidenceRun> {
+  try {
+    return await startEvidenceRunUnguarded(args);
+  } catch (error) {
+    args.log(`evidence: could not start the search (${(error as Error).message}); using git grep (slower)`);
+    return { tally: { backend: "git grep", searches: 0, ms: 0 } };
+  }
+}
+
+async function startEvidenceRunUnguarded(args: {
   repoDir: string;
   batches: { filename: string; patch?: string }[][];
   /** The runner a test injected: then ripgrep is not used, so the test's fake sees every search. */

@@ -367,6 +367,18 @@ describe("ripgrepArgs", () => {
   });
 });
 
+/** Runs `fn` with a TMPDIR that does not exist, so `mkdtempSync(join(tmpdir(), ...))` throws. */
+async function withMissingTmpdir<T>(fn: () => Promise<T>): Promise<T> {
+  const saved = process.env.TMPDIR;
+  process.env.TMPDIR = join(tmpdir(), "wachiman-no-such-dir", "nested");
+  try {
+    return await fn();
+  } finally {
+    if (saved === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = saved;
+  }
+}
+
 describe("runRipgrep", () => {
   function repo() {
     const dir = temp("evidence-rg-");
@@ -388,6 +400,11 @@ describe("runRipgrep", () => {
     write("late-nul.ts", `formatDuration(14)\n${"// pad\n".repeat(2000)}\0\nformatDuration(15)\n`);
     write("notes.md", "formatDuration is documented\n");
     write("src/words.ts", "xformatDuration(12); formatDuration_2(13);\n");
+    spawnSync("git", ["init", "-q"], { cwd: dir });
+    spawnSync("git", ["add", "-A"], { cwd: dir });
+    // Not tracked, as the CI job's `.ci-main/` checkout: `git grep` never reads it, so neither may rg.
+    write(".ci-main/scripts/u.ts", "formatDuration(16)\n");
+    write("untracked.ts", "formatDuration(17)\n");
     return dir;
   }
 
@@ -420,6 +437,19 @@ describe("runRipgrep", () => {
     expect(run.ok && run.byName.get("formatDuration")!.length).toBe(6);
     // And the wrapper does fail without the flag, so the check above can fail.
     expect(Bun.spawnSync([wrapper, "--version"]).exitCode).toBe(2);
+  });
+
+  withRipgrep("a directory git cannot list is a failure, so the review uses git grep instead", async () => {
+    const dir = temp("evidence-rg-nogit-");
+    writeFileSync(join(dir, "a.ts"), "formatDuration(1)\n");
+    const run = await runRipgrep((real as RipgrepFound).path, ["formatDuration"], dir);
+    expect(run).toMatchObject({ ok: false, failed: expect.stringContaining("git ls-files failed") });
+  });
+
+  test("a temporary directory that cannot be made is a failure, never a throw", async () => {
+    const dir = temp("evidence-rg-");
+    const run = await withMissingTmpdir(() => runRipgrep("/nonexistent/rg", ["x"], dir));
+    expect(run).toMatchObject({ ok: false, failed: expect.stringContaining("could not run") });
   });
 
   test("a binary that cannot run is a failure, never a throw", async () => {
@@ -581,6 +611,14 @@ describe("startEvidenceRun", () => {
     expect(run.tally.backend).toBe("git grep");
   });
 
+  test("an error while starting the search falls back to git grep instead of ending the review", async () => {
+    const logs: string[] = [];
+    const run = await startEvidenceRun({ ...base, customGit: false, ripgrep: never, log: (l) => logs.push(l) });
+    expect(run.searcher).toBeUndefined();
+    expect(run.tally).toEqual({ backend: "git grep", searches: 0, ms: 0 });
+    expect(logs).toEqual(["evidence: could not start the search (ripgrep must not be resolved); using git grep (slower)"]);
+  });
+
   test("a batch with no symbol to search never resolves ripgrep and says nothing", async () => {
     const logs: string[] = [];
     const run = await startEvidenceRun({
@@ -647,6 +685,7 @@ describe("startEvidenceRun", () => {
     writeFileSync(join(dir, "other.ts"), "markCopySeen(1);\nstartFileDrag(2);\n");
     // A repository, so that `git check-attr` answers and the one log line is the search's own.
     spawnSync("git", ["init", "-q"], { cwd: dir });
+    spawnSync("git", ["add", "-A"], { cwd: dir });
     const logs: string[] = [];
     const second = [{ filename: "src/two.ts", patch: "@@\n+  window.api.startFileDrag(x);\n+  refreshAll();\n" }];
     const run = await startEvidenceRun({
@@ -823,6 +862,22 @@ describe("installRipgrep", () => {
     expect(Bun.spawnSync([target, "--version"]).stdout.toString()).toContain("ripgrep 15.2.0");
     // No staging file is left behind.
     expect(readdirSync(join(env.WACHIMAN_HOME, "bin"))).toEqual(["rg"]);
+  });
+
+  test("a temporary directory that cannot be made installs nothing and says why, never a throw", async () => {
+    const good = archive();
+    const env = homeEnv();
+    const result = await withMissingTmpdir(() =>
+      installRipgrep(env, {
+        platform: "linux",
+        arch: "x64",
+        assets: { "linux-x64": { asset: good.asset, sha256: good.sha256 } },
+        download: async () => good.bytes,
+      }),
+    );
+    expect(result.status).toBe("unavailable");
+    expect((result as { reason: string }).reason).toContain("could not install ripgrep");
+    expect(existsSync(env.WACHIMAN_HOME)).toBe(false);
   });
 
   test("an unsupported platform and a failed download install nothing and say why", async () => {
