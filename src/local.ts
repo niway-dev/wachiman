@@ -604,6 +604,8 @@ export async function runLocal(
     state.interrupted = true;
   };
   process.on("SIGINT", onSigint);
+  // Set once the report is written; sent in `finally`, after the SIGINT handler is gone so Ctrl-C works during the send.
+  let report: Parameters<typeof reportRun>[0] | undefined;
   try {
     let input: ReviewInput;
     if (args.input === undefined) {
@@ -787,13 +789,15 @@ export async function runLocal(
       writeFileSync(path, text);
       io.stderr(`report: ${path}`);
     } else io.stdout(text);
-    // Only with a stored yes (src/telemetry/); after the report is written, so it can neither change it nor the exit code.
-    await reportRun(runOfReview(result, kept), { env, home: () => home, version: io.engineVersion });
+    // Only with a stored yes (src/telemetry/), never for an interrupted run; sent in `finally`, after the report is
+    // written, so it can neither change it nor the exit code.
+    if (!state.interrupted) report = runOfReview(result, kept);
     return exitCodeOf(result);
   } finally {
     process.off("SIGINT", onSigint);
     releaseSiblings?.();
     release?.();
+    if (report !== undefined) await reportRun(report, { env, home: () => wachimanHome(env), version: io.engineVersion });
   }
 }
 

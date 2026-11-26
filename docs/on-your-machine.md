@@ -253,7 +253,7 @@ which asks the one gate `usageDataAllowed()` (`src/tracking.ts`):
 
 **When it asks.** Interactive `wachiman init` asks once, last, with No as the default, and not when
 `DO_NOT_TRACK` is set or with `--dry-run`. With no terminal, `--yes` or `--json` it stores nothing;
-`init --json` prints `"telemetry": "pending"` (also `yes`, `no` or `blocked`) so an agent relays the
+`init --json` prints `"telemetry": "pending"` (also `yes`, `no`, or `blocked` when `DO_NOT_TRACK`, `WACHIMAN_TELEMETRY=0`, `CI` or `GITHUB_ACTIONS` stops sending) so an agent relays the
 question to you and never answers it. `wachiman telemetry on` shows the same text and asks `[y/N]`; it
 needs a terminal and refuses when `CI` or `GITHUB_ACTIONS` is set.
 

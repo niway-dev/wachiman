@@ -49,7 +49,7 @@ const PROFILE: Row = [
   "--profile <name>",
   "The account to run on: `default` (your own claude), a registered profile, or `isolated[:<name>]`. Default: the project binding, WACHIMAN_PROFILE, the configured default, then `default`",
 ];
-const DO_NOT_TRACK_ENV: Row = ["DO_NOT_TRACK", "Honored: when set to 1, no usage data is sent, whatever the stored opt-in says"];
+const DO_NOT_TRACK_ENV: Row = ["DO_NOT_TRACK", "Honored: when set to anything but empty, 0 or false, no usage data is sent, whatever the stored opt-in says"];
 const HOME_ENV: Row = ["WACHIMAN_HOME", "The Wachiman home, an absolute path. Default: ~/.wachiman"];
 const PROFILE_ENV: Row = ["WACHIMAN_PROFILE", "The profile used when there is no --profile and no project binding"];
 const KEY_ENV: Row = ["ANTHROPIC_API_KEY", "Must be unset: the run refuses to start (exit 2) so the call goes to your subscription"];
@@ -469,7 +469,7 @@ const initPage: Page = {
     ["--yes", "No prompts"],
     [
       "--json",
-      "Never prompt, and print one wachiman.init/1 document on stdout (files and their actions, local and GitHub readiness, `telemetry`: pending, yes, no or blocked, error). Status lines go to stderr",
+      "Never prompt, and print one wachiman.init/1 document on stdout (files and their actions, local and GitHub readiness, `telemetry`: pending, yes, no or blocked (something in the environment stops sending: DO_NOT_TRACK, WACHIMAN_TELEMETRY=0, CI or GITHUB_ACTIONS), error). Status lines go to stderr",
     ],
     REPO_DIR,
   ],
@@ -540,7 +540,7 @@ const telemetryPage: Page = {
     "Share usage metrics (counts and categories, never code, paths, repository names or account identifiers) only if you opt in. `on` shows exactly what is sent and asks [y/N]; it needs a terminal and refuses when CI or GITHUB_ACTIONS is set. `off` stops it from the next review and keeps nothing running. `status` prints your choice, the installation ID and what blocks sending now. `reset` makes a new installation ID.",
   env: [
     HOME_ENV,
-    ["DO_NOT_TRACK", "Honored: when set, nothing is sent, whatever you chose"],
+    ["DO_NOT_TRACK", "Honored: when set to anything but empty, 0 or false, nothing is sent, whatever you chose"],
     ["WACHIMAN_TELEMETRY", "0 turns it off for one process. Nothing turns it on without your stored yes"],
     ["CI, GITHUB_ACTIONS", "When set, nothing is sent and `on` refuses"],
   ],

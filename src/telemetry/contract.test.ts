@@ -54,8 +54,8 @@ describe("docs/telemetry-api.md and the client agree", () => {
       /[\s]+/g,
       " ",
     );
-    for (const language of LANGUAGES) expect(listed).toContain(language);
-    expect(listed.match(/[a-z]+(?=[,.])/g)!.length).toBe(LANGUAGES.length);
+    const parsed: string[] = (listed.match(/[a-z]+(?=[,.])/g) ?? []).sort();
+    expect(parsed).toEqual(Array.from<string>(LANGUAGES).sort());
     expect(PAGE).toContain(`POST ${ENDPOINT}`);
     expect(PAGE).toContain(`${MAX_SUMMARY_BYTES} bytes`);
     for (const status of ["204", "400", "413"]) expect(PAGE).toContain(`| \`${status}\``);

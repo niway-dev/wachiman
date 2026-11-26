@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ASK_SCHEMA, WALKTHROUGH_SECTIONS } from "./ask";
 import { parseAskArgs, NO_REVIEW_NOTICE } from "./local-ask";
+import { recordChoice } from "./telemetry/consent";
 import { A_HEAD, branchRepo, commit, removeTempRepos, type BranchRepo } from "../test/support/temp-repo";
 
 const temps: string[] = [];
@@ -165,6 +166,77 @@ describe("parseAskArgs", () => {
   test("the scope flags are the same parser as local: two of them exclude each other", () => {
     expect(() => parseAskArgs(["--base", "main", "--commit", "abc"])).toThrow("--base and --commit cannot be used together.");
   });
+});
+
+describe("usage telemetry after an answer (opt-in; src/telemetry/)", () => {
+  // The synchronous `run` would freeze a server in this process, so these runs are asynchronous.
+  async function askAsync(opts: { garbage?: boolean; env: Record<string, string> }) {
+    const repo = branchRepo();
+    const s = stubs(opts.garbage);
+    const child = Bun.spawn([process.execPath, cli, "ask", "What is b?", "--format", "json", "--repo-dir", repo.dir], {
+      env: { PATH: `${s.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-ask-home-"), USER: "dev", WACHIMAN_VERIFY: "0", ...opts.env },
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [stdout, stderr, code] = [await new Response(child.stdout).text(), await new Response(child.stderr).text(), await child.exited];
+    return { stdout, stderr, code };
+  }
+  const withServer = async (fn: (url: string, bodies: string[]) => Promise<void>) => {
+    const bodies: string[] = [];
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })),
+    });
+    try {
+      await fn(`http://127.0.0.1:${server.port}/v1/usage`, bodies);
+    } finally {
+      server.stop(true);
+    }
+  };
+  const consented = () => {
+    const whome = temp("wachiman-whome-");
+    recordChoice(whome, "yes");
+    return whome;
+  };
+
+  test("a stored yes sends one ask summary; the answer and the exit code are the ones of a run with telemetry off", async () => {
+    await withServer(async (url, bodies) => {
+      const whome = consented();
+      const off = await askAsync({ env: { WACHIMAN_HOME: whome, WACHIMAN_TELEMETRY: "0" } });
+      expect(bodies).toEqual([]);
+      const sent = await askAsync({ env: { WACHIMAN_HOME: whome, WACHIMAN_TELEMETRY_URL: url } });
+      expect(bodies.length).toBe(1);
+      expect(JSON.parse(bodies[0])).toMatchObject({ format: "wachiman.telemetry/1", mode: "ask", outcome: { state: "complete" } });
+      expect(sent.code).toBe(0);
+      expect(sent.code).toBe(off.code);
+      expect(JSON.parse(sent.stdout).sections).toEqual(JSON.parse(off.stdout).sections);
+    });
+  }, 90_000);
+
+  test("without a stored yes nothing is sent", async () => {
+    await withServer(async (url, bodies) => {
+      const r = await askAsync({ env: { WACHIMAN_HOME: temp("wachiman-whome-"), WACHIMAN_TELEMETRY_URL: url } });
+      expect(r.code).toBe(0);
+      expect(bodies).toEqual([]);
+    });
+  }, 60_000);
+
+  test("a failed answer sends outcome failed, and the exit code and stderr stay as they were", async () => {
+    await withServer(async (url, bodies) => {
+      const whome = consented();
+      const off = await askAsync({ garbage: true, env: { WACHIMAN_HOME: whome, WACHIMAN_TELEMETRY: "0" } });
+      const sent = await askAsync({ garbage: true, env: { WACHIMAN_HOME: whome, WACHIMAN_TELEMETRY_URL: url } });
+      expect(bodies.length).toBe(1);
+      expect(JSON.parse(bodies[0])).toMatchObject({ mode: "ask", outcome: { state: "failed" } });
+      expect(sent.code).toBe(1);
+      expect(sent.code).toBe(off.code);
+      expect(sent.stdout).toBe("");
+      expect(sent.stderr).toContain("Wachiman could not answer");
+      expect(sent.stderr).not.toContain("telemetry");
+    });
+  }, 90_000);
 });
 
 describe("wachiman ask", () => {

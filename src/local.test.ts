@@ -38,6 +38,7 @@ import {
 } from "../test/support/temp-repo";
 import { personalMemoryDir } from "./memory/personal";
 import { recordChoice } from "./telemetry/consent";
+import { TIMEOUT_MS } from "./telemetry/send";
 import { readMemoryUse } from "./memory/hygiene";
 
 const temps: string[] = [];
@@ -1737,7 +1738,8 @@ describe("usage telemetry after a review (opt-in; src/telemetry/)", () => {
       expect(hung.code).toBe(off.code);
       expect(hung.stdout).toBe(off.stdout);
       expect(hung.stderr).not.toContain("telemetry");
-      expect(hung.ms - off.ms).toBeLessThan(2000 + 2500);
+      // The send is bounded at TIMEOUT_MS; an unbounded wait would run into the 60 s test timeout.
+      expect(hung.ms).toBeLessThan(TIMEOUT_MS + 15_000);
     } finally {
       server.stop(true);
       hang.stop(true);

@@ -1,9 +1,9 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { consentText } from "./text";
-import { readConsent, recordChoice, UUID_V4 } from "./consent";
+import { consentPath, readConsent, recordChoice, UUID_V4 } from "./consent";
 import { runTelemetry } from "./command";
 
 let home: string;
@@ -59,9 +59,8 @@ describe("wachiman telemetry on", () => {
   test("a no, or a cancel, stores nothing new as yes", () => {
     expect(run(["on"], {}, { interactive: true, ask: () => "no" }).code).toBe(0);
     expect(readConsent(home)).toEqual({ choice: "no" });
-    const home2 = home;
     expect(run(["on"], {}, { interactive: true, ask: () => "cancel" }).code).toBe(130);
-    expect(readConsent(home2)).toEqual({ choice: "no" });
+    expect(readConsent(home)).toEqual({ choice: "no" });
   });
 
   test("a new on after an off keeps the same installation ID", () => {
@@ -82,15 +81,31 @@ describe("wachiman telemetry off, status and reset", () => {
   });
 
   test("status prints the choice, the installation ID and what blocks sending now", () => {
-    expect(run(["status"]).out).toContain("not asked");
+    expect(run(["status"]).out).toContain("Usage telemetry: not asked");
     const { installation } = recordChoice(home, "yes");
     const clear = run(["status"]).out;
-    expect(clear).toContain("on");
+    expect(clear).toContain("Usage telemetry: on");
     expect(clear).toContain(installation!);
     expect(clear).toContain("Sending now: yes");
     const blocked = run(["status"], { DO_NOT_TRACK: "1", CI: "true", WACHIMAN_TELEMETRY: "0" }).out;
     expect(blocked).toContain("Sending now: no");
     for (const name of ["DO_NOT_TRACK", "CI", "WACHIMAN_TELEMETRY=0"]) expect(blocked).toContain(name);
+  });
+
+  test("status reports off after an off", () => {
+    run(["off"]);
+    expect(run(["status"]).out).toContain("Usage telemetry: off");
+  });
+
+  test("an unreadable choice file is not rotated or rewritten: status says unreadable, on, off and reset refuse", () => {
+    mkdirSync(consentPath(home), { recursive: true }); // a directory where the file should be: EISDIR, not ENOENT
+    expect(run(["status"]).out).toContain("Usage telemetry: unreadable");
+    for (const argv of [["off"], ["reset"]]) {
+      const r = run(argv);
+      expect(r.code).toBe(1);
+      expect(r.err).toContain("could not be read");
+    }
+    expect(run(["on"], {}, { interactive: true }).code).toBe(1);
   });
 
   test("reset makes a new installation ID; with none it says so", () => {

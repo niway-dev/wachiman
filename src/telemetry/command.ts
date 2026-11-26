@@ -6,7 +6,7 @@
 import { askOnTerminal, type Answer, type CommandIo } from "../accounts/commands";
 import { wachimanHome } from "../accounts/config";
 import { DOCS } from "../help";
-import { blockedBy, readConsent, recordChoice, resetInstallation, telemetryAllowed } from "./consent";
+import { ConsentUnreadableError, blockedBy, readConsent, recordChoice, resetInstallation, telemetryAllowed } from "./consent";
 import { CONSENT_QUESTION, consentText } from "./text";
 
 type Env = Record<string, string | undefined>;
@@ -22,7 +22,7 @@ export interface TelemetryDeps {
 
 const onTerminal = () => process.stdin.isTTY === true && process.stdout.isTTY === true && process.stderr.isTTY === true;
 
-/** Returns the exit code: 0, 2 for a usage error or a refusal, 130 for a cancel. */
+/** Returns the exit code: 0, 1 when the stored choice cannot be read, 2 for a usage error or a refusal, 130 for a cancel. */
 export function runTelemetry(argv: string[], env: Env, io: CommandIo, deps: TelemetryDeps = {}): number {
   const [sub, ...extra] = argv;
   if (sub === undefined || !SUBCOMMANDS.includes(sub) || extra.length > 0) {
@@ -32,6 +32,16 @@ export function runTelemetry(argv: string[], env: Env, io: CommandIo, deps: Tele
     return 2;
   }
   const home = wachimanHome(env);
+  try {
+    return runWithHome(sub, env, home, io, deps);
+  } catch (error) {
+    if (!(error instanceof ConsentUnreadableError)) throw error;
+    io.stderr(error.message);
+    return 1;
+  }
+}
+
+function runWithHome(sub: string, env: Env, home: string, io: CommandIo, deps: TelemetryDeps): number {
   if (sub === "off") {
     recordChoice(home, "no");
     io.stdout("Usage telemetry is off. Nothing was deleted from what was already received.\n");
@@ -47,7 +57,23 @@ export function runTelemetry(argv: string[], env: Env, io: CommandIo, deps: Tele
 }
 
 function status(env: Env, home: string, io: CommandIo): number {
-  const consent = readConsent(home);
+  let consent: ReturnType<typeof readConsent>;
+  try {
+    consent = readConsent(home);
+  } catch (error) {
+    if (!(error instanceof ConsentUnreadableError)) throw error;
+    io.stdout(
+      [
+        "Usage telemetry: unreadable",
+        "Installation ID: unknown",
+        "Sending now: no",
+        `What is sent: ${TELEMETRY_DOCS}`,
+        `${error.message}`,
+        "",
+      ].join("\n"),
+    );
+    return 0;
+  }
   const blocked = blockedBy(env);
   io.stdout(
     [

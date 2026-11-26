@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit, emptyRepo, removeTempRepos } from "../../test/support/temp-repo";
@@ -67,6 +67,13 @@ describe("telemetryState", () => {
     expect(telemetryState(w.env)).toBe("no");
     expect(telemetryState({ WACHIMAN_HOME: "relative/path" })).toBe("pending");
   });
+
+  test("blocked by anything that blocks sending, with a stored yes", () => {
+    const w = world();
+    recordChoice(w.home, "yes");
+    for (const extra of [{ WACHIMAN_TELEMETRY: "0" }, { CI: "true" }, { GITHUB_ACTIONS: "true" }])
+      expect(telemetryState({ ...w.env, ...extra })).toBe("blocked");
+  });
 });
 
 describe("init without a terminal stores nothing", () => {
@@ -103,6 +110,27 @@ describe("init without a terminal stores nothing", () => {
     expect(io.printed()).toBe("");
     expect(existsSync(consentPath(w.home))).toBe(false);
     expect(existsSync(consentPath(y.home))).toBe(false);
+  });
+});
+
+describe("a telemetry error never fails an init that succeeded", () => {
+  test("a relative WACHIMAN_HOME and an unwritable home: exit 0, the workflow is written, one stderr line", async () => {
+    const written: string[] = [];
+    const original = process.stderr.write;
+    process.stderr.write = ((chunk: string | Uint8Array) => (written.push(String(chunk)), true)) as typeof process.stderr.write;
+    try {
+      const relative = world({ WACHIMAN_HOME: "relative/path" });
+      expect(await init(relative, ARGS, { interactive: true, promptIO: terminal("y") })).toBe(0);
+      expect(existsSync(join(relative.repo, ".github", "workflows", "wachiman-review.yml"))).toBe(true);
+      const blocked = world();
+      const file = join(blocked.home, "not-a-directory");
+      writeFileSync(file, "");
+      const unwritable = { ...blocked, env: { WACHIMAN_HOME: file } };
+      expect(await init(unwritable, ARGS, { interactive: true, promptIO: terminal("y") })).toBe(0);
+    } finally {
+      process.stderr.write = original;
+    }
+    expect(written.filter((l) => l.includes("telemetry: choice not stored")).length).toBe(2);
   });
 });
 

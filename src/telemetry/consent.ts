@@ -22,11 +22,29 @@ export const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-
 
 export const consentPath = (home: string) => join(home, "telemetry.json");
 
-/** The stored choice; `undefined` when the file is missing, unreadable or anything but a well-formed choice. */
+/** The consent file exists but could not be read (not "missing"); writing over it would lose the stored choice and ID. */
+export class ConsentUnreadableError extends Error {
+  constructor(path: string, cause: unknown) {
+    super(`wachiman: the telemetry choice at ${path} could not be read (${cause instanceof Error ? cause.message : String(cause)}); nothing was changed.`);
+    this.name = "ConsentUnreadableError";
+  }
+}
+
+/**
+ * The stored choice; `undefined` when the file is missing or anything but a well-formed choice.
+ * Throws `ConsentUnreadableError` when the file exists but cannot be read.
+ */
 export function readConsent(home: string): Consent | undefined {
   let parsed: unknown;
+  let text: string;
   try {
-    parsed = JSON.parse(readFileSync(consentPath(home), "utf8"));
+    text = readFileSync(consentPath(home), "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return undefined;
+    throw new ConsentUnreadableError(consentPath(home), error);
+  }
+  try {
+    parsed = JSON.parse(text);
   } catch {
     return undefined;
   }
