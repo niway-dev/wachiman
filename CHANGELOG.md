@@ -5,6 +5,13 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.21.0](https://github.com/niway-dev/wachiman/compare/v1.20.1...v1.21.0) (2026-11-25)
+
+
+### Features
+
+* honor DO_NOT_TRACK and announce data-collection changes in wachiman upgrade ([#316](https://github.com/niway-dev/wachiman/issues/316)) ([ab24952](https://github.com/niway-dev/wachiman/commit/ab2495263c5357bcf8f23101415df3e86458afa6))
+
 ## [1.20.1](https://github.com/niway-dev/wachiman/compare/v1.20.0...v1.20.1) (2026-11-24)
 
 

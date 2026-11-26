@@ -5,7 +5,16 @@ import { join } from "node:path";
 import { UsageError } from "../config";
 import type { GitRunner } from "../evidence";
 import type { InstallKind } from "../install-kind";
-import { makeRun, parseUpgradeArgs, planCliUpgrade, runUpgrade, type UpgradeDeps, type UpgradeOptions } from "./command";
+import {
+  dataNotices,
+  makeRun,
+  parseRegistryView,
+  parseUpgradeArgs,
+  planCliUpgrade,
+  runUpgrade,
+  type UpgradeDeps,
+  type UpgradeOptions,
+} from "./command";
 import { classifyRef, rewritePins } from "./pin";
 
 const scratch: string[] = [];
@@ -166,6 +175,7 @@ function rig(files: Record<string, string>, { inRepo = true }: { inRepo?: boolea
           run: (c, a) => (r.runs.push([c, ...a].join(" ")), 0),
           latest: () => (r.latestCalls++, "1.3.0"),
           npmPrefix: () => "/usr",
+          dataCollection: () => undefined,
           ...deps,
         },
       ),
@@ -390,5 +400,98 @@ describe("runUpgrade", () => {
     expect(r.go({})).toBe(0);
     expect(r.out.join("")).toContain("is not a git repository");
     expect(r.read("a.yml")).toContain("@v1.0.0");
+  });
+});
+
+describe("data collection notices", () => {
+  const field = { "1.3.0": "Sends the command name.", "1.2.5": "Older notice.", "1.4.0": "Too new." };
+
+  test("dataNotices keeps releases after the installed one up to the target, oldest first", () => {
+    expect(dataNotices(field, "1.2.0", "1.3.0")).toEqual(["  v1.2.5: Older notice.", "  v1.3.0: Sends the command name."]);
+    expect(dataNotices(field, "1.3.0", "1.3.9")).toEqual([]);
+    expect(dataNotices(field, "1.2.0", "1.2.4")).toEqual([]);
+  });
+
+  test("dataNotices ignores a missing or malformed field and bad entries", () => {
+    for (const bad of [undefined, null, "text", 3, ["1.3.0"], {}]) expect(dataNotices(bad, "1.2.0", "1.3.0")).toEqual([]);
+    expect(dataNotices({ "1.3.0": 5, nope: "x", "1.2.5": "  " }, "1.2.0", "1.3.0")).toEqual([]);
+    expect(dataNotices(field, "not-a-version", "1.3.0")).toEqual([]);
+  });
+
+  test("the upgrade prints the heading and the pointer before the package manager runs", () => {
+    const r = rig({});
+    expect(r.go({}, { dataCollection: () => field })).toBe(0);
+    const out = r.out.join("");
+    expect(out).toContain("Data collection changes in this upgrade:");
+    expect(out).toContain("v1.3.0: Sends the command name.");
+    expect(out).not.toContain("Too new.");
+    expect(out.indexOf("Data collection changes")).toBeLessThan(out.indexOf("Installing v1.3.0"));
+    expect(out).toContain("https://github.com/niway-dev/wachiman/blob/main/docs/on-your-machine.md");
+  });
+
+  test("--check prints them only when an upgrade is available", () => {
+    const r = rig({});
+    expect(r.go({ check: true }, { dataCollection: () => field })).toBe(0);
+    expect(r.out.join("")).toContain("Data collection changes in this upgrade:");
+    const upToDate = rig({});
+    upToDate.go({ check: true }, { latest: () => "1.2.0", dataCollection: () => field });
+    expect(upToDate.out.join("")).not.toContain("Data collection");
+  });
+
+  test("nothing is printed for an absent, empty or malformed field", () => {
+    for (const dataCollection of [() => undefined, () => ({}), () => "junk"]) {
+      const r = rig({});
+      expect(r.go({}, { dataCollection })).toBe(0);
+      expect(r.out.join("")).not.toContain("Data collection");
+      const c = rig({});
+      expect(c.go({ check: true }, { dataCollection })).toBe(0);
+      expect(c.out.join("")).toContain("Latest:    v1.3.0");
+      expect(c.out.join("")).not.toContain("Data collection");
+    }
+  });
+
+  test("a failed lookup prints one stderr line and the upgrade continues; an absent field prints none", () => {
+    const boom = () => {
+      throw new Error("boom");
+    };
+    const r = rig({});
+    expect(r.go({}, { dataCollection: boom })).toBe(0);
+    expect(r.err.filter((l) => l.includes("could not check the release for data collection changes"))).toHaveLength(1);
+    expect(r.err.join("")).toContain("docs/on-your-machine.md");
+    expect(r.out.join("")).toContain("The CLI is now v1.3.0");
+    const c = rig({});
+    expect(c.go({ check: true }, { dataCollection: boom })).toBe(0);
+    expect(c.out.join("")).toContain("Latest:    v1.3.0");
+    expect(c.err.join("")).toContain("could not check the release");
+    const absent = rig({});
+    absent.go({}, { dataCollection: () => undefined });
+    expect(absent.err.join("")).not.toContain("could not check");
+  });
+
+  test("the notices come before the install, so a failed install still shows them", () => {
+    const r = rig({});
+    expect(r.go({}, { run: () => 1, dataCollection: () => field })).toBe(1);
+    expect(r.out.join("")).toContain("Data collection");
+  });
+});
+
+describe("parseRegistryView", () => {
+  test("reads an object with both fields", () => {
+    expect(parseRegistryView('{"version":"1.3.0","wachimanDataCollection":{"1.3.0":"x"}}')).toEqual({
+      version: "1.3.0",
+      dataCollection: { "1.3.0": "x" },
+    });
+  });
+  test("a bare version string (no field published) still gives the version", () => {
+    expect(parseRegistryView('"1.3.0"')).toEqual({ version: "1.3.0", dataCollection: undefined });
+  });
+  test("an object without the field still gives the version", () => {
+    expect(parseRegistryView('{"version":"1.3.0"}')).toEqual({ version: "1.3.0", dataCollection: undefined });
+  });
+  test("malformed JSON and non-release versions give no version", () => {
+    expect(parseRegistryView("not json")).toEqual({ lookupFailed: true });
+    expect(parseRegistryView("")).toEqual({ lookupFailed: true });
+    expect(parseRegistryView('{"version":"1.3.0-beta.1"}').version).toBeUndefined();
+    expect(parseRegistryView('"latest"').version).toBeUndefined();
   });
 });
