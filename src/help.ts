@@ -545,7 +545,8 @@ const telemetryPage: Page = {
     ["CI, GITHUB_ACTIONS", "When set, nothing is sent and `on` refuses"],
   ],
   exit: [
-    ["0", "Done"],
+    ["0", "Done (`status` also exits 0 when the stored choice cannot be read, and says so)"],
+    ["1", "`on`, `off` or `reset` found a stored choice that cannot be read; nothing was changed"],
     ["2", "Usage error, or `on` without a terminal or in CI"],
     ["130", "`on` was cancelled; nothing was stored"],
   ],

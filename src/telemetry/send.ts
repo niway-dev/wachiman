@@ -23,6 +23,9 @@ function endpointOf(env: Env): string | undefined {
   }
 }
 
+/** True when `WACHIMAN_TELEMETRY_URL` is set and `endpointOf` rejects it, so nothing would be sent. */
+export const rejectedEndpoint = (env: Env): boolean => endpointOf(env) === undefined;
+
 /** Sends `summary`. Resolves in at most about `TIMEOUT_MS`; never rejects, whatever the endpoint does. */
 export async function sendSummary(summary: TelemetrySummary, opts: { env: Env; fetch?: typeof fetch }): Promise<void> {
   let timer: ReturnType<typeof setTimeout> | undefined;

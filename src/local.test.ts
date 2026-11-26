@@ -1738,8 +1738,10 @@ describe("usage telemetry after a review (opt-in; src/telemetry/)", () => {
       expect(hung.code).toBe(off.code);
       expect(hung.stdout).toBe(off.stdout);
       expect(hung.stderr).not.toContain("telemetry");
-      // The send is bounded at TIMEOUT_MS; an unbounded wait would run into the 60 s test timeout.
-      expect(hung.ms).toBeLessThan(TIMEOUT_MS + 15_000);
+      // Against the run that sent to a fast server, spawn and review time cancel out: the hung run waits for the
+      // timeout and no longer. The tight unit-level bound is in src/telemetry/send.test.ts.
+      expect(hung.ms - sent.ms).toBeGreaterThan(1000);
+      expect(hung.ms - sent.ms).toBeLessThan(TIMEOUT_MS + 3000);
     } finally {
       server.stop(true);
       hang.stop(true);

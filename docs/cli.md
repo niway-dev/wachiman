@@ -659,7 +659,7 @@ the identifier of any account. The exact fields are in [telemetry-api.md](teleme
 `DO_NOT_TRACK`, `CI` or `GITHUB_ACTIONS` is set or `WACHIMAN_TELEMETRY=0`.
 
 - **`init` asks once.** Interactive `wachiman init` asks last, "Share usage metrics?", with No as the default,
-  and stores the answer. It does not ask with `DO_NOT_TRACK` set, with `--dry-run`, or without a terminal; with
+  and stores the answer. It does not ask when `DO_NOT_TRACK` is set, `WACHIMAN_TELEMETRY=0` is set, or `CI` or `GITHUB_ACTIONS` is set (the `blocked` state), with `--dry-run`, or without a terminal; with
   `--json` or `--yes` it stores nothing.
 - **`on`** shows the same text and asks `[y/N]`. It needs a terminal and refuses (exit 2) without one, and when
   `CI` or `GITHUB_ACTIONS` is set. A new `on` after an `off` keeps the same installation ID.

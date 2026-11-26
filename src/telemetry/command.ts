@@ -7,6 +7,7 @@ import { askOnTerminal, type Answer, type CommandIo } from "../accounts/commands
 import { wachimanHome } from "../accounts/config";
 import { DOCS } from "../help";
 import { ConsentUnreadableError, blockedBy, readConsent, recordChoice, resetInstallation, telemetryAllowed } from "./consent";
+import { rejectedEndpoint } from "./send";
 import { CONSENT_QUESTION, consentText } from "./text";
 
 type Env = Record<string, string | undefined>;
@@ -22,7 +23,7 @@ export interface TelemetryDeps {
 
 const onTerminal = () => process.stdin.isTTY === true && process.stdout.isTTY === true && process.stderr.isTTY === true;
 
-/** Returns the exit code: 0, 1 when the stored choice cannot be read, 2 for a usage error or a refusal, 130 for a cancel. */
+/** Returns the exit code: 0 (`status` also when the stored choice cannot be read: it says so), 1 when `on`, `off` or `reset` find a stored choice that cannot be read, 2 for a usage error or a refusal, 130 for a cancel. */
 export function runTelemetry(argv: string[], env: Env, io: CommandIo, deps: TelemetryDeps = {}): number {
   const [sub, ...extra] = argv;
   if (sub === undefined || !SUBCOMMANDS.includes(sub) || extra.length > 0) {
@@ -81,6 +82,7 @@ function status(env: Env, home: string, io: CommandIo): number {
       `Installation ID: ${consent?.installation ?? "none"}`,
       `Sending now: ${telemetryAllowed(env, consent) ? "yes" : "no"}${blocked.length > 0 ? ` (blocked by ${blocked.join(", ")})` : ""}`,
       `What is sent: ${TELEMETRY_DOCS}`,
+      ...(rejectedEndpoint(env) ? [`Warning: WACHIMAN_TELEMETRY_URL is not used and nothing is sent: it must be an https URL, or http on localhost, 127.0.0.1 or [::1].`] : []),
       "",
     ].join("\n"),
   );

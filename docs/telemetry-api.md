@@ -12,8 +12,11 @@ when `DO_NOT_TRACK`, `CI` or `GITHUB_ACTIONS` is set or `WACHIMAN_TELEMETRY=0`.
 
 ## The route
 
-`POST https://usage.wachiman-api.dev/v1/usage`, once after a `wachiman local` or `wachiman ask` result
-is written. The body is one JSON document (`content-type: application/json`) of schema
+`POST https://usage.wachiman-api.dev/v1/usage`, once when a `wachiman local` review or a `wachiman ask`
+answer finishes, including an `ask` that failed and wrote no answer, and not when you interrupt the run.
+`WACHIMAN_TELEMETRY_URL` replaces the address, but only with an `https:` URL, or `http:` on `localhost`,
+`127.0.0.1` or `[::1]`. Any other value (`http://test-box:8080`, say) is not used, and nothing is sent;
+`wachiman telemetry status` prints a warning when it sees one. The body is one JSON document (`content-type: application/json`) of schema
 `wachiman.telemetry/1`, at most 4096 bytes. A larger summary is not sent. No header carries an
 identifier, and the client sends no cookie and follows no redirect.
 
@@ -37,7 +40,7 @@ checked against a fixed list; it never copies an object from the run.
 | `error` | `null`, or `"auth"`, `"quota"`, `"timeout"`, `"provider"`, `"git"` or `"other"`. Never a message. `"git"` is reserved: the two call sites send only after a provider ran |
 | `findings` | `{blocker, fix, consider, info}`: the count of findings per severity, the engine's own lowercase severity keys. It is output volume, not confirmed bugs |
 | `languages` | up to five lowercase names from a fixed extension table, for the changed files, most files first |
-| `layout` | `"distributed"` when the run read siblings from the workspace manifest, otherwise `"unknown"`. `"single"` and `"monorepo"` are reserved until a rule tells them apart |
+| `layout` | `"distributed"` when a `wachiman local` run read siblings from the workspace manifest, otherwise `"unknown"`; `wachiman ask` always sends `"unknown"`. `"single"` and `"monorepo"` are reserved until a rule tells them apart |
 | `day` | the UTC date of the review, `YYYY-MM-DD`, no time |
 
 The languages the table can produce: css, c, cpp, csharp, dart, elixir, go, haskell, html, java,

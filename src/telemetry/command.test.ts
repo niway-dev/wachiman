@@ -92,6 +92,14 @@ describe("wachiman telemetry off, status and reset", () => {
     for (const name of ["DO_NOT_TRACK", "CI", "WACHIMAN_TELEMETRY=0"]) expect(blocked).toContain(name);
   });
 
+  test("status warns once about a rejected WACHIMAN_TELEMETRY_URL, and not about an accepted one", () => {
+    const warn = (url: string) => run(["status"], { WACHIMAN_TELEMETRY_URL: url }).out.match(/Warning: WACHIMAN_TELEMETRY_URL/g)?.length ?? 0;
+    expect(warn("http://test-box:8080/v1/usage")).toBe(1);
+    expect(warn("https://example.com/v1/usage")).toBe(0);
+    expect(warn("http://127.0.0.1:9/v1/usage")).toBe(0);
+    expect(run(["status"]).out).not.toContain("Warning");
+  });
+
   test("status reports off after an off", () => {
     run(["off"]);
     expect(run(["status"]).out).toContain("Usage telemetry: off");

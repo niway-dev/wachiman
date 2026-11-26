@@ -25,17 +25,21 @@ export function telemetryState(env: Env): TelemetryState {
   }
 }
 
-/** Asks the question when it is still open, and stores the answer. A cancelled prompt stores nothing. */
-export async function askTelemetry(p: { env: Env; prompter: Prompter; dryRun: boolean }): Promise<void> {
-  if (p.dryRun || telemetryState(p.env) !== "pending") return;
+/**
+ * Asks the question when it is still open, and stores the answer. A cancelled prompt stores nothing.
+ * Returns a warning line when the choice could not be stored, for the caller to print once the prompt session is closed.
+ */
+export async function askTelemetry(p: { env: Env; prompter: Prompter; dryRun: boolean }): Promise<string | undefined> {
+  if (p.dryRun || telemetryState(p.env) !== "pending") return undefined;
   try {
     const home = wachimanHome(p.env);
     p.prompter.note(consentText(TELEMETRY_DOCS), "Usage metrics");
     const answer = await p.prompter.confirm(CONSENT_QUESTION, false);
-    if (answer === null) return;
+    if (answer === null) return undefined;
     recordChoice(home, answer ? "yes" : "no");
+    return undefined;
   } catch (error) {
     // Telemetry never fails an init that already wrote its files.
-    process.stderr.write(`telemetry: choice not stored (${error instanceof Error ? error.message : String(error)})\n`);
+    return `telemetry: choice not stored (${error instanceof Error ? error.message : String(error)})`;
   }
 }

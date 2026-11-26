@@ -197,6 +197,7 @@ export async function runInitCommand(
   if (ui) io = ui.wizardIo(io, (deps.promptIO?.output ?? process.stderr) as { isTTY?: boolean }, env, session?.prompter);
   let outcome: Outcome = "failed";
   const closing: SessionClosing = {};
+  let telemetryWarning: string | undefined;
   try {
     let answered = flags;
     if (session) {
@@ -220,13 +221,14 @@ export async function runInitCommand(
     // Asked once, last, in a terminal only: a cancelled or failed run asks nothing, and `--dry-run` stores nothing.
     if (code === 0 && session) {
       const dryRun = resolved.options.github?.dryRun ?? resolved.options.dryRun === true;
-      await askTelemetry({ env, prompter: session.prompter, dryRun });
+      telemetryWarning = await askTelemetry({ env, prompter: session.prompter, dryRun });
     }
     // A saved run with one step left (a failed sign-in) ends neutrally, not as "Stopped.". The exit code is unchanged.
     outcome = code !== 0 && code !== 130 && closing.warning !== undefined ? "done" : outcomeOf(code);
     return code;
   } finally {
     session?.close(outcome, closing.warning);
+    if (telemetryWarning !== undefined) io.stderr(telemetryWarning);
   }
 }
 

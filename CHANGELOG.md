@@ -5,15 +5,6 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
-## Unreleased
-
-> **Data collection (opt-in).** The release that ships this adds optional usage metrics. Nothing is
-> sent unless you answer yes in `wachiman init` or run `wachiman telemetry on`; `DO_NOT_TRACK`,
-> `WACHIMAN_TELEMETRY=0`, `CI` and `GITHUB_ACTIONS` always stop it. What is sent, and that it never
-> carries code, paths, repository names or an account identifier:
-> [on-your-machine.md](docs/on-your-machine.md#telemetry) and [telemetry-api.md](docs/telemetry-api.md).
-> `wachiman upgrade` prints this notice.
-
 ## [1.21.0](https://github.com/niway-dev/wachiman/compare/v1.20.1...v1.21.0) (2026-11-25)
 
 
