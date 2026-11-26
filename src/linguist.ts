@@ -77,6 +77,8 @@ const NOT_APPLIED = "linguist-generated and linguist-vendored are not applied";
 
 /** The marks of `paths` according to attribute files alone, in a throwaway repository. Null when git failed. */
 function markedByFiles(files: AttributeFile[], paths: readonly string[], log: (line: string) => void): Set<string> | null {
+  // No attribute file at the base means no mark can come from it: skip the throwaway repository.
+  if (files.length === 0) return new Set<string>();
   const dir = mkdtempSync(join(tmpdir(), "wachiman-attrs-"));
   try {
     const init = git(dir, ["init", "-q"]);

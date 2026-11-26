@@ -172,6 +172,22 @@ describe("linguist exclusion from the base commit", () => {
     expect(logs).toEqual(["linguist-generated and linguist-vendored are not applied: Error: HTTP 502."]);
   });
 
+  test("a base missing from the clone with no attribute files makes no throwaway repository", () => {
+    const f = fixture();
+    const logs: string[] = [];
+    withGitShim((calls) => {
+      const excluded = linguistExcluded(f.paths, {
+        repoDir: f.dir,
+        baseSha: "1".repeat(40),
+        readBaseAttributes: () => [],
+        log: (l) => logs.push(l),
+      });
+      expect(excluded.size).toBe(0);
+      expect(calls().some((c) => c.includes(" init ") || c.includes(" check-attr "))).toBe(false);
+    });
+    expect(logs).toEqual([]);
+  });
+
   test("a base commit that is not in the clone excludes nothing and logs one line", () => {
     const f = fixture();
     const logs: string[] = [];
