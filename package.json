@@ -1,6 +1,6 @@
 {
   "name": "wachiman",
-  "version": "1.21.0",
+  "version": "1.22.0",
   "wachimanDataCollection": {
     "1.22.0": "Opt-in usage metrics: after a yes in `wachiman init` or `wachiman telemetry on`, each local review or ask sends one small summary (counts and categories, a random installation ID, never code, paths, repository names or account identifiers). Off by default; DO_NOT_TRACK, WACHIMAN_TELEMETRY=0, CI and GITHUB_ACTIONS stop it. See docs/on-your-machine.md#telemetry"
   },
