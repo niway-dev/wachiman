@@ -5,6 +5,25 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.22.0](https://github.com/niway-dev/wachiman/compare/v1.21.0...v1.22.0) (2026-11-26)
+
+
+### Features
+
+* opt-in usage telemetry, asked once in wachiman init (sends usage data after a yes) ([#321](https://github.com/niway-dev/wachiman/issues/321)) ([612a071](https://github.com/niway-dev/wachiman/commit/612a07101ca79ff545f185caec9f9d293fb0b2d7))
+* skip a review the run cannot pay for in full, and let the operator approve a budget for one head ([#295](https://github.com/niway-dev/wachiman/issues/295)) ([bd3d962](https://github.com/niway-dev/wachiman/commit/bd3d962168323e4520c6c254cdd6730d1976e6b4))
+
+
+### Bug Fixes
+
+* **claude-code:** review as deep on a subscription token as on an API key, with a 5-minute prompt cache ([#324](https://github.com/niway-dev/wachiman/issues/324)) ([47a20a1](https://github.com/niway-dev/wachiman/commit/47a20a1c756b8ddfb7fb6280e150873ff40e14fc))
+* start a batch only with room for one turn, stop retrying room-cut batches, and shorten the partial comment ([#298](https://github.com/niway-dev/wachiman/issues/298)) ([3847c7f](https://github.com/niway-dev/wachiman/commit/3847c7f071d23b8094d8afa0ba09018a0a0b6392))
+
+
+### Performance Improvements
+
+* remove 13 of 37 git processes per local review, with the profile and Node API inventory ([#293](https://github.com/niway-dev/wachiman/issues/293)) ([bb9ba42](https://github.com/niway-dev/wachiman/commit/bb9ba42e84ec2d149c89929dc0d6c7971a063bd3))
+
 ## [1.21.0](https://github.com/niway-dev/wachiman/compare/v1.20.1...v1.21.0) (2026-11-25)
 
 
