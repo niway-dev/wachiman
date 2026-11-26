@@ -9,6 +9,7 @@ import { askUsage } from "./local-ask";
 import { dashboardUsage } from "./store/command";
 import { ledgerUsage } from "./ledger-read/command";
 import { doctorUsage } from "./doctor/run";
+import { calibrateUsage } from "./calibrate/command";
 import { historyUsage } from "./history/command";
 import { initUsage } from "./init/args";
 import { localUsage } from "./local";
@@ -325,6 +326,39 @@ const historyPage: Page = {
   ],
   examples: ["wachiman history --since 7d", 'wachiman history --verdict 3f9a1c wrong --reason "the guard is two lines above"'],
   docs: `${DOCS}/cli.md#history`,
+};
+
+const calibratePage: Page = {
+  usage: calibrateUsage,
+  summary:
+    "Measure how the reviewer's findings fared on GitHub, draw a blind sample to judge, and propose the next priority table from your judgements. Reads GitHub through `gh`; changes nothing the engine reads.",
+  options: [
+    ["<owner/repo>", "The repository whose pull requests are read"],
+    ["--prs <n>", "How many recent pull requests to read. Default: 50"],
+    ["--json", "The outcome table as wachiman.calibration/1 JSON"],
+    [
+      "--judge",
+      "Write a blind sample of findings (priority word hidden, unanswered included) to the Wachiman home, then stop. Set wouldAct on each line",
+    ],
+    ["--count <n>", "With --judge: findings to draw. Default: 40, spread over the 7 movable cells"],
+    ["--seed <n>", "With --judge: the random seed. Default: today's date as YYYYMMDD"],
+    [
+      "--propose",
+      "Fit the next table to your judgements and write proposed-table.json; prints each cell's change beside its fix and decline rates",
+    ],
+  ],
+  env: [HOME_ENV, ["GH_TOKEN", "The `gh` login used to read pull requests"]],
+  exit: [
+    ["0", "Printed, drawn or proposed (no judgements prints one line and proposes no change)"],
+    ["1", "A `gh` call failed"],
+    ["2", "Usage error"],
+  ],
+  examples: [
+    "wachiman calibrate niway-dev/wachiman --prs 50",
+    "wachiman calibrate niway-dev/wachiman --judge --seed 7",
+    "wachiman calibrate niway-dev/wachiman --propose",
+  ],
+  docs: `${DOCS}/calibration.md`,
 };
 
 const REFRESH: Row = [
@@ -946,6 +980,7 @@ const PAGES: Readonly<Record<string, Page>> = {
   ask: askPage,
   "pr-state": prStatePage,
   history: historyPage,
+  calibrate: calibratePage,
   status: statusPage,
   dashboard: dashboardPage,
   ledger: ledgerPageWithSubs,
@@ -1045,6 +1080,7 @@ export function rootHelp(paint: Paint = plain): string {
     paint("Results", "strong"),
     ...rows([
       ["history", "Browse findings and record verdicts"],
+      ["calibrate", "Measure and calibrate the finding priority"],
       ["status", "Show local usage and estimated cost"],
       ["dashboard", "Export a local usage dashboard"],
       ["ledger", "Download GitHub Actions spend from the ledger"],

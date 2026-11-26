@@ -98,3 +98,5 @@ findings are in the `Findings` column but not in the percentage.
 - [ADR 0003](adr/0003-two-axis-finding-labels.md) has a reopen condition about findings that
   should have had another severity. The verdict convention does not record that, so precision by
   severity is the nearest existing measure, not a test of that condition.
+
+To calibrate the finding priority from outcomes and a blind sample of judgements, see [calibration](calibration.md).

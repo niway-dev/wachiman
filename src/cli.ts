@@ -15,6 +15,8 @@
  *   wachiman ask [question…]        answer a question about the local change, or explain it; one
  *                                       call, no GitHub request, grounded in the stored review (src/local-ask.ts)
  *   wachiman history                list and judge what `local --history` kept on this laptop
+ *   wachiman calibrate <owner/repo> outcomes of the reviewer's findings on GitHub, a blind sample to judge, and a proposed
+ *                                       priority table (src/calibrate/); reads GitHub, changes nothing the engine reads
  *   wachiman status                 what the local history kept and its estimated cost; files only
  *   wachiman ledger connect|disconnect|pull  connect to the spend ledger and download its entries (src/ledger-read/)
  *   wachiman dashboard              spend, findings and loops across every repository in the history, as one
@@ -42,6 +44,7 @@ import { existsSync, readFileSync, statSync, writeSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
+import { parseCalibrateArgs, runCalibrate } from "./calibrate/command";
 import { parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus } from "./status/command";
 import { parseDashboardArgs, runDashboard } from "./store/command";
@@ -404,6 +407,13 @@ export async function main(argv: string[], env: Record<string, string | undefine
           realWaitDeps,
         );
       return runPrState(parsed, defaultGh, io);
+    }
+    if (mode === "calibrate") {
+      // Before extractRepoDir: it reads a repository on GitHub by name, not a clone.
+      return runCalibrate(parseCalibrateArgs(argv.slice(1)), env, {
+        stdout: (text) => writeAll(1, text),
+        stderr: (line) => console.error(line),
+      });
     }
     const { repoDir, rest: args } = extractRepoDir(argv);
     if (mode === "local") {

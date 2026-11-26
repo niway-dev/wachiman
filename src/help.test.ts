@@ -13,12 +13,13 @@ const run = (args: string[], env: Record<string, string> = {}) => {
 describe("root help", () => {
   test("is short, names every public command and hides the CI commands and --setup-profile", () => {
     const text = rootHelp();
-    expect(text.trimEnd().split("\n").length).toBeLessThanOrEqual(29);
+    expect(text.trimEnd().split("\n").length).toBeLessThanOrEqual(30);
     for (const name of [
       "local",
       "loop",
       "ask",
       "history",
+      "calibrate",
       "status",
       "dashboard",
       "ledger",
