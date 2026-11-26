@@ -92,12 +92,19 @@ export function runOfAsk(p: {
 }
 
 /** Sends the summary of `run` when the stored yes and the environment allow it. Never throws, never prints. */
-export async function reportRun(run: TelemetryRun | (() => TelemetryRun), p: { env: Env; home: () => string; version: string }): Promise<void> {
+export async function reportRun(
+  run: TelemetryRun | (() => TelemetryRun),
+  p: { env: Env; home: () => string; version: string },
+): Promise<void> {
   try {
     const consent = readConsent(p.home());
     if (!telemetryAllowed(p.env, consent)) return;
     // The run is built here, inside the guard and after the consent check: a builder that throws cannot fail a review.
-    const summary = buildSummary(typeof run === "function" ? run() : run, { installation: consent!.installation!, version: p.version, now: new Date() });
+    const summary = buildSummary(typeof run === "function" ? run() : run, {
+      installation: consent!.installation!,
+      version: p.version,
+      now: new Date(),
+    });
     await sendSummary(summary, { env: p.env });
   } catch {
     // Telemetry never fails a review.

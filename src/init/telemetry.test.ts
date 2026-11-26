@@ -1,5 +1,5 @@
 import { afterAll, describe, expect, test } from "bun:test";
-import { existsSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { commit, emptyRepo, removeTempRepos } from "../../test/support/temp-repo";
@@ -71,7 +71,7 @@ describe("telemetryState", () => {
   test("blocked by anything that blocks sending, with a stored yes", () => {
     const w = world();
     recordChoice(w.home, "yes");
-    for (const extra of [{ WACHIMAN_TELEMETRY: "0" }, { CI: "true" }, { GITHUB_ACTIONS: "true" }])
+    for (const extra of [{ WACHIMAN_TELEMETRY: "0" }, { WACHIMAN_TELEMETRY: "off" }, { CI: "true" }, { GITHUB_ACTIONS: "true" }])
       expect(telemetryState({ ...w.env, ...extra })).toBe("blocked");
   });
 });
@@ -128,11 +128,22 @@ describe("a telemetry error never fails an init that succeeded", () => {
       expect(await init(unwritable, ARGS, { interactive: true, promptIO: terminal("y") })).toBe(0);
       written.push(...unwritable.err);
     }
-    expect(written.filter((l) => l.includes("telemetry: choice not stored")).length).toBe(2);
+    // A relative home fails on the first use; a home that is a file cannot be read, so it is not asked.
+    expect(written.filter((l) => l.includes("telemetry: choice not stored")).length).toBe(1);
+    expect(written.filter((l) => l.includes("telemetry: not asked")).length).toBe(1);
   });
 });
 
 describe("init in a terminal asks once", () => {
+  test("a stored choice that cannot be read: the question is not asked, nothing is stored, and one warning says why", async () => {
+    const w = world();
+    mkdirSync(consentPath(w.home), { recursive: true }); // a directory where the file should be: EISDIR, not ENOENT
+    const io = terminal("y");
+    expect(await init(w, ARGS, { interactive: true, promptIO: io })).toBe(0);
+    expect(io.printed()).not.toContain("share usage metrics");
+    expect(w.err.filter((l) => l.includes("telemetry: not asked") && l.includes("could not be read")).length).toBe(1);
+  });
+
   test("Enter is No: the default is stored and the consent text is shown", async () => {
     const w = world();
     const io = terminal("");

@@ -656,7 +656,7 @@ Opt-in usage metrics: counts and categories of a review (diff sizes, chunk count
 error categories, finding counts, languages and layout), never code, prompts, paths, repository names or
 the identifier of any account. The exact fields are in [telemetry-api.md](telemetry-api.md) and
 [on-your-machine.md](on-your-machine.md#telemetry). Nothing is sent without a stored yes, and never when
-`DO_NOT_TRACK`, `CI` or `GITHUB_ACTIONS` is set or `WACHIMAN_TELEMETRY=0`.
+`DO_NOT_TRACK`, `CI` or `GITHUB_ACTIONS` is set or `WACHIMAN_TELEMETRY` is `0`, `false`, `off` or `no` (any case).
 
 - **`init` asks once.** Interactive `wachiman init` asks last, "Share usage metrics?", with No as the default,
   and stores the answer. It does not ask when `DO_NOT_TRACK` is set, `WACHIMAN_TELEMETRY=0` is set, or `CI` or `GITHUB_ACTIONS` is set (the `blocked` state), with `--dry-run`, you already answered, or without a terminal; with

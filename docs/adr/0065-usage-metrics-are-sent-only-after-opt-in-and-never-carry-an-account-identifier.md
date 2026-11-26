@@ -1,6 +1,6 @@
 # ADR 0065: Usage metrics are sent only after opt-in, and never carry an account identifier
 
-- **Status:** accepted 2026-11-26, implemented by the `feat/optional-usage-telemetry` branch (the CLI side:
+- **Status:** accepted 2026-11-26, implemented in the release that adds `wachiman telemetry` (the CLI side:
   `src/telemetry/`, the `init` question and `wachiman telemetry`; the HTTP contract is
   [telemetry-api.md](../telemetry-api.md)). It amends decision 5 of
   [ADR 0019](0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md) and the

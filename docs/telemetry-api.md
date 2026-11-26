@@ -8,7 +8,7 @@ the design is the [optional usage telemetry spec](specs/2026-11-24-optional-usag
 what the CLI does and when is in [on-your-machine.md](on-your-machine.md#telemetry).
 
 Nothing is sent unless you answered yes in `wachiman init` or with `wachiman telemetry on`, and never
-when `DO_NOT_TRACK`, `CI` or `GITHUB_ACTIONS` is set or `WACHIMAN_TELEMETRY=0`.
+when `DO_NOT_TRACK`, `CI` or `GITHUB_ACTIONS` is set or `WACHIMAN_TELEMETRY` is `0`, `false`, `off` or `no` (any case).
 
 ## The route
 
@@ -32,14 +32,14 @@ checked against a fixed list; it never copies an object from the run.
 | `version` | the Wachiman version (`1.2.3`, or `1.2.3-rc.1`); `"unknown"` when it is not a version number |
 | `mode` | `"local"` or `"ask"` |
 | `model` | `"opus"`, `"sonnet"`, `"haiku"` or `"other"` |
-| `diff` | `{files, added, removed}`: non-negative integers, rounded to two significant figures (124 is 120) |
+| `diff` | `{files, added, removed}`, counted over the files the review kept after the default excludes (lockfiles, generated files) and your own `exclude`, so it is not the size of the whole diff: non-negative integers, rounded to two significant figures (124 is 120) |
 | `chunks` | `{planned, completed}`: review batches planned and finished (an `ask` is one) |
 | `tokens` | `{input, output, cache_read, cache_write}`: an integer, or `null` when the provider gave none or gave 0: both arrive as `null` |
 | `duration_s` | whole seconds |
 | `outcome` | `{state, retries}`: `state` is `"complete"`, `"partial"` or `"failed"`; `retries` counts batches that needed a retry |
 | `error` | `null`, or `"auth"`, `"quota"`, `"timeout"`, `"provider"`, `"git"` or `"other"`. Never a message. A stop on the spending cap is `"quota"`; a turn limit, a call whose output was not an answer, and anything unclassified are `"other"`. `"git"` is reserved: the two call sites send only after a provider ran |
 | `findings` | `{blocker, fix, consider, info}`: the count of findings per severity, the engine's own lowercase severity keys. It is output volume, not confirmed bugs |
-| `languages` | up to five lowercase names from a fixed extension table, for the changed files, most files first |
+| `languages` | up to five lowercase names from a fixed extension table, for the files the review kept after those excludes, most files first |
 | `layout` | `"distributed"` when a `wachiman local` run read siblings from the workspace manifest, otherwise `"unknown"`; `wachiman ask` always sends `"unknown"`. `"single"` and `"monorepo"` are reserved until a rule tells them apart |
 | `day` | the UTC date of the review, `YYYY-MM-DD`, no time |
 

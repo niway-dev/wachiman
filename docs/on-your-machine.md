@@ -248,7 +248,7 @@ which asks the one gate `usageDataAllowed()` (`src/tracking.ts`):
 
 - a stored yes in `~/.wachiman/telemetry.json` (or `$WACHIMAN_HOME`), never in a repository;
 - `DO_NOT_TRACK` not set ([donottrack.sh](https://donottrack.sh/): any value but empty, `0` or `false`);
-- `WACHIMAN_TELEMETRY` not `0` (it can only turn sending off, never on);
+- `WACHIMAN_TELEMETRY` not `0`, `false`, `off` or `no`, in any case (it can only turn sending off, never on);
 - `CI` and `GITHUB_ACTIONS` empty or unset, so the first version is laptop only.
 
 **When it asks.** Interactive `wachiman init` asks once, last, with No as the default, and not when
@@ -263,7 +263,7 @@ under 4 KB when a `wachiman local` review or a `wachiman ask` answer finishes (a
 
 - `installation`: a random UUID made when you said yes; `wachiman telemetry reset` makes a new one;
 - `version`, `mode` (`local` or `ask`), `model` family (`opus`, `sonnet`, `haiku`, `other`);
-- `diff`: changed files, added and removed lines, rounded to two significant figures;
+- `diff`: the files the review kept after the default excludes and your `exclude`, their added and removed lines, rounded to two significant figures;
 - `chunks` planned and completed; `tokens` input, output, cache read and cache write (`null` when the provider gave none);
 - `duration_s`, `outcome` (`complete`, `partial`, `failed`, with retries), `error` (a category, never a message);
 - `findings`: a count per severity (`blocker`, `fix`, `consider`, `info`);
@@ -283,7 +283,7 @@ ignored and nothing is printed. It runs after the report is written, so it canno
 the exit code, and a hanging endpoint adds at most about 2 seconds.
 
 **How to turn it off.** `wachiman telemetry off` (from the next review on; it deletes nothing already
-received), `WACHIMAN_TELEMETRY=0` for one process, or `DO_NOT_TRACK=1`, which wins over a stored yes.
+received), `WACHIMAN_TELEMETRY=0` (or `false`, `off`, `no`) for one process, or `DO_NOT_TRACK=1`, which wins over a stored yes.
 `wachiman telemetry status` prints your choice, the installation ID (send it with a deletion request,
 before any `reset`) and what blocks sending now. Local review works the same with it off.
 

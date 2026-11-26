@@ -72,6 +72,14 @@ describe("telemetryAllowed", () => {
     expect(telemetryAllowed({ GITHUB_ACTIONS: "true" }, yes)).toBe(false);
   });
 
+  test("WACHIMAN_TELEMETRY blocks on 0, false, off and no in any case, with spaces, and on nothing else", () => {
+    for (const value of ["0", "false", "FALSE", "Off", " no ", "NO"]) {
+      expect(telemetryAllowed({ WACHIMAN_TELEMETRY: value }, yes)).toBe(false);
+      expect(blockedBy({ WACHIMAN_TELEMETRY: value })).toEqual([`WACHIMAN_TELEMETRY=${value.trim()}`]);
+    }
+    for (const value of ["1", "true", "on", "yes", ""]) expect(telemetryAllowed({ WACHIMAN_TELEMETRY: value }, yes)).toBe(true);
+  });
+
   test("WACHIMAN_TELEMETRY=1 never makes an unset or declined consent allowed", () => {
     expect(telemetryAllowed({ WACHIMAN_TELEMETRY: "1" }, undefined)).toBe(false);
     expect(telemetryAllowed({ WACHIMAN_TELEMETRY: "1" }, { choice: "no" })).toBe(false);

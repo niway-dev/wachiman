@@ -82,7 +82,11 @@ function status(env: Env, home: string, io: CommandIo): number {
       `Installation ID: ${consent?.installation ?? "none"}`,
       `Sending now: ${telemetryAllowed(env, consent) ? "yes" : "no"}${blocked.length > 0 ? ` (blocked by ${blocked.join(", ")})` : ""}`,
       `What is sent: ${TELEMETRY_DOCS}`,
-      ...(rejectedEndpoint(env) ? [`Warning: WACHIMAN_TELEMETRY_URL is not used and nothing is sent: it must be an https URL, or http on localhost, 127.0.0.1 or [::1].`] : []),
+      ...(rejectedEndpoint(env)
+        ? [
+            `Warning: WACHIMAN_TELEMETRY_URL is not used and nothing is sent: it must be an https URL, or http on localhost, 127.0.0.1 or [::1].`,
+          ]
+        : []),
       "",
     ].join("\n"),
   );
@@ -103,7 +107,7 @@ function turnOn(env: Env, home: string, io: CommandIo, deps: TelemetryDeps): num
     );
     return 2;
   }
-  readConsent(home); // throws ConsentUnreadableError before the question, not after the answer
+  const before = readConsent(home); // throws ConsentUnreadableError before the question, not after the answer
   io.stderr(consentText(TELEMETRY_DOCS));
   const answer = (deps.ask ?? askOnTerminal)(CONSENT_QUESTION, false);
   if (answer === "cancel") {
@@ -112,7 +116,11 @@ function turnOn(env: Env, home: string, io: CommandIo, deps: TelemetryDeps): num
   }
   const consent = recordChoice(home, answer === "yes" ? "yes" : "no");
   if (consent.choice === "no") {
-    io.stdout("Usage telemetry stays off.\n");
+    io.stdout(
+      before?.choice === "yes"
+        ? "Usage telemetry is off. Nothing was deleted from what was already received.\n"
+        : "Usage telemetry stays off.\n",
+    );
     return 0;
   }
   io.stdout(`Usage telemetry is on. Installation ID: ${consent.installation}\n`);

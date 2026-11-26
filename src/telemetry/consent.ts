@@ -25,7 +25,9 @@ export const consentPath = (home: string) => join(home, "telemetry.json");
 /** The consent file exists but could not be read (not "missing"); writing over it would lose the stored choice and ID. */
 export class ConsentUnreadableError extends Error {
   constructor(path: string, cause: unknown) {
-    super(`wachiman: the telemetry choice at ${path} could not be read (${cause instanceof Error ? cause.message : String(cause)}); nothing was changed.`);
+    super(
+      `wachiman: the telemetry choice at ${path} could not be read (${cause instanceof Error ? cause.message : String(cause)}); nothing was changed.`,
+    );
     this.name = "ConsentUnreadableError";
   }
 }
@@ -81,6 +83,9 @@ export function resetInstallation(home: string): Consent | undefined {
   return consent;
 }
 
+/** The values of `WACHIMAN_TELEMETRY` that turn sending off for one process (any case). Nothing turns it on. */
+const OFF_VALUES = ["0", "false", "off", "no"];
+
 const set = (value: string | undefined) => value !== undefined && value.trim() !== "";
 
 /** What blocks sending right now, whatever the stored choice. Any non-empty `CI` or `GITHUB_ACTIONS` counts: it errs toward privacy. */
@@ -88,7 +93,8 @@ export function blockedBy(env: Env): string[] {
   const out: string[] = [];
   // `usageDataAllowed` is the one gate (CONTRIBUTING.md); `doNotTrack` is read here only to name it.
   if (!usageDataAllowed(env) && doNotTrack(env)) out.push("DO_NOT_TRACK");
-  if (env.WACHIMAN_TELEMETRY?.trim() === "0") out.push("WACHIMAN_TELEMETRY=0");
+  const switchedOff = env.WACHIMAN_TELEMETRY?.trim();
+  if (switchedOff !== undefined && OFF_VALUES.includes(switchedOff.toLowerCase())) out.push(`WACHIMAN_TELEMETRY=${switchedOff}`);
   if (set(env.CI)) out.push("CI");
   if (set(env.GITHUB_ACTIONS)) out.push("GITHUB_ACTIONS");
   return out;

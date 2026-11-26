@@ -63,6 +63,16 @@ describe("wachiman telemetry on", () => {
     expect(readConsent(home)).toEqual({ choice: "no" });
   });
 
+  test("answering No while it is on says it is off now; answering No when it was not on says it stays off", () => {
+    run(["on"], {}, { interactive: true });
+    const wasOn = run(["on"], {}, { interactive: true, ask: () => "no" });
+    expect(wasOn.out).toContain("Usage telemetry is off.");
+    expect(wasOn.out).not.toContain("stays off");
+    expect(readConsent(home)!.choice).toBe("no");
+    const wasOff = run(["on"], {}, { interactive: true, ask: () => "no" });
+    expect(wasOff.out).toContain("stays off");
+  });
+
   test("a new on after an off keeps the same installation ID", () => {
     run(["on"], {}, { interactive: true });
     const first = readConsent(home)!.installation;
@@ -93,7 +103,8 @@ describe("wachiman telemetry off, status and reset", () => {
   });
 
   test("status warns once about a rejected WACHIMAN_TELEMETRY_URL, and not about an accepted one", () => {
-    const warn = (url: string) => run(["status"], { WACHIMAN_TELEMETRY_URL: url }).out.match(/Warning: WACHIMAN_TELEMETRY_URL/g)?.length ?? 0;
+    const warn = (url: string) =>
+      run(["status"], { WACHIMAN_TELEMETRY_URL: url }).out.match(/Warning: WACHIMAN_TELEMETRY_URL/g)?.length ?? 0;
     expect(warn("http://test-box:8080/v1/usage")).toBe(1);
     expect(warn("https://example.com/v1/usage")).toBe(0);
     expect(warn("http://127.0.0.1:9/v1/usage")).toBe(0);

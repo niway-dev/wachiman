@@ -38,7 +38,6 @@ import {
 } from "../test/support/temp-repo";
 import { personalMemoryDir } from "./memory/personal";
 import { recordChoice } from "./telemetry/consent";
-import { TIMEOUT_MS } from "./telemetry/send";
 import { readMemoryUse } from "./memory/hygiene";
 
 const temps: string[] = [];
@@ -1700,7 +1699,6 @@ describe("usage telemetry after a review (opt-in; src/telemetry/)", () => {
   // `local()` spawns synchronously, which would freeze a server in this process, so these runs are asynchronous.
   async function localAsync(env: Record<string, string>, repo: BranchRepo = branchRepo(), variant: Variant = "ok") {
     const s = stubs(variant, repo.dir);
-    const started = Date.now();
     const child = Bun.spawn([process.execPath, cli, "local", "--repo-dir", repo.dir], {
       env: { PATH: `${s.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-home-"), USER: "dev", WACHIMAN_VERIFY: "0", ...env },
       stdin: "ignore",
@@ -1708,7 +1706,7 @@ describe("usage telemetry after a review (opt-in; src/telemetry/)", () => {
       stderr: "pipe",
     });
     const [stdout, stderr, code] = [await new Response(child.stdout).text(), await new Response(child.stderr).text(), await child.exited];
-    return { stdout, stderr, code, ms: Date.now() - started };
+    return { stdout, stderr, code };
   }
   const consented = () => {
     const whome = temp("wachiman-whome-");
@@ -1716,14 +1714,15 @@ describe("usage telemetry after a review (opt-in; src/telemetry/)", () => {
     return whome;
   };
 
-  test("a stored yes sends one summary; a hanging endpoint leaves the output and the exit code as they were and adds about the timeout", async () => {
+  test("a stored yes sends one summary; a hanging endpoint leaves the output and the exit code as they were", async () => {
     const bodies: string[] = [];
     const server = Bun.serve({
       port: 0,
       hostname: "127.0.0.1",
       fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })),
     });
-    const hang = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => new Promise<Response>(() => {}) });
+    let hangRequests = 0;
+    const hang = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => (hangRequests++, new Promise<Response>(() => {})) });
     try {
       const whome = consented();
       const repo = branchRepo();
@@ -1738,16 +1737,17 @@ describe("usage telemetry after a review (opt-in; src/telemetry/)", () => {
       expect(hung.code).toBe(off.code);
       expect(hung.stdout).toBe(off.stdout);
       expect(hung.stderr).not.toContain("telemetry");
-      // Against the run that sent to a fast server, spawn and review time cancel out: the hung run waits for the
-      // timeout and no longer. The tight unit-level bound is in src/telemetry/send.test.ts.
-      expect(hung.ms - sent.ms).toBeGreaterThan(1000);
-      expect(hung.ms - sent.ms).toBeLessThan(TIMEOUT_MS + 3000);
+      // The hung run really reached the endpoint, and finished anyway. How long the wait lasts is bounded in
+      // src/telemetry/send.test.ts: comparing the wall-clock time of two whole runs here would depend on the runner.
+      expect(hangRequests).toBe(1);
     } finally {
       server.stop(true);
       hang.stop(true);
     }
   }, 60_000);
 
+  // The provider stub dies by SIGINT, so the run ends in the "Interrupted" branch before a report is built. The later
+  // `!state.interrupted` guard (a SIGINT after the last call) has no seam to drive from outside the process.
   test("an interrupted run (the provider stub sends SIGINT to wachiman) sends nothing and exits 130", async () => {
     const bodies: string[] = [];
     const server = Bun.serve({

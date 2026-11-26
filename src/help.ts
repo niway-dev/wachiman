@@ -49,7 +49,10 @@ const PROFILE: Row = [
   "--profile <name>",
   "The account to run on: `default` (your own claude), a registered profile, or `isolated[:<name>]`. Default: the project binding, WACHIMAN_PROFILE, the configured default, then `default`",
 ];
-const DO_NOT_TRACK_ENV: Row = ["DO_NOT_TRACK", "Honored: when set to anything but empty, 0 or false, no usage data is sent, whatever the stored opt-in says"];
+const DO_NOT_TRACK_ENV: Row = [
+  "DO_NOT_TRACK",
+  "Honored: when set to anything but empty, 0 or false, no usage data is sent, whatever the stored opt-in says",
+];
 const HOME_ENV: Row = ["WACHIMAN_HOME", "The Wachiman home, an absolute path. Default: ~/.wachiman"];
 const PROFILE_ENV: Row = ["WACHIMAN_PROFILE", "The profile used when there is no --profile and no project binding"];
 const KEY_ENV: Row = ["ANTHROPIC_API_KEY", "Must be unset: the run refuses to start (exit 2) so the call goes to your subscription"];
@@ -541,7 +544,7 @@ const telemetryPage: Page = {
   env: [
     HOME_ENV,
     ["DO_NOT_TRACK", "Honored: when set to anything but empty, 0 or false, nothing is sent, whatever you chose"],
-    ["WACHIMAN_TELEMETRY", "0 turns it off for one process. Nothing turns it on without your stored yes"],
+    ["WACHIMAN_TELEMETRY", "0, false, off or no (any case) turns it off for one process. Nothing turns it on without your stored yes"],
     ["CI, GITHUB_ACTIONS", "When set, nothing is sent and `on` refuses"],
   ],
   exit: [
