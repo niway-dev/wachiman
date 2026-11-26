@@ -103,6 +103,7 @@ function turnOn(env: Env, home: string, io: CommandIo, deps: TelemetryDeps): num
     );
     return 2;
   }
+  readConsent(home); // throws ConsentUnreadableError before the question, not after the answer
   io.stderr(consentText(TELEMETRY_DOCS));
   const answer = (deps.ask ?? askOnTerminal)(CONSENT_QUESTION, false);
   if (answer === "cancel") {

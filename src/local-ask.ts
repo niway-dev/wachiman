@@ -19,6 +19,7 @@ import { repoLineCounter } from "./contracts";
 import { UsageError } from "./config";
 import { askDistributed, type ResolvedSibling } from "./distributed";
 import { askErrorOf, reportRun, runOfAsk } from "./telemetry/report";
+import type { TelemetryRun } from "./telemetry/summary";
 import { annotateDiff, DEFAULT_EXCLUDE, filterFiles, renderInstructions, runProvider, type ReviewInput, type ReviewResult } from "./engine";
 import { historyRoot, readRuns, repositoryKey } from "./history/store";
 import { type LocalArgs, type LocalDeps, localScopeInput, openLocalSession, parseFlags } from "./local";
@@ -167,7 +168,7 @@ export async function runAsk(
   };
   process.on("SIGINT", onSigint);
   // Set once the answer is written; sent in `finally`, after the SIGINT handler is gone so Ctrl-C works during the send.
-  let report: Parameters<typeof reportRun>[0] | undefined;
+  let report: (() => TelemetryRun) | undefined;
   let release: (() => void) | undefined;
   let releaseSiblings: (() => void) | undefined;
   let material: string | undefined;
@@ -272,14 +273,15 @@ export async function runAsk(
     if (!result || !isAskAnswer(parsed, schema)) {
       const reason = result ? (result.isError ? result.terminalReason || "the call failed" : "its output was not an answer") : failure;
       io.stderr(`Wachiman could not answer (${reason}).`);
-      report = runOfAsk({
-        model: config.model,
-        kept,
-        usage: result?.usage,
-        durationMs: result?.durationMs ?? 0,
-        error: askErrorOf(result),
-        failed: true,
-      });
+      report = () =>
+        runOfAsk({
+          model: config.model,
+          kept,
+          usage: result?.usage,
+          durationMs: result?.durationMs ?? 0,
+          error: askErrorOf(result),
+          failed: true,
+        });
       return 1;
     }
 
@@ -371,7 +373,8 @@ export async function runAsk(
       io.stderr(`report: ${path}`);
     } else io.stdout(text);
     if (!state.interrupted)
-      report = runOfAsk({ model: config.model, kept, usage: result.usage, durationMs: result.durationMs, error: null, failed: false });
+      report = () =>
+        runOfAsk({ model: config.model, kept, usage: result.usage, durationMs: result.durationMs, error: null, failed: false });
     return 0;
   } finally {
     process.off("SIGINT", onSigint);

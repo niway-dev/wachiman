@@ -18,6 +18,9 @@ export function errorOf(execution: Execution): ErrorCategory | null {
   if (kind === "auth") return "auth";
   if (kind === "billing" || kind === "rate_limit" || execution.stop === "quota") return "quota";
   if (execution.stop === "timeout") return "timeout";
+  // A spending cap is a quota the run ran into; a turn limit has no category of its own.
+  if (execution.stop === "budget") return "quota";
+  if (execution.stop === "turns") return "other";
   if (kind === "other") return "provider";
   if (execution.stop === "error") return "other";
   return null;
@@ -25,15 +28,19 @@ export function errorOf(execution: Execution): ErrorCategory | null {
 
 /** The category of a failed `ask` call: from the provider's error class and terminal reason; `other` when no call returned. */
 export function askErrorOf(
-  result: { terminalReason: string; providerError?: "billing" | "auth" | "rate_limit" | "other" } | undefined,
+  result: { terminalReason: string; isError?: boolean; providerError?: "billing" | "auth" | "rate_limit" | "other" } | undefined,
 ): ErrorCategory {
   if (result === undefined) return "other";
-  return (
-    errorOf({
-      stop: result.terminalReason === "timeout" ? "timeout" : "error",
-      rejection: { kind: result.providerError ?? "other", text: "" },
-    }) ?? "other"
-  );
+  const reason = result.terminalReason;
+  const stop = reason === "timeout" ? "timeout" : /budget/i.test(reason) ? "budget" : /turns/i.test(reason) ? "turns" : "error";
+  // A call that returned without a provider error class: not an answer (`isError` false) is `other`; a failed call is `provider`.
+  const rejection =
+    result.providerError !== undefined
+      ? { kind: result.providerError, text: "" }
+      : stop === "error" && result.isError !== false
+        ? { kind: "other" as const, text: "" }
+        : undefined;
+  return errorOf({ stop, rejection }) ?? "other";
 }
 
 export function outcomeOf(result: Pick<ReviewResult, "execution" | "coverage">): Outcome {
@@ -85,11 +92,12 @@ export function runOfAsk(p: {
 }
 
 /** Sends the summary of `run` when the stored yes and the environment allow it. Never throws, never prints. */
-export async function reportRun(run: TelemetryRun, p: { env: Env; home: () => string; version: string }): Promise<void> {
+export async function reportRun(run: TelemetryRun | (() => TelemetryRun), p: { env: Env; home: () => string; version: string }): Promise<void> {
   try {
     const consent = readConsent(p.home());
     if (!telemetryAllowed(p.env, consent)) return;
-    const summary = buildSummary(run, { installation: consent!.installation!, version: p.version, now: new Date() });
+    // The run is built here, inside the guard and after the consent check: a builder that throws cannot fail a review.
+    const summary = buildSummary(typeof run === "function" ? run() : run, { installation: consent!.installation!, version: p.version, now: new Date() });
     await sendSummary(summary, { env: p.env });
   } catch {
     // Telemetry never fails a review.

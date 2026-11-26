@@ -1698,8 +1698,8 @@ describe("memory use", () => {
 
 describe("usage telemetry after a review (opt-in; src/telemetry/)", () => {
   // `local()` spawns synchronously, which would freeze a server in this process, so these runs are asynchronous.
-  async function localAsync(env: Record<string, string>, repo: BranchRepo = branchRepo()) {
-    const s = stubs("ok", repo.dir);
+  async function localAsync(env: Record<string, string>, repo: BranchRepo = branchRepo(), variant: Variant = "ok") {
+    const s = stubs(variant, repo.dir);
     const started = Date.now();
     const child = Bun.spawn([process.execPath, cli, "local", "--repo-dir", repo.dir], {
       env: { PATH: `${s.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-home-"), USER: "dev", WACHIMAN_VERIFY: "0", ...env },
@@ -1745,6 +1745,26 @@ describe("usage telemetry after a review (opt-in; src/telemetry/)", () => {
     } finally {
       server.stop(true);
       hang.stop(true);
+    }
+  }, 60_000);
+
+  test("an interrupted run (the provider stub sends SIGINT to wachiman) sends nothing and exits 130", async () => {
+    const bodies: string[] = [];
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })),
+    });
+    try {
+      const r = await localAsync(
+        { WACHIMAN_HOME: consented(), WACHIMAN_BATCH_LINES: "1", WACHIMAN_TELEMETRY_URL: `http://127.0.0.1:${server.port}/v1/usage` },
+        branchRepo(),
+        "interrupt",
+      );
+      expect(r.code).toBe(130);
+      expect(bodies).toEqual([]);
+    } finally {
+      server.stop(true);
     }
   }, 60_000);
 

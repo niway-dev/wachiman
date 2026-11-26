@@ -659,7 +659,7 @@ the identifier of any account. The exact fields are in [telemetry-api.md](teleme
 `DO_NOT_TRACK`, `CI` or `GITHUB_ACTIONS` is set or `WACHIMAN_TELEMETRY=0`.
 
 - **`init` asks once.** Interactive `wachiman init` asks last, "Share usage metrics?", with No as the default,
-  and stores the answer. It does not ask when `DO_NOT_TRACK` is set, `WACHIMAN_TELEMETRY=0` is set, or `CI` or `GITHUB_ACTIONS` is set (the `blocked` state), with `--dry-run`, or without a terminal; with
+  and stores the answer. It does not ask when `DO_NOT_TRACK` is set, `WACHIMAN_TELEMETRY=0` is set, or `CI` or `GITHUB_ACTIONS` is set (the `blocked` state), with `--dry-run`, you already answered, or without a terminal; with
   `--json` or `--yes` it stores nothing.
 - **`on`** shows the same text and asks `[y/N]`. It needs a terminal and refuses (exit 2) without one, and when
   `CI` or `GITHUB_ACTIONS` is set. A new `on` after an `off` keeps the same installation ID.
@@ -669,7 +669,7 @@ the identifier of any account. The exact fields are in [telemetry-api.md](teleme
 - **`reset`** makes a new installation ID and keeps your choice.
 
 The choice lives in `~/.wachiman/telemetry.json` (`WACHIMAN_HOME`), never in a repository. `off`, `status` and
-`reset` work anywhere and make no request. Exit codes: 0 done; 2 usage error or `on` refused; 130 `on` cancelled.
+`reset` work anywhere and make no request. Exit codes: 0 done (`status` also when the choice file cannot be read, and says so); 1 `on`, `off` or `reset` found a choice file that cannot be read and changed nothing; 2 usage error or `on` refused; 130 `on` cancelled.
 
 ### `upgrade`
 

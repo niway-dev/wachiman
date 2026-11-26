@@ -67,6 +67,21 @@ describe("reportRun makes a request only with a stored yes in a clean environmen
     expect(body.installation).toBe(installation);
   });
 
+  test("a run builder that throws is swallowed, and is not called without a stored yes", async () => {
+    let built = 0;
+    const throwing = () => {
+      built++;
+      throw new Error("unexpected result shape");
+    };
+    const p = { env: { WACHIMAN_TELEMETRY_URL: `http://127.0.0.1:${server.port}/v1/usage` }, home: () => home, version: "1.21.0" };
+    await reportRun(throwing, p);
+    expect(built).toBe(0);
+    recordChoice(home, "yes");
+    await reportRun(throwing, p);
+    expect(built).toBe(1);
+    expect(bodies).toEqual([]);
+  });
+
   test("a home that cannot be resolved is swallowed", async () => {
     await reportRun(run, {
       env: {},
@@ -100,6 +115,8 @@ describe("what a result becomes", () => {
     expect(errorOf({ stop: "timeout" })).toBe("timeout");
     expect(errorOf({ stop: "error", rejection: { kind: "other", text: "x" } })).toBe("provider");
     expect(errorOf({ stop: "error" })).toBe("other");
+    expect(errorOf({ stop: "budget" })).toBe("quota");
+    expect(errorOf({ stop: "turns" })).toBe("other");
   });
 
   test("outcome: complete, partial or failed", () => {
@@ -133,6 +150,9 @@ describe("ask", () => {
     expect(askErrorOf({ terminalReason: "error", providerError: "billing" })).toBe("quota");
     expect(askErrorOf({ terminalReason: "timeout" })).toBe("timeout");
     expect(askErrorOf({ terminalReason: "error" })).toBe("provider");
+    expect(askErrorOf({ terminalReason: "success", isError: false })).toBe("other");
+    expect(askErrorOf({ terminalReason: "error_max_budget_usd", isError: true })).toBe("quota");
+    expect(askErrorOf({ terminalReason: "error_max_turns", isError: true })).toBe("other");
     const failed = runOfAsk({ model: "opus", kept: [], usage: undefined, durationMs: 1, error: "auth", failed: true });
     expect([failed.mode, failed.outcome, failed.chunks, failed.severities]).toEqual(["ask", "failed", { planned: 1, completed: 0 }, []]);
     expect(run.outcome).toBe("complete");

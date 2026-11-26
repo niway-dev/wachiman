@@ -1,7 +1,7 @@
 /**
  * The usage-telemetry question of `wachiman init`: asked once, in a terminal, with No as the default
  * (docs/specs/2026-11-24-optional-usage-telemetry-design.md). Without a terminal, with `--json`, `--yes`
- * or `--dry-run`, nothing is asked and nothing is stored. `DO_NOT_TRACK` set means it is not asked at all.
+ * or `--dry-run`, nothing is asked and nothing is stored. Anything that blocks sending (`DO_NOT_TRACK`, `WACHIMAN_TELEMETRY=0`, `CI`, `GITHUB_ACTIONS`) or an earlier answer means it is not asked.
  */
 import { wachimanHome } from "../accounts/config";
 import { blockedBy, readConsent, recordChoice } from "../telemetry/consent";

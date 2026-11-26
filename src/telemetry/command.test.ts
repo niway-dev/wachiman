@@ -113,7 +113,11 @@ describe("wachiman telemetry off, status and reset", () => {
       expect(r.code).toBe(1);
       expect(r.err).toContain("could not be read");
     }
-    expect(run(["on"], {}, { interactive: true }).code).toBe(1);
+    const on = run(["on"], {}, { interactive: true });
+    expect(on.code).toBe(1);
+    expect(on.asked).toEqual([]);
+    expect(on.err).not.toContain("Share usage metrics");
+    expect(on.err).toContain("could not be read");
   });
 
   test("reset makes a new installation ID; with none it says so", () => {
