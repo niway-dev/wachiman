@@ -30,6 +30,7 @@ import { parseInitFlags } from "./args";
 import { buildDocument, failureDocument, printDocument, type FileAction, type InitReport } from "./json";
 import { DEFAULT_WORKFLOW_REF, initModes, resolveInitOptions, type InitMode, type InitOptions, type RawInitFlags } from "./options";
 import { checkSupplied, promptForInit } from "./prompt";
+import { askTelemetry, telemetryState } from "./telemetry";
 import { planSettings, SETTINGS_PATH, writeSettings, type SettingsPlan } from "./settings";
 import { callerHeader, renderCallerWorkflow } from "./render";
 import { inspectTarget, sameWorkflow, writeWorkflow, type WriteHooks } from "./write";
@@ -124,6 +125,7 @@ export async function runInitFromArgv(
         report: {},
         code: "usage",
         message: error.message,
+        telemetry: telemetryState(env),
       }),
     );
     return 2;
@@ -132,7 +134,7 @@ export async function runInitFromArgv(
 }
 
 /** `--json`: never asks, prints one document, and sends every human line to stderr. */
-async function runInitJson(flags: RawInitFlags, io: CommandIo, deps: InitDeps): Promise<number> {
+async function runInitJson(flags: RawInitFlags, env: Record<string, string | undefined>, io: CommandIo, deps: InitDeps): Promise<number> {
   const report: InitReport = {};
   const defaultWorkflowRef = "defaultWorkflowRef" in deps ? deps.defaultWorkflowRef : DEFAULT_WORKFLOW_REF;
   let repoDir = resolve(deps.cwd ?? process.cwd(), flags.repoDir ?? ".");
@@ -148,7 +150,13 @@ async function runInitJson(flags: RawInitFlags, io: CommandIo, deps: InitDeps): 
     await runInit(resolved.options, quiet, { ...deps, prompter: undefined, report });
     printDocument(
       io.stdout,
-      buildDocument({ mode, dryRun: resolved.options.github?.dryRun ?? resolved.options.dryRun === true, repoDir, report }),
+      buildDocument({
+        mode,
+        dryRun: resolved.options.github?.dryRun ?? resolved.options.dryRun === true,
+        repoDir,
+        report,
+        telemetry: telemetryState(env),
+      }),
     );
     return 0;
   } catch (error) {
@@ -157,7 +165,15 @@ async function runInitJson(flags: RawInitFlags, io: CommandIo, deps: InitDeps): 
     io.stderr(message);
     printDocument(
       io.stdout,
-      failureDocument({ mode, dryRun: flags.dryRun === true, repoDir, report, code: usage ? "usage" : "failed", message }),
+      failureDocument({
+        mode,
+        dryRun: flags.dryRun === true,
+        repoDir,
+        report,
+        code: usage ? "usage" : "failed",
+        message,
+        telemetry: telemetryState(env),
+      }),
     );
     return usage ? 2 : 1;
   }
@@ -170,7 +186,7 @@ export async function runInitCommand(
   io: CommandIo,
   deps: InitDeps = {},
 ): Promise<number> {
-  if (flags.json) return runInitJson(flags, io, deps);
+  if (flags.json) return runInitJson(flags, env, io, deps);
   // Fail before asking for an operator or account in an unusable target.
   const root = worktreeRoot(flags.repoDir ?? ".", deps.git);
   const interactive = deps.interactive ?? isInteractive(flags, env, deps.streams ?? { stdin: process.stdin, stdout: process.stdout });
@@ -201,6 +217,11 @@ export async function runInitCommand(
     const resolved = resolveInitOptions(answered, { interactive, defaultWorkflowRef });
     if (!resolved.ok) throw new UsageError(resolved.error);
     const code = await runInit(resolved.options, io, { ...deps, prompter: session?.prompter, closing });
+    // Asked once, last, in a terminal only: a cancelled or failed run asks nothing, and `--dry-run` stores nothing.
+    if (code === 0 && session) {
+      const dryRun = resolved.options.github?.dryRun ?? resolved.options.dryRun === true;
+      await askTelemetry({ env, prompter: session.prompter, dryRun });
+    }
     // A saved run with one step left (a failed sign-in) ends neutrally, not as "Stopped.". The exit code is unchanged.
     outcome = code !== 0 && code !== 130 && closing.warning !== undefined ? "done" : outcomeOf(code);
     return code;

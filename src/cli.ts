@@ -81,6 +81,7 @@ import { resetConfidence } from "./fidelity/sink";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 import { parseSetupFlags } from "./setup/args";
 import { failureDocument, printDocument } from "./init/json";
+import { telemetryState } from "./init/telemetry";
 import { runInitFromArgv } from "./init/run";
 import { runSetupCommand } from "./setup/run";
 import { commandHelp, helpFor, isCommand, rootHelp } from "./help";
@@ -579,6 +580,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
             report: {},
             code: "usage",
             message: error.message,
+            telemetry: telemetryState(env),
           }),
         );
         return 2;

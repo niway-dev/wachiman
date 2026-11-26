@@ -10,13 +10,13 @@ Design: [optional usage telemetry spec](../specs/2026-11-24-optional-usage-telem
 
 - Sender and the call after `local` and `ask` (`src/telemetry/send.ts`, `report.ts`).
 - `wachiman telemetry on|off|status|reset` with its help page.
+- `init` question (asked last, terminal only) and the `telemetry` field of `init --json`.
 
 ## Left
 
-- The `init` question and the `telemetry` field of `init --json`.
 - Docs (`telemetry-api.md`, on-your-machine, cli, README, local-review, faq, ADR status), `package.json` entry, CHANGELOG call-out.
 - Egress test row; full `bun test`, lint, check.
 
 ## Next step
 
-The `init` question.
+The docs.
