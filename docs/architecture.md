@@ -120,7 +120,7 @@ All names are in `src/engine.ts` unless a file is given.
    the argument-length limit. It includes the no-rationing sentence: "You do not manage a budget:
    the harness that runs you enforces its own limits, so never shorten your reading to save
    effort." The review instruction also asks the model to read a file in full before reporting a
-   finding on it. *Sibling conventions.* `SIBLING_CONVENTIONS_PARAGRAPH` follows the risk paragraph. When the part adds a new member to a group of siblings (a route, controller, handler, use case), the model reads two or three siblings in the repository, lists the conventions all of them share (guards, role checks, validation, versioning, documentation annotations, error handling) and reports each one the new member lacks, naming the sibling compared; a missing access check is at least "fix", a missing documentation annotation "consider", and a forced `as X` cast between a contract type and its implementation is a signal. It relies on the read tools every provider run has on the head; the engine passes no extra file, and a convention only some siblings follow is never reported. *Flow questions.* `FLOW_QUESTIONS` is its own paragraph just before the rules. For
+   finding on it. *Flow questions.* `FLOW_QUESTIONS` is its own paragraph just before the rules. For
    every new user action, screen state or call into code the part does not change, the model
    answers: what it changes; which existing path does the same and what that path does before and
    after; how the result reaches what the user sees; for state loaded once or in the background,
@@ -147,6 +147,16 @@ All names are in `src/engine.ts` unless a file is given.
    Findings can be judged afterwards with the verdict convention in
    [precision](precision.md). *Why of the no-rationing sentence:* the model reasons about effort it cannot see; the harness owns the budget, so
    the model should not trade coverage for it.
+
+   *Sibling conventions.* After the risk paragraph (`RISK_PARAGRAPH`) and before the claims, comment
+   and flow-question paragraphs, every batch prompt carries `SIBLING_CONVENTIONS_PARAGRAPH`. When the
+   part adds a new member to a group of siblings (a route, controller, handler, use case), the model
+   reads two or three siblings in the repository, lists the conventions all of them share (guards,
+   role checks, validation, versioning, documentation annotations, error handling) and reports each
+   one the new member lacks, naming the sibling compared. A missing access check is at least "fix",
+   a missing documentation annotation "consider", and a forced `as X` cast between a contract type
+   and its implementation is a signal. It relies on the read tools every provider run has on the
+   head; the engine passes no extra file, and a convention only some siblings follow is never reported.
 
 5. **The provider call.** `reviewBatch` writes `pr.json`, `threads.json` and `evidence.json` to a scratch directory
    (removed after the call, on success and on failure) and calls `deps.provider.run` asking for the neutral read tools (`read`, `glob`, `grep`;

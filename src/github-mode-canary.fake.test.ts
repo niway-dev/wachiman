@@ -207,7 +207,7 @@ describe("review() of a pull request with a workspace around it", () => {
     expect(before.length).toBeGreaterThan(0);
     expect(after).toHaveLength(before.length);
     for (const [i, request] of after.entries()) {
-      expect(request.prompt).not.toContain("sibling repositories");
+      expect(request.prompt).not.toContain("Workspace contracts and sibling repositories");
       expect(request.prompt).not.toContain("brand-palette");
       expect(request.addDirs).toHaveLength(before[i]!.addDirs.length);
       expect(request.addDirs.some((d) => d.startsWith(desktop))).toBe(false);
