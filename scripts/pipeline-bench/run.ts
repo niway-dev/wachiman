@@ -9,8 +9,9 @@
 // lines, the pure planning steps) leaves its metrics null instead of failing.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve, sep } from "node:path";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -196,8 +197,11 @@ async function once() {
     };
   } finally {
     // One cleanup path that always runs: the snapshot directory and its `.tar`, whatever the engine offers.
-    rmSync(built.snapshotDir, { recursive: true, force: true });
-    rmSync(`${built.snapshotDir}.tar`, { force: true });
+    // Only a path under the temp directory is removed: the path comes from the engine under test.
+    if (resolve(built.snapshotDir).startsWith(realpathSync(tmpdir()) + sep)) {
+      rmSync(built.snapshotDir, { recursive: true, force: true });
+      rmSync(`${built.snapshotDir}.tar`, { force: true });
+    }
   }
 }
 

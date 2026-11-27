@@ -24,7 +24,7 @@ pull requests). It reports and never gates.
 
 The model (latency, cost, answer quality), the GitHub API, and posting a review. It also says nothing
 about findings: the stub never reports one. Timings come from one base-then-head round, and the CLI
-benchmark (`bench.yml`) measured single rounds differing by up to 14% on the same runner; trust the
+benchmark (`cli-bench.yml`) measured single rounds differing by up to 14% on the same runner; trust the
 size metrics exactly and a timing only when it moves by more than about 15%.
 
 ## Run it locally
