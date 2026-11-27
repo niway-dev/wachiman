@@ -5,6 +5,13 @@
 > (`FSL-1.1-ALv2`). The `LICENSE` file in each release tag says which applies. See the README and
 > [ADR 0013](docs/adr/0013-license-fsl-1-1-alv2.md).
 
+## [1.22.1](https://github.com/niway-dev/wachiman/compare/v1.22.0...v1.22.1) (2026-11-27)
+
+
+### Performance Improvements
+
+* **evidence:** cut the engine's time on a giant PR from 17.6 min to 33 s with one ripgrep call ([#308](https://github.com/niway-dev/wachiman/issues/308)) ([479a3e1](https://github.com/niway-dev/wachiman/commit/479a3e1382df649ae366ef9785506d0e851a9e8c))
+
 ## [1.22.0](https://github.com/niway-dev/wachiman/compare/v1.21.0...v1.22.0) (2026-11-26)
 
 
