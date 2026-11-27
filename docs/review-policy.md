@@ -72,8 +72,7 @@ Above all of them sit the engine's own rules, which the instructions are told ne
   only for the failure shown; check all callers of a shared contract),
 - the **output format**, a fixed schema.
 
-The prompt also carries a paragraph on sibling conventions, outside the list above, so a repository's
-instructions may refine it. When a part adds a new route, controller, handler or use case, the model
+The prompt also carries a paragraph on sibling conventions. When a part adds a new route, controller, handler or use case, the model
 reads two or three siblings and reports a guard, role check, validation or annotation all of them
 share and the new member lacks, naming the sibling. A missing access check is at least a Fix, a
 missing documentation annotation a Consider, and a forced `as X` cast at a contract boundary is a
