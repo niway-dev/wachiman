@@ -35,7 +35,7 @@ export const LOCKFILE_MESSAGES = {
   },
   installScript: {
     title: "Lockfile adds a package that runs an install script",
-    body: "This package is new in the lockfile and declares an install script (`hasInstallScript`), which npm runs on every install, on developer machines and in CI, with access to their secrets. Confirm the package is expected. No model read this file.",
+    body: "This line adds an install script (`hasInstallScript`) to a package in the lockfile, either a new package or a new version that gained one. npm runs it on every install, on developer machines and in CI, with access to their secrets. Confirm the package is expected. No model read this file.",
   },
 } as const;
 
@@ -356,11 +356,18 @@ export function lockfileFindings(files: Pick<ReviewFile, "filename" | "patch">[]
     const before = new Set(diff.removed.map((row) => removedName(kind, row)).filter((n): n is string => n !== null));
     const reach = reachable(parsed, declaredNames(parsed, dir, read));
     for (const pkg of parsed.packages) {
-      // A bump moves an existing entry: it is not an undeclared addition. But a bump that gains the
-      // install-script line is the way a new script reaches an old package, so that line counts alone.
-      if (diff.added.has(pkg.line) && !before.has(pkg.name) && !reach.has(pkg.name) && !pkg.workspace)
+      // A bump moves an existing entry: it is not an undeclared addition. A bump that gains the
+      // install-script line is the way a script reaches an old package, so its line counts on its own.
+      // An entry npm only moved (hoisted, deduped: its block is removed and added again) is no change.
+      const entryAdded = diff.added.has(pkg.line);
+      if (entryAdded && !before.has(pkg.name) && !reach.has(pkg.name) && !pkg.workspace)
         findings.push(finding(file.filename, pkg.line, "undeclared"));
-      if (pkg.installScriptLine !== undefined && diff.added.has(pkg.installScriptLine) && !pkg.workspace)
+      if (
+        pkg.installScriptLine !== undefined &&
+        diff.added.has(pkg.installScriptLine) &&
+        !pkg.workspace &&
+        !(entryAdded && before.has(pkg.name))
+      )
         findings.push(finding(file.filename, pkg.installScriptLine, "installScript"));
     }
     const removedTrusted = new Set(

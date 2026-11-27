@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
+import { mkdirSync, mkdtempSync, symlinkSync, truncateSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import {
   addedLines,
   isCheckedLockfile,
+  lockfileCheckOf,
   lockfileFindings,
   LOCKFILE_MESSAGES,
   parseBunLock,
@@ -350,5 +354,56 @@ describe("lockfileFindings on package-lock.json", () => {
     ].join("\n");
     const { findings } = lockfileFindings([{ filename: "package-lock.json", patch }], (p) => (p === "package-lock.json" ? text : null));
     expect(findings.map((f) => [f.line, f.title])).toEqual([[script, LOCKFILE_MESSAGES.installScript.title]]);
+  });
+});
+
+describe("lockfile moves, folders and limits", () => {
+  const readNpm = (text: string) => (p: string) => (p === "package-lock.json" ? text : null);
+
+  test("an entry npm moved (its block removed and added back under a new key) is not reported", () => {
+    const text = NPM_LOCK.replace('"left-pad": "1.3.0"', '"left-pad": "1.3.0", "quiet-dep": "1.0.0"');
+    const start = lineOf(text, '"node_modules/quiet-dep"');
+    const patch = [
+      `@@ -1,5 +${start},5 @@`,
+      '-    "node_modules/a/node_modules/quiet-dep": {',
+      '-      "hasInstallScript": true',
+      '+    "node_modules/quiet-dep": {',
+      ...text
+        .split("\n")
+        .slice(start, start + 3)
+        .map((l) => `+${l}`),
+    ].join("\n");
+    expect(lockfileFindings([{ filename: "package-lock.json", patch }], readNpm(text)).findings).toEqual([]);
+  });
+
+  test("a lockfile in a folder reads that folder's package.json", () => {
+    const patch = `@@ -1,0 +${lineOf(BUN_LOCK, '"telemetry-helper": ["telemetry-helper@2.3.1"')},1 @@\n+    "telemetry-helper": ["telemetry-helper@2.3.1", "", {}, "sha512-d"],`;
+    const files: Record<string, string> = {
+      "tools/bun.lock": BUN_LOCK,
+      "tools/package.json": JSON.stringify({ dependencies: { "telemetry-helper": "2.3.1" } }),
+      "tools/apps/web/package.json": "{}",
+    };
+    const got = lockfileFindings([{ filename: "tools/bun.lock", patch }], (path) => files[path] ?? null);
+    expect(got.findings).toEqual([]);
+  });
+
+  test("lockfileCheckOf reads the head, treats an oversized file and a symlink out of the head as unreadable", () => {
+    const head = mkdtempSync(join(tmpdir(), "lockfile-head-"));
+    const outside = mkdtempSync(join(tmpdir(), "lockfile-outside-"));
+    writeFileSync(join(outside, "bun.lock"), BUN_LOCK);
+    mkdirSync(join(head, "escape"));
+    symlinkSync(join(outside, "bun.lock"), join(head, "escape/bun.lock"));
+    writeFileSync(join(head, "bun.lock"), "");
+    truncateSync(join(head, "bun.lock"), 21 * 1024 * 1024);
+    const patch = "@@ -1 +1 @@\n+a";
+    const got = lockfileCheckOf(
+      [
+        { filename: "bun.lock", patch },
+        { filename: "escape/bun.lock", patch },
+      ],
+      head,
+    );
+    expect(got.findings).toEqual([]);
+    expect(got.unchecked.map((u) => u.path)).toEqual(["bun.lock", "escape/bun.lock"]);
   });
 });
