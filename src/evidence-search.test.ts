@@ -285,6 +285,19 @@ describe("binaryFiles", () => {
 });
 
 describe("MatchCollector", () => {
+  test("orders non-ASCII paths by UTF-8 bytes, not by UTF-16 code units", () => {
+    const c = new MatchCollector(["f"]);
+    // U+E000 is bytes EE 80 80 and U+1F600 is F0 9F 98 80, so the first sorts first by bytes; as UTF-16
+    // the emoji (D83D DE00) sorts before U+E000.
+    for (const file of ["\u{1F600}.ts", "\uE000.ts", "a.ts"]) c.add(`./${file}\0${1}:f(1)`);
+    expect(
+      c
+        .result()
+        .get("f")!
+        .map((m) => m.file),
+    ).toEqual(["a.ts", "\uE000.ts", "\u{1F600}.ts"]);
+  });
+
   test("sorts a name's matches by path in byte order, then line, as git grep lists them", () => {
     const c = new MatchCollector(["f"]);
     for (const [file, line] of [

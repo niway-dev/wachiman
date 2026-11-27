@@ -218,6 +218,14 @@ export class NameIndex {
   }
 }
 
+/** Compares two paths by their UTF-8 bytes, as the git index orders them (a JS `<` orders by UTF-16 code units). */
+function byteCompare(a: string, b: string): number {
+  if (a === b) return 0;
+  // eslint-disable-next-line no-control-regex
+  if (/^[\x00-\x7f]*$/.test(a) && /^[\x00-\x7f]*$/.test(b)) return a < b ? -1 : 1;
+  return Buffer.compare(Buffer.from(a), Buffer.from(b));
+}
+
 /**
  * Collects the rows into one list of matches per name, in `git grep` order. Files that are binary
  * for git are removed afterwards with `drop(binaryFiles(...))`, once all rows are in.
@@ -270,7 +278,7 @@ export class MatchCollector {
   /** The matches of each name sorted by path (byte order, as the git index), then line. */
   result(): Map<string, Match[]> {
     for (const list of this.lists.values()) {
-      list.sort((a, b) => (a.file < b.file ? -1 : a.file > b.file ? 1 : a.line - b.line));
+      list.sort((a, b) => byteCompare(a.file, b.file) || a.line - b.line);
     }
     return this.lists;
   }
