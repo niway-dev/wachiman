@@ -105,13 +105,13 @@ Only three parts of that are held by code:
   would make a downgrade explicit and visible (`severity_overrides`, ADR 0006) is not
   implemented.
 
-## What the instructions are for
-
 The prompt also carries a paragraph on sibling conventions. When a part adds a new route, controller, handler or use case, the model
 reads two or three siblings and reports a guard, role check, validation or annotation all of them
 share and the new member lacks, naming the sibling. A missing access check is at least a Fix, a
 missing documentation annotation a Consider, and a forced `as X` cast at a contract boundary is a
 signal. Only a convention every compared sibling follows counts.
+
+## What the instructions are for
 
 Good instructions say what is true about this repository that a stranger reading the diff would
 not know. The `rules` topic exists for this: a violation of `CLAUDE.md`, `AGENTS.md` or a
