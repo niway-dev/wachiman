@@ -779,7 +779,13 @@ lockfile line that caused it:
 | Finding | What triggers it |
 | --- | --- |
 | Lockfile adds a package that no package.json declares | A package the diff adds that no `package.json` of the workspace lists as a dependency and that no declared package reaches through the dependencies the lockfile records. A version bump of a package already in the lockfile is not new. |
-| Lockfile lets a new package run install scripts | `bun.lock`: a new entry in `trustedDependencies`. `package-lock.json`: a new package whose entry has `"hasInstallScript": true`, reported on that line even when the package is declared. |
+| Lockfile lets a new package run install scripts | `bun.lock`: a new entry in `trustedDependencies`. |
+| Lockfile adds a package that runs an install script | `package-lock.json`: an added `"hasInstallScript": true` line, reported on that line even when the package is declared. A bump to a version that newly gains the line is reported too. |
+
+The findings cannot be muted by [memory](adr/0057-a-memory-exception-is-applied-after-discovery-and-every-muted-finding-is-shown.md)
+(they are `Fix` findings on security), so a known false positive, such as a package you trusted on
+purpose, is answered by a person in the review thread; the only way to stop the check is to turn
+`review.lockfile_check` off.
 
 The declared names come from the `package.json` of each workspace at the head; a workspace whose
 file cannot be read falls back to the names the lockfile records for it. `yarn.lock`,

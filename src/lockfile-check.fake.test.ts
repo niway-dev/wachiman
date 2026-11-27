@@ -39,6 +39,25 @@ class NoModel implements ProviderAdapter {
   }
 }
 
+/** Answers every call with no findings, and lists the files its part holds as reviewed. */
+class QuietModel extends NoModel {
+  override async run(request: ProviderRequest): Promise<ProviderResult> {
+    this.requests.push(request);
+    const held = [
+      ...(request.prompt.split("This part holds exactly these files")[1] ?? "").split("\n\n")[0]!.matchAll(/^- (\S+) \+/gm),
+    ].map((m) => m[1]);
+    return {
+      structuredOutput: { files_reviewed: held, files_skipped: [], findings: [], thread_replies: [], summary: "nothing" },
+      costUsd: 0.01,
+      turns: 1,
+      durationMs: 1,
+      terminalReason: "success",
+      isError: false,
+      raw: {},
+    };
+  }
+}
+
 const BUN_LOCK = [
   "{",
   '  "lockfileVersion": 1,',
@@ -58,6 +77,31 @@ const BUN_LOCK = [
   '    "left-pad": ["left-pad@1.3.0", "", {}, "sha512-a"],',
   "",
   '    "telemetry-helper": ["telemetry-helper@2.3.1", "", { "bin": { "telemetry-helper": "bin/run.js" } }, "sha512-b"],',
+  "  }",
+  "}",
+  "",
+].join("\n");
+
+const NPM_LOCK = [
+  "{",
+  '  "name": "shop",',
+  '  "lockfileVersion": 3,',
+  '  "packages": {',
+  '    "": {',
+  '      "name": "shop",',
+  '      "dependencies": {',
+  '        "left-pad": "1.3.0"',
+  "      }",
+  "    },",
+  '    "node_modules/left-pad": {',
+  '      "version": "1.3.0"',
+  "    },",
+  '    "node_modules/telemetry-helper": {',
+  '      "version": "2.3.1",',
+  '      "integrity": "sha512-b",',
+  '      "resolved": "https://registry.npmjs.org/telemetry-helper/-/telemetry-helper-2.3.1.tgz",',
+  '      "hasInstallScript": true',
+  "    }",
   "  }",
   "}",
   "",
@@ -87,7 +131,7 @@ const REFRESH_PATCH = [
 
 const lockOnly = (patch: string) => [{ filename: "bun.lock", additions: 2, deletions: 1, patch }];
 
-function headWith(files: Record<string, string>) {
+function headWith(files: Record<string, string | Buffer>) {
   const dir = mkdtempSync(join(tmpdir(), "lockfile-check-head-"));
   for (const [path, text] of Object.entries(files)) {
     mkdirSync(join(dir, path.split("/").slice(0, -1).join("/") || "."), { recursive: true });
@@ -127,6 +171,48 @@ describe("the core", () => {
     ]);
   });
 
+  test("findings join a review a model ran on other files, and are not sent to it", async () => {
+    const provider = new QuietModel();
+    const headDir = headWith({
+      "bun.lock": BUN_LOCK,
+      "package.json": JSON.stringify({ name: "shop", dependencies: { "left-pad": "1.3.0" } }),
+      "src/a.ts": "export const a = 1;\n",
+    });
+    const files = [
+      { filename: "src/a.ts", additions: 1, deletions: 0, patch: "@@ -0,0 +1 @@\n+export const a = 1;" },
+      ...lockOnly(PLANT_PATCH),
+    ];
+    const result = await reviewChange(input({ lockfileCheck: true, files, headDir }), options(), coreDeps(provider));
+    expect(provider.requests).toHaveLength(1);
+    expect(provider.requests[0]?.prompt).not.toContain("telemetry-helper");
+    expect(result.findings.map((f) => [f.path, f.line, f.title])).toEqual([
+      ["bun.lock", ENTRY_LINE, LOCKFILE_MESSAGES.undeclared.title],
+      ["bun.lock", TRUSTED_LINE, LOCKFILE_MESSAGES.trusted.title],
+    ]);
+  });
+
+  test("a package-lock.json diff that adds an undeclared package with an install script yields both findings", async () => {
+    const lock = NPM_LOCK;
+    const start = lineOf(lock, '"node_modules/telemetry-helper"');
+    const patch = [
+      `@@ -0,0 +${start},6 @@`,
+      ...lock
+        .split("\n")
+        .slice(start - 1, start + 5)
+        .map((l) => `+${l}`),
+    ].join("\n");
+    const headDir = headWith({
+      "package-lock.json": lock,
+      "package.json": JSON.stringify({ name: "shop", dependencies: { "left-pad": "1.3.0" } }),
+    });
+    const files = [{ filename: "package-lock.json", additions: 6, deletions: 0, patch }];
+    const result = await reviewChange(input({ lockfileCheck: true, files, headDir }), options(), coreDeps(new NoModel()));
+    expect(result.findings.map((f) => [f.line, f.title])).toEqual([
+      [start, LOCKFILE_MESSAGES.undeclared.title],
+      [lineOf(lock, '"hasInstallScript": true'), LOCKFILE_MESSAGES.installScript.title],
+    ]);
+  });
+
   test("a clean refresh (a version bump of a declared dependency) yields nothing", async () => {
     const result = await reviewChange(input({ lockfileCheck: true, files: lockOnly(REFRESH_PATCH) }), options(), coreDeps(new NoModel()));
     expect(result.findings).toEqual([]);
@@ -147,16 +233,13 @@ interface Posted {
   review?: { body: string; comments: { path: string; line: number; body: string }[] };
 }
 
-function fakeGh(posted: Posted, patch: string, settings: { base?: string; head?: string }): GhFn {
+function fakeGh(posted: Posted, patch: string, settings: { base?: string; head?: string }, extra: object[] = [], failRead = false): GhFn {
   return (args, input) => {
     const line = args.join(" ");
     if (line.startsWith("api repos/o/r/pulls/7 ")) return BASE;
     if (line.startsWith("pr view"))
       return JSON.stringify({ headRefOid: HEAD, baseRefName: "main", title: "t", body: "b", author: { login: "u" } });
-    if (line.includes("/pulls/7/files"))
-      return lockOnly(patch)
-        .map((f) => JSON.stringify(f))
-        .join("\n");
+    if (line.includes("/pulls/7/files")) return [...extra, ...lockOnly(patch)].map((f) => JSON.stringify(f)).join("\n");
     if (line.includes("/pulls/7/reviews") && !args.includes("POST")) return "";
     if (line.includes("-X POST repos/o/r/pulls/7/reviews")) {
       posted.review = JSON.parse(input ?? "{}");
@@ -165,6 +248,7 @@ function fakeGh(posted: Posted, patch: string, settings: { base?: string; head?:
     if (args.includes("graphql")) return JSON.stringify({ data: { repository: { pullRequest: { reviewThreads: { nodes: [] } } } } });
     const m = /\/contents\/(.+)\?ref=(\S+)$/.exec(line);
     if (m) {
+      if (failRead && m[1] === ".wachiman.yml") throw new GhError("gh: Server Error (HTTP 500)", 500, "Server Error");
       const content = m[1] === ".wachiman.yml" ? (m[2] === BASE ? settings.base : m[2] === HEAD ? settings.head : undefined) : undefined;
       if (content === undefined) throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
       return JSON.stringify({ type: "file", encoding: "base64", content: Buffer.from(content).toString("base64") });
@@ -173,15 +257,23 @@ function fakeGh(posted: Posted, patch: string, settings: { base?: string; head?:
   };
 }
 
-async function githubRun(patch: string, settings: { base?: string; head?: string }) {
+async function githubRun(
+  patch: string,
+  settings: { base?: string; head?: string },
+  extra: { files?: object[]; head?: Record<string, string | Buffer>; readFails?: boolean } = {},
+) {
   const posted: Posted = {};
   const provider = new NoModel();
   const logs: string[] = [];
   const deps: Deps = {
-    gh: fakeGh(posted, patch, settings),
+    gh: fakeGh(posted, patch, settings, extra.files, extra.readFails),
     provider,
     config: loadConfig({ WACHIMAN_VERIFY: "0" }, () => {}),
-    repoDir: headWith({ "bun.lock": BUN_LOCK, "package.json": JSON.stringify({ name: "shop", dependencies: { "left-pad": "1.3.0" } }) }),
+    repoDir: headWith({
+      "bun.lock": BUN_LOCK,
+      "package.json": JSON.stringify({ name: "shop", dependencies: { "left-pad": "1.3.0" } }),
+      ...extra.head,
+    }),
     log: (l) => logs.push(l),
     warn: (l) => logs.push(l),
     sleep: () => {},
@@ -206,6 +298,30 @@ describe("a pull request in Actions that changes only bun.lock", () => {
     expect(posted.review?.comments[1]?.body).toContain(LOCKFILE_MESSAGES.trusted.title);
     expect(body).toContain(`<!-- wachiman sha=${HEAD} -->`);
     expect(readSignedStateBlock(body)).toMatchObject({ status: "complete" });
+  });
+
+  test("when every other changed file is a binary, the findings are still posted", async () => {
+    const png = { filename: "assets/icon.png", additions: 0, deletions: 0, status: "added" };
+    const { posted, provider } = await githubRun(
+      PLANT_PATCH,
+      { base: ON },
+      {
+        files: [png],
+        head: { "assets/icon.png": Buffer.from([0x89, 0x50, 0x4e, 0x47, 0, 0, 0, 0x0d]) },
+      },
+    );
+    expect(provider.requests).toHaveLength(0);
+    expect(posted.review?.body).not.toContain("Nothing to review");
+    expect(posted.review?.comments.map((c) => [c.path, c.line])).toEqual([
+      ["bun.lock", ENTRY_LINE],
+      ["bun.lock", TRUSTED_LINE],
+    ]);
+  });
+
+  test("a base setting that cannot be read keeps the notice, as before the check", async () => {
+    const { posted, logs } = await githubRun(PLANT_PATCH, { base: ON }, { readFails: true });
+    expect(posted.review?.body.split("\n")[0]).toContain("Nothing to review at `head123`");
+    expect(logs.join("\n")).toContain("lockfile check skipped");
   });
 
   test("a clean refresh still posts the signed 'Nothing to review' notice", async () => {

@@ -3985,7 +3985,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     verification = verified.record;
   } else checked = annotateUnverified(merged.findings);
   // The lockfile check's findings are the engine's own, worded the same every time: the verifier never
-  // sees them, so it cannot refute a comparison that needs no judgement. Memory may still mute one.
+  // sees them, so it cannot refute a comparison that needs no judgement. Memory cannot mute one: they are
+  // fix/security findings, which are protected, and a lockfile is never among the reviewed files.
   if (lockfile.findings.length > 0) checked = [...checked, ...annotateUnverified(lockfile.findings)];
   // After verification, so the floor applies to the final severity (ADR 0057). Muted findings leave
   // the list here: nothing below, the anchors, the fidelity grade or the posting, ever sees them.
@@ -4833,7 +4834,18 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // setting is off, no lockfile of a checked kind changed, or the check found nothing.
   const postLockfileOnly = async (): Promise<boolean> => {
     if (!dropped.some((f) => isCheckedLockfile(f.filename) !== null)) return false;
-    const { base, policy } = policyAtBase();
+    // A setting that cannot be read is an absent one: this run keeps the notice it always posted, so a
+    // repository that never opted in cannot fail here on a GitHub read it did not need before.
+    let at: { base: string; policy: ReviewPolicy };
+    try {
+      at = policyAtBase();
+    } catch (error) {
+      deps.warn(
+        `lockfile check skipped: the base commit's settings could not be read (${error instanceof Error ? error.message : String(error)})`,
+      );
+      return false;
+    }
+    const { base, policy } = at;
     if (!policy.lockfileCheck) return false;
     const instructions = readBaseInstructions(gh, repo, base, deps.warn);
     const input = githubReviewInput({

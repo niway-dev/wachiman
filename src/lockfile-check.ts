@@ -211,6 +211,7 @@ export function parseNpmLock(text: string): ParsedLockfile | null {
   }
   if (!isRecord(doc) || !isRecord(doc.packages)) return null;
   const lines = entryLines(text, "packages");
+  const body = text.split("\n");
   const packages: LockPackage[] = [];
   const workspaces: ParsedLockfile["workspaces"] = [];
   for (const [key, entry] of Object.entries(doc.packages)) {
@@ -235,7 +236,6 @@ export function parseNpmLock(text: string): ParsedLockfile | null {
       workspace: entry.link === true,
     };
     if (entry.hasInstallScript === true && line > 0) {
-      const body = text.split("\n");
       for (let i = line; i < body.length; i++) {
         if (/^\s*"hasInstallScript"\s*:\s*true/.test(body[i] as string)) {
           pkg.installScriptLine = i + 1;
@@ -280,7 +280,12 @@ function declaredNames(parsed: ParsedLockfile, lockfileDir: string, read: (path:
 /** Every package name reachable from `roots`, through the dependencies the lockfile records. */
 function reachable(parsed: ParsedLockfile, roots: Set<string>): Set<string> {
   const byName = new Map<string, LockPackage[]>();
-  for (const p of parsed.packages) for (const n of [p.name, ...p.aliases]) byName.set(n, [...(byName.get(n) ?? []), p]);
+  for (const p of parsed.packages)
+    for (const n of [p.name, ...p.aliases]) {
+      const same = byName.get(n);
+      if (same) same.push(p);
+      else byName.set(n, [p]);
+    }
   const seen = new Set<string>();
   const queue = [...roots];
   while (queue.length > 0) {
@@ -351,8 +356,10 @@ export function lockfileFindings(files: Pick<ReviewFile, "filename" | "patch">[]
     const before = new Set(diff.removed.map((row) => removedName(kind, row)).filter((n): n is string => n !== null));
     const reach = reachable(parsed, declaredNames(parsed, dir, read));
     for (const pkg of parsed.packages) {
-      if (!diff.added.has(pkg.line) || before.has(pkg.name)) continue;
-      if (!reach.has(pkg.name) && !pkg.workspace) findings.push(finding(file.filename, pkg.line, "undeclared"));
+      // A bump moves an existing entry: it is not an undeclared addition. But a bump that gains the
+      // install-script line is the way a new script reaches an old package, so that line counts alone.
+      if (diff.added.has(pkg.line) && !before.has(pkg.name) && !reach.has(pkg.name) && !pkg.workspace)
+        findings.push(finding(file.filename, pkg.line, "undeclared"));
       if (pkg.installScriptLine !== undefined && diff.added.has(pkg.installScriptLine) && !pkg.workspace)
         findings.push(finding(file.filename, pkg.installScriptLine, "installScript"));
     }

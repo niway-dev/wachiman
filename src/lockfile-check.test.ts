@@ -49,7 +49,13 @@ const BUN_LOCK = `{
 }
 `;
 
-const lineOf = (text: string, needle: string) => text.split("\n").findIndex((l) => l.includes(needle)) + 1;
+const lineOf = (text: string, needle: string, from = 1) => {
+  const at = text
+    .split("\n")
+    .slice(from - 1)
+    .findIndex((l) => l.includes(needle));
+  return at === -1 ? 0 : at + from;
+};
 
 describe("stripJsonc", () => {
   test("drops comments and trailing commas but leaves strings alone", () => {
@@ -162,6 +168,21 @@ describe("lockfileFindings on bun.lock", () => {
     expect(lockfileFindings([{ filename: "bun.lock", patch }], read({ "bun.lock": BUN_LOCK })).findings).toEqual([]);
   });
 
+  test("a bump of an undeclared package is not a new package: only the removed line says so", () => {
+    const line = lineOf(BUN_LOCK, '"telemetry-helper": ["telemetry-helper@2.3.1"');
+    const bump = [
+      `@@ -${line},1 +${line},1 @@`,
+      '-    "telemetry-helper": ["telemetry-helper@2.3.0", "", {}, "sha512-old"],',
+      '+    "telemetry-helper": ["telemetry-helper@2.3.1", "", {}, "sha512-d"],',
+    ].join("\n");
+    expect(lockfileFindings([{ filename: "bun.lock", patch: bump }], read({ "bun.lock": BUN_LOCK })).findings).toEqual([]);
+    // The same line with nothing removed is a new package, and is flagged.
+    const added = `@@ -1,0 +${line},1 @@\n+    "telemetry-helper": ["telemetry-helper@2.3.1", "", {}, "sha512-d"],`;
+    expect(lockfileFindings([{ filename: "bun.lock", patch: added }], read({ "bun.lock": BUN_LOCK })).findings.map((f) => f.title)).toEqual(
+      [LOCKFILE_MESSAGES.undeclared.title],
+    );
+  });
+
   test("a package that is only reachable through an undeclared one is still flagged", () => {
     const text = BUN_LOCK.replace(
       '"telemetry-helper": ["telemetry-helper@2.3.1", "", { "bin"',
@@ -174,15 +195,10 @@ describe("lockfileFindings on bun.lock", () => {
     expect(findings.map((f) => f.line)).toEqual([evil, tel]);
   });
 
-  test("a trusted entry that was already trusted before is not new", () => {
-    const line = lineOf(BUN_LOCK, '"telemetry-helper": ["telemetry-helper@2.3.1"');
-    const patch = [
-      `@@ -${line},1 +${line},1 @@`,
-      '-    "telemetry-helper": ["telemetry-helper@2.3.0", "", {}, "sha512-old"],',
-      '+    "telemetry-helper": ["telemetry-helper@2.3.1", "", {}, "sha512-d"],',
-    ].join("\n");
-    const trustedOnly = lockfileFindings([{ filename: "bun.lock", patch }], read({ "bun.lock": BUN_LOCK }));
-    expect(trustedOnly.findings).toEqual([]);
+  test("a trusted entry that is removed and added back (a reorder) is not new", () => {
+    const line = lineOf(BUN_LOCK, '    "telemetry-helper",');
+    const patch = [`@@ -${line},1 +${line},1 @@`, '-    "telemetry-helper",', '+    "telemetry-helper",'].join("\n");
+    expect(lockfileFindings([{ filename: "bun.lock", patch }], read({ "bun.lock": BUN_LOCK })).findings).toEqual([]);
   });
 
   test("a package declared in a package.json at the head is declared, whatever the lockfile says", () => {
@@ -319,5 +335,20 @@ describe("lockfileFindings on package-lock.json", () => {
     ].join("\n");
     const got = lockfileFindings([{ filename: "package-lock.json", patch }], (p) => (p === "package-lock.json" ? NPM_LOCK : null));
     expect(got.findings).toEqual([]);
+  });
+
+  test("a bump that newly gains an install script is flagged on that line, though the entry is not new", () => {
+    const text = NPM_LOCK.replace('"left-pad": "1.3.0"', '"left-pad": "1.3.0", "quiet-dep": "1.0.0"');
+    const start = lineOf(text, '"node_modules/quiet-dep"');
+    const script = lineOf(text, '"hasInstallScript": true', start);
+    const patch = [
+      `@@ -${start + 1},2 +${start + 1},2 @@`,
+      '-      "version": "0.9.0",',
+      '+      "version": "1.0.0",',
+      `@@ -${script - 1},0 +${script},1 @@`,
+      '+      "hasInstallScript": true',
+    ].join("\n");
+    const { findings } = lockfileFindings([{ filename: "package-lock.json", patch }], (p) => (p === "package-lock.json" ? text : null));
+    expect(findings.map((f) => [f.line, f.title])).toEqual([[script, LOCKFILE_MESSAGES.installScript.title]]);
   });
 });
