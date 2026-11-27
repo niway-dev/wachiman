@@ -773,7 +773,7 @@ It applies from the next review after the merge, because the file is read at the
 pull request that turns it on is not reviewed under it, and one that turns it off still is.
 
 When on, Wachiman reads the diff of each changed `bun.lock` and `package-lock.json`, with **no model
-call and no cost**, and reports two things, each as a `Fix` finding with fixed wording on the
+call and no cost**, and reports two kinds of thing, in three findings, each a `Fix` finding with fixed wording on the
 lockfile line that caused it:
 
 | Finding | What triggers it |

@@ -308,6 +308,7 @@ function removedName(kind: LockfileKind, row: string): string | null {
     const at = key.lastIndexOf(NODE_MODULES);
     return at === -1 ? null : key.slice(at + NODE_MODULES.length);
   }
+  if (!/^\s*"(?:[^"\\]|\\.)*"\s*:\s*\[/.test(row)) return null; // a package entry opens an array
   const ident = row.match(/^\s*"(?:[^"\\]|\\.)*"\s*:\s*\[\s*"((?:[^"\\]|\\.)*)"/)?.[1];
   return (ident ? nameOfIdent(ident) : null) ?? nameOfKey(key);
 }
@@ -355,6 +356,8 @@ export function lockfileFindings(files: Pick<ReviewFile, "filename" | "patch">[]
     const diff = addedLines(file.patch);
     const before = new Set(diff.removed.map((row) => removedName(kind, row)).filter((n): n is string => n !== null));
     const reach = reachable(parsed, declaredNames(parsed, dir, read));
+    // A removed install-script line means a moved block already ran its script; none means it gained one.
+    const hadScript = diff.removed.some((row) => /^\s*"hasInstallScript"\s*:\s*true/.test(row));
     for (const pkg of parsed.packages) {
       // A bump moves an existing entry: it is not an undeclared addition. A bump that gains the
       // install-script line is the way a script reaches an old package, so its line counts on its own.
@@ -366,7 +369,7 @@ export function lockfileFindings(files: Pick<ReviewFile, "filename" | "patch">[]
         pkg.installScriptLine !== undefined &&
         diff.added.has(pkg.installScriptLine) &&
         !pkg.workspace &&
-        !(entryAdded && before.has(pkg.name))
+        !(entryAdded && before.has(pkg.name) && hadScript)
       )
         findings.push(finding(file.filename, pkg.installScriptLine, "installScript"));
     }

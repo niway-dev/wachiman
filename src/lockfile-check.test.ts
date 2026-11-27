@@ -376,6 +376,33 @@ describe("lockfile moves, folders and limits", () => {
     expect(lockfileFindings([{ filename: "package-lock.json", patch }], readNpm(text)).findings).toEqual([]);
   });
 
+  test("an entry npm moved that also gained an install script is reported", () => {
+    const text = NPM_LOCK.replace('"left-pad": "1.3.0"', '"left-pad": "1.3.0", "quiet-dep": "1.0.0"');
+    const start = lineOf(text, '"node_modules/quiet-dep"');
+    const patch = [
+      `@@ -1,3 +${start},5 @@`,
+      '-    "node_modules/a/node_modules/quiet-dep": {',
+      '+    "node_modules/quiet-dep": {',
+      ...text
+        .split("\n")
+        .slice(start, start + 3)
+        .map((l) => `+${l}`),
+    ].join("\n");
+    const { findings } = lockfileFindings([{ filename: "package-lock.json", patch }], readNpm(text));
+    expect(findings.map((f) => f.title)).toEqual([LOCKFILE_MESSAGES.installScript.title]);
+  });
+
+  test("a removed workspace row does not make a new package of the same name a bump", () => {
+    const line = lineOf(BUN_LOCK, '"telemetry-helper": ["telemetry-helper@2.3.1"');
+    const patch = [
+      `@@ -1,1 +${line},1 @@`,
+      '-    "apps/telemetry-helper": {',
+      '+    "telemetry-helper": ["telemetry-helper@2.3.1", "", {}, "sha512-d"],',
+    ].join("\n");
+    const { findings } = lockfileFindings([{ filename: "bun.lock", patch }], (p) => (p === "bun.lock" ? BUN_LOCK : null));
+    expect(findings.map((f) => f.title)).toEqual([LOCKFILE_MESSAGES.undeclared.title]);
+  });
+
   test("a lockfile in a folder reads that folder's package.json", () => {
     const patch = `@@ -1,0 +${lineOf(BUN_LOCK, '"telemetry-helper": ["telemetry-helper@2.3.1"')},1 @@\n+    "telemetry-helper": ["telemetry-helper@2.3.1", "", {}, "sha512-d"],`;
     const files: Record<string, string> = {
