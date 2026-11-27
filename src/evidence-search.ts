@@ -417,7 +417,11 @@ export async function runRipgrep(
       }
     }
     if (tooMuch) {
-      return { ok: false, failed: `ripgrep output passed ${Math.round((opts.maxRetainedChars ?? MAX_RETAINED_CHARS) / (1024 * 1024))} MB of matching lines`, ms: now() - started };
+      return {
+        ok: false,
+        failed: `ripgrep output passed ${Math.round((opts.maxRetainedChars ?? MAX_RETAINED_CHARS) / (1024 * 1024))} MB of matching lines`,
+        ms: now() - started,
+      };
     }
     splitter.finish();
     const code = await child.exited;
