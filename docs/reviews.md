@@ -207,8 +207,9 @@ With [`review.rewritten_assertions`](configuration.md#the-rewritten-assertion-ru
 on (off by default), every batch prompt carries one rule on tests: when the diff changes logic in a source file and
 also rewrites the expected value of an existing assertion in the test that covers it (for example
 `toBe(true)` becomes `toBe(false)`), the model rates that test change "fix" at least and asks
-whether the new expectation matches the documented behavior. It is a question, not a blocker, even
-when the pull request documents the behavior change.
+whether the new expectation matches the documented behavior. The model is told to ask a question and
+never to rate it a blocker, even when the pull request documents the behavior change; the engine
+does not enforce that.
 
 Also with the setting on, when a batch holds both a changed source file and such a rewritten assertion, the
 engine adds a hint that names the assertion's file and line. A diff that only adds test cases does

@@ -772,8 +772,9 @@ It applies from the next review after the merge, because the file is read at the
 
 When on, a diff that changes logic in a source file and also changes the expected value of an
 existing assertion in the test that covers it (`toBe(true)` becomes `toBe(false)`) gets a question
-at `Fix` at least: does the new expectation match the documented behavior? It is never a `Blocker`,
-even when the pull request documents the change. The prompt also names the assertion's file and
+at `Fix` at least: does the new expectation match the documented behavior? The reviewer is told to ask it as a
+question and never to rate it `Blocker`, even when the pull request documents the change; that is
+an instruction to the model, which the engine does not enforce. The prompt also names the assertion's file and
 line, found by a text match on the diff; a diff that only adds test cases does not trigger it.
 
 ### Path rules (`paths`)

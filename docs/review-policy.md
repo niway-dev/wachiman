@@ -70,7 +70,8 @@ Above all of them sit the engine's own rules, which the instructions are told ne
   rule that the pull request body is the author's claim to verify, not a summary,
 - the opt-in **rewritten-assertion rule** (`review.rewritten_assertions`, off by default; a source
   change plus a changed expected value in its test is a Fix at least, worded as a question about the
-  documented behavior, never a Blocker),
+  documented behavior; the model is told never to rate it a Blocker, and the engine does not
+  enforce that),
 - the **evidence rules** (cite the line behind every premise of a Blocker or a Fix; suggest a fix
   only for the failure shown; check all callers of a shared contract),
 - the **output format**, a fixed schema.
