@@ -53,6 +53,7 @@ repository, apart from temporary folders (below):
 | `~/.wachiman/claude-<name>/` | `wachiman profile create` (`src/profiles.ts`) | A Claude Code configuration folder that `claude` fills when you sign in. Wachiman does not write your sign-in into it |
 | `~/.wachiman/history/<repo>/` | `wachiman local --history` (or `WACHIMAN_HISTORY=1`) and always `wachiman loop`, `wachiman history --verdict` (`src/history/store.ts`, `src/loop/state.ts`) | Past review results, including finding text, your verdicts, loop state |
 | `~/.wachiman/index.sqlite`, `~/.wachiman/dashboard.html` | `wachiman status`, `wachiman dashboard` (`src/store/index.ts`, `src/store/command.ts`) | A rebuildable index of the history, and the static dashboard page |
+| `~/.wachiman/telemetry.json` (mode 0600) | `wachiman init` (when you answer its question), `wachiman telemetry on`, `off` and `reset` (`src/telemetry/consent.ts`, `src/telemetry/command.ts`, `src/init/telemetry.ts`) | Your usage-telemetry choice (`yes` or `no`) and, after a yes, a random installation ID. Nothing else |
 | `~/.wachiman/ledger/credentials.json` (mode 0600) | `wachiman ledger connect` (`src/ledger-read/credentials.ts`) | The ledger URL and a **read token, in plain text** |
 | `~/.wachiman/ledger/<account>/<day>.json`, `pull.json` | `wachiman ledger pull`, `--refresh` (`src/ledger-read/files.ts`) | Spend entries downloaded from the ledger. No token |
 | `~/.wachiman/memory/…`, `~/.wachiman/memory-candidates/…`, `~/.wachiman/memory-choice/…` | `wachiman memory` (`src/memory/personal.ts`, `src/memory/candidates.ts`) | Your personal review memory and unproposed memory entries, keyed by your `origin` URL |
@@ -72,8 +73,9 @@ your system temp folder and removes them afterwards (`src/engine.ts`, `src/local
 
 ## Who it talks to
 
-Wachiman's own code makes two kinds of network request: `curl` calls to the spend ledger
-(`src/ledger.ts`) and `fetch` calls to the ledger for `ledger pull` (`src/ledger-read/pull.ts`).
+Wachiman's own code makes three kinds of network request: `curl` calls to the spend ledger
+(`src/ledger.ts`), `fetch` calls to the ledger for `ledger pull` (`src/ledger-read/pull.ts`), and, only
+after you opted in, one `fetch` of the usage summary (`src/telemetry/send.ts`, see Telemetry).
 Everything else goes through a program it starts: `claude`, `codex`, `gh`, `git`, `npm` or `bash`
 running `curl`. This is every one found in the version above; the test below keeps the
 files and hosts honest, not each call, and it does not read workflow YAML (`gh api` and `git push`
@@ -83,7 +85,7 @@ call: it fails when a source file with a network call site is not cited in the t
 or when a URL host in the source is not named in this section. The test scans `src`, `bin`,
 `scripts` and `templates`; the rows for `.github/workflows` are kept by hand.
 
-`wachiman local` and `wachiman ask` on your laptop use only the first two rows below. They never call GitHub, `gh` or the ledger.
+`wachiman local` and `wachiman ask` on your laptop use only the first two rows below, plus the usage-summary row if you opted in. They never call GitHub, `gh` or the ledger.
 
 | Destination | When | What is sent | Where in the code |
 | --- | --- | --- | --- |
@@ -94,8 +96,9 @@ or when a URL host in the source is not named in this section. The test scans `s
 | Your git remote `origin`, through `git` and `gh` | Only `wachiman memory propose` (without `--personal`), and `wachiman memory remember`, which the opt-in `wachiman-memory.yml` workflow runs when the operator comments `/wachiman remember <id>` (it uses the same write path and also replies in the thread through `gh`) | `git ls-remote` and `git fetch` to learn whether the team has memory; `git push origin HEAD:refs/heads/wachiman/memory` with one commit holding the memory entry, and a draft pull request. Your own git credentials | `src/memory/propose.ts`, `src/memory/remember.ts` |
 | The spend ledger at your `ledger_url` | Only in GitHub Actions, only when the workflow input `ledger_url` is set, and only through a workflow that grants `id-token: write`: `.github/workflows/review-platform.yml` or its generated copy `.github/workflows/wachiman-platform.yml`. On a laptop the engine skips it and says so | `POST /v1/reserve`, `/v1/settle`, `/v1/record`: amounts, trigger, PR number, per-call token and cost rows, and the job's OIDC token as bearer. Details in the next section | `src/ledger.ts` (`defaultCurl`, `reserve`, `settle`, `record`), `src/engine.ts` (`spendReserve`, `spendSettle`), `src/config.ts` |
 | GitHub's OIDC token service (`ACTIONS_ID_TOKEN_REQUEST_URL`) | Same conditions as the row above, before each ledger call | The job's request token, with the ledger URL as the audience | `src/ledger.ts` (`requestIdToken`) |
+| `usage.wachiman-api.dev`, the usage receiver | Only after you answered yes (`wachiman init` or `wachiman telemetry on`), only on a laptop (never when `CI` or `GITHUB_ACTIONS` is set), never with `DO_NOT_TRACK` set or `WACHIMAN_TELEMETRY` set to `0`, `false`, `off` or `no`, once when a `wachiman local` review or a `wachiman ask` answer finishes (also after an `ask` that failed, and not when you interrupt it). One attempt, 2-second timeout, no retry, errors ignored | One `POST /v1/usage`: the summary listed under Telemetry. No code, prompt, path, repository name or account identifier. `WACHIMAN_TELEMETRY_URL` replaces the address (for tests; only an https URL or http on localhost, 127.0.0.1 or [::1] is accepted) | `src/telemetry/send.ts` |
 | The ledger you connected, for reading | `wachiman ledger pull`, and `wachiman dashboard --refresh` or `wachiman status --refresh` | `GET /v1/entries?from=…&to=…` with your read token. Redirects are refused, so the token is not sent elsewhere | `src/ledger-read/pull.ts`, `src/ledger-read/credentials.ts`, `src/cli.ts` (`refreshLedger`) |
-| The npm registry, through `npm` or `bun` | `wachiman upgrade` and `wachiman upgrade --check` run `npm view wachiman version`; `upgrade` (not `--check`) then runs `npm install -g wachiman@<version>` or `bun add -g wachiman@<version>` | The package name and version | `src/upgrade/command.ts` |
+| The npm registry, through `npm` or `bun` | `wachiman upgrade` and `wachiman upgrade --check` run `npm view wachiman version wachimanDataCollection --json` (one request: the latest version and the data-collection notices of the releases up to it); with `--to` the same request is made for the release you name, only to read its notices; `upgrade` (not `--check`) then runs `npm install -g wachiman@<version>` or `bun add -g wachiman@<version>` | The package name and version | `src/upgrade/command.ts` |
 | `downloads.claude.ai` | Only in the Actions workflow, to install the pinned Claude Code binary, which is checked against a SHA-256 before it is installed | The version and platform in the URL | `src/install-claude-code.sh` (run by `.github/workflows/review.yml`) |
 | `registry.npmjs.org` and the npm registry | At `npm i -g wachiman`, by the `bun` package's install script | Package names and versions | Not in this repository: `bun@1.3.4`'s `install.js`. See above |
 | GitHub, for `actions/checkout`, and the host `oven-sh/setup-bun` downloads Bun from | Only in the Actions workflow | Not verified: both are third-party actions pinned by commit SHA | `.github/workflows/review.yml`, `templates/caller-workflow.yml` |
@@ -111,7 +114,7 @@ appear only in the files that a row, here or in the table above, names for that 
 
 | Address | What it is | Where in the code |
 | --- | --- | --- |
-| `github.com` | Links in review comments, help text and prompts | `src/engine.ts`, `src/help.ts`, `src/init/prompt.ts`, `src/review-format/render.ts` |
+| `github.com` | Links in review comments, help text and prompts | `src/engine.ts`, `src/help.ts`, `src/init/prompt.ts`, `src/review-format/render.ts`, `src/upgrade/command.ts` |
 | `bun.sh` | An install hint shown when Bun is missing | `bin/launcher-args.js`, `scripts/verify-package.sh` |
 | `code.claude.com` | A link in the `wachiman doctor` output | `src/doctor/render.ts` |
 | `claude.dev` | A link in a comment of the `.wachiman.yml` that `wachiman init` writes | `src/init/settings.ts` |
@@ -174,12 +177,12 @@ the `WACHIMAN_*` and older `CLAUDE_REVIEW_*` settings are read by name in `src/c
 - **Provider and ledger settings:** `CLAUDE_CONFIG_DIR`, `CODEX_HOME`, `WACHIMAN_LEDGER_URL`,
   `ACTIONS_ID_TOKEN_REQUEST_URL`.
 - **Where it runs:** `GITHUB_ACTIONS`, `GITHUB_REPOSITORY`, `GITHUB_STEP_SUMMARY`, `CI`.
-- **Wachiman's own:** `WACHIMAN_HOME`, `WACHIMAN_HISTORY`, `WACHIMAN_HISTORY_DAYS`,
+- **Wachiman's own:** `WACHIMAN_TELEMETRY`, `WACHIMAN_TELEMETRY_URL` (see Telemetry), `WACHIMAN_HOME`, `WACHIMAN_HISTORY`, `WACHIMAN_HISTORY_DAYS`,
   `WACHIMAN_PROFILE`, `WACHIMAN_COMMENT_AUTHOR`, `WACHIMAN_COMMENT_ID`,
   `WACHIMAN_COMMENT_IN_REPLY_TO`, `WACHIMAN_COMMENT_PATH`, `WACHIMAN_INTRO_DONE`,
   `WACHIMAN_NO_ANIMATION`.
 - **System:** `HOME`, `PATH`, `USER`, `TMPDIR`, `TERM`, `COLORTERM`, `LC_ALL`, `LANG`, `NO_COLOR`,
-  `FORCE_COLOR`, `BUN_INSTALL` (to find Bun), `CURL_HOME` (to find a curl config).
+  `DO_NOT_TRACK` (read to honor it, see Telemetry), `FORCE_COLOR`, `BUN_INSTALL` (to find Bun), `CURL_HOME` (to find a curl config).
 
 **What the model's child process gets.** Claude Code is started with an allowlisted environment
 (`CHILD_ENV_ALLOWLIST` and `buildChildEnv` in `src/providers/claude-code.ts`): `PATH`, `HOME`,
@@ -230,9 +233,10 @@ token you give to `wachiman ledger connect`.
 
 ## Telemetry
 
-**Wachiman itself sends no analytics or telemetry.** The network call sites in `src/`, `bin/`,
-`scripts/` and `templates/` (the commands below) are all in the table above, and none sends usage
-data.
+**Wachiman sends no analytics or telemetry unless you opted in** (in `wachiman init`, or with
+`wachiman telemetry on`). Without that yes, none of the call sites in `src/`, `bin/`, `scripts/` and
+`templates/` listed in the table above sends usage data. A fresh install, an agent, a script, CI and a
+run without a terminal never count as a yes.
 
 Claude Code, Codex and Bun may send their own. In local mode Wachiman sets the Claude Code switches
 listed above. They are not verified by a packet capture: a logging proxy on 2026-11-04 saw one
@@ -240,9 +244,58 @@ telemetry destination disappear and only `api.anthropic.com` remain, and could s
 others ([local-review.md](local-review.md#7-what-is-verified-and-what-is-not)). In Actions,
 Wachiman sets none of those switches, so Claude Code runs there with its own defaults.
 
-If Wachiman ever collects usage data to improve the tool, it will be listed on this page before the
-release that adds it, it will be possible to turn it off, and local review will keep working with it
-off.
+**What it takes to send.** All of these, checked together in `telemetryAllowed` (`src/telemetry/consent.ts`),
+which asks the one gate `usageDataAllowed()` (`src/tracking.ts`):
+
+- a stored yes in `~/.wachiman/telemetry.json` (or `$WACHIMAN_HOME`), never in a repository;
+- `DO_NOT_TRACK` not set ([donottrack.sh](https://donottrack.sh/): any value but empty, `0` or `false`);
+- `WACHIMAN_TELEMETRY` not `0`, `false`, `off` or `no`, in any case (it can only turn sending off, never on);
+- `CI` and `GITHUB_ACTIONS` empty or unset, so the first version is laptop only.
+
+**When it asks.** Interactive `wachiman init` asks once, last, with No as the default, and not when
+`DO_NOT_TRACK` is set, `WACHIMAN_TELEMETRY` is `0`, `false`, `off` or `no`, `CI` or `GITHUB_ACTIONS` is set, you already answered, or with `--dry-run`. With no terminal, `--yes` or `--json` it stores nothing;
+`init --json` prints `"telemetry": "pending"` (also `yes`, `no`, or `blocked` when `DO_NOT_TRACK`, `WACHIMAN_TELEMETRY` set to `0`, `false`, `off` or `no`, `CI` or `GITHUB_ACTIONS` stops sending) so an agent relays the
+question to you and never answers it. `wachiman telemetry on` shows the same text and asks `[y/N]`; it
+needs a terminal and refuses when `CI` or `GITHUB_ACTIONS` is set.
+
+**Exactly what it sends**, as `buildSummary` (`src/telemetry/summary.ts`) builds it, one JSON document
+under 4 KB when a `wachiman local` review or a `wachiman ask` answer finishes (also after a failed `ask`, not when you interrupt it). The page
+[telemetry-api.md](telemetry-api.md) is the contract, and a test keeps it equal to the code:
+
+- `installation`: a random UUID made when you said yes; `wachiman telemetry reset` makes a new one;
+- `version`, `mode` (`local` or `ask`), `model` family (`opus`, `sonnet`, `haiku`, `other`);
+- `diff`: the files the review kept after the default excludes and your `exclude`, their added and removed lines, rounded to two significant figures;
+- `chunks` planned and completed; `tokens` input, output, cache read and cache write (`null` when the provider gave none);
+- `duration_s`, `outcome` (`complete`, `partial`, `failed`, with retries), `error` (a category, never a message);
+- `findings`: a count per severity (`blocker`, `fix`, `consider`, `info`);
+- `languages`: up to five names from a fixed extension table; `layout` (`distributed` or `unknown`); `day`, the UTC date.
+
+**What it never sends.** Code, prompts, model output, repository names, remotes, paths, file names,
+error text, your email, hostname or machine, and any identifier of a GitHub, Claude, OpenAI or other
+account, raw or hashed. The summary is built field by field from numbers and fixed lists, and
+`src/telemetry/summary.test.ts` plants markers (a login, an email, a repository name, a token, a path)
+in everything a run carries and asserts none appears. The installation ID links your reports, so they
+are pseudonymous, not anonymous. Like any request, the upload exposes your network address to the
+receiver, which keeps none ([telemetry-api.md](telemetry-api.md#what-the-receiver-does); the service
+is not in this repository, so that is **not verified** here).
+
+**How it behaves.** One attempt, a 2-second timeout, no retry and no queue on disk; every failure is
+ignored and nothing is printed. It runs after the report is written, so it cannot change the output or
+the exit code, and a hanging endpoint adds at most about 2 seconds.
+
+**How to turn it off.** `wachiman telemetry off` (from the next review on; it deletes nothing already
+received), `WACHIMAN_TELEMETRY=0` (or `false`, `off`, `no`) for one process, or `DO_NOT_TRACK=1`, which wins over a stored yes.
+`wachiman telemetry status` prints your choice, the installation ID (send it with a deletion request,
+before any `reset`) and what blocks sending now. Local review works the same with it off.
+
+**DO_NOT_TRACK.** Wachiman follows [donottrack.sh](https://donottrack.sh/). It never sets the variable and
+never passes it to another program. It does not change what Claude Code, Codex or Bun send; that is
+their own telemetry, described above.
+
+**Announced.** The release that starts sending is called out in `CHANGELOG.md` and printed by
+`wachiman upgrade` (`wachimanDataCollection` in `package.json`).
+
+The decision: [usage metrics are sent only after opt-in and never carry an account identifier](adr/0065-usage-metrics-are-sent-only-after-opt-in-and-never-carry-an-account-identifier.md).
 
 ## What is not verified
 

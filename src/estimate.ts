@@ -1,4 +1,3 @@
-import type { EngineConfig } from "./config";
 import type { ReviewFile } from "./engine";
 
 /**
@@ -13,10 +12,19 @@ import type { ReviewFile } from "./engine";
 export const PER_BATCH_USD = { sonnet: 0.32, opus: 0.5, haiku: 0.28 } as const;
 
 /** The mean cost of one batch call for `model`, never above the per-call cap. */
-function perBatchFor(model: string, batchBudgetUsd: number) {
+export function perBatchFor(model: string, batchBudgetUsd: number) {
   const id = model.toLowerCase();
   const family = (Object.keys(PER_BATCH_USD) as (keyof typeof PER_BATCH_USD)[]).find((f) => id.includes(f));
   return family ? Math.min(PER_BATCH_USD[family], batchBudgetUsd) : batchBudgetUsd;
+}
+
+/**
+ * The room a batch needs before it starts: 60% of the model's mean batch, never below `minUsd`.
+ * Below it, a call is cut before its first turn pays for anything (the cheapest first turn on
+ * pull request 287 cost $0.17).
+ */
+export function batchStartFloor(model: string, batchBudgetUsd: number, minUsd: number) {
+  return Math.max(minUsd, 0.6 * perBatchFor(model, batchBudgetUsd));
 }
 
 export interface ReviewEstimate {
@@ -42,17 +50,3 @@ export function estimateReview(files: ReviewFile[], opts: { batches: number; bat
     usd: opts.batches * perBatchUsd,
   };
 }
-
-/**
- * The most an estimate may be before a GitHub run skips the review. A run that may spend the
- * whole estimate can afford a full review, so raising `budget_usd` alone lifts the gate for
- * `/wachiman review`. An automatic run is bounded by `auto_budget_usd` too, so it is lifted only
- * when both are raised. A gate below the run's budget would skip pull requests the run could pay
- * for in full.
- */
-export function sizeGate(config: Pick<EngineConfig, "sizeGateUsd" | "budgetUsd" | "autoBudgetUsd">, automatic: boolean): number {
-  return Math.max(config.sizeGateUsd, automatic ? Math.min(config.budgetUsd, config.autoBudgetUsd) : config.budgetUsd);
-}
-
-/** A whole-dollar budget that covers the estimate's upper error (about 40% either way, plus margin). */
-export const suggestedBudget = (usd: number) => Math.max(1, Math.ceil(usd * 1.5));

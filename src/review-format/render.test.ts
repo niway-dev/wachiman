@@ -224,23 +224,44 @@ describe("S5: the partial review is readable", () => {
     const reviewed = new Set(input.output.files_reviewed);
     const missing = input.files.map((f) => f.filename).filter((f) => !reviewed.has(f));
     const callout = body.split("\n").find((l) => l.startsWith("> "))!;
-    const counted = [...callout.matchAll(/(\d+) because /g)].map((m) => Number(m[1]));
+    const reasons = callout.match(/Not reviewed: \d+ \((.*)\)\./)![1]!.split("; ");
+    const counted = reasons.map((r) => Number(r.match(/^(\d+) /)![1]));
     expect(counted.length).toBeGreaterThan(0);
     expect(counted.reduce((a, b) => a + b, 0)).toBe(missing.length);
     const section = body.slice(body.indexOf("<summary>Files not reviewed"));
     const groups = [...section.matchAll(/\*\*(Because [^\n]*?) \((\d+)\)\*\*\n\n((?:- [^\n]*\n?)+)/g)];
     expect(groups.length).toBe(counted.length);
     const listed: string[] = [];
-    for (const [, reason, n, items] of groups) {
+    // Same groups, same order, same counts as the callout's reasons.
+    expect(groups.map((g) => Number(g[2]))).toEqual(counted);
+    for (const [, , n, items] of groups) {
       const paths = items!
         .trim()
         .split("\n")
         .map((l) => l.slice(3, -1));
       expect(paths.length).toBe(Number(n));
-      expect(callout).toContain(`${n} ${reason!.toLowerCase()}`);
       listed.push(...paths);
     }
     expect([...listed].sort()).toEqual([...missing].sort());
+  });
+
+  test("the first line of the callout reads: Reviewed X of Y files. Not reviewed: Z (n files — reason; n files — reason).", () => {
+    const callout = body.split("\n").find((l) => l.startsWith("> "))!;
+    expect(callout).toBe(
+      "> ⚠️ **Partial review.** Reviewed 30 of 82 files. Not reviewed: 52 (42 files — not reached: the pull request's budget was spent; 10 files — not reached: the call ran out of its budget).",
+    );
+    expect(body).toContain("<details><summary>Files not reviewed");
+  });
+
+  test("the hidden partial marker is written verbatim from the footer, whatever the visible text says", () => {
+    for (const name of ["strange-partial-242", "partial"]) {
+      const input = inputs[name]!;
+      const written = input.footer.markers.filter((m) => m.startsWith("<!-- wachi:partial "));
+      expect(written).toHaveLength(1);
+      const hidden: string[] = bodies[name]!.match(/<!-- wachi:partial [^>]*-->/g) ?? [];
+      expect(hidden).toEqual(written);
+      expect(isPartialFooter(bodies[name]!)).toBe(true);
+    }
   });
 
   test("the callout counts add up to the files of the pull request", () => {

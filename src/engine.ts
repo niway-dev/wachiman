@@ -55,7 +55,7 @@ import {
   type ReviewStateBlock,
   type ReviewStateDraft,
 } from "./review-state";
-import { estimateReview, sizeGate, suggestedBudget, type ReviewEstimate } from "./estimate";
+import { batchStartFloor, estimateReview, type ReviewEstimate } from "./estimate";
 import { UsageError, isAutomatic, operatorProblem, type EngineConfig, type LimitMode, type Trigger } from "./config";
 import {
   SETTINGS_PATH,
@@ -322,8 +322,61 @@ export interface Review {
   view?: ReviewView;
 }
 
+/**
+ * What `--budget <n> --head <sha>` after `review` said (ADR 0062): the words as written, or `problem`
+ * when the request cannot be read as an approval (a missing value, `--budget=8`, one word without
+ * the other, a word twice). Whether the values are acceptable is decided in `review`, which knows
+ * the head and `approve_max_usd`. Only the operator's comment may honour it.
+ */
+export interface ApproveRequest {
+  budget?: string;
+  head?: string;
+  problem?: string;
+}
+
 /** `force` is `--force` after `review`: spend past a spent limit. Only the operator's comment may honour it. */
-export type Command = { kind: "review"; paths: string[]; force: boolean } | { kind: "remember"; id: string } | { kind: "answer" };
+export type Command =
+  { kind: "review"; paths: string[]; force: boolean; approve?: ApproveRequest } | { kind: "remember"; id: string } | { kind: "answer" };
+
+/**
+ * Takes `--budget` and `--head` (and their values) out of the words after `review`. `--budget=8`
+ * is not read as `--budget 8`: it is named as a problem, because a silent reading of a spending
+ * command is how an approval ends up unintended. A value is the next word unless that is another flag.
+ */
+export function splitApproval(words: string[]): { rest: string[]; approve?: ApproveRequest } {
+  const rest: string[] = [];
+  const approve: ApproveRequest = {};
+  const problems: string[] = [];
+  let seen = false;
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const flag = word.match(/^--(budget|head)(=.*)?$/i);
+    if (!flag) {
+      rest.push(word);
+      continue;
+    }
+    seen = true;
+    const name = flag[1].toLowerCase() as "budget" | "head";
+    if (flag[2] !== undefined) {
+      const given = flag[2].slice(1) || (name === "budget" ? "<dollars>" : "<sha>");
+      problems.push(`write \`--${name} ${given}\` with a space, not \`--${name}=${flag[2].slice(1)}\``);
+      continue;
+    }
+    const value = words[i + 1];
+    if (value === undefined || value.startsWith("--")) {
+      problems.push(`\`--${name}\` needs a value`);
+      continue;
+    }
+    i += 1;
+    if (approve[name] !== undefined) problems.push(`\`--${name}\` is given twice`);
+    else approve[name] = value;
+  }
+  if (!seen) return { rest };
+  if (problems.length === 0 && (approve.budget === undefined) !== (approve.head === undefined)) {
+    problems.push(approve.budget === undefined ? "`--head` needs `--budget <dollars>` with it" : "`--budget` needs `--head <sha>` with it");
+  }
+  return { rest, approve: problems.length > 0 ? { problem: problems.join("; ") } : approve };
+}
 
 export const DEFAULT_EXCLUDE = [
   "**/bun.lock",
@@ -510,9 +563,9 @@ export function parseCommand(body: string, keyword = DEFAULT_MENTION): Command |
   if (!match) return null;
   const words = match[1].trim().split(/\s+/).filter(Boolean);
   if (words[0]?.toLowerCase() === "review") {
-    const rest = words.slice(1);
-    // `paths` is every word after `review`, as before the ledger: `comment` drops `--force` from it only when a ledger is set.
-    return { kind: "review", paths: rest, force: rest.includes("--force") };
+    // `paths` is every word after `review` but the approval's, as before the ledger: `comment` drops `--force` from it only when a ledger is set.
+    const { rest, approve } = splitApproval(words.slice(1));
+    return { kind: "review", paths: rest, force: rest.includes("--force"), ...(approve ? { approve } : {}) };
   }
   // `remember <id>` approves a memory entry the thread showed (layer 5); the id is seven hex characters. The
   // approval is the whole comment: "thanks, /wachiman remember 4c1e9a2", a trailing word, or a question that merely
@@ -1306,6 +1359,8 @@ export function buildReview(input: {
   automatic?: boolean;
   /** The ledger's footer lines (receipt, or a note that the run was not counted), written immediately before the cost line. */
   receiptLine?: string;
+  /** The budget the operator approved for this head (ADR 0062): the cost line names it. */
+  approvedBudgetUsd?: number;
   /** The configured mention keyword, for the hint on how to ask for the rest. */
   mention?: string;
   /** `owner/name`: with the head commit it turns a finding's location into a link to its file and line. */
@@ -1442,6 +1497,7 @@ export function buildReview(input: {
           ...(input.commits?.length && since && !input.rebased ? [countOf(input.commits.length, "commit")] : []),
           ...(input.verification && verificationSegment(input.verification) ? [verificationSegment(input.verification) as string] : []),
           ...(input.automatic && input.priorSpend ? [prSoFar(input.priorSpend, costUsd)] : []),
+          ...(input.approvedBudgetUsd !== undefined ? [`approved budget ${usd2(input.approvedBudgetUsd)}`] : []),
         ],
         usage: input.usage,
         estimate: input.estimate,
@@ -3011,6 +3067,7 @@ export function estimateFor(files: ReviewFile[], config: EngineConfig, rules?: r
 export const SIZE_GATE_MARKER = "<!-- wachi:size-gate -->";
 
 const usd2 = (n: number) => `$${n.toFixed(2)}`;
+const usd0 = (n: number) => `$${n}`;
 const count = (n: number) => n.toLocaleString("en-US");
 
 /** A changed file a `critical` path rule matches, and the maintainer's reason. */
@@ -3048,31 +3105,65 @@ function criticalPathsSection(critical: readonly CriticalPath[]): string {
   ].join("\n");
 }
 
+/** Which term of the room was the smallest, and so what lifts the skip (ADR 0062 decision 2). */
+export type SkipLift =
+  /** The run budget: `approveUsd` is the whole-dollar budget to approve, offered only when it is at or below `maxUsd`. */
+  | { kind: "budget"; approveUsd: number; maxUsd: number }
+  /** The automatic ceiling, while `budget_usd` covers the estimate: the operator's plain review is not bounded by it. */
+  | { kind: "ceiling" }
+  /** The ledger's grant, known only after the reservation: `--budget` cannot lift it, `--force` can. */
+  | { kind: "ledger" };
+
+/** The smallest term of the run's total, in words and dollars; the reserves are taken out of it to make the room. */
+export interface SkipLimit {
+  label: string;
+  usd: number;
+}
+
 /**
- * The comment that says a pull request was not reviewed because its estimate is above the size
- * gate (nothing was sent to a model), what the estimate rests on, and the inputs that lift it.
+ * The comment that says a review was not started because its estimate is above the room the run
+ * may spend (nothing was sent to a model), what the estimate rests on, and what lifts the skip.
  */
 export function sizeGateBody(o: {
   estimate: ReviewEstimate;
-  gate: number;
+  /** What the batches would get: the smallest term of the total, less the reserves. */
+  room: number;
+  limit: SkipLimit;
+  lift: SkipLift;
   headSha: string;
   mention: string;
   model: string;
   /** The changed files a `critical` path rule matches, from the base commit's rules; none by default. */
   critical?: readonly CriticalPath[];
 }): string {
-  const { estimate: e, gate, headSha, mention, model } = o;
-  const budget = suggestedBudget(e.usd);
+  const { estimate: e, room, limit, lift, headSha, mention, model } = o;
+  const reserves = limit.usd - room;
+  const sha = short(headSha);
+  const part = `To review part of it now, comment \`${mention} review <path> [path…]\`.`;
+  const next = (() => {
+    if (lift.kind === "ceiling") {
+      return `The ceiling for automatic runs stops this one, not \`budget_usd\`, which covers the estimate. The operator's review is not bounded by the ceiling: comment \`${mention} review\`. ${part}`;
+    }
+    if (lift.kind === "ledger") {
+      return `The spend ledger granted less than the estimate, and the run made no model call, so nothing was spent. A bigger budget cannot lift a ledger limit. To review now anyway, the operator comments \`${mention} review --force\`, or the limit is raised in the ledger. ${part}`;
+    }
+    if (lift.approveUsd <= lift.maxUsd) {
+      return [
+        `To review all of it, the operator comments this, which approves a budget of **${usd0(lift.approveUsd)}** for the head \`${sha}\` and for no other:`,
+        ["```", `${mention} review --budget ${lift.approveUsd} --head ${sha}`, "```"].join("\n"),
+        `The run may pass the approved figure by about one call. A push cancels the approval, and the next automatic run estimates the new head. ${part}`,
+      ].join("\n\n");
+    }
+    return `Approving all of it would take a budget of **${usd0(lift.approveUsd)}** (1.5 times the estimate, after the reserves), above \`approve_max_usd\` (${usd2(lift.maxUsd)}), so no command is offered. Raise \`approve_max_usd\` in the workflow that calls Wachiman, or review part of it: comment \`${mention} review <path> [path…]\`.`;
+  })();
   return [
     branded(
-      `**Not reviewed: this pull request is above the size gate.** Reviewing all of it would cost about **${usd2(e.usd)}**, and the gate is **${usd2(gate)}**, so nothing was sent to a model and nothing was spent.`,
+      `**Not reviewed: this review would cost more than the run can spend.** Reviewing all of it would cost about **${usd2(e.usd)}**, and this run has room for **${usd2(room)}**, so nothing was sent to a model and nothing was spent.`,
     ),
     ...(o.critical?.length ? [criticalPathsSection(o.critical)] : []),
-    `The estimate: ${count(e.batches)} batches × ${usd2(e.perBatchUsd)} a batch for \`${model}\` (${count(e.files)} files, ${count(e.lines)} changed lines), from the diff alone, before any model call. It can be off by about 40% either way.`,
-    `To review the whole pull request, set the run budget in the workflow that calls Wachiman, then comment \`${mention} review\`:`,
-    ["```yaml", "    with:", `      budget_usd: ${budget}`, "```"].join("\n"),
-    `A \`budget_usd\` at or above the estimate lifts the gate for that run. To have pushes reviewed automatically as well, also set \`auto_budget_usd: ${budget}\`. To review part of it now, comment \`${mention} review <path> [path…]\`.`,
-    `<sub>Estimated at \`${short(headSha)}\`. This comment is updated on each push instead of a new one.</sub>`,
+    `The estimate: ${count(e.batches)} batches × ${usd2(e.perBatchUsd)} a batch for \`${model}\` (${count(e.files)} files, ${count(e.lines)} changed lines), from the diff alone, before any model call. It can be off by about 40% either way. The room is **${usd2(room)}**: ${limit.label} is ${usd2(limit.usd)}${reserves > 0.005 ? `, less ${usd2(reserves)} that the reserves keep (the verifier, memory matching and, with PR Confidence, the claims call)` : ""}.`,
+    next,
+    `<sub>Estimated at \`${sha}\`. A run can pass its budget by about one call. This comment is updated on each push instead of a new one.</sub>`,
     SIZE_GATE_MARKER,
   ].join("\n\n");
 }
@@ -3088,13 +3179,13 @@ export function postSizeGateNotice(
   pr: number,
   headSha: string,
   estimate: ReviewEstimate,
-  gate: number,
+  skip: { room: number; limit: SkipLimit; lift: SkipLift },
   critical: readonly CriticalPath[] = [],
 ) {
   const { config } = deps;
   const body = sizeGateBody({
     estimate,
-    gate,
+    ...skip,
     headSha,
     mention: config.mention,
     model: config.model,
@@ -3474,6 +3565,47 @@ export function reviewOptionsOf(config: EngineConfig, totalBudgetUsd: number, pr
 }
 
 /**
+ * What a run holds back from its total before the batches start (ADR 0062). The verifier's reserve
+ * is its budget, at most half the total, so a small budget still reviews something (a review with
+ * no findings has nothing to verify). When memory exceptions may act on the diff (ADR 0057), the
+ * matching call's money is held back too, a quarter of what is left at most `MEMORY_MATCH_BUDGET_USD`;
+ * no active exception, no reserve.
+ */
+export function reserveSplit(total: number, verify: { budgetUsd: number } | undefined, exceptionPlan: ExceptionPlan) {
+  const verifier = verify ? Math.min(verify.budgetUsd, total / 2) : 0;
+  const match = exceptionPlan.active.length > 0 ? Math.min(MEMORY_MATCH_BUDGET_USD, (total - verifier) / 4) : 0;
+  return { verifier, match };
+}
+
+/**
+ * What the batches get out of `total` once the reserves are taken. `reviewChange` spends this much
+ * on batches and the gate in `review` compares the estimate with it, so the two use the same room.
+ * The PR Confidence claims call (at most `CLAIMS_BUDGET_USD`, a quarter of the room) is paid out of
+ * `reviewChange`'s batch room before the batches. The gate passes `claims` when that call will run
+ * (a full review with `confidence` on), so the room it compares the estimate with already has the
+ * claims call's money taken out; `reviewChange` itself leaves `claims` off because it pays the call
+ * from this room.
+ */
+export function batchRoom(total: number, verify: { budgetUsd: number } | undefined, exceptionPlan: ExceptionPlan, claims = false): number {
+  const { verifier, match } = reserveSplit(total, verify, exceptionPlan);
+  const room = total - verifier - match;
+  return claims ? room - Math.min(CLAIMS_BUDGET_USD, room / 4) : room;
+}
+
+/**
+ * The budget a skip comment asks the operator to approve: the smallest whole dollar whose batch
+ * room (`roomOf`) is at least 1.5 times the estimate, which covers the estimate's error of about
+ * 40% (ADR 0037 decision 2) and pays the reserves.
+ */
+export function approvalBudget(estimateUsd: number, roomOf: (total: number) => number): number {
+  const need = estimateUsd * 1.5;
+  // The room is never above the total, so no whole dollar below `need` can do.
+  let n = Math.max(1, Math.ceil(need));
+  while (roomOf(n) < need) n += 1;
+  return n;
+}
+
+/**
  * The review core (ADR 0019 decision 1): from a `ReviewInput` to a `ReviewResult`, with no
  * knowledge of where the change came from or where the result goes. Filtering, scope, batching,
  * instructions rendering, evidence, data-path questions, the prompt, the provider calls, output
@@ -3501,19 +3633,19 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
   const { dropped } = filtered;
   const { reviewable: kept, unreviewable } = splitUnreviewable(filtered.kept, input.headDir);
   const totalBudget = options.totalBudgetUsd;
-  // The verifier's reserve is taken first, so the batches cannot spend it; at most half the total,
-  // so a small budget still reviews something (a review with no findings has nothing to verify).
-  const reserve = options.verify ? Math.min(options.verify.budgetUsd, totalBudget / 2) : 0;
-  // The memory exceptions that may act on this diff (ADR 0057). When there are any, the matching
-  // call's money is reserved too, so the batches cannot spend it; no exception, no reserve.
+  // The memory exceptions that may act on this diff (ADR 0057). The reserves of the verifier and of
+  // the matching call are taken first, so the batches cannot spend them; the gate in `review`
+  // asks `batchRoom` the same question before the first call.
   const exceptionPlan = planExceptions(
     options.memory,
     options.changedPaths ?? touchedPathsOf(input.files),
     kept.map((f) => f.filename),
   );
-  const matchReserve = exceptionPlan.active.length > 0 ? Math.min(MEMORY_MATCH_BUDGET_USD, (totalBudget - reserve) / 4) : 0;
-  const batchTotal = totalBudget - reserve - matchReserve;
+  const { match: matchReserve } = reserveSplit(totalBudget, options.verify, exceptionPlan);
+  const batchTotal = batchRoom(totalBudget, options.verify, exceptionPlan);
   const batchBudget = options.batchBudgetUsd;
+  // A batch starts only with room for about one turn of the model; a retry only needs a call's minimum.
+  const startFloor = batchStartFloor(options.model, batchBudget, MIN_BATCH_USD);
   const batches = planBatches(
     kept,
     {
@@ -3565,6 +3697,8 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     if (claimsStep.claims && claimsStep.claims.length > 0) context.claims = claimsStep.claims.map((c) => c.text);
   }
   let budgetError = false;
+  // A batch that never started for want of room. It counts as a budget stop only when no limit stopped the run.
+  let notRunBudget = false;
   let limitError: "turns" | "timeout" | undefined;
   // Any call, a retry included, that ended on a turn or time limit or on its budget: a batch that
   // still gave usable output is not a finished review, so PR Confidence cannot grade it.
@@ -3615,16 +3749,21 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
    * below the minimum but money is reserved by batches in flight, it waits: what they do not spend
    * comes back, and giving up now would skip a batch that a sequential run would have afforded.
    */
-  const acquire = async (id: number, launching: boolean): Promise<{ usd: number } | { why: "rejected" | "budget" | "failed" }> => {
+  const acquire = async (
+    id: number,
+    launching: boolean,
+  ): Promise<{ usd: number; runLimited: boolean } | { why: "rejected" | "budget" | "failed" }> => {
     for (;;) {
       if (fatal) return { why: "failed" };
       if (rejection) return { why: "rejected" };
       if (!launching || inFlight < BATCH_CONCURRENCY) {
         const left = room();
-        if (left >= MIN_BATCH_USD) {
+        if (left >= (launching ? startFloor : MIN_BATCH_USD)) {
           const usd = Math.min(batchBudget, left);
           reserved.set(id, usd);
-          return { usd };
+          // Limited by the run itself: even if every reservation came back unspent, the room would be
+          // below the per-call cap. A cap shrunk only by other batches' reservations is not.
+          return { usd, runLimited: batchTotal - spent < batchBudget };
         }
         if (reserved.size === 0) return { why: "budget" };
       }
@@ -3632,7 +3771,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     }
   };
 
-  const runBatch = async (i: number, batch: Batch, firstBudget: number): Promise<BatchOutcome> => {
+  const runBatch = async (i: number, batch: Batch, firstBudget: number, runLimited: boolean): Promise<BatchOutcome> => {
     const label = `Batch ${i + 1} of ${batches.length}`;
     const out: BatchOutcome = {
       report: { label, files: batch.files.length, lines: batch.lines, maxRisk: batch.maxRisk, status: "", turns: 0, costUsd: 0 },
@@ -3691,7 +3830,11 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     // A refused call (no credit, bad key) would be refused again: no retry.
     // Only this batch's own refusal explains its gaps; another batch's refusal only stops new calls.
     const ownRefusal = first.rejection !== undefined && first.rejection.kind !== "other";
-    const grant = gaps.length > 0 && first.stopped !== "timeout" && !ownRefusal ? await acquire(i, false) : undefined;
+    // A call cut on a budget that was the run's own remaining room would meet the same limit again with
+    // less room; one cut at the full cap gets a fresh cap. A cap that only other batches' reservations
+    // shrank is not the run's limit: that money comes back, and the retry waits for it.
+    const roomCut = first.budget && runLimited;
+    const grant = gaps.length > 0 && first.stopped !== "timeout" && !ownRefusal && !roomCut ? await acquire(i, false) : undefined;
     if (gaps.length > 0 && grant && "usd" in grant) {
       const retry = await reviewBatchBackingOff(
         core,
@@ -3761,7 +3904,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
       break;
     }
     inFlight++;
-    const task: Promise<void> = runBatch(i, batch, granted.usd)
+    const task: Promise<void> = runBatch(i, batch, granted.usd, granted.runLimited)
       .then(
         (outcome) => void (outcomes[i] = outcome),
         (error) => void (fatal ??= { error }),
@@ -3793,9 +3936,13 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     budgetCut.push(...outcome.budgetCut);
     usage = addUsage(usage, outcome.usage);
     if (outcome.budgetError) budgetError = true;
+    // A batch that never started for want of room: with no batch output the run stopped on its budget,
+    // so the review posts the budget notice instead of failing with "no review for any batch".
+    if (outcome.notRun.length > 0 && otherError === undefined) notRunBudget = true;
     if (outcome.stopped) limitError = outcome.stopped;
     if (outcome.anyLimit) anyLimit = true;
   }
+  if (notRunBudget && limitError === undefined) budgetError = true;
 
   // Set by the callbacks above, which the compiler does not follow.
   const refused = rejection as { kind: Exclude<ProviderErrorClass, "other">; text: string } | undefined;
@@ -4385,6 +4532,8 @@ export function githubReview(
     instructionChanges: { files: string[]; baseSha: string };
     /** The run is on a Claude subscription: the footer says its dollars are estimates. */
     estimate?: boolean;
+    /** The budget the operator approved with `--budget N --head SHA`: the footer names it. */
+    approvedBudgetUsd?: number;
   },
 ): Review {
   refuseDistributed(result);
@@ -4429,15 +4578,67 @@ export function githubReview(
     pushOnly: github.since !== null,
     ...(result.verification ? { verification: result.verification } : {}),
     ...(github.estimate ? { estimate: true } : {}),
+    ...(github.approvedBudgetUsd !== undefined ? { approvedBudgetUsd: github.approvedBudgetUsd } : {}),
   });
 }
 
-/** `force` (`--force`) counts only for the operator's own run, never an automatic trigger. */
-export async function review(deps: Deps, repo: string, pr: number, words: string[], force = false) {
+/**
+ * Whether an operator's approval (`--budget N --head SHA`) is acceptable for this head (ADR 0062
+ * decision 3): a problem to say once, or the dollars the run may spend. `--head` must be a prefix
+ * of at least 7 characters of the current head, and `N` a plain decimal above 0 and at or below
+ * `approve_max_usd`: `NaN`, `Infinity`, `1e3` and `0x10` are not numbers anyone approved.
+ */
+export function checkApproval(approve: ApproveRequest, headSha: string, maxUsd: number): { problem: string } | { budgetUsd: number } {
+  const usageHint = "Comment `/wachiman review --budget <dollars> --head <sha>` with the current head.";
+  if (approve.problem !== undefined) return { problem: `Not started: ${approve.problem}. ${usageHint}` };
+  const head = approve.head ?? "";
+  const budget = approve.budget ?? "";
+  if (!/^[0-9a-f]{7,40}$/i.test(head)) {
+    return {
+      problem: `Not started: \`--head\` needs at least 7 characters of the head commit, got \`${oneLine(head, 40)}\`. ${usageHint}`,
+    };
+  }
+  if (!headSha.toLowerCase().startsWith(head.toLowerCase())) {
+    return {
+      problem: `Not started: \`${neutralise(head.toLowerCase())}\` is not the head of this pull request, which is \`${short(headSha)}\`. An approval is for one head, and a push cancels it. Comment again with the current head, or wait for the next automatic review.`,
+    };
+  }
+  const dollars = /^\d+(\.\d+)?$/.test(budget) ? Number(budget) : Number.NaN;
+  if (!Number.isFinite(dollars) || dollars <= 0) {
+    return {
+      problem: `Not started: \`--budget\` needs a number of dollars above 0, such as \`--budget 9\`, got \`${oneLine(budget, 40)}\`.`,
+    };
+  }
+  if (dollars > maxUsd) {
+    return {
+      problem: `Not started: \`--budget ${dollars}\` is above \`approve_max_usd\` (${usd2(maxUsd)}). Approve less, review part of the pull request with \`/wachiman review <path>\`, or raise \`approve_max_usd\` in the workflow.`,
+    };
+  }
+  return { budgetUsd: dollars };
+}
+
+/**
+ * `force` (`--force`) counts only for the operator's own run, never an automatic trigger. `approve`
+ * is the operator's `--budget N --head SHA`: only `comment` passes it, after the authority check.
+ */
+export async function review(deps: Deps, repo: string, pr: number, words: string[], force = false, approve?: ApproveRequest) {
   const { gh, config } = deps;
   const meta = JSON.parse(gh(["pr", "view", String(pr), "-R", repo, "--json", "headRefOid,baseRefName,title,body,author"]));
   const headSha: string = meta.headRefOid;
   const bodyOnly = (body: string) => postReview(deps, repo, pr, headSha, { body: branded(body), comments: [] });
+  // The budget of this run: `budget_usd`, or what the operator approved for this head. Checked before
+  // anything else, so a stale or malformed approval spends nothing and is answered once.
+  let budgetUsd = config.budgetUsd;
+  let approved: number | undefined;
+  if (approve) {
+    const checked = checkApproval(approve, headSha, config.approveMaxUsd);
+    if ("problem" in checked) {
+      deps.log(`Approval refused: ${checked.problem}`);
+      bodyOnly(checked.problem);
+      return;
+    }
+    budgetUsd = approved = checked.budgetUsd;
+  }
 
   const prFiles = listFiles(gh, repo, pr);
   const { paths, ignored } = resolveScope(
@@ -4639,7 +4840,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     });
     return;
   }
-  // The size gate: what this run would send, priced before any model call. Nothing is posted as a
+  // The room gate: what this run would send, priced before any model call. Nothing is posted as a
   // review and no marker is written, so the next push sees no marker and gates again.
   // The path rules come from the base commit whatever the model and effort inputs say; they reorder
   // the batches, so the estimate is made with them.
@@ -4650,21 +4851,17 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   const pathPolicyChanged = touchesSettingsFile(prFiles) && headEditsPathRules(gh, repo, headSha, baseRules);
   const pathRules = pathPolicyChanged ? withPolicyEditRule(baseRules) : baseRules;
   const estimate = estimateFor(allBinary.reviewable, config, pathRules);
-  const gate = sizeGate(config, isAutomatic(config.trigger));
-  if (estimate.usd > gate) {
-    deps.log(`Estimated $${estimate.usd.toFixed(2)} is above the $${gate.toFixed(2)} size gate; nothing sent to a model.`);
-    postSizeGateNotice(deps, repo, pr, headSha, estimate, gate, criticalPathsOf(allBinary.reviewable, pathRules));
-    return;
-  }
-  // After the rebase exits above (they cost nothing and move the marker) and before any paid step.
+  // The ceiling is read first: it is the term of the room that changes between runs, and it keeps its
+  // own notice for less than a call's minimum. After the rebase exits above (they cost nothing and
+  // move the marker) and before any paid step.
   const ceiling = ceilingRoom(deps, repo, pr, headSha);
   if (ceiling === null) return;
   // What the automatic runs before this one cost; an operator's run is not counted and shows none.
   const automatic = isAutomatic(config.trigger);
   const prior = automatic ? { spent: ceiling.spent, runs: ceiling.runs } : undefined;
-  const instructions = readBaseInstructions(gh, repo, base, deps.warn);
   // The memory of the base commit, selected by the files this run reviews (ADR 0056): not the
-  // excluded, out-of-scope or binary ones that `files` still holds.
+  // excluded, out-of-scope or binary ones that `files` still holds. Read before the gate because
+  // an active exception reserves money out of the room (`batchRoom`).
   const memory = readBaseMemory(
     gh,
     repo,
@@ -4672,6 +4869,58 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     allBinary.reviewable.map((f) => f.filename),
     deps.warn,
   );
+  const exceptionPlan = planExceptions(
+    memory,
+    touchedPathsOf(prFiles),
+    allBinary.reviewable.map((f) => f.filename),
+  );
+  const verifyReserve = config.verify ? { budgetUsd: config.verifyBudgetUsd } : undefined;
+  // PR Confidence grades a full review only (ADR 0033): an incremental or scoped review reads a
+  // part of the change, and "nothing else changed" cannot be said of a part.
+  const fullReview = since === null && paths.length === 0;
+  const roomOf = (total: number) => batchRoom(total, verifyReserve, exceptionPlan, config.confidence && fullReview);
+  // The room gate (ADR 0062): the estimate against what the batches would get. Nothing is posted as a
+  // review and no marker is written, so the next push sees no marker and gates again.
+  const runTotal = Math.min(budgetUsd, ceiling.room);
+  const runRoom = roomOf(runTotal);
+  if (estimate.usd > runRoom) {
+    deps.log(`Estimated $${estimate.usd.toFixed(2)} is above the $${runRoom.toFixed(2)} room of this run; nothing sent to a model.`);
+    const critical = criticalPathsOf(allBinary.reviewable, pathRules);
+    // The smallest term decides what lifts it. The run budget, whether or not the ceiling is short too,
+    // needs an approval; the ceiling alone, with `budget_usd` covering the estimate, is lifted by the
+    // operator's plain review, which the ceiling does not bound.
+    if (estimate.usd > roomOf(budgetUsd)) {
+      postSizeGateNotice(
+        deps,
+        repo,
+        pr,
+        headSha,
+        estimate,
+        {
+          room: roomOf(budgetUsd),
+          limit: { label: approved === undefined ? "the run budget (`budget_usd`)" : "the approved budget", usd: budgetUsd },
+          lift: { kind: "budget", approveUsd: approvalBudget(estimate.usd, roomOf), maxUsd: config.approveMaxUsd },
+        },
+        critical,
+      );
+    } else {
+      postSizeGateNotice(
+        deps,
+        repo,
+        pr,
+        headSha,
+        estimate,
+        {
+          room: runRoom,
+          limit: { label: "what is left of the pull request's automatic ceiling (`auto_budget_usd`)", usd: runTotal },
+          lift: { kind: "ceiling" },
+        },
+        critical,
+      );
+    }
+    return;
+  }
+  const instructions = readBaseInstructions(gh, repo, base, deps.warn);
   const batchBudget = config.batchBudgetUsd;
   // Only threads that wait for an answer (the owner wrote last, Wachiman has replies left): a
   // thread Wachiman already answered is not read again, so it is not answered twice (ADR 0008).
@@ -4695,13 +4944,35 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     pathPolicyChanged,
     commentsPointToDocs,
   });
-  // PR Confidence grades a full review only (ADR 0033): an incremental or scoped review reads a
-  // part of the change, and "nothing else changed" cannot be said of a part.
-  const fullReview = since === null && paths.length === 0;
   // Everything the run reads from GitHub is read by now. The ledger is asked last, just before the
   // first paid step, so a failing read cannot leave a reservation that nobody settles.
-  const grant = spendReserve(deps, repo, pr, headSha, Math.min(config.budgetUsd, ceiling.room), force && !automatic);
-  const totalBudget = Math.min(config.budgetUsd, ceiling.room, grant.roomUsd);
+  const grant = spendReserve(deps, repo, pr, headSha, runTotal, force && !automatic);
+  const totalBudget = Math.min(runTotal, grant.roomUsd);
+  // The ledger may grant less than the run asked for. It is the same comparison with the grant in the
+  // room (AC14): no call, the reservation is settled at $0.00 BEFORE anything is posted, so a post that
+  // fails leaves nothing counted, and the comment names the grant and `--force`, not `--budget`.
+  if (estimate.usd > roomOf(totalBudget)) {
+    // The release is attempted before the post; a failure only warns and notes (the reservation stays
+    // counted), so the comment says what was asked, not that it was done.
+    spendSettle(deps, grant, 0);
+    ledgerNote(
+      deps,
+      `The ledger granted ${usd(grant.roomUsd)}, below the estimate of ${usd(estimate.usd)} the review needs, so it made no model call and asked the ledger to settle with $0.00. If a settlement warning appears above, the reservation stays counted.${onSubscription(deps) ? ` ${ESTIMATE_NOTE}.` : ""}`,
+    );
+    deps.log(
+      `The ledger granted ${usd(grant.roomUsd)}; the room is $${roomOf(totalBudget).toFixed(2)}, below the $${estimate.usd.toFixed(2)} estimate; no model call.`,
+    );
+    postSizeGateNotice(
+      deps,
+      repo,
+      pr,
+      headSha,
+      estimate,
+      { room: roomOf(totalBudget), limit: { label: "the spend ledger's grant", usd: grant.roomUsd }, lift: { kind: "ledger" } },
+      criticalPathsOf(allBinary.reviewable, pathRules),
+    );
+    return;
+  }
   const options: ReviewOptions = {
     ...reviewOptionsOf(config, totalBudget),
     ...(memory ? { memory } : {}),
@@ -4812,6 +5083,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
       baseSha: instructions.baseSha,
     },
     estimate: onSubscription(deps),
+    ...(approved !== undefined ? { approvedBudgetUsd: approved } : {}),
   });
   refuseLeak(deps, [built.body, ...built.comments.map((c) => c.body), ...result.threadReplies.map((r) => r.reply)]);
   const reviewUrl = postReview(deps, repo, pr, headSha, built);
@@ -5946,7 +6218,7 @@ export async function comment(deps: Deps, repo: string, pr: number, request: str
     if (command?.kind === "review") {
       // With no ledger `--force` means nothing: it stays a word that names no file, as it always did.
       const words = deps.config.ledgerUrl ? command.paths.filter((w) => w !== "--force") : command.paths;
-      await review(deps, repo, pr, words, command.force);
+      await review(deps, repo, pr, words, command.force, command.approve);
     } else if (command) await answer(deps, repo, pr, request, { line });
     return;
   }

@@ -11,11 +11,13 @@ import { A_HEAD, branchRepo, commit, emptyRepo, git, removeTempRepos } from "../
 import { personalMemoryDir, personalSourceFor } from "../memory/personal";
 import { entryId } from "../memory/entries";
 import {
+  blobReader,
   buildLocalInput,
   localFiles,
   localInstructions,
   localMemory,
   localMemorySource,
+  localRepoSettings,
   removeSnapshot,
   resolveRefs,
   snapshotHead,
@@ -28,6 +30,20 @@ import {
 setDefaultTimeout(30_000);
 
 afterAll(removeTempRepos);
+
+// Runs fn with TMPDIR pointing at a directory of its own, so snapshot counts are not disturbed by parallel test files.
+function withPrivateTmp(fn: () => void): void {
+  const dir = mkdtempSync(join(realpathSync(tmpdir()), "wachiman-tmp-test-"));
+  const previous = process.env.TMPDIR;
+  process.env.TMPDIR = dir;
+  try {
+    fn();
+  } finally {
+    if (previous === undefined) delete process.env.TMPDIR;
+    else process.env.TMPDIR = previous;
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
 
 const snapshots: string[] = [];
 afterAll(() => snapshots.forEach(removeSnapshot));
@@ -50,6 +66,67 @@ describe("resolveRefs", () => {
       depth: 2,
     });
     expect(resolveRefs(r.dir, "main").mergeBase).toBe(r.mergeBase);
+  });
+
+  test("each revision is resolved by one git process, and the answer does not change", () => {
+    const r = branchRepo();
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const refs = resolveRefs(r.dir, undefined, counting);
+    expect(refs).toEqual(resolveRefs(r.dir, undefined));
+    // HEAD and the default base `main`: probing a revision and then reading it was two processes each.
+    expect(calls.filter((c) => c[0] === "rev-parse")).toEqual([
+      ["rev-parse", "--verify", "-q", "HEAD^{commit}"],
+      ["rev-parse", "--verify", "-q", "main^{commit}"],
+    ]);
+    calls.length = 0;
+    expect(resolveRefs(r.dir, "main", counting)).toEqual(refs);
+    expect(calls.filter((c) => c[0] === "rev-parse").length).toBe(2);
+  });
+
+  test("--commit reads its revision with one git process and still refuses a non-commit", () => {
+    const r = branchRepo();
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const refs = resolveRefs(r.dir, undefined, counting, undefined, { commit: r.head });
+    expect(refs).toEqual(resolveRefs(r.dir, undefined, undefined, undefined, { commit: r.head }));
+    expect(calls.filter((c) => c.includes(`${r.head}^{commit}`))).toEqual([["rev-parse", "--verify", "-q", `${r.head}^{commit}`]]);
+    expect(() => resolveRefs(r.dir, undefined, undefined, undefined, { commit: "nope" })).toThrow(
+      "--commit nope is not a commit in this clone.",
+    );
+    const tree = spawnGit(["rev-parse", "HEAD^{tree}"], { cwd: r.dir, timeoutMs: 10_000 }).stdout.trim();
+    expect(() => resolveRefs(r.dir, undefined, undefined, undefined, { commit: tree })).toThrow(
+      `--commit ${tree} is not a commit in this clone.`,
+    );
+  });
+
+  test("--from reads HEAD and its revision with one git process each", () => {
+    const r = branchRepo();
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const refs = resolveRefs(r.dir, undefined, counting, 50, { from: r.head });
+    expect(refs).toEqual(resolveRefs(r.dir, undefined, undefined, 50, { from: r.head }));
+    expect(refs.headSha).toBe(r.head);
+    expect(calls.filter((c) => c[0] === "rev-parse" && c.some((a) => a.endsWith("^{commit}")))).toEqual([
+      ["rev-parse", "--verify", "-q", "HEAD^{commit}"],
+      ["rev-parse", "--verify", "-q", `${r.head}^{commit}`],
+    ]);
+  });
+
+  test("a missing commit or base is still refused, in the same order", () => {
+    const dir = emptyRepo();
+    expect(() => resolveRefs(dir, "main")).toThrow("has no commit yet");
+    const r = branchRepo();
+    expect(() => resolveRefs(r.dir, "nope")).toThrow("--base nope is not a commit in this clone.");
   });
 
   test("the upstream's default branch wins over main when origin/HEAD resolves", () => {
@@ -219,6 +296,47 @@ describe("localInstructions", () => {
     const base = commit(dir, { "CLAUDE.md/inner.md": "not a file\n" }, "base");
     expect(localInstructions(dir, base, () => {}).files).toEqual([]);
   });
+
+  test("one listing of the tree serves every instruction file and the settings file, with the same answers", () => {
+    const dir = emptyRepo();
+    const long = `${"x".repeat(MAX_INSTRUCTION_BYTES)}é and more`;
+    const base = commit(
+      dir,
+      {
+        ".github/claude-review.md": "focus\n",
+        "AGENTS.md": long,
+        "CLAUDE.md/inner.md": "a directory, not a file\n",
+        ".wachiman.yml": "effort: high\n",
+      },
+      "base",
+    );
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const read = blobReader(dir, base, counting);
+    const separate: string[] = [];
+    const shared: string[] = [];
+    expect(localInstructions(dir, base, (l) => shared.push(l), counting, read)).toEqual(
+      localInstructions(dir, base, (l) => separate.push(l)),
+    );
+    expect(shared).toEqual(separate);
+    expect(localRepoSettings(dir, base, counting, read)).toEqual(localRepoSettings(dir, base));
+    expect(read(".wachiman.yml")?.toString()).toBe("effort: high\n");
+    expect(read("CLAUDE.md")).toBeNull();
+    expect(read("not-listed.txt")).toBeNull();
+    // Three instruction paths, the old focus path and the settings file: one `ls-tree`, plus the one for the unlisted path.
+    expect(calls.filter((c) => c[0] === "ls-tree").length).toBe(2);
+  });
+
+  test("a tree this clone does not have fails every read, as separate listings did", () => {
+    const r = branchRepo();
+    const read = blobReader(r.dir, "0".repeat(40));
+    expect(() => read("CLAUDE.md")).toThrow();
+    expect(() => read(".wachiman.yml")).toThrow();
+    expect(() => localInstructions(r.dir, "0".repeat(40), () => {})).toThrow();
+  });
 });
 
 describe("tarCommand", () => {
@@ -377,20 +495,21 @@ describe("snapshotHead", () => {
   });
 
   test("a timed-out step is reported with its name, the file count and what to do, and nothing is left behind", () => {
-    const r = branchRepo();
-    const before = readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-"));
-    const fake: GitRunner = (args, opts) =>
-      args.includes("archive") ? { status: null, stdout: "", timedOut: true, error: "spawnSync git ETIMEDOUT" } : spawnGit(args, opts);
-    let message = "";
-    try {
-      snapshotHead(r.dir, r.head, fake);
-    } catch (error) {
-      message = (error as Error).message;
-    }
-    expect(message).toContain('Snapshot step "git archive" timed out after 60 s on a head of 5 files.');
-    expect(message).toContain("retry when it is less loaded");
-    expect(message).toContain(tmpdir());
-    expect(readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-"))).toEqual(before);
+    withPrivateTmp(() => {
+      const r = branchRepo();
+      const fake: GitRunner = (args, opts) =>
+        args.includes("archive") ? { status: null, stdout: "", timedOut: true, error: "spawnSync git ETIMEDOUT" } : spawnGit(args, opts);
+      let message = "";
+      try {
+        snapshotHead(r.dir, r.head, fake);
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain('Snapshot step "git archive" timed out after 60 s on a head of 5 files.');
+      expect(message).toContain("retry when it is less loaded");
+      expect(message).toContain(tmpdir());
+      expect(readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-"))).toEqual([]);
+    });
   });
 
   test("when read-tree fails the snapshot falls back to hashing the files and is the same", () => {
@@ -565,13 +684,32 @@ describe("buildLocalInput", () => {
     expect(existsSync(snapshotDir)).toBe(false);
   });
 
-  test("a refused HEAD leaves no snapshot behind", () => {
+  test("refs the caller already resolved give the same input and are not resolved again", () => {
     const r = branchRepo();
-    git(r.dir, "switch", "-q", "--detach", "feat/x");
-    const before = new Set(readdirSync(tmpdir()));
-    expect(() => buildLocalInput({ repoDir: r.dir, paths: [], log: () => {}, warn: () => {} })).toThrow(UsageError);
-    const after = readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-") && !before.has(n));
-    expect(after).toEqual([]);
+    const calls: string[][] = [];
+    const counting: GitRunner = (args, opts) => {
+      calls.push(args);
+      return spawnGit(args, opts);
+    };
+    const refs = resolveRefs(r.dir, undefined);
+    const fresh = buildLocalInput({ repoDir: r.dir, paths: [], log: () => {}, warn: () => {} });
+    const reused = buildLocalInput({ repoDir: r.dir, paths: [], log: () => {}, warn: () => {}, git: counting, refs });
+    snapshots.push(fresh.snapshotDir, reused.snapshotDir);
+    expect(reused.refs).toEqual(fresh.refs);
+    const { headDir: a, ...freshInput } = fresh.input;
+    const { headDir: b, ...reusedInput } = reused.input;
+    expect(reusedInput).toEqual(freshInput);
+    expect(calls.filter((c) => c[0] === "merge-base" || c[0] === "symbolic-ref")).toEqual([]);
+  });
+
+  test("a refused HEAD leaves no snapshot behind", () => {
+    // Other test files create snapshots in the shared temp dir at the same time. A private TMPDIR makes the count exact.
+    withPrivateTmp(() => {
+      const r = branchRepo();
+      git(r.dir, "switch", "-q", "--detach", "feat/x");
+      expect(() => buildLocalInput({ repoDir: r.dir, paths: [], log: () => {}, warn: () => {} })).toThrow(UsageError);
+      expect(readdirSync(tmpdir()).filter((n) => n.startsWith("wachiman-snapshot-"))).toEqual([]);
+    });
   });
 });
 

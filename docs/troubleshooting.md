@@ -121,12 +121,18 @@ Wachiman replies, since after two Wachiman stays silent there. A scoped `/wachim
 answers open threads. Only replies from `OWNER`, `MEMBER` and `COLLABORATOR` are passed to the
 agent. See [reviews.md](reviews.md#reply-to-a-finding).
 
-**7a. "Not reviewed: this pull request is above the size gate."** The engine estimated the cost of
-reviewing the whole pull request (batches times a per-batch figure, no model call) and it is above
-`size_gate_usd` (default $6) and above the run budget, so nothing was sent and nothing was spent. The
-comment gives the estimate. Set `budget_usd` in your caller to the figure it suggests, then comment
-`/wachiman review`; also raise `auto_budget_usd` to have pushes reviewed automatically. Or comment
-`/wachiman review <path>` for part of it. See [costs.md](costs.md#the-size-gate) and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
+**7a. "Not reviewed: this review would cost more than the run can spend."** The engine estimated the
+cost of reviewing the whole pull request (batches times a per-batch figure, no model call) and it is
+above the room the run has (the smallest of `budget_usd`, what is left of `auto_budget_usd` and the
+ledger's grant, less the verifier and memory reserves), so nothing was sent and nothing was spent.
+The comment gives the estimate, the room and the head. The operator comments the command it offers,
+`/wachiman review --budget N --head <sha>`, to approve a budget for that head only (it is offered
+when `N` is at or below `approve_max_usd`, default $20; otherwise raise `approve_max_usd` in your
+caller). If the ceiling was the limit, a plain `/wachiman review` is offered; if the ledger's grant
+was, `/wachiman review --force`. A push cancels an approval. Or comment `/wachiman review <path>`
+for part of it. A refused approval (stale head, `N` out of range, one flag without the other)
+gets one reply and no model call. See [costs.md](costs.md#the-room-gate) and the
+[ADR on the room gate](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md).
 
 **7b. "Automatic reviews paused: $X of $Y spent on this pull request."** The pull request's automatic
 runs (first review, push reviews, thread replies) reached `auto_budget_usd`. Comment `/wachiman review`
@@ -250,7 +256,10 @@ download or something worse, and this page cannot tell which. See
 
 The first line of the review reads, after the brand:
 
-> Partial review: reviewed X of Y files of the whole pull request, at `abc1234`. Not reviewed: ... Ask `/wachiman review <paths>` for the rest.
+> Partial review. Reviewed X of Y files. Not reviewed: Z (n1 files — reason1; n2 files — reason2).
+> They are listed under "Files not reviewed". Ask `/wachiman review <paths>` for the rest.
+
+The files are in the collapsed "Files not reviewed" block, grouped by reason.
 
 Open the collapsed "Coverage by batch" table. Each row's status tells you why:
 
@@ -259,7 +268,7 @@ Open the collapsed "Coverage by batch" table. Each row's status tells you why:
 | `reviewed` | The agent accounted for every file in the batch on the first call. |
 | `reviewed after a retry` | The first call left files unaccounted for, or returned nothing, and the single retry covered them. |
 | `N file(s) left after a retry` | The retry also left files out (a retry that again hit `max_turns` shows here). This is also what a batch whose calls failed shows, when budget remained for the retry. |
-| `N file(s) left: budget spent` | Files were left out and less than 0.05 USD remained for a retry. |
+| `N file(s) left: budget spent` | Files were left out and no retry was attempted: either the call was cut on the run's own remaining room (a retry would meet the same limit), or less than 0.05 USD remained for a retry. |
 | `N file(s) left: the call timed out` | The call was killed at `call_timeout_s` and is not retried. Raise `call_timeout_s` (keep it under the 30 minute job limit) or lower `batch_lines`. |
 | `not run: budget spent` | The review's total budget was gone before this batch started. |
 | `not run: provider rejected the call` / `N file(s) left: the provider rejected the call` | An earlier call was refused for a reason on the reviewer's side (no credit, a rejected key, a rate limit that outlasted its one retry), so the rest was not tried. The log of that call has a readable line (`❌ batch 1/1: the Anthropic API refused the call: the account has no credit…`) next to a JSON line with `error_class` and `error`. Batches that were already running when the call was refused finish; none starts after it. Fix the account, then re-run. |
@@ -298,6 +307,9 @@ The comment reads:
 > The agent ran out of its budget ($0.75 a batch, $3 the pull request) before finishing any batch: nothing here was reviewed reliably. Review part of it: `/wachiman review <path> [path…]`.
 
 The numbers are your settings. The job is green and exit 0, and the comment is the only output.
+On the local path, the same comment appears when `budget_usd` is below a batch's start floor (60% of the
+model's mean batch figure, never below 0.05 USD): no batch starts, at no cost. The GitHub path checks the
+estimate against the budget before it starts, so it does not reach this comment.
 Review part of the pull request with a path, or raise `batch_budget_usd` and `budget_usd`.
 
 ### `The agent did not return a review for any batch.`
@@ -307,8 +319,6 @@ is posted. Causes, in the order to check:
 
 - Every batch call failed. The `A batch call failed: <first 300 characters of the error>` lines above it say why.
 - Every call ended in an error result with no review. The JSON lines show `"is_error":true`.
-- `budget_usd` is below 0.05. The engine starts no batch when less than 0.05 USD remains, so a total
-  under that starts none, and the run ends with this line at no cost.
 
 ### The cost was higher than the budget
 

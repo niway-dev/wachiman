@@ -357,7 +357,7 @@ describe("reviewChange from a ReviewInput", () => {
     const provider = new FakeProvider([
       (request) => ({ costUsd: 0.09, structuredOutput: out({ files_reviewed: partFiles(request.prompt), summary: "ok" }) }),
     ]);
-    const result = await reviewChange(input, options({ batchLines: 1, totalBudgetUsd: 0.1 }), coreDeps(provider).deps);
+    const result = await reviewChange(input, options({ batchLines: 1, totalBudgetUsd: 0.25 }), coreDeps(provider).deps);
     expect(provider.requests).toHaveLength(1);
     const first = partFiles(provider.requests[0].prompt);
     const second = ["src/a.ts", "src/b.ts"].filter((f) => !first.includes(f));
@@ -366,6 +366,48 @@ describe("reviewChange from a ReviewInput", () => {
     expect(result.coverage.skipped).toEqual([{ path: second[0], reason: "not reached: the pull request's budget was spent" }]);
     expect(result.coverage.partial).toBe(true);
     expect(result.execution.stop).toBe("complete");
+  });
+
+  test("a batch does not start with less room than 60% of a mean batch ($0.06 left: no call, files not reached)", async () => {
+    const input = branchInput({
+      files: [
+        { filename: "src/a.ts", additions: 2, deletions: 0, patch: "@@ -1,1 +1,3 @@\n const a = 1;\n+const b = 2;\n+const c = 3;" },
+        { filename: "src/b.ts", additions: 2, deletions: 0, patch: "@@ -0,0 +1,2 @@\n+export const d = 4;\n+export const e = 5;" },
+      ],
+    });
+    const provider = new FakeProvider([
+      (request) => ({ costUsd: 0.14, structuredOutput: out({ files_reviewed: partFiles(request.prompt), summary: "ok" }) }),
+    ]);
+    const result = await reviewChange(input, options({ batchLines: 1, totalBudgetUsd: 0.2 }), coreDeps(provider).deps);
+    // $0.06 is above the $0.05 minimum but below the floor for the default model, so no second call.
+    expect(provider.requests).toHaveLength(1);
+    const first = partFiles(provider.requests[0].prompt);
+    const second = ["src/a.ts", "src/b.ts"].filter((f) => !first.includes(f));
+    expect(result.batches.map((b) => b.status)).toEqual(["reviewed", "not run: budget spent"]);
+    expect(result.coverage.skipped).toEqual([{ path: second[0], reason: "not reached: the pull request's budget was spent" }]);
+  });
+
+  test("a call cut on a budget that was the run's remaining room is not retried; one cut at the per-call cap is", async () => {
+    const input = branchInput({
+      files: [{ filename: "src/a.ts", additions: 2, deletions: 0, patch: "@@ -1,1 +1,3 @@\n const a = 1;\n+const b = 2;\n+const c = 3;" }],
+    });
+    const cut = () => ({ costUsd: 0.1, terminalReason: "budget" as const, isError: true });
+    const room = new FakeProvider([cut, cut]);
+    // Room $0.30 is below the $1 per-call cap: the retry would meet the same limit with less room.
+    const limited = await reviewChange(input, options({ totalBudgetUsd: 0.3, batchBudgetUsd: 1 }), coreDeps(room).deps);
+    expect(room.requests).toHaveLength(1);
+    expect(limited.coverage.skipped).toEqual([{ path: "src/a.ts", reason: "not reached: the call ran out of its budget" }]);
+    // The same cut at the full cap, with room left: retried as before.
+    const capped = new FakeProvider([cut, cut]);
+    await reviewChange(input, options({ totalBudgetUsd: 5, batchBudgetUsd: 0.3 }), coreDeps(capped).deps);
+    expect(capped.requests).toHaveLength(2);
+  });
+
+  test("a run whose room is below the start floor makes no call and stops on its budget", async () => {
+    const provider = new FakeProvider([]);
+    const result = await reviewChange(branchInput(), options({ totalBudgetUsd: 0.1 }), coreDeps(provider).deps);
+    expect(provider.requests).toHaveLength(0);
+    expect(result.execution.stop).toBe("budget");
   });
 
   test("an unknown format is a usage error before any call", async () => {

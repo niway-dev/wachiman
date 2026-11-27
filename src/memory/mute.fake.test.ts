@@ -535,10 +535,10 @@ describe("when the exception does not or cannot apply", () => {
   });
 
   test("a budget with no room left for the matching call mutes nothing and says so", async () => {
-    const provider = new FakeProvider((r) => ({ ...discover([NIT])(r), costUsd: 0.19 }), answer({ finding: "f1", entry: EXCEPTION.id }));
+    const provider = new FakeProvider((r) => ({ ...discover([NIT])(r), costUsd: 0.41 }), answer({ finding: "f1", entry: EXCEPTION.id }));
     const result = await reviewChange(
       branchInput(),
-      options({ memory: memoryOf([EXCEPTION.block]), totalBudgetUsd: 0.2 }),
+      options({ memory: memoryOf([EXCEPTION.block]), totalBudgetUsd: 0.45 }),
       deps(provider).deps,
     );
     expect(provider.matchingCalls).toHaveLength(0);

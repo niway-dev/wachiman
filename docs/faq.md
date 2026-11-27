@@ -54,8 +54,7 @@ diff and files. It handles your key only to pass it to the provider's CLI (`clau
 through `gh`, the optional spend ledger (off unless you set `ledger_url`; it receives spend
 figures, never code), a `curl` download of the pinned Claude Code binary in the workflow, and the
 npm registry for `wachiman upgrade`, plus your git remote for `wachiman memory propose` and
-`memory remember`. A search of the source found no analytics or telemetry
-sender, but Claude Code, Codex and Bun may send their own. Every network call, file written and
+`memory remember`. Wachiman sends no telemetry unless you opted in (in `wachiman init` or with `wachiman telemetry on`): then one small summary of counts and categories, never an account identifier, per `local` or `ask` review ([what it sends](on-your-machine.md#telemetry)). Claude Code, Codex and Bun may send their own. Every network call, file written and
 program started is on [on-your-machine.md](on-your-machine.md), with the file that shows it, and
 `test/egress.test.ts` fails when a source file with a network call site, or a URL host, is not on the page. It checks per file, not per call.
 
@@ -166,14 +165,17 @@ within seconds of a push is answered by that push's review), and only while the 
 `auto_budget_usd`. A collaborator's or a stranger's reply starts nothing. A caller written earlier
 has to add the trigger ([upgrading.md](upgrading.md)). See [reviews.md](reviews.md#reply-to-a-finding).
 
-### Wachiman posted "Not reviewed: this pull request is above the size gate". Why?
+### Wachiman posted "Not reviewed: this review would cost more than the run can spend". Why?
 
-Before any model call, Wachiman estimates what reviewing the whole pull request would cost. When
-that is above `size_gate_usd` (default $6) and above your run budget, it reviews nothing, spends
-nothing and posts one comment with the estimate. Set `budget_usd` in your caller workflow to the
-figure in the comment, then comment `/wachiman review`; raise `auto_budget_usd` too for automatic
-push reviews. Or ask for part with `/wachiman review <path>`. See
-[costs.md](costs.md#the-size-gate) and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
+Before any model call, Wachiman estimates what reviewing the whole pull request would cost and
+compares it with the room the run has: the smallest of `budget_usd`, what is left of
+`auto_budget_usd` and the ledger's grant, less the verifier and memory reserves. When the estimate
+is above the room, it reviews nothing, spends nothing and posts one comment with the estimate, the
+room and the head it estimated. The operator approves a budget for that head by commenting the
+command the comment gives, `/wachiman review --budget N --head <sha>`; it is offered only when `N`
+is at or below `approve_max_usd` (default $20). A push cancels the approval. Or ask for part with
+`/wachiman review <path>`. See [costs.md](costs.md#the-room-gate) and the
+[ADR on the room gate](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md).
 
 ### What does a dry run cost?
 

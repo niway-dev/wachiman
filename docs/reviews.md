@@ -17,6 +17,7 @@ approves, never requests changes and never blocks a merge, including when a find
 | Push more commits | If your caller lists `synchronize` (the templates do), a review of only the commits that are new since the last complete review. See [Reviews on push](#reviews-on-push). Otherwise nothing. |
 | Comment `/wachiman review` (as the operator) | A review of what is new since the last complete review, or of the whole pull request if there is none. |
 | Comment `/wachiman review <path> [path…]` | A review of only those paths. See [Limit a review to some paths](#limit-a-review-to-some-paths). |
+| Comment `/wachiman review --budget N --head <sha>` (as the operator) | Approves a budget of `N` dollars for the review of that one head, after a skipped review offered it. See [how to approve a budget](costs.md#how-to-approve-a-budget). |
 | Comment `/wachiman` followed by anything else | The comment is treated as a question and answered. See [Ask a question](#ask-a-question). |
 
 Rules that apply to all of them:
@@ -214,7 +215,7 @@ The first line of the review says whether everything was covered:
   a review partial and does not keep the incremental marker from moving. A push that changes only
   binaries posts a one-line "Nothing to review … not reviewable" notice with the marker and no
   cost line: no model was called.
-- Partial: "⚠️ **Partial review**: reviewed 3 of 4 files … Not reviewed: … Ask
+- Partial: "⚠️ **Partial review.** Reviewed 3 of 4 files. Not reviewed: 1 (1 file — reason) … Ask
   `/wachiman review <paths>` for the rest." A partial review of the whole change also records which
   files it did not reach. The next push reviews the changes since plus those files (with their whole
   diff), and its headline says so: "review of the changes since `a1b2c3d` and the 4 files the previous

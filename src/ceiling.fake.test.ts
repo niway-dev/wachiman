@@ -250,6 +250,7 @@ describe("review() under the ceiling", () => {
       if (line.includes("/contents/")) throw new GhError("gh: Not Found (HTTP 404)", 404, "Not Found");
       if (line.startsWith("pr view")) return JSON.stringify({ headRefOid: HEAD, title: "t", body: "b", author: { login: "u" } });
       if (line.includes("/pulls/7/files")) return JSON.stringify(FILE);
+      if (line.includes("/issues/7/comments")) return "";
       if (line.includes("/pulls/7/reviews") && !args.includes("POST"))
         return reviews.map((body) => JSON.stringify({ body, submitted_at: "2026-11-02T00:00:00Z" })).join("\n");
       if (line.includes("/pulls/7/comments") && !args.includes("POST"))
@@ -463,8 +464,9 @@ describe("review() under the ceiling", () => {
     const paused = setup({ env: { ...base, WACHIMAN_AUTO_BUDGET_USD: "0.5" }, reviews: [spentBody(0.5)] });
     await review(paused.deps, "o/r", 7, []);
     expect(paused.posted).toHaveLength(1);
-    // The same pull request, now with a ceiling of $0.60 and the old $0.50 notice: $0.10 is left, so it runs.
-    const raised = setup({ env: { ...base, WACHIMAN_AUTO_BUDGET_USD: "0.6" }, reviews: paused.reviews });
+    // The same pull request, now with a ceiling of $0.90 and the old $0.50 notice: $0.40 is left, which
+    // covers the one-batch estimate ($0.32), so it runs.
+    const raised = setup({ env: { ...base, WACHIMAN_AUTO_BUDGET_USD: "0.9" }, reviews: paused.reviews });
     await review(raised.deps, "o/r", 7, []);
     expect(raised.provider.requests).toHaveLength(1);
     // A $0.55 ceiling with $0.60 spent: a notice for that ceiling, not skipped because of the old $0.50 one.
@@ -477,14 +479,14 @@ describe("review() under the ceiling", () => {
 
   test("a run starts with at most what is left under the ceiling", async () => {
     const t = setup({
-      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "2" },
+      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "2.1" },
       reviews: [spentBody(1.2, { marker: "aaa1111" }), spentBody(0.5)],
       comments: [replyBody(0)],
       compare: { status: "ahead", files: [{ filename: "a.ts", patch: FILE.patch }] },
     });
     await review(t.deps, "o/r", 7, []);
     expect(t.provider.requests).toHaveLength(1);
-    expect(t.provider.requests[0].maxBudgetUsd).toBeCloseTo(0.3, 10);
+    expect(t.provider.requests[0].maxBudgetUsd).toBeCloseTo(0.4, 10);
   });
 
   test("less than a batch's minimum left counts as the ceiling", async () => {
@@ -583,18 +585,18 @@ describe("review() under the ceiling", () => {
 
   test("a marker-less partial review's spend still counts toward the next automatic run", async () => {
     const t = setup({
-      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.3" },
+      env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.4" },
       script: [
-        () => ({ costUsd: 0.25, structuredOutput: out({ files_reviewed: [] }) }),
+        () => ({ costUsd: 0.36, structuredOutput: out({ files_reviewed: [] }) }),
         () => ({ costUsd: 0, structuredOutput: out({ files_reviewed: [] }) }),
       ],
     });
     await review(t.deps, "o/r", 7, []);
     expect(t.posted[0]).toContain("Partial review");
     expect(t.posted[0]).not.toContain("<!-- wachiman sha=");
-    // The partial review's cost is in its footer: $0.05 is left of $0.30, i.e. a batch can still start.
-    const next = setup({ env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.3" }, reviews: t.reviews });
-    expect(automaticSpend(next.deps.gh, "o/r", 7).spent).toBeCloseTo(0.25, 10);
+    // The partial review's cost is in its footer: $0.04 is left of $0.40, below a batch's minimum.
+    const next = setup({ env: { WACHIMAN_TRIGGER: "synchronize", WACHIMAN_AUTO_BUDGET_USD: "0.4" }, reviews: t.reviews });
+    expect(automaticSpend(next.deps.gh, "o/r", 7).spent).toBeCloseTo(0.36, 10);
   });
 });
 

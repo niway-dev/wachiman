@@ -21,7 +21,8 @@ function world(answers: (number | string | boolean | null)[]) {
   const out: string[] = [];
   const io = { stdout: (t: string) => void out.push(t), stderr: (l: string) => void err.push(l) };
   const run = () =>
-    runInitCommand(parseInitFlags(["--mode", "github", "--version", "v1.5.0"], repo), {}, io, {
+    runInitCommand(parseInitFlags(["--mode", "github", "--version", "v1.5.0"], repo), { WACHIMAN_TELEMETRY: "0" }, io, {
+      // the telemetry question is not part of these tests, and the real home must not decide it
       now: () => NOW,
       version: "1.9.0",
       defaultWorkflowRef: "v1.5.0",

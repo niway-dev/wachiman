@@ -56,7 +56,7 @@ A GitHub App is a design only; it is not implemented.
 **Review your branch before you push.** `wachiman local` reviews the committed change on your
 branch with your own signed-in `claude` and prints the findings in the terminal, or writes them as
 Markdown or JSON. Nothing is posted, Wachiman makes no GitHub requests and sends no telemetry of
-its own, and it switches off Claude Code's (not yet verified by a packet capture); your code goes to
+its own unless you opted in (in `wachiman init` or with `wachiman telemetry on`), and it switches off Claude Code's (not yet verified by a packet capture); your code goes to
 your configured Claude account. Read [docs/local-review.md](docs/local-review.md)
 before running it on an employer's code.
 

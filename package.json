@@ -1,6 +1,9 @@
 {
   "name": "wachiman",
-  "version": "1.20.1",
+  "version": "1.22.0",
+  "wachimanDataCollection": {
+    "1.22.0": "Opt-in usage metrics: after a yes in `wachiman init` or `wachiman telemetry on`, each local review or ask sends one small summary (counts and categories, a random installation ID, never code, paths, repository names or account identifiers). Off by default; DO_NOT_TRACK, WACHIMAN_TELEMETRY=0, CI and GITHUB_ACTIONS stop it. See docs/on-your-machine.md#telemetry"
+  },
   "description": "Advisory pull request reviews by an agent CLI, run in your own GitHub Actions with your own key, or locally on your own Claude subscription",
   "private": false,
   "type": "module",
@@ -39,7 +42,7 @@
   },
   "scripts": {
     "test": "bun test",
-    "bench": "bun scripts/bench.ts",
+    "bench:cli": "bun scripts/cli-bench.ts",
     "fmt": "bunx bun@1.4.5 fmt --no-script",
     "fmt:check": "bunx bun@1.4.5 fmt --check --no-script",
     "lint": "bun scripts/ratchet.ts lint",

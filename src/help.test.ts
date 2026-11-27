@@ -13,7 +13,7 @@ const run = (args: string[], env: Record<string, string> = {}) => {
 describe("root help", () => {
   test("is short, names every public command and hides the CI commands and --setup-profile", () => {
     const text = rootHelp();
-    expect(text.trimEnd().split("\n").length).toBeLessThanOrEqual(29);
+    expect(text.trimEnd().split("\n").length).toBeLessThanOrEqual(30);
     for (const name of [
       "local",
       "loop",
@@ -183,4 +183,10 @@ describe("pr-template", () => {
     expect(help.stdout).toBe(commandHelp(["pr-template", "check"]));
     expect(run(["pr-template"]).stdout).toBe(commandHelp(["pr-template"]));
   }, 30_000);
+});
+
+describe("DO_NOT_TRACK", () => {
+  test("is listed in the environment of init and upgrade", () => {
+    for (const name of ["init", "upgrade"]) expect(commandHelp([name])).toContain("DO_NOT_TRACK");
+  });
 });
