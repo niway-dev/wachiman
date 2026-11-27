@@ -158,6 +158,51 @@ These are the counts in the review posted on that pull request.
 The per-file list follows in `<details><summary>Files not reviewed</summary>`, grouped by reason.
 The hidden marker that ADR 0036 caps at 10,000 characters is built separately and does not change.
 
+### Format routing: the order of decisions
+
+Layer 4 decides, for each changed file, which model reads it. The order matters: a file reaches
+`format_model` only after every test below has passed, and any doubt keeps it with the main model.
+The diagram shows that order as implemented on the open [format routing pull request](https://github.com/niway-dev/wachiman/pull/299).
+It is a hand-drawn reading aid, not generated from the code, and it describes that branch, not `main`.
+
+```mermaid
+flowchart TD
+  A["Review starts: pull request head, or local working tree and range"] --> B{".git-blame-ignore-revs readable?"}
+  B -- "no: missing, not a regular file, over 1 MB" --> M1["Every file to the main model, no note"]
+  B -- yes --> C{"Lists a commit of the range?"}
+  C -- no --> M2["Every file to the main model, no note"]
+  C -- yes --> D["Read which files each commit touched"]
+  D -- "history read fails, or a shallow clone" --> M4["Every file to the main model, with a note"]
+  D --> E{"Touched by a listed commit and by no unlisted commit?"}
+  E -- no --> M3["Main model, whole diff"]
+  E -- yes --> R{"Renamed in the range?"}
+  R -- yes --> M3
+  R -- no --> F{"Sensitive name, or a paths rule of .wachiman.yml matches?"}
+  F -- yes --> M3
+  F -- no --> G["format_model batches, planned apart"]
+  G --> H["Main batches run first, then format batches; each group priced with its own model"]
+```
+
+Reading the decisions in order:
+
+- The boxes that send every file to the main model are the safe defaults: when the listing cannot
+  be used, review depth stays as it was before this layer.
+- An unlisted commit that touches a file keeps it with the main model, even if a listed commit
+  touched it too.
+- The sensitive names (`.github/`, `CLAUDE.md`, `AGENTS.md`, `.wachiman.yml`, `.gitattributes`,
+  `.git-blame-ignore-revs`, in any directory) and the `paths` rules win over the listing.
+- Routing itself never drops a file: each file goes to a batch, and the batch is read by a model.
+  The budget can still stop a run before some batches start; those files are listed as not
+  reviewed, as the partial comment above says. The budget gate of this spec can skip a whole review.
+- Open, not decided here: [ADR 0064](../adr/0064-new-review-behavior-is-opt-in-per-repository-and-off-by-default.md),
+  accepted on 2026-11-23, makes new review behavior opt-in and off by default. Format routing, as
+  implemented on that pull request, is on by default, as decision 10 and AC17 state; those lines
+  predate ADR 0064 and are not changed here. The owner must decide whether routing stays on by
+  default or becomes opt-in before that pull request merges. This question blocks that pull
+  request, not this spec, so "None blocking" in the opening block still holds for this spec.
+  Once that pull request merges, this paragraph describes `main`, and the link to ADR 0063 is no
+  longer broken.
+
 ### Evidence
 
 - Run log of pull request 287: twelve calls, $3.150325 total; batches 8, 10 and 11 started with
