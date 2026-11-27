@@ -435,6 +435,18 @@ describe("the review key (ADR 0064)", () => {
     }
   });
 
+  test("rewritten_assertions follows the same rules: true is on, false or absent is off, a bad value is a notice", () => {
+    const on = parse("review:\n  rewritten_assertions: true\n");
+    expect(on.review).toEqual({ rewrittenAssertions: true });
+    expect(reviewPolicyOf(on, () => {})).toEqual({ rewrittenAssertions: true });
+    expect(reviewPolicyOf(parse("review:\n  rewritten_assertions: false\n"), () => {})).toEqual({});
+    expect(reviewPolicyOf(parse("review:\n  comments_point_to_docs: true\n"), () => {})).toEqual({ commentsPointToDocs: true });
+    const bad = parse("review:\n  rewritten_assertions: yes please\n");
+    expect(bad.review).toBeUndefined();
+    expect(bad.reviewNotices![0]).toContain(".wachiman.yml: review.rewritten_assertions must be true or false, got ");
+    expect(reviewPolicyOf(bad, () => {})).toEqual({});
+  });
+
   test("unknown keys inside review are ignored", () => {
     expect(parse("review:\n  something_else: true\n").review).toBeUndefined();
   });

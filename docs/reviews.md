@@ -203,13 +203,14 @@ textual evidence, not a verdict: it can be incomplete and misses renamed or alia
 full list is in the run's scratch directory as `evidence.json`; caps and limits are in
 [architecture.md](architecture.md#call-site-evidence-evidencejson).
 
-Every batch prompt carries one rule on tests: when the diff changes logic in a source file and
+With [`review.rewritten_assertions`](configuration.md#the-rewritten-assertion-rule-reviewrewritten_assertions)
+on (off by default), every batch prompt carries one rule on tests: when the diff changes logic in a source file and
 also rewrites the expected value of an existing assertion in the test that covers it (for example
 `toBe(true)` becomes `toBe(false)`), the model rates that test change "fix" at least and asks
 whether the new expectation matches the documented behavior. It is a question, not a blocker, even
 when the pull request documents the behavior change.
 
-Separately, when a batch holds both a changed source file and such a rewritten assertion, the
+Also with the setting on, when a batch holds both a changed source file and such a rewritten assertion, the
 engine adds a hint that names the assertion's file and line. A diff that only adds test cases does
 not trigger the hint. The hint is a text match on the diff, not a verdict, and the severity is the
 model's, not the engine's.

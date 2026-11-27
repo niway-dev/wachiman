@@ -64,9 +64,11 @@ const MEMORY_KEYS = {
 export interface ReviewSettings {
   /** Report comments added in the diff that are not a pointer to a document or a tool directive. */
   commentsPointToDocs?: boolean;
+  /** Ask about a test whose expected value changed together with the source it covers. */
+  rewrittenAssertions?: boolean;
 }
 
-const REVIEW_KEYS = { comments_point_to_docs: "commentsPointToDocs" } as const;
+const REVIEW_KEYS = { comments_point_to_docs: "commentsPointToDocs", rewritten_assertions: "rewrittenAssertions" } as const;
 
 export interface RepoSettings {
   /** `monorepo` or `single` when `init` wrote it; any text a person typed otherwise. Metadata only. */
@@ -257,6 +259,7 @@ export interface ReviewPolicy {
   pathRules?: PathRule[];
   /** True only when the file says so; absent means off. */
   commentsPointToDocs?: true;
+  rewrittenAssertions?: true;
 }
 
 /** `settings` as a `ReviewPolicy`; `warn` gets the notices for ignored `review` values. Undefined settings are an empty policy. */
@@ -265,6 +268,7 @@ export function reviewPolicyOf(settings: RepoSettings | undefined, warn: (line: 
   return {
     ...(settings?.paths ? { pathRules: settings.paths } : {}),
     ...(settings?.review?.commentsPointToDocs === true ? { commentsPointToDocs: true as const } : {}),
+    ...(settings?.review?.rewrittenAssertions === true ? { rewrittenAssertions: true as const } : {}),
   };
 }
 

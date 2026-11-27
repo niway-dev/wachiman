@@ -85,16 +85,32 @@ describe("the batch prompt", () => {
     meta: {},
     instructions: "",
   } as unknown as Parameters<typeof buildBatchPrompt>[0];
-  const prompt = (files: unknown[]) =>
-    buildBatchPrompt(ctx, files as Parameters<typeof buildBatchPrompt>[1], false, { index: 1, total: 1 }, "/run", "");
+  const prompt = (files: unknown[], on = false) =>
+    buildBatchPrompt(
+      on ? { ...ctx, rewrittenAssertions: true } : ctx,
+      files as Parameters<typeof buildBatchPrompt>[1],
+      false,
+      { index: 1, total: 1 },
+      "/run",
+      "",
+    );
 
-  test("always carries the rule, at severity fix and never a blocker", () => {
-    expect(prompt([SOURCE])).toContain(REWRITTEN_ASSERTION_RULE);
+  // The golden prompts in test/fixtures/golden-prompts are recorded without the setting and pin the
+  // off state byte for byte; this pins it for the diff that would trigger the rule.
+  test("off by default (ADR 0064): no rule and no hint, even for a rewritten assertion", () => {
+    const rewritten = [SOURCE, REWRITTEN_TEST];
+    expect(prompt(rewritten)).not.toContain(REWRITTEN_ASSERTION_RULE);
+    expect(prompt(rewritten)).not.toContain("The engine noticed that this part changes logic");
+    // A diff with no rewritten assertion differs only by its own lines: the section list is the same.
+    expect(prompt(rewritten)).toBe(prompt(rewritten, false));
+  });
+  test("on: carries the rule, at severity fix and never a blocker", () => {
+    expect(prompt([SOURCE], true)).toContain(REWRITTEN_ASSERTION_RULE);
     expect(REWRITTEN_ASSERTION_RULE).toContain('"fix" at least');
     expect(REWRITTEN_ASSERTION_RULE).toContain('never a "blocker"');
   });
-  test("carries the hint only when an assertion was rewritten next to a source change", () => {
-    expect(prompt([SOURCE, REWRITTEN_TEST])).toContain("src/stock.test.ts:24");
-    expect(prompt([SOURCE, NEW_CASE_TEST])).not.toContain("The engine noticed that this part changes logic");
+  test("on: carries the hint only when an assertion was rewritten next to a source change", () => {
+    expect(prompt([SOURCE, REWRITTEN_TEST], true)).toContain("src/stock.test.ts:24");
+    expect(prompt([SOURCE, NEW_CASE_TEST], true)).not.toContain("The engine noticed that this part changes logic");
   });
 });

@@ -294,6 +294,8 @@ export function readInputFile(path: string): Omit<ReviewInput, "headDir"> {
     throw new UsageError(`--input ${path}: pathPolicyChanged must be true when present.`);
   if (input.commentsPointToDocs !== undefined && input.commentsPointToDocs !== true)
     throw new UsageError(`--input ${path}: commentsPointToDocs must be true when present.`);
+  if (input.rewrittenAssertions !== undefined && input.rewrittenAssertions !== true)
+    throw new UsageError(`--input ${path}: rewrittenAssertions must be true when present.`);
   // In memory only (docs/formats): the head the agent reads is always the engine's own snapshot.
   if ("headDir" in input) throw new UsageError(`--input ${path} carries headDir, which a review input file never holds.`);
   return input as Omit<ReviewInput, "headDir">;

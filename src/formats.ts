@@ -85,6 +85,12 @@ export interface ReviewInput {
    * or a tool directive. Set by the connector; absent when the setting is off or unset.
    */
   commentsPointToDocs?: true;
+  /**
+   * `review.rewritten_assertions` is on in `.wachiman.yml` at `change.base.sha`, never the head
+   * (ADR 0064): the review also asks about a test whose expected value changed together with the
+   * source it covers. Set by the connector; absent when the setting is off or unset.
+   */
+  rewrittenAssertions?: true;
 }
 
 /** Which Claude Code profile ran the review; every GitHub-mode run is "ci". */

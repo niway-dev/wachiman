@@ -3679,6 +3679,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     instructions: renderInstructions(input.instructions) + renderConventions(options.memory),
     ...(input.pathRules?.length ? { pathRules: input.pathRules } : {}),
     ...(input.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
+    ...(input.rewrittenAssertions ? { rewrittenAssertions: true as const } : {}),
     costTags: { repo: change.repository.name, ...(number ? { pr: Number(number) } : {}) },
   };
 
@@ -4448,6 +4449,8 @@ export function githubReviewInput(p: {
   pathPolicyChanged?: boolean;
   /** `review.comments_point_to_docs` is on at the base commit. */
   commentsPointToDocs?: boolean;
+  /** `review.rewritten_assertions` is on at the base commit. */
+  rewrittenAssertions?: boolean;
 }): ReviewInput {
   return {
     format: REVIEW_INPUT_FORMAT,
@@ -4481,6 +4484,7 @@ export function githubReviewInput(p: {
     ...(p.pathRules?.length ? { pathRules: p.pathRules } : {}),
     ...(p.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
     ...(p.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
+    ...(p.rewrittenAssertions ? { rewrittenAssertions: true as const } : {}),
   };
 }
 
@@ -4846,7 +4850,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // The path rules come from the base commit whatever the model and effort inputs say; they reorder
   // the batches, so the estimate is made with them.
   const base = baseSha(gh, repo, pr);
-  const { pathRules: baseRules, commentsPointToDocs } = readBasePolicy(gh, repo, base, deps.warn);
+  const { pathRules: baseRules, commentsPointToDocs, rewrittenAssertions } = readBasePolicy(gh, repo, base, deps.warn);
   // A pull request that edits the rules is reviewed under the base's, and `.wachiman.yml` itself is
   // a critical path for that review: the head's rules are never applied, only compared.
   const pathPolicyChanged = touchesSettingsFile(prFiles) && headEditsPathRules(gh, repo, headSha, baseRules);
@@ -4944,6 +4948,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     pathRules,
     pathPolicyChanged,
     commentsPointToDocs,
+    rewrittenAssertions,
   });
   // Everything the run reads from GitHub is read by now. The ledger is asked last, just before the
   // first paid step, so a failing read cannot leave a reservation that nobody settles.
@@ -5465,6 +5470,8 @@ export interface ReviewContext {
   pathRules?: readonly PathRule[];
   /** `review.comments_point_to_docs` is on at the base commit: the prompt carries `COMMENT_PARAGRAPH`. Absent: the prompt is as it was before the rule. */
   commentsPointToDocs?: true;
+  /** `review.rewritten_assertions` is on at the base commit: the prompt carries `REWRITTEN_ASSERTION_RULE` and the engine's hint. Absent: the prompt is as it was before the rule. */
+  rewrittenAssertions?: true;
   /** PR Confidence on: the claims the batches assign their files to, as the claims call listed them. */
   claims?: readonly string[];
   /** How the cost log line names the change; absent for a change with no repository or number. */
@@ -5472,7 +5479,8 @@ export interface ReviewContext {
 }
 
 /**
- * The test guidance for a rewritten assertion: a source change and, in the same diff, a changed
+ * The test guidance for a rewritten assertion (`review.rewritten_assertions`, ADR 0064), added to
+ * the batch prompt only for a repository that turned it on: a source change and, in the same diff, a changed
  * expected value in the test that covers it. At least "fix", worded as a question; a behavior
  * change the pull request documents is asked about, never a blocker.
  */
@@ -5571,7 +5579,8 @@ export function buildBatchPrompt(
   const unreached = `${carried.size} file(s) the previous review, at commit ${ctx.since}, did not reach: those files are marked in the lists below and are reviewed whole, because nothing of them was reviewed before, with their whole diff against the base`;
   const scope =
     ctx.since && carried.size > 0 ? ((ctx.changedSince ?? 0) > 0 ? `${sinceScope}, and ${unreached}` : `only ${unreached}`) : sinceScope;
-  const rewrittenHint = renderRewrittenAssertionHint(files);
+  const rewrittenHint = ctx.rewrittenAssertions ? renderRewrittenAssertionHint(files) : "";
+  const rewrittenParagraph = ctx.rewrittenAssertions ? `\n\n${REWRITTEN_ASSERTION_RULE}${rewrittenHint ? `\n\n${rewrittenHint}` : ""}` : "";
   return `You are reviewing ${ctx.describe}, checked out at its head commit ${ctx.headSha}.
 The repository's rules are in the "Repository instructions" section below; the ADRs in docs/adr/ hold its decisions.
 
@@ -5590,10 +5599,8 @@ Report every path (findings, files_reviewed, files_skipped) relative to the repo
 in the list above.
 
 Review every file of this part, including tests, stylesheets, documentation and messages: a
-test that asserts the wrong thing or a doc that says something false is a finding.
-${REWRITTEN_ASSERTION_RULE}
-
-Before you report a finding on a file, read that file in full: the line that disproves a finding is often
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
 outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
 finding that crosses them. Report findings only on this
 part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
@@ -5601,7 +5608,7 @@ never shorten your reading to save effort. A file you read and found nothing wor
 goes in files_reviewed.
 files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
 binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
-${rewrittenHint ? `\n${rewrittenHint}\n` : ""}${evidence ? `\n${EVIDENCE_PARAGRAPH}\n${evidence}\n` : ""}${
+${evidence ? `\n${EVIDENCE_PARAGRAPH}\n${evidence}\n` : ""}${
     hasThreads
       ? `
 ${dir}/threads.json lists the review threads on this part's files that wait for an answer: the
@@ -5613,7 +5620,7 @@ finding that already has an open thread.
 `
       : ""
   }
-${RISK_PARAGRAPH}${ctx.claims ? `\n\n${claimsParagraph(ctx.claims)}` : ""}${ctx.commentsPointToDocs ? `\n\n${COMMENT_PARAGRAPH}` : ""}
+${RISK_PARAGRAPH}${ctx.claims ? `\n\n${claimsParagraph(ctx.claims)}` : ""}${ctx.commentsPointToDocs ? `\n\n${COMMENT_PARAGRAPH}` : ""}${rewrittenParagraph}
 
 ${FLOW_QUESTIONS}${renderDataPathQuestions(questions)}
 

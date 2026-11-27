@@ -20,15 +20,8 @@ Report every path (findings, files_reviewed, files_skipped) relative to the repo
 in the list above.
 
 Review every file of this part, including tests, stylesheets, documentation and messages: a
-test that asserts the wrong thing or a doc that says something false is a finding.
-When the diff changes logic in a source file and also changes the expected value of an existing
-assertion in the test that covers it (a new literal after toBe, toEqual, assertEqual and the like,
-not a new test case), rate that test change "fix" at least, topic "tests", and ask whether the new
-expectation matches the documented behavior; do not declare a bug unless you can name the input
-that fails. If the pull request's title or body, or a doc in the diff, documents the behavior
-change, it is still a question at "fix", never a "blocker".
-
-Before you report a finding on a file, read that file in full: the line that disproves a finding is often
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
 outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
 finding that crosses them. Report findings only on this
 part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
@@ -173,15 +166,8 @@ Report every path (findings, files_reviewed, files_skipped) relative to the repo
 in the list above.
 
 Review every file of this part, including tests, stylesheets, documentation and messages: a
-test that asserts the wrong thing or a doc that says something false is a finding.
-When the diff changes logic in a source file and also changes the expected value of an existing
-assertion in the test that covers it (a new literal after toBe, toEqual, assertEqual and the like,
-not a new test case), rate that test change "fix" at least, topic "tests", and ask whether the new
-expectation matches the documented behavior; do not declare a bug unless you can name the input
-that fails. If the pull request's title or body, or a doc in the diff, documents the behavior
-change, it is still a question at "fix", never a "blocker".
-
-Before you report a finding on a file, read that file in full: the line that disproves a finding is often
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
 outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
 finding that crosses them. Report findings only on this
 part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
@@ -332,15 +318,8 @@ Report every path (findings, files_reviewed, files_skipped) relative to the repo
 in the list above.
 
 Review every file of this part, including tests, stylesheets, documentation and messages: a
-test that asserts the wrong thing or a doc that says something false is a finding.
-When the diff changes logic in a source file and also changes the expected value of an existing
-assertion in the test that covers it (a new literal after toBe, toEqual, assertEqual and the like,
-not a new test case), rate that test change "fix" at least, topic "tests", and ask whether the new
-expectation matches the documented behavior; do not declare a bug unless you can name the input
-that fails. If the pull request's title or body, or a doc in the diff, documents the behavior
-change, it is still a question at "fix", never a "blocker".
-
-Before you report a finding on a file, read that file in full: the line that disproves a finding is often
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
 outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
 finding that crosses them. Report findings only on this
 part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
@@ -479,15 +458,8 @@ Report every path (findings, files_reviewed, files_skipped) relative to the repo
 in the list above.
 
 Review every file of this part, including tests, stylesheets, documentation and messages: a
-test that asserts the wrong thing or a doc that says something false is a finding.
-When the diff changes logic in a source file and also changes the expected value of an existing
-assertion in the test that covers it (a new literal after toBe, toEqual, assertEqual and the like,
-not a new test case), rate that test change "fix" at least, topic "tests", and ask whether the new
-expectation matches the documented behavior; do not declare a bug unless you can name the input
-that fails. If the pull request's title or body, or a doc in the diff, documents the behavior
-change, it is still a question at "fix", never a "blocker".
-
-Before you report a finding on a file, read that file in full: the line that disproves a finding is often
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
 outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
 finding that crosses them. Report findings only on this
 part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
@@ -633,15 +605,8 @@ Report every path (findings, files_reviewed, files_skipped) relative to the repo
 in the list above.
 
 Review every file of this part, including tests, stylesheets, documentation and messages: a
-test that asserts the wrong thing or a doc that says something false is a finding.
-When the diff changes logic in a source file and also changes the expected value of an existing
-assertion in the test that covers it (a new literal after toBe, toEqual, assertEqual and the like,
-not a new test case), rate that test change "fix" at least, topic "tests", and ask whether the new
-expectation matches the documented behavior; do not declare a bug unless you can name the input
-that fails. If the pull request's title or body, or a doc in the diff, documents the behavior
-change, it is still a question at "fix", never a "blocker".
-
-Before you report a finding on a file, read that file in full: the line that disproves a finding is often
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
 outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
 finding that crosses them. Report findings only on this
 part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
@@ -780,15 +745,8 @@ Report every path (findings, files_reviewed, files_skipped) relative to the repo
 in the list above.
 
 Review every file of this part, including tests, stylesheets, documentation and messages: a
-test that asserts the wrong thing or a doc that says something false is a finding.
-When the diff changes logic in a source file and also changes the expected value of an existing
-assertion in the test that covers it (a new literal after toBe, toEqual, assertEqual and the like,
-not a new test case), rate that test change "fix" at least, topic "tests", and ask whether the new
-expectation matches the documented behavior; do not declare a bug unless you can name the input
-that fails. If the pull request's title or body, or a doc in the diff, documents the behavior
-change, it is still a question at "fix", never a "blocker".
-
-Before you report a finding on a file, read that file in full: the line that disproves a finding is often
+test that asserts the wrong thing or a doc that says something false is a finding. Before you
+report a finding on a file, read that file in full: the line that disproves a finding is often
 outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
 finding that crosses them. Report findings only on this
 part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
