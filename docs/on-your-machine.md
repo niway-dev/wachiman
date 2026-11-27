@@ -103,6 +103,8 @@ or when a URL host in the source is not named in this section. The test scans `s
 | `registry.npmjs.org` and the npm registry | At `npm i -g wachiman`, by the `bun` package's install script | Package names and versions | Not in this repository: `bun@1.3.4`'s `install.js`. See above |
 | GitHub, for `actions/checkout`, and the host `oven-sh/setup-bun` downloads Bun from | Only in the Actions workflow | Not verified: both are third-party actions pinned by commit SHA | `.github/workflows/review.yml`, `templates/caller-workflow.yml` |
 | The npm registry, through `npm` | Developer scripts only: `scripts/dev-build.sh`, `scripts/verify-package.sh` (not in the npm package) | Package names | `scripts/dev-build.sh`, `scripts/verify-package.sh` |
+| `github.com`, through `git fetch` | Developer and CI benchmark only: `scripts/pipeline-bench/fetch.ts`, run by `.github/workflows/pipeline-bench.yml` (not in the npm package) | `git fetch --depth=2` of one public commit from a corpus repository, with no credentials | `scripts/pipeline-bench/fetch.ts` |
+| `github.com`, ripgrep's release page, and the GitHub API | CI benchmark only, in `.github/workflows/pipeline-bench.yml` (not in the npm package): the `Install ripgrep` step runs `curl` against the release page and checks a pinned SHA-256; the `comment` job runs `gh api` to read and post the benchmark comment on the pull request | The pinned ripgrep version and platform; the pull request number and the comment text | `.github/workflows/pipeline-bench.yml` |
 
 Other places a program is started, with no network use found by the scan: `git` for local reads of
 your repository (`src/connectors/`, `src/evidence.ts`, `src/workspace/`), `tar` to unpack
