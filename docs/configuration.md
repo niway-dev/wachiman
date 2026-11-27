@@ -645,6 +645,7 @@ paths:                  # optional: places a person should always look at, see "
 # Optional. Opt-in review behaviors, each off unless set to true (see "The review key" below).
 # review:
 #   comments_point_to_docs: true
+#   rewritten_assertions: true
 # Optional. Line budget of the repository memory (see "The memory key" below).
 # memory:
 #   min_evidence: 2
@@ -681,6 +682,7 @@ the behavior stays off.
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `review.comments_point_to_docs` | `false` | The [comment rule](#the-comment-rule-reviewcomments_point_to_docs), described after the `memory` key below. |
+| `review.rewritten_assertions` | `false` | The [rewritten-assertion rule](#the-rewritten-assertion-rule-reviewrewritten_assertions), described after the comment rule below. |
 
 **The `memory` key ([ADR 0056](adr/0056-repository-memory-lives-in-wachiman-memory-and-changes-only-through-one-draft-pull-request.md)).**
 It sets the line budget of the [repository memory](cli.md#memory), a folder of Markdown files in
@@ -753,6 +755,27 @@ starts with `Comment (<category>):`, and its body names the action:
 The reviewer is a language model, so the categories are a judgement, not a lint rule. A repository
 that wants every prose comment rejected mechanically needs a linter; this setting asks for a review
 opinion on new comments only.
+
+#### The rewritten-assertion rule (`review.rewritten_assertions`)
+
+Off by default. With nothing set, or `false`, the prompt and the review are the ones they were before
+this setting existed.
+
+To turn it on, commit this to `.wachiman.yml` on your default branch:
+
+```yaml
+review:
+  rewritten_assertions: true
+```
+
+It applies from the next review after the merge, because the file is read at the base commit.
+
+When on, a diff that changes logic in a source file and also changes the expected value of an
+existing assertion in the test that covers it (`toBe(true)` becomes `toBe(false)`) gets a question
+at `Fix` at least: does the new expectation match the documented behavior? The reviewer is told to ask it as a
+question and never to rate it `Blocker`, even when the pull request documents the change; that is
+an instruction to the model, which the engine does not enforce. The prompt also names the assertion's file and
+line, found by a text match on the diff; a diff that only adds test cases does not trigger it.
 
 ### Path rules (`paths`)
 

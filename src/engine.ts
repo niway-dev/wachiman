@@ -116,6 +116,7 @@ import {
   renderEvidenceSlice,
   type GitRunner,
 } from "./evidence";
+import { renderRewrittenAssertionHint } from "./rewritten-assertion";
 import {
   CONTRACT_SCHEMA,
   checkContracts,
@@ -3678,6 +3679,7 @@ export async function reviewChange(input: ReviewInput, options: ReviewOptions, d
     instructions: renderInstructions(input.instructions) + renderConventions(options.memory),
     ...(input.pathRules?.length ? { pathRules: input.pathRules } : {}),
     ...(input.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
+    ...(input.rewrittenAssertions ? { rewrittenAssertions: true as const } : {}),
     costTags: { repo: change.repository.name, ...(number ? { pr: Number(number) } : {}) },
   };
 
@@ -4447,6 +4449,8 @@ export function githubReviewInput(p: {
   pathPolicyChanged?: boolean;
   /** `review.comments_point_to_docs` is on at the base commit. */
   commentsPointToDocs?: boolean;
+  /** `review.rewritten_assertions` is on at the base commit. */
+  rewrittenAssertions?: boolean;
 }): ReviewInput {
   return {
     format: REVIEW_INPUT_FORMAT,
@@ -4480,6 +4484,7 @@ export function githubReviewInput(p: {
     ...(p.pathRules?.length ? { pathRules: p.pathRules } : {}),
     ...(p.pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
     ...(p.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
+    ...(p.rewrittenAssertions ? { rewrittenAssertions: true as const } : {}),
   };
 }
 
@@ -4845,7 +4850,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
   // The path rules come from the base commit whatever the model and effort inputs say; they reorder
   // the batches, so the estimate is made with them.
   const base = baseSha(gh, repo, pr);
-  const { pathRules: baseRules, commentsPointToDocs } = readBasePolicy(gh, repo, base, deps.warn);
+  const { pathRules: baseRules, commentsPointToDocs, rewrittenAssertions } = readBasePolicy(gh, repo, base, deps.warn);
   // A pull request that edits the rules is reviewed under the base's, and `.wachiman.yml` itself is
   // a critical path for that review: the head's rules are never applied, only compared.
   const pathPolicyChanged = touchesSettingsFile(prFiles) && headEditsPathRules(gh, repo, headSha, baseRules);
@@ -4943,6 +4948,7 @@ export async function review(deps: Deps, repo: string, pr: number, words: string
     pathRules,
     pathPolicyChanged,
     commentsPointToDocs,
+    rewrittenAssertions,
   });
   // Everything the run reads from GitHub is read by now. The ledger is asked last, just before the
   // first paid step, so a failing read cannot leave a reservation that nobody settles.
@@ -5464,11 +5470,26 @@ export interface ReviewContext {
   pathRules?: readonly PathRule[];
   /** `review.comments_point_to_docs` is on at the base commit: the prompt carries `COMMENT_PARAGRAPH`. Absent: the prompt is as it was before the rule. */
   commentsPointToDocs?: true;
+  /** `review.rewritten_assertions` is on at the base commit: the prompt carries `REWRITTEN_ASSERTION_RULE` and the engine's hint. Absent: the prompt is as it was before the rule. */
+  rewrittenAssertions?: true;
   /** PR Confidence on: the claims the batches assign their files to, as the claims call listed them. */
   claims?: readonly string[];
   /** How the cost log line names the change; absent for a change with no repository or number. */
   costTags?: Pick<CallCost, "repo" | "pr">;
 }
+
+/**
+ * The test guidance for a rewritten assertion (`review.rewritten_assertions`, ADR 0064), added to
+ * the batch prompt only for a repository that turned it on: a source change and, in the same diff, a changed
+ * expected value in the test that covers it. At least "fix", worded as a question; a behavior
+ * change the pull request documents is asked about, never a blocker.
+ */
+export const REWRITTEN_ASSERTION_RULE = `When the diff changes logic in a source file and also changes the expected value of an existing
+assertion in the test that covers it (a new literal after toBe, toEqual, assertEqual and the like,
+not a new test case), rate that test change "fix" at least, topic "tests", and ask whether the new
+expectation matches the documented behavior; do not declare a bug unless you can name the input
+that fails. If the pull request's title or body, or a doc in the diff, documents the behavior
+change, it is still a question at "fix", never a "blocker".`;
 
 /** Placed before the evidence slice; the slice itself comes from `renderEvidenceSlice`. */
 const EVIDENCE_PARAGRAPH = `The engine searched the repository head for the symbols this part's added lines call, and lists
@@ -5558,6 +5579,8 @@ export function buildBatchPrompt(
   const unreached = `${carried.size} file(s) the previous review, at commit ${ctx.since}, did not reach: those files are marked in the lists below and are reviewed whole, because nothing of them was reviewed before, with their whole diff against the base`;
   const scope =
     ctx.since && carried.size > 0 ? ((ctx.changedSince ?? 0) > 0 ? `${sinceScope}, and ${unreached}` : `only ${unreached}`) : sinceScope;
+  const rewrittenHint = ctx.rewrittenAssertions ? renderRewrittenAssertionHint(files) : "";
+  const rewrittenParagraph = ctx.rewrittenAssertions ? `\n\n${REWRITTEN_ASSERTION_RULE}${rewrittenHint ? `\n\n${rewrittenHint}` : ""}` : "";
   return `You are reviewing ${ctx.describe}, checked out at its head commit ${ctx.headSha}.
 The repository's rules are in the "Repository instructions" section below; the ADRs in docs/adr/ hold its decisions.
 
@@ -5597,7 +5620,7 @@ finding that already has an open thread.
 `
       : ""
   }
-${RISK_PARAGRAPH}${ctx.claims ? `\n\n${claimsParagraph(ctx.claims)}` : ""}${ctx.commentsPointToDocs ? `\n\n${COMMENT_PARAGRAPH}` : ""}
+${RISK_PARAGRAPH}${ctx.claims ? `\n\n${claimsParagraph(ctx.claims)}` : ""}${ctx.commentsPointToDocs ? `\n\n${COMMENT_PARAGRAPH}` : ""}${rewrittenParagraph}
 
 ${FLOW_QUESTIONS}${renderDataPathQuestions(questions)}
 

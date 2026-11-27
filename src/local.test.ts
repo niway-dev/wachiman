@@ -327,6 +327,15 @@ describe("readInputFile", () => {
     expect(() => readInputFile(file({ ...fixture(), pathRules: "src/**" }))).toThrow(UsageError);
   });
 
+  test("rewrittenAssertions is optional and must be true when present", () => {
+    expect(readInputFile(file(fixture())).rewrittenAssertions).toBeUndefined();
+    expect(readInputFile(file({ ...fixture(), rewrittenAssertions: true })).rewrittenAssertions).toBe(true);
+    expect(() => readInputFile(file({ ...fixture(), rewrittenAssertions: false }))).toThrow(
+      "rewrittenAssertions must be true when present",
+    );
+    expect(() => readInputFile(file({ ...fixture(), rewrittenAssertions: "yes" }))).toThrow(UsageError);
+  });
+
   test("commentsPointToDocs is optional and must be true when present", () => {
     expect(readInputFile(file(fixture())).commentsPointToDocs).toBeUndefined();
     expect(readInputFile(file({ ...fixture(), commentsPointToDocs: true })).commentsPointToDocs).toBe(true);

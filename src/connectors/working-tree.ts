@@ -306,6 +306,7 @@ export function workingTreeInput(p: {
       ...(pathRules?.length ? { pathRules } : {}),
       ...(pathPolicyChanged ? { pathPolicyChanged: true as const } : {}),
       ...(policy.commentsPointToDocs ? { commentsPointToDocs: true as const } : {}),
+      ...(policy.rewrittenAssertions ? { rewrittenAssertions: true as const } : {}),
     };
     return { input, release };
   } catch (e) {

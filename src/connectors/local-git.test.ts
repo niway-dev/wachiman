@@ -525,6 +525,30 @@ describe("snapshotHead", () => {
   });
 });
 
+describe("the rewritten-assertion rule in buildLocalInput (ADR 0064)", () => {
+  const ON = "review:\n  rewritten_assertions: true\n";
+  const repoWith = (base: string | undefined, head: string | undefined) => {
+    const dir = emptyRepo();
+    commit(dir, { "src/a.ts": "a\n", ...(base !== undefined ? { ".wachiman.yml": base } : {}) }, "base");
+    git(dir, "switch", "-q", "-c", "feat/x");
+    commit(dir, { "src/a.ts": "b\n", ...(head !== undefined ? { ".wachiman.yml": head } : {}) }, "change");
+    return dir;
+  };
+  const build = (dir: string) => {
+    const built = buildLocalInput({ repoDir: dir, paths: [], log: () => {}, warn: () => {} });
+    snapshots.push(built.snapshotDir);
+    return built.input;
+  };
+
+  test("on at the merge-base: the input says so; no setting, false, or only the branch's copy leaves it off", () => {
+    expect(build(repoWith(ON, undefined)).rewrittenAssertions).toBe(true);
+    expect(build(repoWith(ON, "effort: high\n")).rewrittenAssertions).toBe(true);
+    expect(build(repoWith(undefined, undefined))).not.toHaveProperty("rewrittenAssertions");
+    expect(build(repoWith("review:\n  rewritten_assertions: false\n", undefined))).not.toHaveProperty("rewrittenAssertions");
+    expect(build(repoWith(undefined, ON))).not.toHaveProperty("rewrittenAssertions");
+  });
+});
+
 describe("the comment rule in buildLocalInput (ADR 0064)", () => {
   const ON = "review:\n  comments_point_to_docs: true\n";
   const OFF = "review:\n  comments_point_to_docs: false\n";

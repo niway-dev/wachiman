@@ -76,6 +76,10 @@
     "commentsPointToDocs": {
       "description": "True when `review.comments_point_to_docs` is on in `.wachiman.yml` at change.base.sha, never the head: the review also reports each added comment that is not a pointer to a document or a tool directive. Optional; absent when the setting is off or unset.",
       "const": true
+    },
+    "rewrittenAssertions": {
+      "description": "True when `review.rewritten_assertions` is on in `.wachiman.yml` at change.base.sha, never the head: the review also asks about a test whose expected value changed together with the source it covers. Optional; absent when the setting is off or unset.",
+      "const": true
     }
   },
   "$defs": {
