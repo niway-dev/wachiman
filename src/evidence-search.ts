@@ -419,7 +419,7 @@ export async function runRipgrep(
     if (tooMuch) {
       return {
         ok: false,
-        failed: `ripgrep output passed ${Math.round((opts.maxRetainedChars ?? MAX_RETAINED_CHARS) / (1024 * 1024))} MB of matching lines`,
+        failed: `ripgrep output passed ${opts.maxRetainedChars ?? MAX_RETAINED_CHARS} characters of matching lines`,
         ms: now() - started,
       };
     }
