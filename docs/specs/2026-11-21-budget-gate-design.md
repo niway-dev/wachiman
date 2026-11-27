@@ -191,12 +191,14 @@ Reading the decisions in order:
   touched it too.
 - The sensitive names (`.github/`, `CLAUDE.md`, `AGENTS.md`, `.wachiman.yml`, `.gitattributes`,
   `.git-blame-ignore-revs`, in any directory) and the `paths` rules win over the listing.
-- Routing never drops a file: every file ends in a batch read by a model. The budget gate of
-  this spec is a separate decision: it can still skip a whole review that the run cannot pay for.
+- Routing itself never drops a file: each file goes to a batch, and the batch is read by a model.
+  The budget can still stop a run before some batches start; those files are listed as not
+  reviewed, as the partial comment above says. The budget gate of this spec can skip a whole review.
 - Open, not decided here: [ADR 0064](../adr/0064-new-review-behavior-is-opt-in-per-repository-and-off-by-default.md),
   accepted on 2026-11-23, makes new review behavior opt-in and off by default. Format routing, as
-  implemented on that pull request, is on by default. The owner must decide whether it stays on
-  by default or becomes opt-in before that pull request merges.
+  implemented on that pull request, is on by default. Decision 9 above ("no flag") is about the
+  partial-review path, not routing, so it does not settle this. The owner must decide whether
+  routing stays on by default or becomes opt-in before that pull request merges.
 
 ### Evidence
 
