@@ -85,6 +85,8 @@ jobs:
           digest=$(jq -r --argjson t "$tiers" "$sel | \"\(.repo)@\(.sha)\"" head/scripts/pipeline-bench/corpus.json | sha256sum | cut -c1-32)
           echo "corpus_key=bench-corpus-v1-$digest" >> "$GITHUB_OUTPUT"
           echo "cases:"; cat cases.txt
+      # A cache saved by a pull request run is visible only to that pull request, so a new pull request
+      # fetches the corpus again; a re-push on the same pull request reuses it.
       - name: Restore the corpus
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:

@@ -4,11 +4,14 @@
 // Usage: bun --no-env-file --config=bunfig.toml scripts/pipeline-bench/run.ts \
 //          --src <engine src dir> --repo <checkout of the case> --case <id> [--runs N]
 // Prints one JSON line. Only APIs that exist in old engine versions are used, and each is looked
-// up at run time: one that is missing leaves its metrics null instead of failing.
+// up at run time. buildLocalInput, reviewChange, loadConfig and reviewOptionsOf are required: an engine
+// without one exits with status 3 ("nothing to measure"). A missing optional API (the evidence log
+// lines, the pure planning steps) leaves its metrics null instead of failing.
 import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, rmSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { existsSync, readFileSync, realpathSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve, sep } from "node:path";
 
 function arg(name: string): string | undefined {
   const i = process.argv.indexOf(`--${name}`);
@@ -48,8 +51,13 @@ const load = async (rel: string): Promise<Any> => {
 const git: Any = await load("connectors/local-git.ts");
 const eng: Any = await load("engine.ts");
 const cfg: Any = await load("config.ts");
-if (typeof git.buildLocalInput !== "function" || typeof eng.reviewChange !== "function") {
-  console.error("the engine at --src has no buildLocalInput or reviewChange: nothing to measure");
+if (
+  typeof git.buildLocalInput !== "function" ||
+  typeof eng.reviewChange !== "function" ||
+  typeof eng.reviewOptionsOf !== "function" ||
+  typeof cfg.loadConfig !== "function"
+) {
+  console.error("the engine at --src has no buildLocalInput, reviewChange, reviewOptionsOf or loadConfig: nothing to measure");
   process.exit(3);
 }
 
@@ -188,10 +196,11 @@ async function once() {
       },
     };
   } finally {
-    try {
-      (git.removeSnapshot ?? (() => {}))(built.snapshotDir);
-    } catch {
+    // One cleanup path that always runs: the snapshot directory and its `.tar`, whatever the engine offers.
+    // Only a path under the temp directory is removed: the path comes from the engine under test.
+    if (resolve(built.snapshotDir).startsWith(realpathSync(tmpdir()) + sep)) {
       rmSync(built.snapshotDir, { recursive: true, force: true });
+      rmSync(`${built.snapshotDir}.tar`, { force: true });
     }
   }
 }
