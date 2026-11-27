@@ -428,7 +428,9 @@ as a fixture diff in review.
 Implements the floor of decision 4 and decision 5 of the
 [flow-questions spec](specs/2026-10-31-flow-questions-and-evidence-design.md); the model-side
 half of that spec (`contracts`, `confidence`, admitted investigation, ADR 0009) is separate work.
-Code: `src/evidence.ts`; `gatherEvidence` in `src/engine.ts` calls it once per provider call.
+Code: `src/evidence.ts` (the per-batch rules), `src/evidence-search.ts` (the search backends) and
+`src/ripgrep.ts` (finding and installing ripgrep); `gatherEvidence` in `src/engine.ts` calls it once per
+provider call.
 
 *Why:* in the [2026-11-01 benchmark](https://github.com/niway-dev/wachiman-benchmarks/blob/main/2026-11-01/README.md) the bugs Wachiman missed
 sat in sibling callers outside the diff. On kaipu-record #465 the new Drag handle called
@@ -446,8 +448,8 @@ Before each provider call the engine:
    the batch's own added lines define (`extractCalledSymbols`, `planEvidence`);
 2. ranks them (qualified calls and channel strings first, then by how many of the batch's files use
    the name) and keeps 12;
-3. runs one `git grep -n -I -w -F` per name in the head, over source extensions, skipping
-   `node_modules`, `dist`, `build`, `vendor`, `.next`, minified files and `.d.ts`, and drops matches
+3. looks each name up in the head (see [The search](#the-search) below), over source extensions,
+   skipping `node_modules`, `dist`, `build`, `vendor`, `.next`, minified files and `.d.ts`, and drops matches
    in the batch's own files, imports and comment lines. It keeps at most 6 call sites per name,
    production code before tests and calls before mere mentions, each with 4 lines of context on
    each side cut to 100 characters, and a best-effort `definition_guess` (`collectEvidence`);
@@ -462,6 +464,49 @@ cap cut its results); the file has a `status` too. The step has a 20-second wall
 searched when it runs out are listed in `not_searched`. It never fails the review: if `git` fails
 or throws, the engine warns, writes an empty file and goes on. One log line per call reports
 names found, call sites kept, bytes and milliseconds.
+
+### The search
+
+Two backends give the same `evidence.json`; the differential test in `src/evidence-search.test.ts`
+holds them to it.
+
+- **ripgrep (default).** Before the first batch runs, `startEvidenceRun` plans the evidence of every
+  batch, takes the union of the names (a 156-batch pull request had 475 distinct names) and runs ONE
+  asynchronous `rg -w -F` over the head with all of them as patterns. The stream is parsed row by row
+  and each name's matches are kept in memory; each batch then reads its names from that result and
+  applies the rules above unchanged. On a head of 32,000 files this takes about a second, where one
+  `git grep` per name per batch took about 0.65 s each (17 minutes for that pull request), and it does
+  not block the event loop, so the batches overlap again. A later batch that needs a name nobody planned
+  (a retry) gets one more search for the missing names. The one search has a 60-second wall clock; when
+  it runs out, the engine logs ``evidence: ripgrep ran out of its 60 s time box after N ms; using git grep (slower)``
+  and each batch searches with `git grep` in its own 20-second box, as when `rg` fails.
+- **`git grep` (fallback).** One `git grep -n -I -w -F` per name per batch, as before. It runs when no
+  usable `rg` is found, when `rg` fails or runs out of its time box, and whenever a test injects its own git runner. The engine logs
+  one line, ``evidence: ripgrep not found, using git grep (slower); run `wachiman setup` ``, and a summary
+  line with the backend and its total milliseconds.
+
+`rg` runs with `--no-config`, `--hidden`, `--no-ignore`, `-w -F`, `--no-unicode` (ASCII word
+boundaries, as `git grep` under `LC_ALL=C`), the same extension globs and exclusions, `.git` skipped,
+binary files skipped, and its patterns in a file. It prints `path NUL line:text` (`--null`): a path can
+hold spaces or colons without an ambiguous split, and no JSON is parsed for output that can reach 150 MB.
+The engine, not `rg`, decides which names a line holds (by word boundaries), because `rg` only says that
+a line holds at least one, and sorts each name's matches by path then line, the order of `git grep`.
+
+`rg` walks the whole directory it is given, which can hold files `git grep` never reads: the CI job's
+`.ci-main/` checkout, a submodule, an untracked file. The engine keeps its matches only in files
+`git ls-files` lists, and if that list cannot be read the search counts as failed and the review uses
+`git grep`.
+
+Known difference from `git grep`: `rg` has no 8 MB cut per name. `git grep` stops a name that is
+a very common word (`get`, `has`) at about 8 MB of output and the evidence then notes that the list is
+partial; `rg` lists every match, so for such a name `total_matches` is higher and that note is absent.
+Nothing else in `evidence.json` differs. A row with a CR or a Unicode line separator is dropped by both backends, a quirk of the existing
+row parser.
+
+Which `rg` runs: `WACHIMAN_RIPGREP` (an absolute path), then `<Wachiman home>/bin/rg` (installed by
+`wachiman setup` or the CI step), then `rg` on `PATH`; each must be ripgrep 15 or newer. The installer
+downloads ripgrep 15.2.0, checks the SHA-256 of the archive against the table committed in
+`src/ripgrep.ts` before unpacking it, and only then makes `rg` executable.
 
 **What it is not.** It is a text search, not name resolution: it misses aliased imports and
 renamed handlers (`libraryChanged` and `onLibraryChanged`), and it can list a local variable that
@@ -648,7 +693,7 @@ answers the client relies on are written down in [ledger-api.md](ledger-api.md).
   at or after it is treated as another workflow's imitation. Delete the branches once the date has
   passed.
 - The reviewed head is never the engine's working directory, and the engine never executes
-  anything from it. The one exception is `git grep` for call-site evidence, which uses the head as
+  anything from it. The one exception is the call-site evidence search (`git grep`, or `rg`), which uses the head as
   its working directory and reads, never runs, its files ([Call-site evidence](#call-site-evidence-evidencejson)).
 - The agent gets no GitHub token and an allowlisted environment. Claude Code gets read tools only;
   Codex reads through shell commands inside a read-only sandbox (the reusable workflow does not

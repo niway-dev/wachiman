@@ -83,6 +83,7 @@ import { parseSetupFlags } from "./setup/args";
 import { failureDocument, printDocument } from "./init/json";
 import { telemetryState } from "./init/telemetry";
 import { runInitFromArgv } from "./init/run";
+import { ensureRipgrep } from "./ripgrep";
 import { runSetupCommand } from "./setup/run";
 import { commandHelp, helpFor, isCommand, rootHelp } from "./help";
 import { shouldLaunch } from "./wizard/interactive";
@@ -246,7 +247,7 @@ async function runWizard(
   if (mode === "setup") {
     const flags = parseSetupFlags(args, repoDir);
     if (flags.help) return (io.stdout(commandHelp(["setup"])!), 0);
-    return runSetupCommand(flags, env, io, { doctor: { version } });
+    return runSetupCommand(flags, env, io, { doctor: { version }, ripgrep: ensureRipgrep });
   }
   if (args.includes("--help") || args.includes("-h")) return (io.stdout(commandHelp(["init"])!), 0);
   return runInitFromArgv(args, repoDir, env, io, {
@@ -257,6 +258,7 @@ async function runWizard(
     bindNow: (prompter, mode, closing) =>
       runSetupCommand({ repoDir }, env, io, {
         doctor: { version },
+        ripgrep: ensureRipgrep,
         interactive: true,
         prompter,
         fromInit: true,

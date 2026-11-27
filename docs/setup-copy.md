@@ -70,6 +70,7 @@ What changes when you migrate:
 | Bun version in the workflow | `bun_version` |
 | The `release-please--` branch check in the job `if:` | `skip_branch_prefixes` |
 | Old `CLAUDE_REVIEW_*` variables | Rename to the `WACHIMAN_*` input above ([cli.md](cli.md#deprecated-names)) |
+| `WACHIMAN_RIPGREP` | no input in either setup: both install the pinned ripgrep in their own "Install ripgrep" step ([configuration.md](configuration.md#ripgrep)) |
 | `WACHIMAN_EXCLUDE` | no input |
 | `WACHIMAN_DRY_RUN` | no input |
 | `WACHIMAN_REASONING_EFFORT` | `effort`, new in v1.4.0 (variable `WACHIMAN_EFFORT`, default `high`, both providers); the old name still works but is deprecated and ignored when the new one is set ([configuration.md](configuration.md)). At v1.3.0 there is no input |
@@ -136,7 +137,7 @@ costs money.
 
 | Copy to | From |
 | --- | --- |
-| `scripts/wachiman/` | The whole `src/` folder of this repository: `cli.ts`, `engine.ts`, `config.ts`, `install-claude-code.sh` and `providers/` (including `providers/claude-code.settings.json`, which the adapter looks for next to itself and refuses to run without). Leave out the `*.test.ts` files, or keep them and run them with `bun test ./scripts/wachiman` |
+| `scripts/wachiman/` | The whole `src/` folder of this repository: `cli.ts`, `engine.ts`, `config.ts`, `evidence-search.ts`, `ripgrep.ts`, `install-ripgrep.ts`, `install-claude-code.sh` and `providers/` (including `providers/claude-code.settings.json`, which the adapter looks for next to itself and refuses to run without). Leave out the `*.test.ts` files, or keep them and run them with `bun test ./scripts/wachiman` |
 | `scripts/wachiman/bunfig.toml` | The `bunfig.toml` at the root of this repository. The workflow passes it with `--config=` so Bun reads no `bunfig.toml` from the pull request's checkout |
 | `.github/workflows/wachiman-review.yml` | `templates/caller-workflow.yml`: edit its trust paragraph, the operator login (twice) and the other `EDIT THIS` markers. Its `WACHIMAN_PUSH_DEBOUNCE_SECONDS` (default `180`, `0` disables) is the copy's `push_debounce_seconds`: the first step of the `review` job sleeps that long on a push (`synchronize`) before the checkout or any model call, so a newer push cancels the run unspent |
 | `.github/wachiman.md` | Write it: the repository's review focus, as a short list. Optional |

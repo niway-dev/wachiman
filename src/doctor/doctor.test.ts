@@ -26,6 +26,7 @@ const ROWS = [
   "bun",
   "git",
   "tar",
+  "ripgrep",
   "config",
   "profile",
   "auth",
@@ -60,6 +61,8 @@ function machine(tools: Tools = {}, extra: Partial<DoctorDeps> = {}): Machine {
     platform: "darwin",
     arch: "arm64",
     userHome,
+    // The fake machine has an `rg` on PATH only as an absolute `/usr/bin/rg`; nothing else exists.
+    fs: { ...realDoctorFs, exists: (p) => p === "/usr/bin/rg" || realDoctorFs.exists(p) },
     ...extra,
   };
   const m: Machine = {
@@ -146,6 +149,26 @@ describe("required checks that fail turn the exit code to 1", () => {
     expect(row(report, "environment").evidence).toContain("refused");
     expect(report.failedRequired).toBe(1);
     expect(report.exitCode).toBe(1);
+  });
+
+  test("the ripgrep row reports the version found, and warns without failing when there is none or it is too old", () => {
+    expect(row(machine().report(), "ripgrep")).toMatchObject({
+      status: "ok",
+      level: "optional",
+      detail: { version: "15.2.0", source: "path" },
+    });
+    const missing = machine({ rg: null }).report();
+    expect(row(missing, "ripgrep")).toMatchObject({ status: "warn", level: "optional" });
+    expect(row(missing, "ripgrep").evidence).toContain("git grep");
+    expect(row(missing, "ripgrep").fix).toContain("wachiman setup");
+    expect(row(machine({ rg: "ripgrep 14.1.1 (rev abc)" }).report(), "ripgrep").status).toBe("warn");
+    // The reason a candidate was ignored is in the row, so the user can fix the override.
+    const relative = machine({ rg: null }).report({}, { WACHIMAN_RIPGREP: "relative/rg" });
+    expect(row(relative, "ripgrep").evidence).toContain("must be an absolute path");
+    expect(row(missing, "ripgrep").evidence).not.toContain("(");
+    // Only an optional row: a machine with no ripgrep still passes.
+    expect(missing.failedRequired).toBe(0);
+    expect(missing.exitCode).toBe(0);
   });
 
   test("a missing tar, an old bun and an old git each fail their own row", () => {

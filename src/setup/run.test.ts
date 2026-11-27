@@ -326,6 +326,43 @@ describe("setup on a terminal", () => {
     expect(bad.io.printed()).toBe("");
   });
 
+  test("it installs ripgrep before the checks, printing what it does, and a refused download exits 1", async () => {
+    const w = world();
+    let calls = 0;
+    const { run } = setup(w, [], ["", "2"], {
+      ripgrep: async (_env, print) => {
+        calls += 1;
+        print("Installing ripgrep 15.2.0 (fast search for call-site evidence) into /x/bin...");
+        return { ok: true };
+      },
+    });
+    expect(await run).toBe(0);
+    expect(calls).toBe(1);
+    const said = errText(w);
+    expect(said).toContain("Installing ripgrep 15.2.0 (fast search for call-site evidence) into /x/bin...");
+    expect(said.indexOf("Installing ripgrep")).toBeLessThan(said.indexOf("doctor:"));
+
+    const refused = world();
+    const second = setup(refused, [], ["", "2"], { ripgrep: async () => ({ ok: false }) });
+    expect(await second.run).toBe(1);
+    // The binding was still saved: a refused download is not a reason to lose the setup.
+    expect(refused.config()!.projects[refused.key].profile).toBe("work-a");
+  });
+
+  test("without a terminal it installs ripgrep too, and a refusal is exit 1", async () => {
+    const w = world();
+    let called = 0;
+    const flags = parseSetupFlags(["--profile", "work-a", "--yes"], w.repo);
+    const ok = await runSetupCommand(flags, w.env, w.io, w.deps({ interactive: false, ripgrep: async () => (called++, { ok: true }) }));
+    expect(ok).toBe(0);
+    expect(called).toBe(1);
+    const w2 = world();
+    const flags2 = parseSetupFlags(["--profile", "work-a", "--yes"], w2.repo);
+    expect(await runSetupCommand(flags2, w2.env, w2.io, w2.deps({ interactive: false, ripgrep: async () => ({ ok: false }) }))).toBe(1);
+    // A refused download still leaves the binding written.
+    expect(w2.config()!.projects[w2.key].profile).toBe("work-a");
+  });
+
   test("--json prints the project document on stdout alone", async () => {
     const w = world();
     const { run } = setup(w, ["--json"], ["", "2"]);

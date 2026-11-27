@@ -607,6 +607,22 @@ The installer supports Linux and macOS on x64 and arm64 (and the musl variants o
 `curl`, and `jq` when no checksum is given. It exits 1 with a message for an invalid version or
 checksum, an unsupported platform, a manifest without your platform, or a checksum mismatch.
 
+## ripgrep
+
+The call-site evidence searches the head with [ripgrep](https://github.com/BurntSushi/ripgrep) when
+it can, and with `git grep` otherwise ([architecture](architecture.md#the-search)). Wachiman installs a
+pinned release itself: `wachiman setup` does it on your machine and the reusable workflows do it before
+the review step. The download is checked against a SHA-256 committed in `src/ripgrep.ts` before it is
+unpacked; a mismatch fails the install and nothing is made executable.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `WACHIMAN_RIPGREP` | empty | Absolute path of an `rg` to use. It wins over the installed copy and over `PATH`. It must answer `--version` with ripgrep 15 or newer; otherwise it is skipped and the next source is tried. The review logs one line naming the skipped source and the `rg` it used instead, or, when none qualifies, the reason of each in the line that says it uses `git grep`. |
+
+Installed copy: `<Wachiman home>/bin/rg` (`~/.wachiman/bin/rg` unless `WACHIMAN_HOME` says otherwise),
+ripgrep 15.2.0 for macOS and Linux on x64 and arm64. `wachiman doctor` has an optional `ripgrep` row
+with the path and version. Without a usable ripgrep the review still works and says so in one line.
+
 ## Repository files
 
 The engine reads these from the pull request's base commit, never from its head, through the

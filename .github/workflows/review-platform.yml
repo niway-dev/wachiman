@@ -393,6 +393,14 @@ jobs:
           bash engine/src/install-claude-code.sh
           echo "$CLAUDE_INSTALL_DIR" >> "$GITHUB_PATH"
 
+      - name: Install ripgrep
+        if: steps.gate.outputs.skip != 'true'
+        # The fast search behind the call-site evidence. The release is pinned and its SHA-256
+        # is committed in src/ripgrep.ts, so a download that does not match fails the job; a
+        # download that cannot be made only warns, and the review searches with `git grep`.
+        working-directory: engine
+        run: bun --no-env-file --config=bunfig.toml src/install-ripgrep.ts
+
       - name: Review the pull request
         if: steps.gate.outputs.skip != 'true'
         env:
@@ -665,6 +673,11 @@ jobs:
         run: |
           bash engine/src/install-claude-code.sh
           echo "$CLAUDE_INSTALL_DIR" >> "$GITHUB_PATH"
+
+      - name: Install ripgrep
+        # See the `review` job.
+        working-directory: engine
+        run: bun --no-env-file --config=bunfig.toml src/install-ripgrep.ts
 
       # The comment reaches the engine through the environment, never interpolated into the
       # shell, so its text cannot run as a command.

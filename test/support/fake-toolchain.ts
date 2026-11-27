@@ -1,5 +1,5 @@
 /**
- * A fake toolchain for the account and doctor tests: answers `bun`, `git`, `tar` and `claude` the
+ * A fake toolchain for the account and doctor tests: answers `bun`, `git`, `tar`, `rg` and `claude` the
  * way their version and `auth status` probes do, and records every call. No real `claude` (or
  * `bun`, `git`, `tar`) is started by anything that uses it.
  */
@@ -9,6 +9,8 @@ export interface Tools {
   bun?: string | null;
   git?: string | null;
   tar?: string | null;
+  /** What `rg --version` prints; `null` is not installed. */
+  rg?: string | null;
   claudeVersion?: string | null;
   /** What `claude auth status` prints, per configuration directory (undefined: the shell's own). */
   auth?: (configDir: string | undefined) => { status: number; stdout: string };
@@ -46,6 +48,7 @@ export function fakeToolchain(tools: Tools = {}) {
     if (binary === "bun") return answer(tools.bun, "1.4.2");
     if (binary === "git") return answer(tools.git, "git version 2.43.0");
     if (binary === "tar") return answer(tools.tar, "bsdtar 3.5.3 - libarchive 3.5.3");
+    if (binary === "rg" || binary === "/usr/bin/rg") return answer(tools.rg, "ripgrep 15.2.0 (rev e89fff89ac)");
     if (args[0] === "--version") return answer(tools.claudeVersion, "2.1.321 (Claude Code)");
     if (args[0] === "auth" && args[1] === "status") {
       const out = (tools.auth ?? ((dir) => signedIn(dir)))(options.env.CLAUDE_CONFIG_DIR);
