@@ -706,7 +706,12 @@ describe("startEvidenceRun", () => {
       repoDir: dir,
       batches: [files, second],
       customGit: false,
-      ripgrep: () => ({ found: true as const, ...(real as RipgrepFound) }),
+      ripgrep: () => ({
+        found: true as const,
+        path: (real as RipgrepFound).path,
+        version: (real as RipgrepFound).version,
+        source: (real as RipgrepFound).source,
+      }),
       log: (l) => logs.push(l),
     });
     expect(run.tally.searches).toBe(1);
