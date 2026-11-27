@@ -335,6 +335,13 @@ describe("readInputFile", () => {
     );
     expect(() => readInputFile(file({ ...fixture(), commentsPointToDocs: "yes" }))).toThrow(UsageError);
   });
+
+  test("lockfileCheck is optional and must be true when present", () => {
+    expect(readInputFile(file(fixture())).lockfileCheck).toBeUndefined();
+    expect(readInputFile(file({ ...fixture(), lockfileCheck: true })).lockfileCheck).toBe(true);
+    expect(() => readInputFile(file({ ...fixture(), lockfileCheck: false }))).toThrow("lockfileCheck must be true when present");
+    expect(() => readInputFile(file({ ...fixture(), lockfileCheck: "yes" }))).toThrow(UsageError);
+  });
 });
 
 describe("wachiman local with WACHIMAN_LEDGER_URL set (the laptop read side's setting)", () => {

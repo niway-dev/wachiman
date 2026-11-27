@@ -77,7 +77,10 @@ All names are in `src/engine.ts` unless a file is given.
    unscoped review (or, when the head was already reviewed, answers "Already reviewed").
    `filterFiles` then drops `DEFAULT_EXCLUDE` (lockfiles, build output, snapshots, source maps,
    generated files) plus `WACHIMAN_EXCLUDE`. *Why:* paying a model to read a lockfile buys
-   nothing, and re-reading commits it already saw buys less. Binary and very large files are not
+   nothing, and re-reading commits it already saw buys less. The dropped `bun.lock` and
+   `package-lock.json` still get a deterministic check, with no model call, when the repository turns
+   on `review.lockfile_check` (`src/lockfile-check.ts`): an added package nothing declares, and a new
+   install-script allowance. Binary and very large files are not
    dropped here: GitHub sends no patch for them, and the prompt tells the model to read the file
    itself or record a closed skip reason (`SKIP_REASONS`). The list of changed files comes from
    GitHub's paginated pull-request files endpoint; the engine does not check that list for
@@ -180,7 +183,8 @@ All names are in `src/engine.ts` unless a file is given.
    Coverage is therefore the model's own report checked against the selected files. It shows the
    model claimed to cover every selected file; it is not a measurement of how much of a file was
    read, and the engine has no way to observe reads. The expected set holds only the selected
-   files: lockfiles and other excluded files, files outside a requested scope and files missing
+   files: lockfiles and other excluded files (the lockfile check's findings are anchored on a
+   lockfile's diff lines without making it an expected file), files outside a requested scope and files missing
    from GitHub's list are not in it, and neither are binary files: the engine (never the model) sets
    aside a file with no patch whose first 8000 bytes at the head hold a NUL byte, and reports it in
    `coverage.unreviewable`. So "all N files reviewed" means all N selected, reviewable files.

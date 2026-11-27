@@ -45,6 +45,11 @@ const NOT_A_CALL: { file: string; rules: string[]; reason: string }[] = [
     reason: 'Names the install kind "npm" (found under node_modules); it spawns nothing.',
   },
   {
+    file: "src/lockfile-check.ts",
+    rules: ["package manager"],
+    reason: 'Names the lockfile kind "npm" (package-lock.json); it reads the lockfile text and spawns nothing.',
+  },
+  {
     file: "bin/launcher-args.js",
     rules: ["package manager in a script"],
     reason: 'Prints "npm install -g bun" as a hint when Bun is missing; it only runs `bun --version` and Bun itself.',

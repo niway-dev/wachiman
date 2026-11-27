@@ -661,6 +661,7 @@ paths:                  # optional: places a person should always look at, see "
 # Optional. Opt-in review behaviors, each off unless set to true (see "The review key" below).
 # review:
 #   comments_point_to_docs: true
+#   lockfile_check: true
 # Optional. Line budget of the repository memory (see "The memory key" below).
 # memory:
 #   min_evidence: 2
@@ -697,6 +698,7 @@ the behavior stays off.
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `review.comments_point_to_docs` | `false` | The [comment rule](#the-comment-rule-reviewcomments_point_to_docs), described after the `memory` key below. |
+| `review.lockfile_check` | `false` | The [lockfile check](#the-lockfile-check-reviewlockfile_check), described after the comment rule below. |
 
 **The `memory` key ([ADR 0056](adr/0056-repository-memory-lives-in-wachiman-memory-and-changes-only-through-one-draft-pull-request.md)).**
 It sets the line budget of the [repository memory](cli.md#memory), a folder of Markdown files in
@@ -769,6 +771,49 @@ starts with `Comment (<category>):`, and its body names the action:
 The reviewer is a language model, so the categories are a judgement, not a lint rule. A repository
 that wants every prose comment rejected mechanically needs a linter; this setting asks for a review
 opinion on new comments only.
+
+#### The lockfile check (`review.lockfile_check`)
+
+Off by default. With nothing set, or `false`, a changed lockfile gets no check at all, as before:
+lockfiles are dropped from every review, and a pull request that changes only a lockfile gets the
+"Nothing to review" notice.
+
+To turn it on, commit this to `.wachiman.yml` on your default branch:
+
+```yaml
+review:
+  lockfile_check: true
+```
+
+It applies from the next review after the merge, because the file is read at the base commit. A
+pull request that turns it on is not reviewed under it, and one that turns it off still is.
+
+When on, Wachiman reads the diff of each changed `bun.lock` and `package-lock.json`, with **no model
+call and no cost**, and reports two kinds of thing, in three findings, each a `Fix` finding with fixed wording on the
+lockfile line that caused it:
+
+| Finding | What triggers it |
+| --- | --- |
+| Lockfile adds a package that no package.json declares | A package the diff adds that no `package.json` of the workspace lists as a dependency and that no declared package reaches through the dependencies the lockfile records. A version bump of a package already in the lockfile is not new. |
+| Lockfile lets a new package run install scripts | `bun.lock`: a new entry in `trustedDependencies`. |
+| Lockfile adds a package that runs an install script | `package-lock.json`: an added `"hasInstallScript": true` line, reported on that line even when the package is declared. A bump to a version that newly gains the line is reported too; an entry npm only moved (hoisted or deduped) is not. |
+
+The findings cannot be muted by [memory](adr/0057-a-memory-exception-is-applied-after-discovery-and-every-muted-finding-is-shown.md)
+(they are `Fix` findings on security), so a known false positive, such as a package you trusted on
+purpose, is answered by a person in the review thread; the only way to stop the check is to turn
+`review.lockfile_check` off.
+
+"Reaches" is judged from the dependencies the lockfile itself records, which the pull request can also edit: a change that adds a package and lists it as a dependency of one already reachable looks the same as a real transitive dependency, so this check narrows what a person must look at and does not replace reading the dependency change.
+
+The declared names come from the `package.json` of each workspace at the head; a workspace whose
+file cannot be read falls back to the names the lockfile records for it. `yarn.lock`,
+`pnpm-lock.yaml` and every other lockfile are not checked, and neither is a lockfile whose diff
+GitHub did not send (a very large one): the run log says which, so a missing finding is never read
+as a clean lockfile. A pull request that changes only a lockfile and gets findings is posted as a
+normal review (it moves the review marker like any complete review and costs nothing); one that gets none keeps the "Nothing to
+review" notice. When the pull request also changes reviewable files, the findings join that review.
+If that review is skipped for its size ([ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)),
+the lockfile findings are skipped with it.
 
 ### Path rules (`paths`)
 
