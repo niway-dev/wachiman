@@ -44,8 +44,8 @@
  *
  * The text of a matching line is kept whole, however long. The ranking and the definition guess
  * read it with regular expressions, and a minified bundle can hold the only call of a name 1.5 MB
- * into one line; cutting the text would change which sites are picked. Memory is bounded by the
- * output of the one search, and a normal row is about 100 characters.
+ * into one line; cutting the text would change which sites are picked. Memory is bounded by
+ * `MAX_RETAINED_CHARS`: past it the search is abandoned and `git grep` takes over.
  */
 import { closeSync, mkdtempSync, openSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -64,8 +64,18 @@ import {
 } from "./evidence";
 import { rejectionReasons, type RipgrepFound, type RipgrepResolution } from "./ripgrep";
 
-/** Wall clock of the one search a review makes (the git backend gives each batch 20 s for its own). */
+/**
+ * Wall clock of the `rg` process of the one search a review makes (the git backend gives each batch
+ * 20 s for its own). The `git ls-files` and `git check-attr` calls after it have their own 20 s limits.
+ */
 export const SEARCH_WALL_CLOCK_MS = 60_000;
+
+/**
+ * Most characters of matching lines (file names and text) the search keeps. The head is untrusted
+ * and a pull request can add a large file of lines that all match; past this the search is
+ * abandoned and the review uses `git grep`, which bounds each name at 8 MB.
+ */
+export const MAX_RETAINED_CHARS = 128 * 1024 * 1024;
 
 /** The arguments of the one `rg` call, patterns read from `patternFile` so the command line stays short. */
 export const ripgrepArgs = (patternFile: string): string[] => [
@@ -215,6 +225,8 @@ export class MatchCollector {
   private lists = new Map<string, Match[]>();
   /** Lines kept, whatever names they hold. */
   lines = 0;
+  /** Characters kept (file names and text), for the memory ceiling. */
+  chars = 0;
   private index: NameIndex;
   private perFile = new Map<string, number>();
 
@@ -229,6 +241,7 @@ export class MatchCollector {
     const names = this.index.namesIn(whole.text);
     if (names.length === 0) return;
     this.lines += 1;
+    this.chars += whole.file.length + whole.text.length;
     this.perFile.set(whole.file, (this.perFile.get(whole.file) ?? 0) + 1);
     // One object for the line, shared by every name that holds it.
     for (const name of names) this.lists.get(name)!.push(whole);
@@ -369,31 +382,44 @@ export async function runRipgrep(
   const started = now();
   let dir: string | undefined;
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let proc: ReturnType<typeof Bun.spawn> | undefined;
   try {
     dir = mkdtempSync(join(tmpdir(), "wachiman-rg-patterns-"));
     const patternFile = join(dir, "patterns");
     writeFileSync(patternFile, names.join("\n") + "\n");
-    const proc = Bun.spawn([binary, ...ripgrepArgs(patternFile)], {
+    proc = Bun.spawn([binary, ...ripgrepArgs(patternFile)], {
       cwd: repoDir,
       env: rgEnv(),
       stdin: "ignore",
       stdout: "pipe",
       stderr: "pipe",
     });
+    const child = proc;
     let timedOut = false;
     timer = setTimeout(
       () => {
         timedOut = true;
-        proc.kill();
+        child.kill();
       },
       Math.max(1, opts.timeoutMs ?? SEARCH_WALL_CLOCK_MS),
     );
     const collector = new MatchCollector(names);
     const splitter = new RowSplitter((row) => collector.add(row));
-    const stderrText = new Response(proc.stderr).text();
-    for await (const chunk of proc.stdout as unknown as AsyncIterable<Uint8Array>) splitter.push(chunk);
+    const stderrText = new Response(child.stderr as ReadableStream).text();
+    let tooMuch = false;
+    for await (const chunk of child.stdout as unknown as AsyncIterable<Uint8Array>) {
+      splitter.push(chunk);
+      if (collector.chars > MAX_RETAINED_CHARS) {
+        tooMuch = true;
+        child.kill();
+        break;
+      }
+    }
+    if (tooMuch) {
+      return { ok: false, failed: `ripgrep output passed ${MAX_RETAINED_CHARS / (1024 * 1024)} MB of matching lines`, ms: now() - started };
+    }
     splitter.finish();
-    const code = await proc.exited;
+    const code = await child.exited;
     const stderr = (await stderrText).trim();
     if (timedOut) return { ok: false, timedOut: true, ms: now() - started };
     const ms = () => now() - started;
@@ -411,6 +437,8 @@ export async function runRipgrep(
     collector.drop(binaryFiles(repoDir, collector.files(), opts.git, opts.log));
     return { ok: true, byName: collector.result(), lines: collector.lines, ms: ms() };
   } catch (error) {
+    // Reading the output threw: do not leave `rg` running.
+    proc?.kill();
     return { ok: false, failed: `ripgrep could not run: ${(error as Error).message}`, ms: now() - started };
   } finally {
     if (timer) clearTimeout(timer);

@@ -771,9 +771,14 @@ describe("EvidenceSearcher", () => {
   withRipgrep("concurrent calls are served one at a time and a name is searched once", async () => {
     const dir = temp("evidence-s-");
     writeFileSync(join(dir, "a.ts"), "alpha(1);\nbeta(2);\n");
+    // A repository, so `git ls-files` answers and the first search succeeds.
+    spawnSync("git", ["init", "-q"], { cwd: dir });
+    spawnSync("git", ["add", "-A"], { cwd: dir });
     const t = tally();
     const searcher = new EvidenceSearcher(real as RipgrepFound, dir, () => {}, t);
     await Promise.all([searcher.ensure(["alpha", "beta"]), searcher.ensure(["alpha"]), searcher.ensure(["beta", "alpha"])]);
+    expect(searcher.usable).toBe(true);
+    expect(searcher.search("alpha", 1000)).toMatchObject({ matches: [{ file: "a.ts", line: 1 }] });
     expect(t.searches).toBe(1);
   });
 });
