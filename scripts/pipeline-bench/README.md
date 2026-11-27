@@ -42,8 +42,9 @@ bun scripts/pipeline-bench/compare.ts --base base.jsonl --head head.jsonl
 ```
 
 `--runs N` overrides the number of timing runs. Run cases one at a time: they compete for CPU.
-`run.ts` imports the engine from `--src` at run time and uses only APIs that old versions have; a
-metric whose API is missing is `n/a`.
+`run.ts` imports the engine from `--src` at run time. It needs `buildLocalInput`, `reviewChange`,
+`loadConfig` and `reviewOptionsOf`; an older engine without one exits with status 3 (nothing to
+measure). A metric whose optional API is missing is `n/a`.
 
 Each side first reads every git object of the case once, untimed (`git cat-file --batch-all-objects`),
 so the first engine measured does not pay the cold git object cache that the second one would otherwise get for free. Only the git cache is warmed: the first timed run still pays module load and JIT, which the median of 3 runs absorbs. If the stub
