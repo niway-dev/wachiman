@@ -45,6 +45,25 @@ In `judgement`, report at most three places where the code cannot settle the que
 must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
 empty list is normal. Do not state a risk level.
 
+## Conventions the siblings share
+
+When this part ADDS a new member to a group of siblings (a route, controller, handler, use case,
+command or similar, in the same file or directory), read two or three of its siblings in the
+repository, even when the diff does not touch them. List the conventions ALL the compared siblings
+share: decorators and annotations, guards, role or permission checks, input validation, versioning,
+documentation annotations, error handling, logging. Report each one the new member lacks as a
+finding, and name in the body the sibling you compared against (`path:line`). A convention that only
+some siblings follow is not one: report nothing for it, and report nothing where the new member
+differs on purpose and the diff shows why.
+
+Severity: a missing access, role or permission check is at least "fix" (the missing call is the
+bug, even though no added line is wrong). A missing documentation annotation (Swagger, an API tag)
+is "consider". A missing validation or error handling is judged by what it lets through.
+
+A forced cast between a contract type and its implementation at a boundary (`as X`,
+`as unknown as X`) where the siblings pass a checked type is also a signal: it can hide a field
+that was renamed on one side. Read both types and report the mismatch if there is one.
+
 ## What the change does to the running product
 
 The pull request's title and body are the author's claim about the change. Verify each statement
@@ -198,6 +217,25 @@ In `judgement`, report at most three places where the code cannot settle the que
 must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
 empty list is normal. Do not state a risk level.
 
+## Conventions the siblings share
+
+When this part ADDS a new member to a group of siblings (a route, controller, handler, use case,
+command or similar, in the same file or directory), read two or three of its siblings in the
+repository, even when the diff does not touch them. List the conventions ALL the compared siblings
+share: decorators and annotations, guards, role or permission checks, input validation, versioning,
+documentation annotations, error handling, logging. Report each one the new member lacks as a
+finding, and name in the body the sibling you compared against (`path:line`). A convention that only
+some siblings follow is not one: report nothing for it, and report nothing where the new member
+differs on purpose and the diff shows why.
+
+Severity: a missing access, role or permission check is at least "fix" (the missing call is the
+bug, even though no added line is wrong). A missing documentation annotation (Swagger, an API tag)
+is "consider". A missing validation or error handling is judged by what it lets through.
+
+A forced cast between a contract type and its implementation at a boundary (`as X`,
+`as unknown as X`) where the siblings pass a checked type is also a signal: it can hide a field
+that was renamed on one side. Read both types and report the mismatch if there is one.
+
 ## What the change does to the running product
 
 The pull request's title and body are the author's claim about the change. Verify each statement
@@ -342,6 +380,25 @@ line; an empty list is the normal answer for most changes.
 In `judgement`, report at most three places where the code cannot settle the question and a person
 must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
 empty list is normal. Do not state a risk level.
+
+## Conventions the siblings share
+
+When this part ADDS a new member to a group of siblings (a route, controller, handler, use case,
+command or similar, in the same file or directory), read two or three of its siblings in the
+repository, even when the diff does not touch them. List the conventions ALL the compared siblings
+share: decorators and annotations, guards, role or permission checks, input validation, versioning,
+documentation annotations, error handling, logging. Report each one the new member lacks as a
+finding, and name in the body the sibling you compared against (`path:line`). A convention that only
+some siblings follow is not one: report nothing for it, and report nothing where the new member
+differs on purpose and the diff shows why.
+
+Severity: a missing access, role or permission check is at least "fix" (the missing call is the
+bug, even though no added line is wrong). A missing documentation annotation (Swagger, an API tag)
+is "consider". A missing validation or error handling is judged by what it lets through.
+
+A forced cast between a contract type and its implementation at a boundary (`as X`,
+`as unknown as X`) where the siblings pass a checked type is also a signal: it can hide a field
+that was renamed on one side. Read both types and report the mismatch if there is one.
 
 ## What the change does to the running product
 
@@ -490,6 +547,25 @@ In `judgement`, report at most three places where the code cannot settle the que
 must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
 empty list is normal. Do not state a risk level.
 
+## Conventions the siblings share
+
+When this part ADDS a new member to a group of siblings (a route, controller, handler, use case,
+command or similar, in the same file or directory), read two or three of its siblings in the
+repository, even when the diff does not touch them. List the conventions ALL the compared siblings
+share: decorators and annotations, guards, role or permission checks, input validation, versioning,
+documentation annotations, error handling, logging. Report each one the new member lacks as a
+finding, and name in the body the sibling you compared against (`path:line`). A convention that only
+some siblings follow is not one: report nothing for it, and report nothing where the new member
+differs on purpose and the diff shows why.
+
+Severity: a missing access, role or permission check is at least "fix" (the missing call is the
+bug, even though no added line is wrong). A missing documentation annotation (Swagger, an API tag)
+is "consider". A missing validation or error handling is judged by what it lets through.
+
+A forced cast between a contract type and its implementation at a boundary (`as X`,
+`as unknown as X`) where the siblings pass a checked type is also a signal: it can hide a field
+that was renamed on one side. Read both types and report the mismatch if there is one.
+
 ## What the change does to the running product
 
 The pull request's title and body are the author's claim about the change. Verify each statement
@@ -629,6 +705,25 @@ line; an empty list is the normal answer for most changes.
 In `judgement`, report at most three places where the code cannot settle the question and a person
 must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
 empty list is normal. Do not state a risk level.
+
+## Conventions the siblings share
+
+When this part ADDS a new member to a group of siblings (a route, controller, handler, use case,
+command or similar, in the same file or directory), read two or three of its siblings in the
+repository, even when the diff does not touch them. List the conventions ALL the compared siblings
+share: decorators and annotations, guards, role or permission checks, input validation, versioning,
+documentation annotations, error handling, logging. Report each one the new member lacks as a
+finding, and name in the body the sibling you compared against (`path:line`). A convention that only
+some siblings follow is not one: report nothing for it, and report nothing where the new member
+differs on purpose and the diff shows why.
+
+Severity: a missing access, role or permission check is at least "fix" (the missing call is the
+bug, even though no added line is wrong). A missing documentation annotation (Swagger, an API tag)
+is "consider". A missing validation or error handling is judged by what it lets through.
+
+A forced cast between a contract type and its implementation at a boundary (`as X`,
+`as unknown as X`) where the siblings pass a checked type is also a signal: it can hide a field
+that was renamed on one side. Read both types and report the mismatch if there is one.
 
 ## What the change does to the running product
 
@@ -776,6 +871,25 @@ line; an empty list is the normal answer for most changes.
 In `judgement`, report at most three places where the code cannot settle the question and a person
 must decide: direction (whether this is the right approach), pattern-others-will-copy, tradeoff. An
 empty list is normal. Do not state a risk level.
+
+## Conventions the siblings share
+
+When this part ADDS a new member to a group of siblings (a route, controller, handler, use case,
+command or similar, in the same file or directory), read two or three of its siblings in the
+repository, even when the diff does not touch them. List the conventions ALL the compared siblings
+share: decorators and annotations, guards, role or permission checks, input validation, versioning,
+documentation annotations, error handling, logging. Report each one the new member lacks as a
+finding, and name in the body the sibling you compared against (`path:line`). A convention that only
+some siblings follow is not one: report nothing for it, and report nothing where the new member
+differs on purpose and the diff shows why.
+
+Severity: a missing access, role or permission check is at least "fix" (the missing call is the
+bug, even though no added line is wrong). A missing documentation annotation (Swagger, an API tag)
+is "consider". A missing validation or error handling is judged by what it lets through.
+
+A forced cast between a contract type and its implementation at a boundary (`as X`,
+`as unknown as X`) where the siblings pass a checked type is also a signal: it can hide a field
+that was renamed on one side. Read both types and report the mismatch if there is one.
 
 ## What the change does to the running product
 

@@ -20,6 +20,7 @@ import {
   SEVERITY,
   TOPIC,
   COMMENT_PARAGRAPH,
+  SIBLING_CONVENTIONS_PARAGRAPH,
   buildBatchPrompt,
   type ReviewContext,
   resolveScope,
@@ -1290,6 +1291,24 @@ describe("buildBatchPrompt", () => {
     expect(text).toContain("- a.ts +1 −0");
     expect(text.indexOf("<diff>")).toBeGreaterThan(text.indexOf("Review every file of this part"));
     expect(text.trimEnd().endsWith("</diff>")).toBe(true);
+  });
+
+  test("the sibling-conventions paragraph is always in the prompt, between the risk paragraph and the flow questions, and keeps its guard", () => {
+    const text = prompt();
+    expect(text).toContain(SIBLING_CONVENTIONS_PARAGRAPH);
+    expect(text.indexOf(SIBLING_CONVENTIONS_PARAGRAPH)).toBeGreaterThan(text.indexOf("## Risk facts and judgement"));
+    expect(text.indexOf(SIBLING_CONVENTIONS_PARAGRAPH)).toBeLessThan(text.indexOf("## What the change does to the running product"));
+    for (const phrase of [
+      "two or three of its siblings",
+      "ALL the compared siblings",
+      "name in the body the sibling",
+      'at least "fix"',
+      '"consider"',
+      "as unknown as X",
+      "differs on purpose",
+    ]) {
+      expect(SIBLING_CONVENTIONS_PARAGRAPH).toContain(phrase);
+    }
   });
 
   test("without the comment rule the prompt does not mention comments or any category", () => {
