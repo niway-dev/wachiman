@@ -339,11 +339,7 @@ export function binaryFiles(
  * The files among `files` that `git ls-files` does not list in `repoDir`: the ones `git grep`
  * never searches. One `git ls-files -z` for the whole tree; a failure is returned, not guessed.
  */
-export function untrackedFiles(
-  repoDir: string,
-  files: string[],
-  git: GitRunner = spawnGit,
-): { files: Set<string> } | { failed: string } {
+export function untrackedFiles(repoDir: string, files: string[], git: GitRunner = spawnGit): { files: Set<string> } | { failed: string } {
   if (files.length === 0) return { files: new Set() };
   let why: string;
   try {
