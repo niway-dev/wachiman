@@ -44,8 +44,9 @@
  *
  * The text of a matching line is kept whole, however long. The ranking and the definition guess
  * read it with regular expressions, and a minified bundle can hold the only call of a name 1.5 MB
- * into one line; cutting the text would change which sites are picked. Memory is bounded by
- * `MAX_RETAINED_CHARS`: past it the search is abandoned and `git grep` takes over.
+ * into one line; cutting the text would change which sites are picked. The matches kept are
+ * bounded by `MAX_RETAINED_CHARS`: past it the search is abandoned and `git grep` takes over. The
+ * row being read when the check runs is not counted, so one very long line can exceed it by its length.
  */
 import { closeSync, mkdtempSync, openSync, readSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -376,7 +377,7 @@ export async function runRipgrep(
   binary: string,
   names: string[],
   repoDir: string,
-  opts: { timeoutMs?: number; now?: () => number; log?: (line: string) => void; git?: GitRunner } = {},
+  opts: { timeoutMs?: number; maxRetainedChars?: number; now?: () => number; log?: (line: string) => void; git?: GitRunner } = {},
 ): Promise<RipgrepRun> {
   const now = opts.now ?? Date.now;
   const started = now();
@@ -409,14 +410,14 @@ export async function runRipgrep(
     let tooMuch = false;
     for await (const chunk of child.stdout as unknown as AsyncIterable<Uint8Array>) {
       splitter.push(chunk);
-      if (collector.chars > MAX_RETAINED_CHARS) {
+      if (collector.chars > (opts.maxRetainedChars ?? MAX_RETAINED_CHARS)) {
         tooMuch = true;
         child.kill();
         break;
       }
     }
     if (tooMuch) {
-      return { ok: false, failed: `ripgrep output passed ${MAX_RETAINED_CHARS / (1024 * 1024)} MB of matching lines`, ms: now() - started };
+      return { ok: false, failed: `ripgrep output passed ${Math.round((opts.maxRetainedChars ?? MAX_RETAINED_CHARS) / (1024 * 1024))} MB of matching lines`, ms: now() - started };
     }
     splitter.finish();
     const code = await child.exited;

@@ -380,6 +380,19 @@ async function withMissingTmpdir<T>(fn: () => Promise<T>): Promise<T> {
 }
 
 describe("runRipgrep", () => {
+  withRipgrep("it abandons the search when the matching lines pass the memory ceiling", async () => {
+    const dir = temp("evidence-cap-");
+    writeFileSync(join(dir, "big.ts"), Array.from({ length: 2000 }, (_, n) => `alpha(${n});`).join("\n") + "\n");
+    spawnSync("git", ["init", "-q"], { cwd: dir });
+    spawnSync("git", ["add", "-A"], { cwd: dir });
+    const run = await runRipgrep((real as RipgrepFound).path, ["alpha"], dir, { maxRetainedChars: 1000 });
+    expect(run.ok).toBe(false);
+    expect(run).toMatchObject({ failed: expect.stringContaining("matching lines") });
+    // The same search under the real ceiling succeeds, so the failure above came from the cap.
+    const fine = await runRipgrep((real as RipgrepFound).path, ["alpha"], dir);
+    expect(fine.ok).toBe(true);
+  });
+
   function repo() {
     const dir = temp("evidence-rg-");
     const write = (path: string, text: string | Uint8Array) => {
