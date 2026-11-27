@@ -196,9 +196,12 @@ Reading the decisions in order:
   reviewed, as the partial comment above says. The budget gate of this spec can skip a whole review.
 - Open, not decided here: [ADR 0064](../adr/0064-new-review-behavior-is-opt-in-per-repository-and-off-by-default.md),
   accepted on 2026-11-23, makes new review behavior opt-in and off by default. Format routing, as
-  implemented on that pull request, is on by default. Decision 9 above ("no flag") is about the
-  partial-review path, not routing, so it does not settle this. The owner must decide whether
-  routing stays on by default or becomes opt-in before that pull request merges.
+  implemented on that pull request, is on by default, as decision 10 and AC17 state; those lines
+  predate ADR 0064 and are not changed here. The owner must decide whether routing stays on by
+  default or becomes opt-in before that pull request merges. This question blocks that pull
+  request, not this spec, so "None blocking" in the opening block still holds for this spec.
+  Once that pull request merges, this paragraph describes `main`, and the link to ADR 0063 is no
+  longer broken.
 
 ### Evidence
 
