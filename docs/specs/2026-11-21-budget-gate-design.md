@@ -162,7 +162,8 @@ The hidden marker that ADR 0036 caps at 10,000 characters is built separately an
 
 Layer 4 decides, for each changed file, which model reads it. The order matters: a file reaches
 `format_model` only after every test below has passed, and any doubt keeps it with the main model.
-The diagram shows that order as built. It is a reading aid, not generated from the code.
+The diagram shows that order as implemented on the open [format routing pull request](https://github.com/niway-dev/wachiman/pull/299).
+It is a hand-drawn reading aid, not generated from the code, and it describes that branch, not `main`.
 
 ```mermaid
 flowchart TD
@@ -174,8 +175,9 @@ flowchart TD
   D -- "history read fails, or a shallow clone" --> M4["Every file to the main model, with a note"]
   D --> E{"Touched by a listed commit and by no unlisted commit?"}
   E -- no --> M3["Main model, whole diff"]
-  E -- "yes, but renamed in the range" --> M3
-  E -- yes --> F{"Sensitive name, or a paths rule of .wachiman.yml matches?"}
+  E -- yes --> R{"Renamed in the range?"}
+  R -- yes --> M3
+  R -- no --> F{"Sensitive name, or a paths rule of .wachiman.yml matches?"}
   F -- yes --> M3
   F -- no --> G["format_model batches, planned apart"]
   G --> H["Main batches run first, then format batches; each group priced with its own model"]
@@ -189,7 +191,12 @@ Reading the decisions in order:
   touched it too.
 - The sensitive names (`.github/`, `CLAUDE.md`, `AGENTS.md`, `.wachiman.yml`, `.gitattributes`,
   `.git-blame-ignore-revs`, in any directory) and the `paths` rules win over the listing.
-- Nothing is dropped at any box: every file ends in a batch read by a model.
+- Routing never drops a file: every file ends in a batch read by a model. The budget gate of
+  this spec is a separate decision: it can still skip a whole review that the run cannot pay for.
+- Open, not decided here: [ADR 0064](../adr/0064-new-review-behavior-is-opt-in-per-repository-and-off-by-default.md),
+  accepted on 2026-11-23, makes new review behavior opt-in and off by default. Format routing, as
+  implemented on that pull request, is on by default. The owner must decide whether it stays on
+  by default or becomes opt-in before that pull request merges.
 
 ### Evidence
 
