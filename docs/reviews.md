@@ -203,6 +203,14 @@ textual evidence, not a verdict: it can be incomplete and misses renamed or alia
 full list is in the run's scratch directory as `evidence.json`; caps and limits are in
 [architecture.md](architecture.md#call-site-evidence-evidencejson).
 
+When a batch changes logic in a source file and, in the same diff, rewrites the expected value of
+an existing assertion in a test (for example `toBe(true)` becomes `toBe(false)`), the prompt names
+that assertion and tells the model to rate it "fix" at least and to ask whether the new
+expectation matches the documented behavior. It is a question, not a blocker, even when the pull
+request documents the behavior change. A diff that only adds test cases does not trigger the
+hint. The hint is a text match on the diff, not a verdict, and the severity is the model's, not
+the engine's.
+
 ## Coverage: what "reviewed" means
 
 The first line of the review says whether everything was covered:

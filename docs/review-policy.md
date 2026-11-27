@@ -68,6 +68,8 @@ Above all of them sit the engine's own rules, which the instructions are told ne
   does, how the result reaches the user, what happens when background work finishes or the user
   goes Back, what happens when a new async call, handler, window or file read fails), and the
   rule that the pull request body is the author's claim to verify, not a summary,
+- the **rewritten-assertion rule** (a source change plus a changed expected value in its test is
+  a Fix at least, worded as a question about the documented behavior, never a Blocker),
 - the **evidence rules** (cite the line behind every premise of a Blocker or a Fix; suggest a fix
   only for the failure shown; check all callers of a shared contract),
 - the **output format**, a fixed schema.

@@ -116,6 +116,7 @@ import {
   renderEvidenceSlice,
   type GitRunner,
 } from "./evidence";
+import { renderRewrittenAssertionHint } from "./rewritten-assertion";
 import {
   CONTRACT_SCHEMA,
   checkContracts,
@@ -5470,6 +5471,18 @@ export interface ReviewContext {
   costTags?: Pick<CallCost, "repo" | "pr">;
 }
 
+/**
+ * The test guidance for a rewritten assertion: a source change and, in the same diff, a changed
+ * expected value in the test that covers it. At least "fix", worded as a question; a behavior
+ * change the pull request documents is asked about, never a blocker.
+ */
+export const REWRITTEN_ASSERTION_RULE = `When the diff changes logic in a source file and also changes the expected value of an existing
+assertion in the test that covers it (a new literal after toBe, toEqual, assertEqual and the like,
+not a new test case), rate that test change "fix" at least, topic "tests", and ask whether the new
+expectation matches the documented behavior; do not declare a bug unless you can name the input
+that fails. If the pull request's title or body, or a doc in the diff, documents the behavior
+change, it is still a question at "fix", never a "blocker".`;
+
 /** Placed before the evidence slice; the slice itself comes from `renderEvidenceSlice`. */
 const EVIDENCE_PARAGRAPH = `The engine searched the repository head for the symbols this part's added lines call, and lists
 below where else they are used. For every new call into code this part does not change, compare
@@ -5558,6 +5571,7 @@ export function buildBatchPrompt(
   const unreached = `${carried.size} file(s) the previous review, at commit ${ctx.since}, did not reach: those files are marked in the lists below and are reviewed whole, because nothing of them was reviewed before, with their whole diff against the base`;
   const scope =
     ctx.since && carried.size > 0 ? ((ctx.changedSince ?? 0) > 0 ? `${sinceScope}, and ${unreached}` : `only ${unreached}`) : sinceScope;
+  const rewrittenHint = renderRewrittenAssertionHint(files);
   return `You are reviewing ${ctx.describe}, checked out at its head commit ${ctx.headSha}.
 The repository's rules are in the "Repository instructions" section below; the ADRs in docs/adr/ hold its decisions.
 
@@ -5576,8 +5590,10 @@ Report every path (findings, files_reviewed, files_skipped) relative to the repo
 in the list above.
 
 Review every file of this part, including tests, stylesheets, documentation and messages: a
-test that asserts the wrong thing or a doc that says something false is a finding. Before you
-report a finding on a file, read that file in full: the line that disproves a finding is often
+test that asserts the wrong thing or a doc that says something false is a finding.
+${REWRITTEN_ASSERTION_RULE}
+
+Before you report a finding on a file, read that file in full: the line that disproves a finding is often
 outside the diff's hunks. Read files of other parts or callers in the repository to confirm a
 finding that crosses them. Report findings only on this
 part's files. You do not manage a budget: the harness that runs you enforces its own limits, so
@@ -5585,7 +5601,7 @@ never shorten your reading to save effort. A file you read and found nothing wor
 goes in files_reviewed.
 files_skipped is only for a file whose diff below says GitHub sent none: reason "binary" for a
 binary file, "no_diff_and_unreadable" when you could not read it in the repository either.
-${evidence ? `\n${EVIDENCE_PARAGRAPH}\n${evidence}\n` : ""}${
+${rewrittenHint ? `\n${rewrittenHint}\n` : ""}${evidence ? `\n${EVIDENCE_PARAGRAPH}\n${evidence}\n` : ""}${
     hasThreads
       ? `
 ${dir}/threads.json lists the review threads on this part's files that wait for an answer: the
