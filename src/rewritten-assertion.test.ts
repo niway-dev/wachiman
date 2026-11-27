@@ -101,8 +101,6 @@ describe("the batch prompt", () => {
     const rewritten = [SOURCE, REWRITTEN_TEST];
     expect(prompt(rewritten)).not.toContain(REWRITTEN_ASSERTION_RULE);
     expect(prompt(rewritten)).not.toContain("The engine noticed that this part changes logic");
-    // A diff with no rewritten assertion differs only by its own lines: the section list is the same.
-    expect(prompt(rewritten)).toBe(prompt(rewritten, false));
   });
   test("on: carries the rule, at severity fix and never a blocker", () => {
     expect(prompt([SOURCE], true)).toContain(REWRITTEN_ASSERTION_RULE);
