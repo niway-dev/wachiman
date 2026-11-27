@@ -102,7 +102,7 @@ function readLine(fd: number): string | null {
   }
 }
 
-const askOnTerminal = (question: string, defaultYes: boolean): Answer => {
+export const askOnTerminal = (question: string, defaultYes: boolean): Answer => {
   writeSync(2, `${question} ${defaultYes ? "[Y/n]" : "[y/N]"} `);
   const line = readLine(0);
   if (line === null) return "cancel";

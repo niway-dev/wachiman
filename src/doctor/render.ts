@@ -6,7 +6,7 @@ import { resolve } from "node:path";
 import type { CheckStatus, DoctorReport, DoctorRow } from "./checks";
 
 export const PROMISE =
-  "Local mode: no telemetry and no GitHub requests by Wachiman; the code goes to the Claude account of the chosen profile. https://code.claude.com/docs/en/legal-and-compliance";
+  "Local mode: no telemetry unless you opted in, and no GitHub requests by Wachiman; the code goes to the Claude account of the chosen profile. https://code.claude.com/docs/en/legal-and-compliance";
 
 export const renderJson = (report: DoctorReport) => `${JSON.stringify(report, null, 2)}\n`;
 

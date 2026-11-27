@@ -171,8 +171,12 @@ All names are in `src/engine.ts` unless a file is given.
    `no_diff_and_unreadable`) and only for a file GitHub sent no patch for. If there are gaps and at
    least `MIN_BATCH_USD` remains, the batch runs once more with only those files (`retry: true` in
    the prompt); a batch whose first call returned nothing usable has all its files as gaps, so it
-   is retried the same way. Files still unaccounted for after that make the review partial: its
-   first line says "Partial review", counts the files and lists the ones not reviewed.
+   is retried the same way. A call that ended on its budget when that budget was the run's
+   remaining room (below `batch_budget_usd`) is not retried: it would meet the same limit with less
+   room, and its files are "not reached: the call ran out of its budget". A call cut at the full
+   per-call cap is retried. Files still unaccounted for after that make the review partial: its
+   first line says "Partial review", gives the reviewed and not reviewed counts by reason, and
+   the files are listed in a collapsed block grouped by reason.
    Coverage is therefore the model's own report checked against the selected files. It shows the
    model claimed to cover every selected file; it is not a measurement of how much of a file was
    read, and the engine has no way to observe reads. The expected set holds only the selected
@@ -185,7 +189,9 @@ All names are in `src/engine.ts` unless a file is given.
 
 7. **Budget arithmetic.** `review` tracks `spent` across one invocation, adding up the first
    calls and retries of every batch. Each call is capped at `min(WACHIMAN_BATCH_BUDGET_USD,
-   remaining)`. A batch is not started when less than `MIN_BATCH_USD` (0.05) remains; its files are
+   remaining)`. A batch is not started when the room is below its start floor, `max(0.05, 0.6 × the model's
+   per-batch figure)` (`batchStartFloor`); a batch waits while other batches may still give room
+   back. `MIN_BATCH_USD` (0.05) stays the least a retry or the automatic ceiling needs. Its files are
    listed as "not reached: the pull request's budget was spent". `attempt` catches a call that
    died without a result and counts it at its cap, because what it spent is unknown. The budget is
    per run, not per pull request over time: every new `review` run starts again at zero, so an

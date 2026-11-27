@@ -37,6 +37,7 @@ import {
   type BranchRepo,
 } from "../test/support/temp-repo";
 import { personalMemoryDir } from "./memory/personal";
+import { recordChoice } from "./telemetry/consent";
 import { readMemoryUse } from "./memory/hygiene";
 
 const temps: string[] = [];
@@ -471,7 +472,7 @@ describe("wachiman local", () => {
     for (const dir of (r.read("dirs") ?? "").split("\n").filter(Boolean)) expect(existsSync(dir)).toBe(false);
   }, 30_000);
 
-  describe("the size gate only warns", () => {
+  describe("a local run warns above budget_usd and continues (AC13)", () => {
     /** An --input file with `count` files of 1,000 changed lines each, every one in its own module: one batch per file. */
     const sizedInput = (repo: BranchRepo, count: number) => {
       const fixture = JSON.parse(readFileSync(join(import.meta.dir, "../test/fixtures/formats/review-input.branch.json"), "utf8"));
@@ -487,7 +488,7 @@ describe("wachiman local", () => {
       return file;
     };
     const WARNING =
-      /^warning: reviewing all of this would cost about \$\d+\.\d\d at API prices \(\d+ batches × \$0\.\d\d for [^)]+\), above the \$6\.00 size gate\./m;
+      /^warning: reviewing all of this would cost about \$\d+\.\d\d at API prices \(\d+ batches × \$0\.\d\d for [^)]+\), above this run's budget, \$3\.00 \(WACHIMAN_BUDGET_USD\)\./m;
 
     test("a large input prints one warning and still calls the model", () => {
       const repo = branchRepo();
@@ -495,7 +496,7 @@ describe("wachiman local", () => {
       expect(r.code).toBe(0);
       expect(r.stderr.match(/^warning: reviewing all of this/gm)).toHaveLength(1);
       expect(r.stderr).toMatch(WARNING);
-      expect(r.stderr).toContain("stops at its budget, $3.00 (WACHIMAN_BUDGET_USD).");
+      expect(r.stderr).toContain("this one continues and stops at that budget");
       expect(r.calls().length).toBeGreaterThan(0);
     }, 30_000);
 
@@ -503,15 +504,45 @@ describe("wachiman local", () => {
       const repo = branchRepo();
       const r = local("ok", ["--input", sizedInput(repo, 2)], {}, repo);
       expect(r.code).toBe(0);
-      expect(r.stderr).not.toContain("size gate");
+      expect(r.stderr).not.toContain("warning: reviewing all of this");
     }, 30_000);
 
-    test("the warning text names the estimate, the batches, the model, the gate and the budget", () => {
+    test("an estimate between budget_usd and the old $6 gate now warns, whatever size_gate_usd says", () => {
+      // 12 files: $3.84, above the $3 budget and below the old $6 default gate.
+      const repo = branchRepo();
+      for (const gate of [undefined, "100", "0.5"]) {
+        const r = local(
+          "ok",
+          ["--input", sizedInput(repo, 12)],
+          { WACHIMAN_MODEL: "claude-sonnet-5-5", ...(gate ? { WACHIMAN_SIZE_GATE_USD: gate } : {}) },
+          repo,
+        );
+        expect(r.code).toBe(0);
+        expect(r.stderr.match(/^warning: reviewing all of this/gm)).toHaveLength(1);
+        expect(r.calls().length).toBeGreaterThan(0);
+      }
+    }, 60_000);
+
+    test("an estimate below budget_usd prints no warning even with a tiny size_gate_usd", () => {
+      // 5 files: $1.60.
+      const repo = branchRepo();
+      const r = local("ok", ["--input", sizedInput(repo, 5)], { WACHIMAN_MODEL: "claude-sonnet-5-5", WACHIMAN_SIZE_GATE_USD: "0.5" }, repo);
+      expect(r.code).toBe(0);
+      expect(r.stderr).not.toContain("warning: reviewing all of this");
+    }, 30_000);
+
+    test("the warning text names the estimate, the batches, the model and the budget", () => {
       const estimate = { files: 606, lines: 58706, batches: 68, perBatchUsd: 0.32, usd: 21.76 };
-      expect(sizeWarning(estimate, 6, 3, "claude-sonnet-5-5")).toBe(
-        "warning: reviewing all of this would cost about $21.76 at API prices (68 batches × $0.32 for claude-sonnet-5-5), above the $6.00 size gate. Local runs are never refused; this one continues and stops at its budget, $3.00 (WACHIMAN_BUDGET_USD).",
+      expect(sizeWarning(estimate, 3, "claude-sonnet-5-5")).toBe(
+        "warning: reviewing all of this would cost about $21.76 at API prices (68 batches × $0.32 for claude-sonnet-5-5), above this run's budget, $3.00 (WACHIMAN_BUDGET_USD). Local runs are never refused; this one continues and stops at that budget, so the review may be partial. Raise WACHIMAN_BUDGET_USD to cover the estimate, or review less.",
       );
-      expect(sizeWarning({ ...estimate, usd: 6 }, 6, 3, "m")).toBeNull();
+      expect(sizeWarning({ ...estimate, usd: 3 }, 3, "m")).toBeNull();
+    });
+
+    test("an estimate between the batch room and the budget warns and names the reserves", () => {
+      const estimate = { files: 10, lines: 100, batches: 10, perBatchUsd: 0.32, usd: 2.5 };
+      expect(sizeWarning(estimate, 3, "m", 2)).toContain("above the $2.00 the batches get out of this run's budget, $3.00");
+      expect(sizeWarning(estimate, 3, "m", 2.5)).toBeNull();
     });
   });
 
@@ -1691,5 +1722,121 @@ describe("memory use", () => {
     const plain = temp("wachiman-home-");
     expect(local("ok", [], { HOME: plain }).code).toBe(0);
     expect(existsSync(join(plain, ".wachiman"))).toBe(false);
+  }, 30_000);
+});
+
+describe("usage telemetry after a review (opt-in; src/telemetry/)", () => {
+  // `local()` spawns synchronously, which would freeze a server in this process, so these runs are asynchronous.
+  async function localAsync(env: Record<string, string>, repo: BranchRepo = branchRepo(), variant: Variant = "ok") {
+    const s = stubs(variant, repo.dir);
+    const child = Bun.spawn([process.execPath, cli, "local", "--repo-dir", repo.dir], {
+      env: { PATH: `${s.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-home-"), USER: "dev", WACHIMAN_VERIFY: "0", ...env },
+      stdin: "ignore",
+      stdout: "pipe",
+      stderr: "pipe",
+    });
+    const [stdout, stderr, code] = [await new Response(child.stdout).text(), await new Response(child.stderr).text(), await child.exited];
+    return { stdout, stderr, code };
+  }
+  const consented = () => {
+    const whome = temp("wachiman-whome-");
+    recordChoice(whome, "yes");
+    return whome;
+  };
+
+  test("a stored yes sends one summary; a hanging endpoint leaves the output and the exit code as they were", async () => {
+    const bodies: string[] = [];
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })),
+    });
+    let hangRequests = 0;
+    const hang = Bun.serve({ port: 0, hostname: "127.0.0.1", fetch: () => (hangRequests++, new Promise<Response>(() => {})) });
+    try {
+      const whome = consented();
+      const repo = branchRepo();
+      const off = await localAsync({ WACHIMAN_HOME: whome, WACHIMAN_TELEMETRY: "0" }, repo);
+      const sent = await localAsync({ WACHIMAN_HOME: whome, WACHIMAN_TELEMETRY_URL: `http://127.0.0.1:${server.port}/v1/usage` }, repo);
+      expect(bodies.length).toBe(1);
+      const body = JSON.parse(bodies[0]);
+      expect(body).toMatchObject({ format: "wachiman.telemetry/1", mode: "local", findings: { fix: 1 }, outcome: { state: "complete" } });
+      expect(sent.code).toBe(off.code);
+      expect(sent.stdout).toBe(off.stdout);
+      const hung = await localAsync({ WACHIMAN_HOME: whome, WACHIMAN_TELEMETRY_URL: `http://127.0.0.1:${hang.port}/v1/usage` }, repo);
+      expect(hung.code).toBe(off.code);
+      expect(hung.stdout).toBe(off.stdout);
+      expect(hung.stderr).not.toContain("telemetry");
+      // The hung run really reached the endpoint, and finished anyway. How long the wait lasts is bounded in
+      // src/telemetry/send.test.ts: comparing the wall-clock time of two whole runs here would depend on the runner.
+      expect(hangRequests).toBe(1);
+    } finally {
+      server.stop(true);
+      hang.stop(true);
+    }
+  }, 60_000);
+
+  // The provider stub dies by SIGINT, so the run ends in the "Interrupted" branch before a report is built. The later
+  // `!state.interrupted` guard (a SIGINT after the last call) has no seam to drive from outside the process.
+  test("an interrupted run (the provider stub sends SIGINT to wachiman) sends nothing and exits 130", async () => {
+    const bodies: string[] = [];
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })),
+    });
+    try {
+      const r = await localAsync(
+        { WACHIMAN_HOME: consented(), WACHIMAN_BATCH_LINES: "1", WACHIMAN_TELEMETRY_URL: `http://127.0.0.1:${server.port}/v1/usage` },
+        branchRepo(),
+        "interrupt",
+      );
+      expect(r.code).toBe(130);
+      expect(bodies).toEqual([]);
+    } finally {
+      server.stop(true);
+    }
+  }, 60_000);
+
+  test("without a stored yes, or with DO_NOT_TRACK, CI or GITHUB_ACTIONS set, no request is made", async () => {
+    const bodies: string[] = [];
+    const server = Bun.serve({
+      port: 0,
+      hostname: "127.0.0.1",
+      fetch: async (req) => (bodies.push(await req.text()), new Response(null, { status: 204 })),
+    });
+    try {
+      const url = { WACHIMAN_TELEMETRY_URL: `http://127.0.0.1:${server.port}/v1/usage` };
+      await localAsync({ WACHIMAN_HOME: temp("wachiman-whome-"), ...url });
+      for (const blocker of [{ DO_NOT_TRACK: "1" }, { CI: "true" }, { GITHUB_ACTIONS: "true" }] as Record<string, string>[])
+        await localAsync({ WACHIMAN_HOME: consented(), ...url, ...blocker });
+      expect(bodies).toEqual([]);
+    } finally {
+      server.stop(true);
+    }
+  }, 90_000);
+});
+
+describe("one resolution of the refs per review", () => {
+  /** Puts a `git` first on PATH that logs each call and then runs the real one. */
+  function loggedGit(binDir: string) {
+    const log = join(binDir, "git-calls");
+    const real = Bun.which("git");
+    if (!real) throw new Error("git is not on PATH");
+    writeFileSync(join(binDir, "git"), `#!/bin/sh\necho "$*" >> "${log}"\nexec "${real}" "$@"\n`);
+    chmodSync(join(binDir, "git"), 0o755);
+    return () => (existsSync(log) ? readFileSync(log, "utf8").split("\n").filter(Boolean) : []);
+  }
+
+  test("`wachiman local` asks git for the merge-base once, not once per stage", () => {
+    const repo = branchRepo();
+    const s = stubs("none", repo.dir);
+    const calls = loggedGit(s.bin);
+    const env = { PATH: `${s.bin}:${process.env.PATH ?? ""}`, HOME: temp("wachiman-home-"), USER: "dev", WACHIMAN_VERIFY: "0" };
+    const out = runCli(["local", "--repo-dir", repo.dir, "--base", "main"], env);
+    expect(out.code).toBe(0);
+    // The settings stage and the input stage read the same flags; the second reuses the first's refs.
+    expect(calls().filter((l) => / merge-base /.test(l) && !l.includes("--is-ancestor"))).toHaveLength(1);
+    expect(s.calls()).toHaveLength(1);
   }, 30_000);
 });

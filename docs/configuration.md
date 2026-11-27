@@ -64,9 +64,10 @@ engine through the environment variable in the third column; those variables are
 | --- | --- | --- | --- | --- |
 | `operator` | string, required | `WACHIMAN_OPERATOR` | none | The one GitHub login whose comments can start an on-demand run. Both jobs fail early while it is empty or a template placeholder (`EDIT…`, `your-github-login`, compared case-insensitively, whitespace removed). This is true of the automatic job too, even though it never compares the operator to anyone. |
 | `mention` | string | `WACHIMAN_MENTION` | `/wachiman` | The command word the on-demand job listens for, next to `/wachiman`, `/wachi` and `@claude`, which always work. See [Mentions and commands](#mentions-and-commands). |
-| `budget_usd` | number | `WACHIMAN_BUDGET_USD` | `3` | Total for one review invocation, across all its batches and retries. Not a monthly or per-pull-request limit: that is `auto_budget_usd`. A pull request too big for one budget is finished over several runs: a partial review records the files it did not reach and the next push reviews them. See [Budgets](#budgets) and [Incremental reviews](cli.md#incremental-reviews). |
+| `budget_usd` | number | `WACHIMAN_BUDGET_USD` | `3` | Total for one review invocation, across all its batches and retries. Not a monthly or per-pull-request limit: that is `auto_budget_usd`. A review whose estimate is above the room is skipped until the operator approves a budget for that head ([the room gate](costs.md#the-room-gate)); one that started and stopped short records the files it did not reach, and the next push reviews them. See [Budgets](#budgets) and [Incremental reviews](cli.md#incremental-reviews). |
 | `auto_budget_usd` | number | `WACHIMAN_AUTO_BUDGET_USD` | `6` | The most **all automatic runs on one pull request** may spend together: the first review, push reviews and thread-reply runs ([ADR 0012](adr/0012-automatic-thread-replies-and-a-per-pr-ceiling.md)). **New in v1.5.0.** The engine sums it from the cost line of its own signed review footers marked automatic, so it needs no server. A run starts with at most what is left; at the ceiling it posts one notice and stops. The operator's `/wachiman review` is not limited by it. A number greater than 0. See [Budgets](#budgets). |
-| `size_gate_usd` | number | `WACHIMAN_SIZE_GATE_USD` | `6` | **New in the next release** ([ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)). A gate, not a budget. Above the estimated cost of the whole review the run posts no review and spends nothing, and one comment says what the review would cost and which `budget_usd` to set. Never below what the run may spend: the larger of this and `budget_usd` for `/wachiman review`, the larger of this and the smaller of `budget_usd` and `auto_budget_usd` for an automatic run. A finite number greater than 0; there is no unlimited value. See [the size gate](costs.md#the-size-gate). |
+| `size_gate_usd` | number | `WACHIMAN_SIZE_GATE_USD` | none | **Deprecated, no effect** ([ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)). Setting it is still valid (a finite number greater than 0), logs one deprecation line and changes nothing; unset logs nothing. The gate is the room the run may spend, not a figure: see [the room gate](costs.md#the-room-gate). Removed in the next major version. |
+| `approve_max_usd` | number | `WACHIMAN_APPROVE_MAX_USD` | `20` | **New in the next release** ([ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)). The most the operator may approve for one head with `/wachiman review --budget N --head <sha>`. A skipped review offers the command only when the budget it needs is at or below this; otherwise the comment says to raise this or to review paths. A finite number greater than 0. See [how to approve a budget](costs.md#how-to-approve-a-budget). |
 | `threads_budget_usd` | number | `WACHIMAN_THREADS_BUDGET_USD` | `0.25` | The cap given to the one provider call of a thread-reply run. **New in v1.5.0.** The run also counts against `auto_budget_usd`. See [Thread replies](reviews.md#reply-to-a-finding). |
 | `batch_budget_usd` | number | `WACHIMAN_BATCH_BUDGET_USD` | `0.75` | The cap given to each provider call (a batch's first call and its retry each get one). |
 | `answer_budget_usd` | number | `WACHIMAN_ANSWER_BUDGET_USD` | `1` | The cap given to the one call that answers a question. Separate from `budget_usd`. |
@@ -183,7 +184,8 @@ applies.
 | `WACHIMAN_MENTION` | string | `/wachiman` | Any non-empty string | The command word `comment` looks for, in addition to `/wachiman`, `/wachi` and `@claude`. An empty value counts as unset. | both |
 | `WACHIMAN_BUDGET_USD` | number | `3` | Finite, greater than 0 | Total for one `review` invocation. See [Budgets](#budgets). | both |
 | `WACHIMAN_AUTO_BUDGET_USD` | number | `6` | Finite, greater than 0 | Ceiling for all automatic runs on one pull request, summed from the engine's own signed review footers. **New in v1.5.0.** Applies only when `WACHIMAN_TRIGGER` names an automatic run; `/wachiman review` (`comment`) ignores it. See [Budgets](#budgets). | both |
-| `WACHIMAN_SIZE_GATE_USD` | number | `6` | Finite, greater than 0 | The size gate ([ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)). **New in the next release.** In GitHub mode, a run whose estimated cost is above the gate posts one comment and no review, and spends nothing. In `local` it only prints a warning and the run continues. See [the size gate](costs.md#the-size-gate). | both |
+| `WACHIMAN_SIZE_GATE_USD` | number | none | Finite, greater than 0 | Deprecated, no effect ([ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)). Logs one deprecation line when set. In GitHub mode the gate is the room the run may spend; in `local` the only signal is a warning when the estimate is above `WACHIMAN_BUDGET_USD` (less the verifier and memory reserves when they apply). See [the room gate](costs.md#the-room-gate). | both |
+| `WACHIMAN_APPROVE_MAX_USD` | number | `20` | Finite, greater than 0 | The most the operator may approve for one head with `--budget`. **New in the next release.** See [how to approve a budget](costs.md#how-to-approve-a-budget). | GitHub |
 | `WACHIMAN_THREADS_BUDGET_USD` | number | `0.25` | Finite, greater than 0 | Cap for the one provider call of a `threads` run. **New in v1.5.0.** | same as the batch cap |
 | `WACHIMAN_TRIGGER` | string | unset | A lowercase event action: `opened`, `ready_for_review`, `synchronize`, `comment`, `thread`… | Why the run started. **New in v1.5.0.** `comment` is the operator's command and is never limited by the ceiling; any other value is an automatic run that is. Unset means a person ran the CLI by hand, which is not limited either. The workflow sets it (`github.event.action`, `comment`, `thread`); the `comment` and `threads` commands set it themselves, whatever the environment says. A value that is not a lowercase word is a usage error (exit 2). | both |
 | `WACHIMAN_BATCH_BUDGET_USD` | number | `0.75` | Finite, greater than 0 | Cap passed with each provider call in a review, limited by what is left of the total. | Claude: sent as `--max-budget-usd`, a soft cap. Codex: used for accounting only, never enforced. |
@@ -322,11 +324,13 @@ GitHub-side applies.
   Also `WACHIMAN_HISTORY=1` (keep the [history](local-review.md#keep-a-history-of-your-runs-optional)
   of the run, the same as `--history`) and `WACHIMAN_HISTORY_DAYS` (days to keep it, default 30,
   `0` forever, anything else exits 2 before any call). GitHub mode ignores both.
-- **Apply as a warning only:** `WACHIMAN_SIZE_GATE_USD`. Above it, `local` prints one line on
-  stderr and continues; it never refuses or asks ([ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)).
-  The money caps are `WACHIMAN_BUDGET_USD` for the run and `WACHIMAN_BATCH_BUDGET_USD` for
-  each call.
+- **Warning only:** when the estimate is above `WACHIMAN_BUDGET_USD` (less the verifier and memory reserves when they apply), `local` prints one line on
+  stderr and continues; it never refuses or asks ([ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)).
+  `WACHIMAN_SIZE_GATE_USD` has no effect. The money caps are `WACHIMAN_BUDGET_USD` for the run and
+  `WACHIMAN_BATCH_BUDGET_USD` for each call.
 - **Do not apply:** `WACHIMAN_AUTO_BUDGET_USD` (no ceiling), `WACHIMAN_THREADS_BUDGET_USD`,
+  `WACHIMAN_APPROVE_MAX_USD` (a local run is never refused, so nothing is approved; it is still
+  validated, and a bad value exits 2),
   `WACHIMAN_OPERATOR`, `WACHIMAN_MENTION`, `WACHIMAN_TRIGGER` (ignored: the run is a
   person's) and `WACHIMAN_ON_PROVIDER_UNAVAILABLE` (a refused call is the `stop:` line of the
   report and the exit code).
@@ -397,7 +401,11 @@ How the parser reads a comment, once the job has started:
 - The first match in the comment is used, on any line, and only the rest of that line is read.
   `/wachiman review` on line 3 works; text on later lines is not read as paths.
 - If the first word after the command word is `review` (any case), the rest of the line is the
-  scope: `review` or `review src docs/api`. Anything else, including a bare `/wachiman` or
+  scope: `review` or `review src docs/api`. The two flags `--budget N` and `--head <sha>` are not
+  scope words: they approve a budget for one head, and the operator's comment must carry both
+  (see [how to approve a budget](costs.md#how-to-approve-a-budget)). One without the other, a flag
+  without its value, a flag given twice and the `--budget=8` spelling are refused with one reply
+  and no run. Anything else, including a bare `/wachiman` or
   `/wachiman, review`, is a question, and the whole comment is sent to the answer call.
 - The operator is checked again by the engine when `WACHIMAN_COMMENT_AUTHOR` is set (see above).
 
@@ -424,11 +432,14 @@ How to use these commands day to day is in [reviews.md](reviews.md).
 
 ## Budgets
 
-There are five dollar settings and they bound different things. A sixth number, `size_gate_usd`, is
-not one of them: it spends nothing and only decides whether a run starts (see the last row). Four of them are per invocation: one
-automatic run, one comment, one thread-reply run, or one CLI call. A re-run, a second comment, or two
-jobs at once each start from the full budget. The fifth, `auto_budget_usd`, adds the automatic runs
-of one pull request together.
+The table lists the dollar settings. Five of them bound spending, and they bound different things:
+`budget_usd`, `auto_budget_usd`, `batch_budget_usd`, `threads_budget_usd` and `answer_budget_usd`.
+`ask_ceiling_usd` caps what collaborators' questions add up to on one pull request. `size_gate_usd` is
+deprecated and bounds nothing, and `approve_max_usd` is not a budget: it spends nothing and only caps what
+the operator may approve for one head (see the `approve_max_usd` row). Four of the five spending budgets
+are per invocation: one automatic run, one comment, one thread-reply run, or one CLI call. A re-run, a
+second comment, or two jobs at once each start from the full budget. The fifth, `auto_budget_usd`, adds
+the automatic runs of one pull request together.
 
 | Setting | Bounds |
 | --- | --- |
@@ -437,7 +448,8 @@ of one pull request together.
 | `batch_budget_usd` / `WACHIMAN_BATCH_BUDGET_USD` | The cap handed to each single provider call. |
 | `threads_budget_usd` / `WACHIMAN_THREADS_BUDGET_USD` | The cap handed to the one call of a thread-reply run (default $0.25). |
 | `answer_budget_usd` / `WACHIMAN_ANSWER_BUDGET_USD` | The cap handed to the one call that answers a question. An answer does not touch `budget_usd`, and a review does not touch this. |
-| `size_gate_usd` / `WACHIMAN_SIZE_GATE_USD` | Not a budget: the estimated cost of the whole review above which a run posts no review and spends nothing, default $6 ([ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)). Never below the run budget. See [costs.md](costs.md#the-size-gate). |
+| `size_gate_usd` / `WACHIMAN_SIZE_GATE_USD` | Deprecated, no effect ([ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)). The gate is the room the run may spend, taken from `budget_usd`, the ceiling and the ledger grant. See [costs.md](costs.md#the-room-gate). |
+| `approve_max_usd` / `WACHIMAN_APPROVE_MAX_USD` | Not a budget: the most the operator may approve for one head with `/wachiman review --budget N --head <sha>`, default $20. |
 | `ask_ceiling_usd` / `WACHIMAN_ASK_CEILING_USD` | The most all questions from people other than the operator may spend on one pull request (default $3), summed from the answers' cost footers. See [Questions from collaborators](cli.md#questions-from-collaborators). |
 
 ### The ceiling per pull request
@@ -448,7 +460,7 @@ inline replies. It keeps those signed by this engine whose footer carries the au
 amount on their cost line. Model text cannot forge either part: `<!--` is defused in everything a
 model writes, and the footer is read only at the very end of the body.
 
-- If `auto_budget_usd` minus that sum is less than $0.05 (a batch's minimum), the run posts one
+- If `auto_budget_usd` minus that sum is less than $0.05 (the gate's threshold, lower than the start floor a batch needs), the run posts one
   notice, "Automatic reviews paused: $X of $Y spent on this pull request. Comment `/wachiman review`
   to review now.", and starts no model call. A second notice for the same ceiling is not posted:
   later pushes post nothing. Raising `auto_budget_usd` lets the next push run.
@@ -469,8 +481,8 @@ What one review does, in order:
 1. Batches start in risk order, riskiest first, and up to four run at once. The limit is a constant
    in the engine (`BATCH_CONCURRENCY`), not a setting, and it is the same in CI and on a laptop.
 2. Before each call, the engine computes what is left: `budget_usd` minus what the finished calls
-   reported, minus what the calls still running may spend (their reservations). If less than $0.05
-   is left and some call is still running, the batch waits, because that call may give money back.
+   reported, minus what the calls still running may spend (their reservations). If less than the start
+   floor for a batch (or $0.05 for a retry) is left and some call is still running, the batch waits, because that call may give money back.
    If nothing is running, no more calls start, and the remaining files are listed as not reviewed
    (`not run: budget spent`).
 3. A call gets the smaller of `batch_budget_usd` and what is left, and that amount is reserved
@@ -478,7 +490,11 @@ What one review does, in order:
    total can never pass `budget_usd` by more than a call's own overshoot.
 4. **If a batch comes back with files unaccounted for, the engine makes one more call for those
    files**, in the same slot and by the same rule: the smaller of `batch_budget_usd` and what is
-   left, as long as at least $0.05 remains. Money reserved by the batches still running is not
+   left, as long as at least $0.05 remains. A call that ended on its budget when that budget was
+   what the run had left (below `batch_budget_usd`) is not retried: the files are reported as not
+   reached because the call ran out of its budget. A batch starts only when the room is at least
+   60% of the model's mean batch cost (never below $0.05); below that it waits for room from
+   batches still running, and is reported as not reached when none comes back. Money reserved by the batches still running is not
    available to it, so a retry can get a smaller cap than the first call. A batch can therefore
    cost up to two calls. This also happens when the first call failed or returned nothing: the
    retry then covers every file of the batch.
@@ -509,8 +525,10 @@ What "cap" means depends on the provider:
 
 Smaller edges:
 
-- A total below $0.05 is accepted as a setting, but no call ever starts. The run ends with
-  `The agent did not return a review for any batch.` and exit 1.
+- A total below a batch's start floor (60% of the model's mean batch figure, never below $0.05) is
+  accepted as a setting, but no call ever starts. On the local path the run reports that it ran out of its
+  budget; on the GitHub path the run checks the estimate against the room first and posts the size-gate notice
+  instead, before any batch starts.
 - If no batch produced any output and at least one batch's first call hit its cap, the engine posts
   a short review saying nothing was reviewed reliably, with a hint to review by path, and exits 0.
 - If some batches produced output, the review is posted with partial coverage and exit 0.
@@ -794,7 +812,7 @@ file, the most severe wins; on a tie, the first in the file.
   [PR confidence grade](pr-confidence.md) is at most B; `medium` is a medium path and alone keeps
   the grade at A. A matched file takes its level from its rule, not from the heuristic, so a rule can
   also lower a file the heuristic scores high.
-- **The size gate.** A `critical` match does not lift the [size gate](costs.md#the-size-gate).
+- **The room gate.** A `critical` match does not lift the [room gate](costs.md#the-room-gate).
   When the gate skips a run, its comment lists the changed files that match a `critical` rule, with
   their reasons (up to 20), and says a person should read them. Nothing is sent to a model.
 

@@ -42,6 +42,7 @@ import { existsSync, readFileSync, statSync, writeSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { writeStepSummary, type CallCost } from "./cost";
 import { loadConfig, UsageError } from "./config";
+import { runTelemetry } from "./telemetry/command";
 import { parseHistoryArgs, runHistory } from "./history/command";
 import { parseStatusArgs, runStatus } from "./status/command";
 import { parseDashboardArgs, runDashboard } from "./store/command";
@@ -80,6 +81,7 @@ import { resetConfidence } from "./fidelity/sink";
 import { getProvider, PROVIDER_NAMES, UnknownProviderError } from "./providers";
 import { parseSetupFlags } from "./setup/args";
 import { failureDocument, printDocument } from "./init/json";
+import { telemetryState } from "./init/telemetry";
 import { runInitFromArgv } from "./init/run";
 import { ensureRipgrep } from "./ripgrep";
 import { runSetupCommand } from "./setup/run";
@@ -387,6 +389,10 @@ export async function main(argv: string[], env: Record<string, string | undefine
         { version: readVersion() },
       );
     }
+    if (mode === "telemetry") {
+      // Before extractRepoDir: no repository is read. Only the opt-in choice in the Wachiman home; no request is made here.
+      return runTelemetry(argv.slice(1), env, { stdout: (text) => writeAll(1, text), stderr: (line) => console.error(line) });
+    }
     if (mode === "ledger") {
       // Before extractRepoDir: no repository is read. The only command that contacts the ledger (ADR 0039).
       const parsed = parseLedgerArgs(argv.slice(1));
@@ -576,6 +582,7 @@ export async function main(argv: string[], env: Record<string, string | undefine
             report: {},
             code: "usage",
             message: error.message,
+            telemetry: telemetryState(env),
           }),
         );
         return 2;

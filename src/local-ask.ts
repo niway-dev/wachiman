@@ -18,6 +18,9 @@ import { type AskAnswer, askSchema, buildAskPrompt, checkRefs, isAskAnswer, rend
 import { repoLineCounter } from "./contracts";
 import { UsageError } from "./config";
 import { askDistributed, type ResolvedSibling } from "./distributed";
+import { askErrorOf, reportRun, runOfAsk } from "./telemetry/report";
+import type { TelemetryRun } from "./telemetry/summary";
+import type { ResolvedRefs } from "./connectors/local-git";
 import { annotateDiff, DEFAULT_EXCLUDE, filterFiles, renderInstructions, runProvider, type ReviewInput, type ReviewResult } from "./engine";
 import { historyRoot, readRuns, repositoryKey } from "./history/store";
 import { type LocalArgs, type LocalDeps, localScopeInput, openLocalSession, parseFlags } from "./local";
@@ -152,6 +155,7 @@ export async function runAsk(
   deps: LocalDeps = {},
 ): Promise<number> {
   // The account, the provider and the settings are checked before the change is read, as `local` does.
+  const resolved: ResolvedRefs = {};
   const { config, provider, state } = openLocalSession({
     profile: args.profile,
     verify: false,
@@ -159,12 +163,15 @@ export async function runAsk(
     env,
     stderr: io.stderr,
     deps,
+    resolved,
     scope: { workingTree: args.workingTree, base: args.base, commit: args.commit, from: args.from, maxDepth: args.maxDepth },
   });
   const onSigint = () => {
     state.interrupted = true;
   };
   process.on("SIGINT", onSigint);
+  // Set once the answer is written; sent in `finally`, after the SIGINT handler is gone so Ctrl-C works during the send.
+  let report: (() => TelemetryRun) | undefined;
   let release: (() => void) | undefined;
   let releaseSiblings: (() => void) | undefined;
   let material: string | undefined;
@@ -179,6 +186,7 @@ export async function runAsk(
       paths: args.paths,
       log: io.stderr,
       warn: io.stderr,
+      refs: resolved.refs,
     });
     release = scope.release;
     const { input } = scope;
@@ -269,6 +277,15 @@ export async function runAsk(
     if (!result || !isAskAnswer(parsed, schema)) {
       const reason = result ? (result.isError ? result.terminalReason || "the call failed" : "its output was not an answer") : failure;
       io.stderr(`Wachiman could not answer (${reason}).`);
+      report = () =>
+        runOfAsk({
+          model: config.model,
+          kept,
+          usage: result?.usage,
+          durationMs: result?.durationMs ?? 0,
+          error: askErrorOf(result),
+          failed: true,
+        });
       return 1;
     }
 
@@ -359,11 +376,15 @@ export async function runAsk(
       writeFileSync(path, text);
       io.stderr(`report: ${path}`);
     } else io.stdout(text);
+    if (!state.interrupted)
+      report = () =>
+        runOfAsk({ model: config.model, kept, usage: result.usage, durationMs: result.durationMs, error: null, failed: false });
     return 0;
   } finally {
     process.off("SIGINT", onSigint);
     releaseSiblings?.();
     release?.();
     if (material !== undefined) rmSync(material, { recursive: true, force: true });
+    if (report !== undefined) await reportRun(report, { env, home: () => wachimanHome(env), version: io.engineVersion });
   }
 }

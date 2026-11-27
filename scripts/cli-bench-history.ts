@@ -1,13 +1,13 @@
 #!/usr/bin/env bun
 /**
- * The history of `bun run bench` on `main`: one JSON object per line (JSONL), one line per commit.
+ * The history of `bun run bench:cli` on `main`: one JSON object per line (JSONL), one line per commit.
  *
- *   bun scripts/bench-history.ts --append history.jsonl --parent p1.json p2.json --commit c1.json c2.json
+ *   bun scripts/cli-bench-history.ts --append history.jsonl --parent p1.json p2.json --commit c1.json c2.json
  *       add a line for the commit (nothing when that commit is already there)
- *   bun scripts/bench-history.ts history.jsonl [--last N]
+ *   bun scripts/cli-bench-history.ts history.jsonl [--last N]
  *       Markdown table of the change per commit, oldest first
  *
- * CI keeps the file on the `bench-history` branch (see .github/workflows/bench.yml). Each line is a
+ * CI keeps the file on the `cli-bench-history` branch (see .github/workflows/cli-bench.yml). Each line is a
  * controlled measurement: the job measured the commit AND its first parent on the same runner,
  * interleaved, the way a pull request compares base and head. A line holds, per case, the parent
  * median, the commit median and the change in percent, plus the runner identity (OS, architecture,
@@ -15,7 +15,7 @@
  * across lines (runners differ by up to 2.5x): the trend to read is the per-commit change.
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { clean, side, type BenchRun } from "./bench-compare";
+import { clean, side, type BenchRun } from "./cli-bench-compare";
 
 export type CaseRow = { parent_ms: number; commit_ms: number; change_pct: number };
 export type Runner = { os: string; arch: string; cpu: string };
@@ -145,7 +145,7 @@ if (import.meta.main) {
       process.stdout.write(renderTable(Number.isFinite(last) ? entries.slice(-last) : entries));
     }
   } catch (e) {
-    console.error(`bench-history: ${(e as Error).message}`);
+    console.error(`cli-bench-history: ${(e as Error).message}`);
     process.exit(2);
   }
 }

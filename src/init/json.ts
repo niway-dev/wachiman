@@ -5,6 +5,7 @@
  */
 import { quoteArgument } from "../wizard/command";
 import type { InitMode } from "./options";
+import type { TelemetryState } from "./telemetry";
 
 export const INIT_FORMAT = "wachiman.init/1";
 
@@ -40,6 +41,8 @@ export interface InitDocument {
   files: InitFile[];
   local: { status: Readiness; pending: string[] };
   github: { status: Readiness; pending: string[] };
+  /** Usage telemetry: `pending` means the owner has not been asked (an agent relays the question and never answers it). Additive. */
+  telemetry: TelemetryState;
   error: { code: "usage" | "failed"; message: string } | null;
 }
 
@@ -47,7 +50,13 @@ const filesOf = (report: InitReport): InitFile[] =>
   [report.workflow, report.settings, ...(report.template ?? []), report.agentPointer].filter((f): f is InitFile => f !== undefined);
 
 /** `init` never binds without a terminal and never touches GitHub, so a mode that includes either leaves it pending. */
-export function buildDocument(p: { mode: InitMode; dryRun: boolean; repoDir: string; report: InitReport }): InitDocument {
+export function buildDocument(p: {
+  mode: InitMode;
+  dryRun: boolean;
+  repoDir: string;
+  report: InitReport;
+  telemetry?: TelemetryState;
+}): InitDocument {
   const { mode } = p;
   return {
     format: INIT_FORMAT,
@@ -64,6 +73,7 @@ export function buildDocument(p: { mode: InitMode; dryRun: boolean; repoDir: str
       mode === "local"
         ? { status: "not-used", pending: [] }
         : { status: "pending", pending: ["add ANTHROPIC_API_KEY secret", "commit and open a PR"] },
+    telemetry: p.telemetry ?? "pending",
     error: null,
   };
 }
@@ -76,6 +86,7 @@ export function failureDocument(p: {
   report: InitReport;
   code: "usage" | "failed";
   message: string;
+  telemetry?: TelemetryState;
 }): InitDocument {
   return {
     format: INIT_FORMAT,
@@ -86,6 +97,7 @@ export function failureDocument(p: {
     files: filesOf(p.report),
     local: { status: "not-used", pending: [] },
     github: { status: "not-used", pending: [] },
+    telemetry: p.telemetry ?? "pending",
     error: { code: p.code, message: p.message },
   };
 }

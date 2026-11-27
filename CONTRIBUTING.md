@@ -51,7 +51,9 @@ report and is merged only after its author has accepted the agreement.
   `src/tracking.ts` (never read `doNotTrack()` directly), so a set `DO_NOT_TRACK` always wins over a stored opt-in; (b) be listed in
   `docs/on-your-machine.md` before the release; (c) add an entry for its release version to
   `wachimanDataCollection` in `package.json`, which `wachiman upgrade` prints; and (d) be called out
-  in `CHANGELOG.md`.
+  in the title of the `feat` commit or pull request that release-please turns into the changelog entry
+  (never hand-edit `CHANGELOG.md`; release-please owns it). The key in `wachimanDataCollection` must be the version
+  that release will cut, so check it against the release PR before merging and change it if the bump differs.
 - Say whether an AI tool wrote part of the change, and confirm you ran it.
 - Do not add a dependency without an issue first. The review engine has none on purpose (ADR 0002);
   the only runtime dependencies are `chalk`, `@clack/prompts` and `bun`, the first two for the

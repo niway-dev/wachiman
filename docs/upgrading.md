@@ -27,7 +27,7 @@ One line in your caller file, usually `.github/workflows/wachiman-review.yml`:
 ```yaml
 jobs:
   review:
-    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.21.0
+    uses: niway-dev/wachiman/.github/workflows/review.yml@v1.22.0
 ```
 <!-- x-release-please-end -->
 
@@ -38,7 +38,7 @@ tag that is, compare the SHA with the tag's commit:
 
 <!-- x-release-please-start-version -->
 ```sh
-git ls-remote https://github.com/niway-dev/wachiman 'refs/tags/v1.21.0'
+git ls-remote https://github.com/niway-dev/wachiman 'refs/tags/v1.22.0'
 ```
 <!-- x-release-please-end -->
 
@@ -49,8 +49,8 @@ the [Releases page](https://github.com/niway-dev/wachiman/releases), not from th
 
 | Ref | What it is | Consequence |
 | --- | --- | --- |
-| Exact tag, `@v1.21.0` | A release tag. The project's recommendation ([install.md](install.md)). | Readable in your file. It changes only when you edit the file. See the limits below. | <!-- x-release-please-version -->
-| Full commit SHA, `@<40 characters>` | A commit. GitHub accepts it. | Does not depend on any tag rule. Unreadable by itself, so keep the version in a trailing comment, such as `# v1.21.0`. | <!-- x-release-please-version -->
+| Exact tag, `@v1.22.0` | A release tag. The project's recommendation ([install.md](install.md)). | Readable in your file. It changes only when you edit the file. See the limits below. | <!-- x-release-please-version -->
+| Full commit SHA, `@<40 characters>` | A commit. GitHub accepts it. | Does not depend on any tag rule. Unreadable by itself, so keep the version in a trailing comment, such as `# v1.22.0`. | <!-- x-release-please-version -->
 | Floating tag, `@v1` | A tag the maintainer moves to each compatible release. | Not recommended. A release reaches your repository, and runs with your key, before you have read it. |
 
 ### What an exact tag guarantees, and what it does not
@@ -141,6 +141,19 @@ automatic runs the pushes stop being reviewed and one notice is posted. Raise `a
 your caller if that is too low. Pass either input only after you move to a release that has it: a
 workflow given an input the pinned release does not declare fails. A copied install must copy the
 new `src/` and add the `threads` job from `templates/caller-workflow.yml`.
+
+### Estimates above the run budget are skipped (room gate)
+
+Applies to the first release after this page's current pin. A review whose estimate is above the room the
+run has (`budget_usd` less the reserves, the ceiling left and the ledger grant, see
+[costs.md](costs.md#the-room-gate)) is no longer reviewed in part. It is skipped with one priced comment,
+and nothing is spent. With the defaults, an estimate between $3 and $6 used to get a partial review and
+is now skipped until you approve a budget.
+
+- `size_gate_usd` / `WACHIMAN_SIZE_GATE_USD` is deprecated and ignored. You can delete it.
+- To review the head once, the operator comments `/wachiman review --budget N --head <sha>`, with the
+  `N` and the SHA the skip comment prints, up to `approve_max_usd` (default $20).
+- To make it routine, raise `budget_usd` in your caller file.
 
 ## Dependabot for the caller file
 

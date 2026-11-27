@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { MARKER, compare, median, parseArgs, render, type BenchRun } from "./bench-compare";
+import { MARKER, compare, median, parseArgs, render, type BenchRun } from "./cli-bench-compare";
 
 const run = (commit: string, medians: Record<string, number>): BenchRun => ({
   commit,
@@ -7,7 +7,7 @@ const run = (commit: string, medians: Record<string, number>): BenchRun => ({
   results: Object.entries(medians).map(([name, median_ms]) => ({ case: name, median_ms })),
 });
 
-describe("bench-compare", () => {
+describe("cli-bench-compare", () => {
   test("median of an odd and an even list", () => {
     expect(median([3, 1, 2])).toBe(2);
     expect(median([4, 1, 3, 2])).toBe(2.5);
@@ -46,6 +46,7 @@ describe("bench-compare", () => {
     const result = compare([run("b", { a: 100, b: 100 })], [run("h", { a: 150, b: 90 })], { thresholdPct: 25, minDeltaMs: 0 });
     const md = render(result, { thresholdPct: 25, minDeltaMs: 10, rounds: 1, baseCommit: "abc1234", headCommit: "def5678" });
     expect(md.startsWith(MARKER)).toBe(true);
+    expect(MARKER).toBe("<!-- wachiman-cli-bench -->");
     expect(md).toContain("| a | 100.0 ms | 150.0 ms | +50.0% | regressed |");
     expect(md).toContain("| b | 100.0 ms | 90.0 ms | -10.0% | ok |");
     expect(md).toContain("more than 25% and at least 10 ms slower");

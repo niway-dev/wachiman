@@ -18,6 +18,8 @@ const filesOf = (count: number) =>
     patch: "@@ -0,0 +1,6 @@\n+a\n+b\n+c\n+d\n+e\n+f",
   }));
 const ONE_FILE_EACH = { WACHIMAN_BATCH_LINES: "6" };
+/** A model whose estimate ($0.28 a batch) fits the small totals below, so the room gate lets these runs through to the batch loop they test. */
+const HAIKU = { WACHIMAN_MODEL: "claude-haiku-5-5" };
 
 function fakeGh(files: ReturnType<typeof filesOf>, posted: { review?: { body: string; comments: unknown[] } }): GhFn {
   return (args, input) => {
@@ -43,6 +45,8 @@ interface Plan {
   rejected?: boolean;
   /** The call stops on its budget with no review. */
   budget?: boolean;
+  /** The call is killed at the time limit with no review. */
+  timeout?: boolean;
   /** The first call lists no file as reviewed; the retry (a "second pass" prompt) reviews it. */
   leaveFirstPassUnreviewed?: boolean;
   /** What a rejected call says; by default the same text for every batch. */
@@ -90,6 +94,7 @@ class TimedProvider implements ProviderAdapter {
         providerError: "billing",
       };
     if (plan.budget) return { ...base, isError: true, terminalReason: "budget" };
+    if (plan.timeout) return { ...base, isError: true, terminalReason: "timeout" };
     const secondPass = request.prompt.includes("second pass");
     const output: ReviewOutput = {
       files_reviewed: plan.leaveFirstPassUnreviewed && !secondPass ? [] : [file],
@@ -154,7 +159,7 @@ describe("batches run side by side", () => {
     // Each call costs its whole cap. The batch cap is 0.50 and the total 1.20: batches 1 and 2 reserve
     // 0.50 each, batch 3 the 0.20 left, and batch 4 finds nothing once the others finished.
     const provider = new TimedProvider(() => ({ delayMs: 20, costUsd: (q) => q.maxBudgetUsd ?? 0 }));
-    const r = run(4, provider, { WACHIMAN_BATCH_BUDGET_USD: "0.5", WACHIMAN_BUDGET_USD: "1.2" });
+    const r = run(4, provider, { ...HAIKU, WACHIMAN_BATCH_BUDGET_USD: "0.5", WACHIMAN_BUDGET_USD: "1.2" });
     await r.done;
     expect(provider.requests).toHaveLength(3);
     const caps = provider.requests.map((q) => q.maxBudgetUsd);
@@ -172,7 +177,7 @@ describe("batches run side by side", () => {
   test("a batch waits for reserved money that comes back, instead of being skipped", async () => {
     // Calls cost little: what batches 1 to 3 reserved and did not spend is enough for batch 4.
     const provider = new TimedProvider(() => ({ delayMs: 20, costUsd: () => 0.05 }));
-    const r = run(4, provider, { WACHIMAN_BATCH_BUDGET_USD: "0.5", WACHIMAN_BUDGET_USD: "1.2" });
+    const r = run(4, provider, { ...HAIKU, WACHIMAN_BATCH_BUDGET_USD: "0.5", WACHIMAN_BUDGET_USD: "1.2" });
     await r.done;
     expect(provider.requests).toHaveLength(4);
     expect(r.posted.review?.body).not.toContain("not run: budget spent");
@@ -220,24 +225,39 @@ describe("batches run side by side", () => {
   });
 
   test("a retry waits in its own slot for money another running batch reserved", async () => {
-    // Total 0.60, per call 0.50: batch 1 reserves 0.50 and batch 2 the 0.10 left. Batch 1 spends all
-    // of its cap and leaves its file unreviewed, so its retry finds nothing until batch 2 finishes
-    // and gives back what it did not use.
+    // Total 0.80, per call 0.50: batch 1 reserves 0.50 and batch 2 the 0.30 left, which is above the
+    // start floor for Haiku (0.6 x $0.28 = $0.168), so it runs. Batch 1 spends all of its cap and
+    // leaves its file unreviewed, so its retry finds no room until batch 2 finishes and gives back
+    // what it did not use: 0.80 - 0.50 - 0.02 = 0.28.
     const provider = new TimedProvider((file) =>
       file === fileName(1)
         ? { delayMs: 10, costUsd: (q) => q.maxBudgetUsd ?? 0, leaveFirstPassUnreviewed: true }
         : { delayMs: 50, costUsd: () => 0.02 },
     );
-    const r = run(2, provider, { WACHIMAN_BATCH_BUDGET_USD: "0.5", WACHIMAN_BUDGET_USD: "0.6" });
+    const r = run(2, provider, { ...HAIKU, WACHIMAN_BATCH_BUDGET_USD: "0.5", WACHIMAN_BUDGET_USD: "0.8" });
     await r.done;
     expect(provider.requests).toHaveLength(3);
     // Batch 1's first call, batch 2, then batch 1's retry only after batch 2 finished.
     expect(provider.finished).toEqual([fileName(1), fileName(2), fileName(1)]);
     expect(provider.requests[2].prompt).toContain("second pass");
-    expect(provider.requests[2].maxBudgetUsd).toBeCloseTo(0.08, 5);
+    expect(provider.requests[2].maxBudgetUsd).toBeCloseTo(0.28, 5);
     // The retry used batch 1's slot: two batches, never more than two calls at once.
     expect(provider.maxInFlight).toBe(2);
     expect(r.posted.review?.body).toContain("reviewed after a retry");
+  });
+
+  test("a time-limit stop is not reported as a budget stop when a later batch has no room", async () => {
+    // Batch 1 is killed at the time limit after spending its $0.50 cap. Batch 2 finds $0.10 left, below
+    // the Haiku start floor ($0.168), so it never starts. The notice must name the time limit.
+    const provider = new TimedProvider((file) =>
+      file === fileName(1) ? { delayMs: 10, costUsd: (q) => q.maxBudgetUsd ?? 0, timeout: true } : { delayMs: 50 },
+    );
+    const r = run(2, provider, { ...HAIKU, WACHIMAN_BATCH_BUDGET_USD: "0.5", WACHIMAN_BUDGET_USD: "0.6" });
+    await r.done;
+    expect(provider.requests).toHaveLength(1);
+    const body = r.posted.review?.body ?? "";
+    expect(body).toContain("was killed at the 900 s time limit on a call");
+    expect(body).not.toContain("ran out of its budget");
   });
 
   test("a batch that throws ends the review after the running batches finish, and starts no more", async () => {

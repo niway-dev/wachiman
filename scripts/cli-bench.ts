@@ -1,9 +1,9 @@
 /**
  * Benchmark of the engine, without model time and without network.
  *
- *   bun run bench                 table on stdout
- *   bun run bench --json          JSON on stdout (the table is not printed)
- *   bun run bench --runs 25       CLI and review runs (default 15); the test case runs 5
+ *   bun run bench:cli                 table on stdout
+ *   bun run bench:cli --json          JSON on stdout (the table is not printed)
+ *   bun run bench:cli --runs 25       CLI and review runs (default 15); the test case runs 5
  *
  * Every launcher case runs `bin/wachiman.js`, so each run includes the launcher's `bun --version` probe
  * and the child Bun on `src/cli.ts`; the "under node" case only changes which runtime hosts the launcher.
@@ -22,7 +22,7 @@ import { branchRepo, removeTempRepos } from "../test/support/temp-repo";
 
 const root = join(import.meta.dir, "..");
 if (process.platform === "win32") {
-  console.error("bun run bench is POSIX only (macOS, Linux).");
+  console.error("bun run bench:cli is POSIX only (macOS, Linux).");
   process.exit(2);
 }
 const argv = process.argv.slice(2);
@@ -41,7 +41,7 @@ for (let i = 0; i < argv.length; i++) {
     }
     runs = Number(value);
   } else {
-    console.error(`Unknown argument ${argv[i]}. Usage: bun run bench [--json] [--runs N]`);
+    console.error(`Unknown argument ${argv[i]}. Usage: bun run bench:cli [--json] [--runs N]`);
     process.exit(2);
   }
 }
@@ -111,7 +111,7 @@ esac
 type Case = { name: string; cmd: string[]; cwd: string; runs: number; warmup: number; env: Record<string, string>; expect?: string };
 
 function build(): Case[] {
-  const home = temp("wachiman-bench-home-");
+  const home = temp("wachiman-cli-bench-home-");
   // The pinned Bun is called by path, so node_modules/.bin is not on PATH; node is, for the launcher case.
   const base: Record<string, string> = {
     PATH: [...(node ? [dirname(node)] : []), "/usr/bin", "/bin"].join(delimiter),
@@ -122,7 +122,7 @@ function build(): Case[] {
   };
   if (process.env.TMPDIR !== undefined) base.TMPDIR = process.env.TMPDIR;
 
-  const fakeBin = temp("wachiman-bench-fake-");
+  const fakeBin = temp("wachiman-cli-bench-fake-");
   const reviewFile = join(fakeBin, "review.json");
   writeFileSync(reviewFile, JSON.stringify(REVIEW));
   writeFileSync(join(fakeBin, "claude"), fakeScript(reviewFile), { mode: 0o755 });
@@ -200,7 +200,7 @@ try {
   cleanup();
 }
 if (failure) {
-  console.error(`bench failed: ${failure}`);
+  console.error(`cli-bench failed: ${failure}`);
   process.exit(1);
 }
 

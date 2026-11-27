@@ -556,7 +556,7 @@ describe("tiers and text output", () => {
     const lines = text.split("\n");
     expect(lines[0]).toBe("Wachiman 1.9.0 (source, /opt/wachiman, darwin-arm64, tier supported)");
     expect(text).toContain(
-      "Local mode: no telemetry and no GitHub requests by Wachiman; the code goes to the Claude account of the chosen profile. https://code.claude.com/docs/en/legal-and-compliance",
+      "Local mode: no telemetry unless you opted in, and no GitHub requests by Wachiman; the code goes to the Claude account of the chosen profile. https://code.claude.com/docs/en/legal-and-compliance",
     );
     expect(text.indexOf("Required")).toBeLessThan(text.indexOf("Optional"));
     expect(text).toMatch(/✗ tar /);

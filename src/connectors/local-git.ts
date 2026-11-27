@@ -17,7 +17,9 @@ import { UsageError } from "../config";
 import {
   instructionFileOf,
   instructionsFrom,
+  INSTRUCTION_PATHS,
   MAX_INSTRUCTION_BYTES,
+  OLD_FOCUS_PATHS,
   REVIEW_INPUT_FORMAT,
   resolveScope,
   type BaseInstructions,
@@ -73,6 +75,14 @@ export interface LocalRefs {
   mode?: { kind: "commit"; rev: string; merge: boolean } | { kind: "from"; rev: string };
 }
 
+/**
+ * Where `localSettingsCommit` leaves the refs it resolved, so the input built a moment later reads
+ * the same commits and does not resolve them again (every resolution is several git processes).
+ */
+export interface ResolvedRefs {
+  refs?: LocalRefs;
+}
+
 /** Runs git in the clone and returns stdout; a non-zero exit throws with the command and stderr. */
 function run(git: GitRunner, cwd: string, args: string[], maxBytes?: number) {
   const out = git(args, { cwd, timeoutMs: TIMEOUT_MS, maxBytes });
@@ -108,21 +118,30 @@ export function resolveRefs(
   const symbolic = git(["symbolic-ref", "-q", "--short", "HEAD"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
   if (symbolic.status !== 0) throw new UsageError("HEAD is detached; check out a branch, or pass --input");
   const headRef = symbolic.stdout.trim();
-  if (!ok(git, repoDir, ["rev-parse", "--verify", "-q", "HEAD"])) {
+  // One run is both the "has a commit" probe and the sha read: a probe and a read of the same
+  // revision are the same `git rev-parse`, and each git process costs several milliseconds.
+  const headProbe = git(["rev-parse", "--verify", "-q", "HEAD^{commit}"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+  if (headProbe.status !== 0) {
     throw new UsageError(`HEAD (${headRef}) has no commit yet; commit the change first, or pass --input`);
   }
+  const headSha = headProbe.stdout.trim();
   let baseRef = base;
+  let baseSha: string | undefined;
   if (baseRef === undefined) {
     const upstream = git(["symbolic-ref", "-q", "--short", "refs/remotes/origin/HEAD"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
     if (upstream.status === 0 && upstream.stdout.trim() !== "") baseRef = upstream.stdout.trim();
-    else if (ok(git, repoDir, ["rev-parse", "--verify", "-q", "main^{commit}"])) baseRef = "main";
-    else throw new UsageError("No base branch found; pass --base <ref>");
+    else {
+      const main = git(["rev-parse", "--verify", "-q", "main^{commit}"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+      if (main.status !== 0) throw new UsageError("No base branch found; pass --base <ref>");
+      baseRef = "main";
+      baseSha = main.stdout.trim();
+    }
   }
-  if (!ok(git, repoDir, ["rev-parse", "--verify", "-q", `${baseRef}^{commit}`])) {
-    throw new UsageError(`--base ${baseRef} is not a commit in this clone.`);
+  if (baseSha === undefined) {
+    const baseProbe = git(["rev-parse", "--verify", "-q", `${baseRef}^{commit}`], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+    if (baseProbe.status !== 0) throw new UsageError(`--base ${baseRef} is not a commit in this clone.`);
+    baseSha = baseProbe.stdout.trim();
   }
-  const baseSha = run(git, repoDir, ["rev-parse", "--verify", `${baseRef}^{commit}`]).trim();
-  const headSha = run(git, repoDir, ["rev-parse", "--verify", "HEAD^{commit}"]).trim();
   const mb = git(["merge-base", baseSha, headSha], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
   if (mb.status !== 0 || mb.stdout.trim() === "") throw new UsageError(`\`${baseRef}\` and HEAD have no common ancestor`);
   const mergeBase = mb.stdout.trim();
@@ -144,10 +163,12 @@ export function resolveRefs(
 
 /** The commit `rev` names, as a sha; a usage error when it is not a commit of this clone. */
 function commitOf(git: GitRunner, repoDir: string, flag: string, rev: string) {
-  if (rev === "" || rev.startsWith("-") || !ok(git, repoDir, ["rev-parse", "--verify", "-q", `${rev}^{commit}`])) {
-    throw new UsageError(`${flag} ${rev} is not a commit in this clone.`);
-  }
-  return run(git, repoDir, ["rev-parse", "--verify", `${rev}^{commit}`]).trim();
+  const notACommit = new UsageError(`${flag} ${rev} is not a commit in this clone.`);
+  if (rev === "" || rev.startsWith("-")) throw notACommit;
+  // One run probes and reads, as in `resolveRefs`.
+  const probe = git(["rev-parse", "--verify", "-q", `${rev}^{commit}`], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+  if (probe.status !== 0) throw notACommit;
+  return probe.stdout.trim();
 }
 
 /** Where a commit's review starts: its first parent, or the empty tree for a root commit. */
@@ -186,11 +207,13 @@ function resolveCommit(repoDir: string, rev: string, git: GitRunner): LocalRefs 
 function resolveFrom(repoDir: string, rev: string, git: GitRunner, maxDepth: number): LocalRefs {
   const headRef = branchOfHead(git, repoDir);
   if (headRef === undefined) throw new UsageError("HEAD is detached; check out a branch, or pass --input");
-  if (!ok(git, repoDir, ["rev-parse", "--verify", "-q", "HEAD"])) {
+  // One run probes and reads, as in `resolveRefs`.
+  const headProbe = git(["rev-parse", "--verify", "-q", "HEAD^{commit}"], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+  if (headProbe.status !== 0) {
     throw new UsageError(`HEAD (${headRef}) has no commit yet; commit the change first, or pass --input`);
   }
   const from = commitOf(git, repoDir, "--from", rev);
-  const headSha = run(git, repoDir, ["rev-parse", "--verify", "HEAD^{commit}"]).trim();
+  const headSha = headProbe.stdout.trim();
   if (!ok(git, repoDir, ["merge-base", "--is-ancestor", from, headSha])) {
     throw new UsageError(`--from ${short(from)} is not an ancestor of HEAD (${headRef}, ${short(headSha)}); pick a commit of this branch.`);
   }
@@ -329,23 +352,68 @@ export function localFiles(repoDir: string, mergeBase: string, head: string, git
   return files.sort((a, b) => (a.filename < b.filename ? -1 : a.filename > b.filename ? 1 : 0));
 }
 
-/** One blob's bytes, or null when `<sha>:<path>` is not a regular file (absent, a folder, a link). */
-function blobAt(repoDir: string, sha: string, path: string, git: GitRunner): Buffer | null {
-  const entry = git(["ls-tree", "-z", sha, "--", path], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
-  if (entry.status !== 0) throw new Error(`git ls-tree ${short(sha)} -- ${path} failed: ${entry.stderr ?? entry.error}`);
-  // `<mode> <type> <sha>\t<path>`; only the exact path, as a regular file, counts.
-  const [meta, name] = entry.stdout.split("\0")[0].split("\t");
-  if (name !== path) return null;
-  const [mode, type, blob] = meta.split(" ");
-  if (type !== "blob" || (mode !== "100644" && mode !== "100755")) return null;
-  const out = spawnSync("git", [...GIT_BASE_ARGS, "cat-file", "blob", blob], {
+type TreeEntry = { mode: string; type: string; blob: string };
+
+/** The `<mode> <type> <sha>\t<path>` entries of `git ls-tree -z`, by path. */
+function treeEntries(stdout: string): Map<string, TreeEntry> {
+  const entries = new Map<string, TreeEntry>();
+  for (const line of stdout.split("\0")) {
+    if (line === "") continue;
+    const [meta, name] = line.split("\t");
+    const [mode, type, blob] = meta.split(" ");
+    entries.set(name, { mode, type, blob });
+  }
+  return entries;
+}
+
+/** The bytes of a regular file's blob, or null for anything else (a folder, a link, a submodule). */
+function regularBlob(repoDir: string, entry: TreeEntry | undefined): Buffer | null {
+  if (!entry || entry.type !== "blob" || (entry.mode !== "100644" && entry.mode !== "100755")) return null;
+  const out = spawnSync("git", [...GIT_BASE_ARGS, "cat-file", "blob", entry.blob], {
     cwd: repoDir,
     env: gitEnv(),
     timeout: TIMEOUT_MS,
     maxBuffer: 64 * 1024 * 1024,
   });
-  if (out.status !== 0) throw new Error(`git cat-file blob ${blob} failed: ${out.stderr?.toString() ?? out.error}`);
+  if (out.status !== 0) throw new Error(`git cat-file blob ${entry.blob} failed: ${out.stderr?.toString() ?? out.error}`);
   return out.stdout;
+}
+
+/** One blob's bytes, or null when `<sha>:<path>` is not a regular file (absent, a folder, a link). */
+function blobAt(repoDir: string, sha: string, path: string, git: GitRunner): Buffer | null {
+  const entry = git(["ls-tree", "-z", sha, "--", path], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+  if (entry.status !== 0) throw new Error(`git ls-tree ${short(sha)} -- ${path} failed: ${entry.stderr ?? entry.error}`);
+  // Only the exact path, as a regular file, counts.
+  return regularBlob(repoDir, treeEntries(entry.stdout.split("\0")[0]).get(path));
+}
+
+/** Reads a file of one commit: the bytes, or null when it is not a regular file there. */
+export type BlobReader = (path: string) => Buffer | null;
+
+/** The files a local review reads at its start commit: the instruction files (and the old focus file) and the settings file. */
+const START_COMMIT_PATHS: readonly string[] = [...INSTRUCTION_PATHS, ...OLD_FOCUS_PATHS, SETTINGS_PATH];
+
+/**
+ * A `BlobReader` for `sha` that lists `paths` with one `git ls-tree` the first time any of them is
+ * read, where `blobAt` runs one per file; other paths still take their own. A listing that fails
+ * (a `sha` this clone does not have) fails every read, as the separate runs did.
+ */
+export function blobReader(
+  repoDir: string,
+  sha: string,
+  git: GitRunner = spawnGit,
+  paths: readonly string[] = START_COMMIT_PATHS,
+): BlobReader {
+  let listing: Map<string, TreeEntry> | Error | undefined;
+  return (path) => {
+    if (!paths.includes(path)) return blobAt(repoDir, sha, path, git);
+    if (listing === undefined) {
+      const out = git(["ls-tree", "-z", sha, "--", ...paths], { cwd: repoDir, timeoutMs: TIMEOUT_MS });
+      listing = out.status !== 0 ? new Error(`git ls-tree ${short(sha)} failed: ${out.stderr ?? out.error}`) : treeEntries(out.stdout);
+    }
+    if (listing instanceof Error) throw listing;
+    return regularBlob(repoDir, listing.get(path));
+  };
 }
 
 /**
@@ -357,11 +425,12 @@ export function localInstructions(
   mergeBase: string,
   warn: (line: string) => void,
   git: GitRunner = spawnGit,
+  read: BlobReader = (path) => blobAt(repoDir, mergeBase, path, git),
 ): BaseInstructions {
   return instructionsFrom(
     mergeBase,
     (path) => {
-      const bytes = blobAt(repoDir, mergeBase, path, git);
+      const bytes = read(path);
       return bytes ? instructionFileOf(path, bytes) : null;
     },
     warn,
@@ -387,11 +456,18 @@ export interface SettingsScope {
  * Undefined when the scope does not resolve; the review's own ref checks report that, with their
  * message, a moment later.
  */
-export function localSettingsCommit(repoDir: string, scope: SettingsScope, git: GitRunner = spawnGit): string | undefined {
+export function localSettingsCommit(
+  repoDir: string,
+  scope: SettingsScope,
+  git: GitRunner = spawnGit,
+  resolved?: ResolvedRefs,
+): string | undefined {
   if (scope.inputBase !== undefined) return scope.inputBase;
   try {
     if (scope.workingTree) return run(git, repoDir, ["rev-parse", "--verify", "HEAD^{commit}"]).trim();
-    return resolveRefs(repoDir, scope.base, git, scope.maxDepth, { commit: scope.commit, from: scope.from }).mergeBase;
+    const refs = resolveRefs(repoDir, scope.base, git, scope.maxDepth, { commit: scope.commit, from: scope.from });
+    if (resolved) resolved.refs = refs;
+    return refs.mergeBase;
   } catch {
     return undefined;
   }
@@ -401,10 +477,15 @@ export function localSettingsCommit(repoDir: string, scope: SettingsScope, git: 
  * `.wachiman.yml` as it is at `sha`, parsed, or undefined when there is none there (or `sha` is
  * not in this clone: an `--input` file can name one that is not). An invalid file is a usage error.
  */
-export function localRepoSettings(repoDir: string, sha: string, git: GitRunner = spawnGit): RepoSettings | undefined {
+export function localRepoSettings(
+  repoDir: string,
+  sha: string,
+  git: GitRunner = spawnGit,
+  read: BlobReader = (path) => blobAt(repoDir, sha, path, git),
+): RepoSettings | undefined {
   let bytes: Buffer | null;
   try {
-    bytes = blobAt(repoDir, sha, SETTINGS_PATH, git);
+    bytes = read(SETTINGS_PATH);
   } catch {
     return undefined;
   }
@@ -426,9 +507,10 @@ export function localReviewPolicy(
   where: string,
   warn: (line: string) => void,
   git: GitRunner = spawnGit,
+  read?: BlobReader,
 ): ReviewPolicy {
   try {
-    return reviewPolicyOf(localRepoSettings(repoDir, sha, git), warn);
+    return reviewPolicyOf(localRepoSettings(repoDir, sha, git, read), warn);
   } catch (error) {
     if (!(error instanceof UsageError)) throw error;
     warn(ignoredSettingsNote(error.message, `${where} ${short(sha)}`));
@@ -702,17 +784,21 @@ export function buildLocalInput(p: {
   log: (line: string) => void;
   warn: (line: string) => void;
   git?: GitRunner;
+  /** Refs the caller already resolved for these same flags (`localSettingsCommit` leaves them); resolved here when absent. */
+  refs?: LocalRefs;
 }): { input: ReviewInput; snapshotDir: string; refs: LocalRefs } {
   const git = p.git ?? spawnGit;
-  const refs = resolveRefs(p.repoDir, p.base, git, p.maxDepth, { commit: p.commit, from: p.from });
+  const refs = p.refs ?? resolveRefs(p.repoDir, p.base, git, p.maxDepth, { commit: p.commit, from: p.from });
   const files = localFiles(p.repoDir, refs.mergeBase, refs.headSha, git);
   const { paths, ignored } = resolveScope(
     p.paths,
     files.map((f) => f.filename),
   );
   if (ignored.length > 0) p.log(`Not paths in this change, ignored: ${ignored.join(" ")}`);
-  const instructions = localInstructions(p.repoDir, refs.mergeBase, p.warn, git);
-  const policy = localReviewPolicy(p.repoDir, refs.mergeBase, "the merge-base", p.warn, git);
+  // The instruction files and the settings file at the merge-base come from one listing of its tree.
+  const atStart = blobReader(p.repoDir, refs.mergeBase, git);
+  const instructions = localInstructions(p.repoDir, refs.mergeBase, p.warn, git, atStart);
+  const policy = localReviewPolicy(p.repoDir, refs.mergeBase, "the merge-base", p.warn, git, atStart);
   const { pathRules, pathPolicyChanged } = localPathPolicy(
     () => blobAt(p.repoDir, refs.headSha, SETTINGS_PATH, git),
     files,

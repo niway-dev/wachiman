@@ -254,12 +254,14 @@ count and the number of batches on stderr, then `verify: off` or `verify: on (<m
 prints, never posts:** the report goes to stdout (or `--output`), so `--format json` on stdout is
 the result alone.
 
-Size never blocks a run. When the estimated cost of the whole review is above the larger of
-`WACHIMAN_SIZE_GATE_USD` and `WACHIMAN_BUDGET_USD`, `local` prints one warning on stderr
-before the first model call and continues. The run is capped by `WACHIMAN_BUDGET_USD` (default $3)
-and each call by `WACHIMAN_BATCH_BUDGET_USD` (passed to Claude Code as `--max-budget-usd`, soft);
-there is no `WACHIMAN_AUTO_BUDGET_USD` ceiling locally. See [the size gate](costs.md#the-size-gate)
-and [ADR 0037](adr/0037-a-pull-request-above-the-size-gate-is-not-reviewed.md).
+Size never blocks a run. When the estimated cost of the whole review is above
+`WACHIMAN_BUDGET_USD` (less the verifier and memory reserves when they apply), `local` prints one warning on stderr before the first model call and
+continues (`WACHIMAN_SIZE_GATE_USD` has no effect). The run is capped by `WACHIMAN_BUDGET_USD`
+(default $3) and each call by `WACHIMAN_BATCH_BUDGET_USD` (passed to Claude Code as
+`--max-budget-usd`, soft); there is no `WACHIMAN_AUTO_BUDGET_USD` ceiling locally. In GitHub mode the
+same estimate is compared with the room the run may spend and the review is skipped instead: see
+[the room gate](costs.md#the-room-gate) and
+[ADR 0062](adr/0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md).
 
 It refuses to start, with exit 2, when `ANTHROPIC_API_KEY` is set, when `WACHIMAN_PROVIDER`
 is not `claude-code`, for a detached or unborn `HEAD`, a `HEAD` on the base branch without `--base`, a range deeper than `--max-depth`, a base with no merge-base, `--base`, `--from` and `--commit` used together, a `--from` that is not an ancestor of `HEAD`, a `--commit` or `--from` that is not a commit, a refused
@@ -403,7 +405,7 @@ Two differences from `local` that matter:
   the store is written only when that flag is given. `ask` writes nothing to the store; the only
   file it writes is `--output`, if you pass one. The local promise in
   [ADR 0019](adr/0019-a-review-core-behind-source-and-sink-ports-and-a-local-subscription-mode.md)
-  (no telemetry, no GitHub request) is unchanged.
+  (no telemetry unless you opted in, no GitHub request) is unchanged.
 - **It refuses `ANTHROPIC_API_KEY`, as `local` does**, so the call goes to your subscription.
 
 Exit codes: 0 an answer was printed (an answer that says what it could not answer is still an
@@ -597,12 +599,14 @@ stderr. The exit codes are the same as without `--json`.
   ],
   "local": { "status": "pending", "pending": ["wachiman setup --profile <name> --yes --repo-dir /path/to/repo"] },
   "github": { "status": "pending", "pending": ["add ANTHROPIC_API_KEY secret", "commit and open a PR"] },
+  "telemetry": "pending",
   "error": null
 }
 ```
 
 - `files` lists each file `init` considered, relative to the repository top level, in this order: the workflow, `.wachiman.yml`, the PR description template (and `.github/pr-template.json` when it was written), the agent instruction file that holds the pointer (the file actually written, so the target of a link; `created` or `replaced` for an added or updated block, `refused` when it was skipped or failed, nothing when `--no-agent-pointer`). `action` is `created`, `replaced`, `unchanged`, `would-create`, `would-replace` (the last two only with `--dry-run`) or `refused`. A dry run reports `ok: true` and exits 0 even when a file is `refused`. A refused workflow or `.wachiman.yml` (one that differs, without `--force`) means the real run would stop with exit 2; a refused PR template is reported and the real run continues. `backup` names where the earlier file was kept. In a dry run, the rendered workflow is in that entry's `content`.
 - `local.status` and `github.status` are `pending` or `not-used`: `init` alone never makes either side ready. `not-used` means the mode does not include it. `init` never binds an account without a terminal, so `local` is `pending` for `local` and `both`, with the exact `wachiman setup` command to run (replace `<name>` with a profile). `github` is `pending` for `github` and `both`: `init` neither checks nor creates the secret and never commits, pushes or opens a pull request.
+- `telemetry` is the state of the opt-in usage metrics: `pending` (you were never asked; an agent relays the question to the owner, who answers it in a terminal or runs `wachiman telemetry on`, and never answers it itself), `yes`, `no`, or `blocked` (`DO_NOT_TRACK`, `WACHIMAN_TELEMETRY` set to `0`, `false`, `off` or `no`, `CI` or `GITHUB_ACTIONS` stops sending). `init --json` stores nothing. The field is additive.
 - On a usage error, `ok` is `false`, `error` is `{ "code": "usage", "message": "..." }`, `files` lists what was already written or refused (empty when nothing was), and the exit code is 2. Any other failure has `"code": "failed"` and exit 1. When `--repo-dir` itself is the problem, `repoDir` is that value resolved to an absolute path.
 - Running the same `init --json` again reports every file `unchanged` and leaves the repository as it was.
 
@@ -644,13 +648,38 @@ engine and the GitHub Actions path never load them. A clone that never ran `bun 
 command; only a terminal screen stops, with a message that names `bun install`, and `--yes` or flags
 skip it.
 
+### `telemetry`
+
+```
+wachiman telemetry on|off|status|reset
+```
+
+Opt-in usage metrics: counts and categories of a review (diff sizes, chunk counts, tokens, duration,
+error categories, finding counts, languages and layout), never code, prompts, paths, repository names or
+the identifier of any account. The exact fields are in [telemetry-api.md](telemetry-api.md) and
+[on-your-machine.md](on-your-machine.md#telemetry). Nothing is sent without a stored yes, and never when
+`DO_NOT_TRACK`, `CI` or `GITHUB_ACTIONS` is set or `WACHIMAN_TELEMETRY` is `0`, `false`, `off` or `no` (any case).
+
+- **`init` asks once.** Interactive `wachiman init` asks last, "Share usage metrics?", with No as the default,
+  and stores the answer. It does not ask when `DO_NOT_TRACK` is set, `WACHIMAN_TELEMETRY` is `0`, `false`, `off` or `no`, or `CI` or `GITHUB_ACTIONS` is set (the `blocked` state), with `--dry-run`, you already answered, or without a terminal; with
+  `--json` or `--yes` it stores nothing.
+- **`on`** shows the same text and asks `[y/N]`. It needs a terminal and refuses (exit 2) without one, and when
+  `CI` or `GITHUB_ACTIONS` is set. A new `on` after an `off` keeps the same installation ID.
+- **`off`** stores No. It stops sending from the next review and deletes nothing already received.
+- **`status`** prints your choice, the installation ID and whether `DO_NOT_TRACK`, `CI`, `GITHUB_ACTIONS` or
+  `WACHIMAN_TELEMETRY` set to `0`, `false`, `off` or `no` blocks sending now. Send the ID with a deletion request, before any `reset`.
+- **`reset`** makes a new installation ID and keeps your choice.
+
+The choice lives in `~/.wachiman/telemetry.json` (`WACHIMAN_HOME`), never in a repository. `off`, `status` and
+`reset` work anywhere and make no request. Exit codes: 0 done (`status` also when the choice file cannot be read, and says so); 1 `on`, `off` or `reset` found a choice file that cannot be read and changed nothing; 2 usage error or `on` refused; 130 `on` cancelled.
+
 ### `upgrade`
 
 ```
 wachiman upgrade [--check] [--repo-only] [--to <version>] [--repo-dir <dir>]
 ```
 
-The caller workflow pins an exact release (`uses: niway-dev/wachiman/.github/workflows/review.yml@v1.21.0`), <!-- x-release-please-version -->
+The caller workflow pins an exact release (`uses: niway-dev/wachiman/.github/workflows/review.yml@v1.22.0`), <!-- x-release-please-version -->
 so a new release never reaches CI without a change you review. `upgrade` makes that change one command, in two steps.
 
 1. **The CLI.** It reads the latest version with `npm view wachiman version wachimanDataCollection --json` (one request), then installs it with the package manager
@@ -1062,7 +1091,7 @@ on:
 permissions: { contents: write, pull-requests: write }
 jobs:
   remember:
-    uses: niway-dev/wachiman/.github/workflows/wachiman-memory.yml@v1.21.0
+    uses: niway-dev/wachiman/.github/workflows/wachiman-memory.yml@v1.22.0
     with:
       operator: your-github-login
 ```
@@ -1355,8 +1384,9 @@ Read by the account commands and `local`:
 turns the typing off and prints Wachi's scene at once. `NO_COLOR` (non-empty) turns every color off in the help,
 the menus and the intro, and `TERM=dumb` also switches to ASCII symbols.
 
-`DO_NOT_TRACK` is honored, as [donottrack.sh](https://donottrack.sh/) describes. Wachiman sends no usage data today, so it
-changes nothing now; set to `1` (or any value but empty, `0` or `false`), it means no future opt-in can turn collection on.
+`DO_NOT_TRACK` is honored, as [donottrack.sh](https://donottrack.sh/) describes. Wachiman sends usage metrics only after an opt-in
+([`wachiman telemetry`](#telemetry)); set to `1` (or any value but empty, `0` or `false`), `DO_NOT_TRACK` stops them whatever you chose,
+and `init` does not ask the question.
 It does not change what Claude Code, Codex or Bun send. Wachiman never sets it and never passes it on.
 
 All optional settings (`WACHIMAN_BUDGET_USD`, `WACHIMAN_MODEL`, `WACHIMAN_PROVIDER`,
