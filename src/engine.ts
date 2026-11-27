@@ -5499,6 +5499,30 @@ must decide: direction (whether this is the right approach), pattern-others-will
 empty list is normal. Do not state a risk level.`;
 
 /**
+ * The sibling-conventions paragraph (issue 330). A defect can be what a new member of a group leaves
+ * out, so no line of the diff is wrong. The model reads the siblings itself (it has read tools on the
+ * head); the engine passes no extra file. Only a convention every compared sibling shares counts.
+ */
+export const SIBLING_CONVENTIONS_PARAGRAPH = `## Conventions the siblings share
+
+When this part ADDS a new member to a group of siblings (a route, controller, handler, use case,
+command or similar, in the same file or directory), read two or three of its siblings in the
+repository, even when the diff does not touch them. List the conventions ALL the compared siblings
+share: decorators and annotations, guards, role or permission checks, input validation, versioning,
+documentation annotations, error handling, logging. Report each one the new member lacks as a
+finding, and name in the body the sibling you compared against (\`path:line\`). A convention that only
+some siblings follow is not one: report nothing for it, and report nothing where the new member
+differs on purpose and the diff shows why.
+
+Severity: a missing access, role or permission check is at least "fix" (the missing call is the
+bug, even though no added line is wrong). A missing documentation annotation (Swagger, an API tag)
+is "consider". A missing validation or error handling is judged by what it lets through.
+
+A forced cast between a contract type and its implementation at a boundary (\`as X\`,
+\`as unknown as X\`) where the siblings pass a checked type is also a signal: it can hide a field
+that was renamed on one side. Read both types and report the mismatch if there is one.`;
+
+/**
  * The comment rule (`review.comments_point_to_docs`, ADR 0064), added to the batch prompt only
  * for a repository that turned it on. A comment is allowed as a pointer to a document or as a
  * tool directive; any other added comment is a "consider" finding that names its category and
@@ -5597,7 +5621,9 @@ finding that already has an open thread.
 `
       : ""
   }
-${RISK_PARAGRAPH}${ctx.claims ? `\n\n${claimsParagraph(ctx.claims)}` : ""}${ctx.commentsPointToDocs ? `\n\n${COMMENT_PARAGRAPH}` : ""}
+${RISK_PARAGRAPH}
+
+${SIBLING_CONVENTIONS_PARAGRAPH}${ctx.claims ? `\n\n${claimsParagraph(ctx.claims)}` : ""}${ctx.commentsPointToDocs ? `\n\n${COMMENT_PARAGRAPH}` : ""}
 
 ${FLOW_QUESTIONS}${renderDataPathQuestions(questions)}
 

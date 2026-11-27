@@ -64,6 +64,10 @@ Above all of them sit the engine's own rules, which the instructions are told ne
   wrong result is a Fix or higher even when rare),
 - the **confidence definition** (`high`, `medium`, `low`, separate from severity; a `low`
   confidence finding at Fix or above is posted as a question, which the engine also enforces),
+- the **sibling conventions** (a new route, controller, handler or use case is compared with two or
+  three siblings; a guard, role check, validation or annotation all of them share and it lacks is
+  reported, naming the sibling; a missing access check is at least a Fix, a missing documentation
+  annotation a Consider; a forced `as X` cast at a contract boundary is a signal),
 - the **flow questions** (what a new action or call changes, what the existing equivalent path
   does, how the result reaches the user, what happens when background work finishes or the user
   goes Back, what happens when a new async call, handler, window or file read fails), and the
