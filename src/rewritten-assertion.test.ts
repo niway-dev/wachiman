@@ -48,6 +48,20 @@ describe("rewrittenAssertionLines", () => {
   });
 });
 
+describe("other languages", () => {
+  test("reads Go and Python test files and Rust macros", () => {
+    const go = {
+      filename: "pkg/stock_test.go",
+      additions: 1,
+      deletions: 1,
+      patch: "@@ -5,1 +5,1 @@\n-\tassert.Equal(t, 1, f())\n+\tassert.Equal(t, 2, f())",
+    };
+    const src = { filename: "pkg/stock.go", additions: 1, deletions: 1, patch: "@@ -1,1 +1,1 @@\n-a\n+b" };
+    expect(findRewrittenAssertions([src, go]).assertions).toEqual([{ path: "pkg/stock_test.go", line: 5 }]);
+    expect(rewrittenAssertionLines("@@ -2,1 +2,1 @@\n-    assert_eq!(f(1), 2);\n+    assert_eq!(f(1), 3);")).toEqual([2]);
+  });
+});
+
 describe("findRewrittenAssertions", () => {
   test("needs a source change in the same batch", () => {
     expect(findRewrittenAssertions([REWRITTEN_TEST]).assertions).toEqual([]);

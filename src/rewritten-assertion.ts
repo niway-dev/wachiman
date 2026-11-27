@@ -22,7 +22,11 @@ interface BatchFile {
 }
 
 /** A line that asserts: `expect(...)`, `assertEqual(`, `t.is(`, `should.equal`, a bare `assert x`. */
-const ASSERTION = /\b(?:expect|assert\w*|should|t\.(?:is|equal|deepEqual))\b\s*[(.]|^\s*assert\s/;
+const ASSERTION = /\b(?:expect|assert\w*|should|t\.(?:is|equal|deepEqual))\b\s*[(.!]|^\s*assert\s/;
+
+/** Test files `fileKind` does not know: `foo_test.go`, `test_foo.py`, `foo_test.py`, `FooTest.java`, `FooTests.kt`. */
+const OTHER_TEST_FILE = /(?:^|\/)(?:test_[^/]*\.py|[^/]*_test\.(?:go|py|rs)|[^/]*Tests?\.(?:java|kt|swift))$/;
+const isTestFile = (path: string) => fileKind(path) === "test" || OTHER_TEST_FILE.test(path);
 
 const squash = (s: string) => s.replace(/\s+/g, "");
 
@@ -68,11 +72,11 @@ export function rewrittenAssertionLines(patch: string | undefined): number[] {
 /** The batch's rewritten assertions, only when the same batch also changes a source file. */
 export function findRewrittenAssertions(files: readonly BatchFile[]): { sources: string[]; assertions: RewrittenAssertion[] } {
   const sources = files
-    .filter((f) => fileKind(f.filename) === "code" && isSourceFile(f.filename) && f.additions + f.deletions > 0)
+    .filter((f) => fileKind(f.filename) === "code" && !isTestFile(f.filename) && isSourceFile(f.filename) && f.additions + f.deletions > 0)
     .map((f) => f.filename);
   if (sources.length === 0) return { sources, assertions: [] };
   const assertions = files
-    .filter((f) => fileKind(f.filename) === "test")
+    .filter((f) => isTestFile(f.filename))
     .flatMap((f) => rewrittenAssertionLines(f.patch).map((line) => ({ path: f.filename, line })));
   return { sources, assertions };
 }
