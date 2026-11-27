@@ -175,6 +175,8 @@ export interface ReviewView {
   notices: {
     instructionChanges?: { files: string[]; baseSha: string };
     pathPolicyChange?: { baseSha: string };
+    /** The files read by `format_model` because only listed formatting commits touched them (ADR 0063). */
+    formatReview?: { model: string; effort: string; files: string[] };
   };
   verifier: VerifierView;
   earlierThreads: EarlierThreads;
@@ -256,6 +258,7 @@ export interface ViewInput {
   unreviewable?: Unreviewable[];
   instructionChanges?: { files: string[]; baseSha: string };
   pathPolicyChange?: { baseSha: string };
+  formatReview?: { model: string; effort: string; files: string[] };
   verification?: ResultVerificationV2;
   riskMap?: RiskMap;
   fidelity?: Fidelity;
@@ -433,6 +436,7 @@ export function buildView(input: ViewInput): ReviewView {
     notices: {
       ...(input.instructionChanges && input.instructionChanges.files.length > 0 ? { instructionChanges: input.instructionChanges } : {}),
       ...(input.pathPolicyChange ? { pathPolicyChange: input.pathPolicyChange } : {}),
+      ...(input.formatReview && input.formatReview.files.length > 0 ? { formatReview: input.formatReview } : {}),
     },
     verifier,
     earlierThreads,

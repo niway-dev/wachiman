@@ -12,6 +12,7 @@ import {
   indent,
   instructionNote,
   policyNote,
+  formatNote,
   location,
   notReviewed,
   plainLabel,
@@ -47,6 +48,8 @@ export function renderTerminal(
   if (note) blocks.push(note);
   const policy = policyNote(result);
   if (policy) blocks.push(policy);
+  const format = formatNote(result);
+  if (format) blocks.push(format);
   const workspace = workspaceLines(result);
   if (workspace.length > 0) blocks.push(`Workspace:\n${indent(workspace.map((l) => `- ${l}`).join("\n"), "  ")}`);
   if (result.riskMap) blocks.push(renderRiskMap(result.riskMap, "Risk map:", { style: PLAIN_STYLE }));

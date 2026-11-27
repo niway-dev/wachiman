@@ -334,3 +334,32 @@ describe("the history annotation", () => {
     );
   });
 });
+
+describe("the format review note (ADR 0063, AC19)", () => {
+  const withFormat = (n = 2): ReviewResult => {
+    const r = local();
+    r.formatReview = { model: "claude-haiku-5-5", effort: "low", files: Array.from({ length: n }, (_, i) => `src/fmt${i}.ts`) };
+    return r;
+  };
+
+  test("the terminal and the Markdown report name the model, the effort, the reason and the files", () => {
+    for (const out of [renderTerminal(withFormat(), {}), renderMarkdown(withFormat(), {})]) {
+      expect(out).toContain("2 files reviewed by claude-haiku-5-5 at effort low");
+      expect(out).toContain("changed only by commits in .git-blame-ignore-revs");
+      expect(out).toContain("src/fmt0.ts");
+      expect(out).toContain("src/fmt1.ts");
+    }
+  });
+
+  test("the list is bounded at 30 names", () => {
+    const out = renderTerminal(withFormat(45), {});
+    expect(out).toContain("src/fmt29.ts");
+    expect(out).not.toContain("src/fmt30.ts");
+    expect(out).toContain("and 15 more");
+  });
+
+  test("a result without format-reviewed files has no note, and the /1 result never carries it", () => {
+    expect(renderTerminal(local(), {})).not.toContain("reviewed by claude-haiku");
+    expect("formatReview" in toResultV1(withFormat())).toBe(false);
+  });
+});

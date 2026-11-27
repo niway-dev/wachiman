@@ -11,6 +11,7 @@ import {
   estimateLine,
   instructionNote,
   policyNote,
+  formatNote,
   location,
   notReviewed,
   markdownLabel,
@@ -51,6 +52,8 @@ export function renderMarkdown(
   if (note) parts.push(note);
   const policy = policyNote(result);
   if (policy) parts.push(policy);
+  const format = formatNote(result);
+  if (format) parts.push(format);
   const workspace = workspaceLines(result);
   if (workspace.length > 0) parts.push("## Workspace", workspace.map((l) => `- ${l}`).join("\n"));
   if (result.riskMap) parts.push(renderRiskMap(result.riskMap, "## Risk map"));

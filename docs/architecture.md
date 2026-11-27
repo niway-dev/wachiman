@@ -101,6 +101,9 @@ All names are in `src/engine.ts` unless a file is given.
    docs. The limits count changed lines and diff characters, not what fits in a model's context, and
    an oversized file is still sent whole. *Why:* a smaller batch is meant to keep the model from
    skimming, and risk order makes the budget cut-off land on the files the heuristic ranks lowest.
+   Files whose every commit in the range is listed in `.git-blame-ignore-revs` are planned in
+   batches of their own, placed after the main ones and read by `format_model` at effort `low`
+   ([ADR 0063](adr/0063-files-changed-only-by-commits-in-git-blame-ignore-revs-are-reviewed-by-a-cheaper-model.md)); the estimate prices the two groups apart.
 
 4. **Prompt assembly.** `buildBatchPrompt` writes, in order: the pull request and commit, the
    pointer to the ADRs, the list of every selected file for orientation (excluded files are only

@@ -13,7 +13,8 @@
  */
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { loadConfig, UsageError, type EngineConfig } from "./config";
+import { FORMAT_EFFORT, loadConfig, UsageError, type EngineConfig } from "./config";
+import { IGNORE_REVS_PATH } from "./ignore-revs";
 import {
   buildLocalInput,
   DEFAULT_MAX_DEPTH,
@@ -35,10 +36,12 @@ import {
   touchedPathsOf,
   estimateFor,
   filterFiles,
+  formatGroupNames,
   planBatches,
   reviewChange,
   reviewOptionsOf,
   splitUnreviewable,
+  usd3,
   type ReviewInput,
   type ReviewResult,
 } from "./engine";
@@ -294,6 +297,8 @@ export function readInputFile(path: string): Omit<ReviewInput, "headDir"> {
     throw new UsageError(`--input ${path}: pathPolicyChanged must be true when present.`);
   if (input.commentsPointToDocs !== undefined && input.commentsPointToDocs !== true)
     throw new UsageError(`--input ${path}: commentsPointToDocs must be true when present.`);
+  if (input.formatOnly !== undefined && (!Array.isArray(input.formatOnly) || input.formatOnly.some((f: unknown) => !isString(f))))
+    throw new UsageError(`--input ${path}: formatOnly must be a list of file names when present.`);
   // In memory only (docs/formats): the head the agent reads is always the engine's own snapshot.
   if ("headDir" in input) throw new UsageError(`--input ${path} carries headDir, which a review input file never holds.`);
   return input as Omit<ReviewInput, "headDir">;
@@ -345,6 +350,8 @@ export interface LocalSession {
   profileNote?: string;
   provider: ProviderAdapter;
   verifier?: ProviderAdapter;
+  /** The adapter for the files only listed formatting commits touched (ADR 0063); at effort low. */
+  formatProvider?: ProviderAdapter;
   /** Set by Ctrl-C: every later call then fails at once. */
   state: { interrupted: boolean };
 }
@@ -391,6 +398,8 @@ export function withLocalSettings(
 export function openLocalSession(p: {
   profile?: string;
   verify: boolean | undefined;
+  /** False for a command that never routes files to `format_model` (`ask`): no second adapter is built or checked. */
+  format?: boolean;
   repoDir: string;
   env: Record<string, string | undefined>;
   stderr: (line: string) => void;
@@ -477,7 +486,23 @@ export function openLocalSession(p: {
       )
     : undefined;
   verifier?.preflight();
-  return { config, profile, profileNote, provider, verifier, state };
+  // The format model is its own adapter, always at effort low (ADR 0063); off when `format_model` is unset.
+  const formatProvider = config.formatModel && p.format !== false
+    ? interruptible(
+        (deps.getProvider ?? defaultGetProvider)("claude-code", {
+          ...config,
+          model: config.formatModel,
+          effort: FORMAT_EFFORT,
+          dryRun: false,
+          auth: "subscription",
+          configDir,
+          binary: profile.kind === "external" ? profile.binary : undefined,
+        }),
+        state,
+      )
+    : undefined;
+  formatProvider?.preflight();
+  return { config, profile, profileNote, provider, verifier, formatProvider, state };
 }
 
 /**
@@ -493,6 +518,8 @@ export function localScopeInput(p: {
   from?: string;
   maxDepth?: number;
   paths: string[];
+  /** False when the caller never routes files to `format_model` (`ask`): the range's commits are not read. */
+  format?: boolean;
   log: (line: string) => void;
   warn: (line: string) => void;
   /** The refs `openLocalSession` already resolved for these same flags (its `resolved.refs`), so they are not resolved twice. */
@@ -519,6 +546,7 @@ export function localScopeInput(p: {
     from: p.from,
     maxDepth,
     paths: p.paths,
+    format: p.format,
     log: p.log,
     warn: p.warn,
     refs: p.refs,
@@ -556,7 +584,10 @@ export function sizeWarning(estimate: ReviewEstimate, budgetUsd: number, model: 
     roomUsd < budgetUsd
       ? `above the $${roomUsd.toFixed(2)} the batches get out of this run's budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD), once the verifier and memory reserves are taken`
       : `above this run's budget, $${budgetUsd.toFixed(2)} (WACHIMAN_BUDGET_USD)`;
-  return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}), ${above}. Local runs are never refused; this one continues and stops at that budget, so the review may be partial. Raise WACHIMAN_BUDGET_USD to cover the estimate, or review less.`;
+  const format = estimate.format
+    ? ` plus ${estimate.format.batches} batches × ${usd3(estimate.format.perBatchUsd)} for ${estimate.format.model} on the ${estimate.format.files} files changed only by commits in ${IGNORE_REVS_PATH}`
+    : "";
+  return `warning: reviewing all of this would cost about $${estimate.usd.toFixed(2)} at API prices (${estimate.batches} batches × $${estimate.perBatchUsd.toFixed(2)} for ${model}${format}), ${above}. Local runs are never refused; this one continues and stops at that budget, so the review may be partial. Raise WACHIMAN_BUDGET_USD to cover the estimate, or review less.`;
 }
 
 export async function runLocal(
@@ -597,7 +628,7 @@ export async function runLocal(
     );
   }
   const resolved: ResolvedRefs = {};
-  const { config, profile, profileNote, provider, verifier, state } = openLocalSession({
+  const { config, profile, profileNote, provider, verifier, formatProvider, state } = openLocalSession({
     profile: args.profile,
     verify: args.verify,
     repoDir,
@@ -663,16 +694,15 @@ export async function runLocal(
       io.stderr(`head: ${short(head)}`);
     }
     const { kept, dropped } = filterFiles(input.files, [...DEFAULT_EXCLUDE, ...config.exclude], input.scope);
-    const batches = planBatches(
-      kept,
-      {
-        maxLines: config.batchLines,
-        maxChars: config.batchChars,
-      },
-      input.pathRules,
-    );
+    const planLimits = { maxLines: config.batchLines, maxChars: config.batchChars };
+    // The same split `reviewChange` makes (ADR 0063): the files only listed formatting commits touched
+    // are planned apart, so the count below is the number of batches the run will report.
+    const formatNames = formatProvider ? formatGroupNames(input.formatOnly ?? [], kept, input.pathRules) : new Set<string>();
+    const formatKept = kept.filter((f) => formatNames.has(f.filename));
+    const mainBatches = planBatches(formatKept.length > 0 ? kept.filter((f) => !formatNames.has(f.filename)) : kept, planLimits, input.pathRules).length;
+    const formatBatches = formatKept.length > 0 ? planBatches(formatKept, planLimits, input.pathRules).length : 0;
     io.stderr(`files: ${kept.length} (${dropped.length} excluded)`);
-    io.stderr(`batches: ${batches.length}`);
+    io.stderr(formatBatches > 0 ? `batches: ${mainBatches + formatBatches} (${mainBatches} main, ${formatBatches} with ${config.formatModel})` : `batches: ${mainBatches}`);
     io.stderr(
       config.verify
         ? `verify: on (${config.verifierModel}, reserve $${Math.min(config.verifyBudgetUsd, config.budgetUsd / 2).toFixed(2)})`
@@ -721,7 +751,7 @@ export async function runLocal(
         reviewable.map((f) => f.filename),
       ),
     );
-    const warning = sizeWarning(estimateFor(kept, config, input.pathRules), config.budgetUsd, config.model, room);
+    const warning = sizeWarning(estimateFor(kept, config, input.pathRules, formatProvider ? input.formatOnly : undefined), config.budgetUsd, config.model, room);
     if (warning) io.stderr(warning);
     const result = await reviewChange(
       input,
@@ -733,6 +763,7 @@ export async function runLocal(
       {
         provider,
         ...(verifier ? { verifier } : {}),
+        ...(formatProvider ? { formatProvider } : {}),
         // The verifier reads the code before the change too; made once, only when there is something to check.
         ...(verifier
           ? {

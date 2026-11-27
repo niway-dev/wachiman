@@ -72,6 +72,7 @@ batches by a per-batch figure for the model:
 | Sonnet 5.5, high effort | $0.32 | 42 batch calls | $0.20 to $0.58 |
 | Opus 5.5, high effort | $0.50 | 66 batch rows | medians $0.495 and $0.505 |
 | Haiku 5.5, high effort | $0.28 | 21 calls | median $0.29 |
+| Haiku 5.5, low effort (`format_model`) | $0.015 | 15 batches, 17 calls | $0.010 to $0.016 a call |
 | Any other model | `batch_budget_usd` | none | the worst case a call may cost |
 
 The figure is never above `batch_budget_usd`. No model is called: the estimate is a function of the
@@ -87,10 +88,28 @@ Where the figures come from (all in the `wachiman-benchmarks` repository):
 - Haiku: the logs of `2026-11-06-local-haiku-vs-opus`. All run on a subscription: API-equivalent
   estimates, not bills.
 
+- Haiku at low effort: the files of pull request 287 of this repository that only the formatter
+  commit touched, read with `wachiman local` on a subscription (`claude-haiku-5-5`, effort `low`,
+  1,000-line batches). A first sample of 3 batches (56 files) cost $0.0387; all 15 batches (282
+  files) cost $0.2253 over 17 calls, because two batches were retried: $0.0150 a batch with its
+  retries, about 20 times below Sonnet's figure. API-equivalent estimates, not bills. A model with no
+  low-effort figure is priced at its high-effort one, never lower.
+
 The sample is small and comes from a handful of repositories. A codebase unlike them, a lower effort,
 retries and the opt-in verifier all move the real cost. **Expect the estimate to be off by about 40%
 either way.** It is a gate, not a quote. The verifier, the PR Confidence claims call and thread
 replies are not in the estimate; they are small and have their own budgets.
+
+### Files changed only by formatting commits
+
+When files are routed to `format_model` ([ADR 0063](adr/0063-files-changed-only-by-commits-in-git-blame-ignore-revs-are-reviewed-by-a-cheaper-model.md)), the engine plans and prices the
+two groups apart: the main files at the figure of `model`, and the routed files at the low-effort
+figure of `format_model`. The estimate is the sum, so the room gate compares the same number it
+always did. The size-gate comment shows both groups, for example `10 batches × $0.32 a batch for
+claude-sonnet-5-5 (10 files, 10,000 changed lines), plus 20 batches × $0.015 a batch for
+claude-haiku-5-5 at low effort (20 files, 20,000 changed lines, changed only by commits in
+.git-blame-ignore-revs)` (an illustrative example). How files are routed:
+[configuration.md](configuration.md#files-changed-only-by-formatting-commits).
 
 ### The room
 
@@ -196,6 +215,8 @@ carries on, stopping at that budget. For example (the estimate this code compute
 ```text
 warning: reviewing all of this would cost about $20.80 at API prices (65 batches × $0.32 for claude-sonnet-5-5), above this run's budget, $3.00 (WACHIMAN_BUDGET_USD). Local runs are never refused; this one continues and stops at that budget, so the review may be partial. Raise WACHIMAN_BUDGET_USD to cover the estimate, or review less.
 ```
+
+When some files are routed to `format_model`, the same warning adds the second group, for example `(10 batches × $0.32 for claude-sonnet-5-5 plus 20 batches × $0.015 for claude-haiku-5-5 on the 20 files changed only by commits in .git-blame-ignore-revs)` (illustrative).
 
 The money caps of a local run are `budget_usd` for the run (`WACHIMAN_BUDGET_USD`, default $3) and
 `batch_budget_usd` for each call, passed to Claude Code as `--max-budget-usd` (a soft cap, like in

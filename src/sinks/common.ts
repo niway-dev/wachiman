@@ -193,6 +193,18 @@ export function policyNote(result: ReviewResult) {
   return `Review policy changed: this change edits the path rules in .wachiman.yml. The review ran under the rules at the commit ${sha7(result.instructionChanges.baseSha)} they were read at.`;
 }
 
+/** How many names the format note lists. */
+const MAX_FORMAT_NOTE_FILES = 30;
+
+/** The note on the files `format_model` read because only listed formatting commits touched them (ADR 0063), or null. */
+export function formatNote(result: ReviewResult) {
+  const f = result.formatReview;
+  if (!f || f.files.length === 0) return null;
+  const names = f.files.slice(0, MAX_FORMAT_NOTE_FILES).map((n) => neutralise(n));
+  const more = f.files.length - names.length;
+  return `${f.files.length} ${f.files.length === 1 ? "file" : "files"} reviewed by ${neutralise(f.model)} at effort ${neutralise(f.effort)}, changed only by commits in .git-blame-ignore-revs: ${names.join(", ")}${more > 0 ? ` and ${more} more` : ""}.`;
+}
+
 /** A manifest name or a reference as one line a reader or an agent reads: no control character, no backtick, no HTML comment. */
 export const manifestText = (text: string) => neutralise(plainText(text));
 

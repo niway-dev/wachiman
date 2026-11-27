@@ -76,6 +76,7 @@ function coreDeps(provider: FakeProvider) {
     sleep: () => {},
     rateLimitBackoffMs: 0,
     git: undefined,
+    formatProvider: undefined,
     now: undefined,
     costs: undefined,
     engineVersion: undefined,

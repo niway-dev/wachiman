@@ -507,6 +507,17 @@
       "description": "True when the change edits the path rules in `.wachiman.yml`; the review ran under the rules at change.base.sha. Optional; absent otherwise.",
       "const": true
     },
+    "formatReview": {
+      "description": "The files read by `format_model` because only commits listed in `.git-blame-ignore-revs` touched them, with the model and effort used. Optional; absent when no file was read that way.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["model", "effort", "files"],
+      "properties": {
+        "model": { "type": "string" },
+        "effort": { "type": "string" },
+        "files": { "type": "array", "items": { "type": "string" } }
+      }
+    },
     "siblings": {
       "type": "array",
       "items": {

@@ -140,6 +140,10 @@ on:
         description: Model the verifier uses; it always runs at effort high
         type: string
         default: claude-opus-5-5
+      format_model:
+        description: Model for files that only commits listed in .git-blame-ignore-revs touched; it always runs at effort low. Without that file in the repository no file is routed to it. Empty means the provider's default (claude-haiku-5-5 with claude-code, none with codex)
+        type: string
+        default: ''
       max_turns:
         description: Most agent turns one call may take (Claude Code --max-turns); a call that reaches it is reported, and its files are retried once
         type: number
@@ -421,6 +425,7 @@ jobs:
           WACHIMAN_VERIFY: ${{ inputs.verify }}
           WACHIMAN_VERIFY_BUDGET_USD: ${{ inputs.verify_budget_usd }}
           WACHIMAN_VERIFIER_MODEL: ${{ inputs.verifier_model }}
+          WACHIMAN_FORMAT_MODEL: ${{ inputs.format_model }}
           WACHIMAN_MAX_TURNS: ${{ inputs.max_turns }}
           WACHIMAN_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
           WACHIMAN_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}
@@ -703,6 +708,7 @@ jobs:
           WACHIMAN_VERIFY: ${{ inputs.verify }}
           WACHIMAN_VERIFY_BUDGET_USD: ${{ inputs.verify_budget_usd }}
           WACHIMAN_VERIFIER_MODEL: ${{ inputs.verifier_model }}
+          WACHIMAN_FORMAT_MODEL: ${{ inputs.format_model }}
           WACHIMAN_MAX_TURNS: ${{ inputs.max_turns }}
           WACHIMAN_CALL_TIMEOUT_S: ${{ inputs.call_timeout_s }}
           WACHIMAN_ON_PROVIDER_UNAVAILABLE: ${{ inputs.on_provider_unavailable }}

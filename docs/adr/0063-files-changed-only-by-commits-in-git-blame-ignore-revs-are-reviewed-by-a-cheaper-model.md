@@ -1,6 +1,6 @@
 # ADR 0063: Files changed only by commits in `.git-blame-ignore-revs` are reviewed by a cheaper model
 
-- **Status:** proposed 2026-11-21. Builds on
+- **Status:** accepted and implemented 2026-11-21. Builds on
   [ADR 0062](0062-a-review-the-run-cannot-pay-for-in-full-is-skipped-and-the-operator-approves-a-budget-for-one-head.md)
   (the room is the gate) and [ADR 0037](0037-a-pull-request-above-the-size-gate-is-not-reviewed.md)
   decision 1 (the estimate). Design: [budget gate spec](../specs/2026-11-21-budget-gate-design.md).
@@ -25,6 +25,10 @@ files were touched by the formatter commit and by no other commit of the pull re
    are full or abbreviated commit hashes; `#` starts a comment. No commit-title convention is read.
 2. **A file goes to the cheaper model only when every commit of the range that touches it is
    listed.** A file also changed by an unlisted commit is reviewed as today, with its whole diff.
+   A file that a `paths` rule of `.wachiman.yml` matches stays with the main model and in the first
+   batches: the maintainer named that path, and the head's listing cannot lower its review. So do the files that steer the review or the CI:
+   anything under `.github/`, `CLAUDE.md`, `AGENTS.md`, `.wachiman.yml`, `.gitattributes` and
+   `.git-blame-ignore-revs` itself (the file names match in any directory), even when only listed commits touch them.
    Nothing is dropped: every file is read by a model.
 3. **The cheaper model is an input.** `format_model` (default Haiku, effort low) reviews those files
    in their own batches, planned apart from the rest. The review lists them under their own line
@@ -45,10 +49,11 @@ files were touched by the formatter commit and by no other commit of the pull re
 
 - The author of a pull request decides which of its files get the cheaper model, by listing a
   commit. It lowers the review depth of those files, never removes them from the review.
-- The saving is not measured yet: the per-batch figures of ADR 0037 put Haiku at $0.28 and Sonnet
-  at $0.32, both at high effort. Layer 4 of the spec measures Haiku at low effort on pull request
-  287 and records the figure in `src/estimate.ts` before the estimate uses it.
-- `format_model` is a new reusable-workflow input.
+- The saving is measured: Haiku at effort low read the 282 formatter-only files of pull request 287
+  in 15 batches for $0.2253 over 17 calls (two batches were retried), $0.015 a batch, about 20 times
+  below the $0.32 of Sonnet at high effort. That figure is recorded in `src/estimate.ts` and
+  `docs/costs.md`, and the estimate prices the format group with it.
+- `format_model` is a reusable-workflow input (default `claude-haiku-5-5`); an empty value is the default.
 
 ## Non-goals
 

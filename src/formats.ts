@@ -80,6 +80,12 @@ export interface ReviewInput {
    */
   pathPolicyChanged?: true;
   /**
+   * The paths of `files` whose every commit in the range is listed in `.git-blame-ignore-revs`
+   * (ADR 0063), found by the connector. The core reviews them in batches of their own with
+   * `format_model`. Absent when none is, or when the connector looked and found nothing to route.
+   */
+  formatOnly?: string[];
+  /**
    * `review.comments_point_to_docs` is on in `.wachiman.yml` at `change.base.sha`, never the
    * head (ADR 0064): the review also reports added comments that are not a pointer to a document
    * or a tool directive. Set by the connector; absent when the setting is off or unset.
@@ -297,6 +303,12 @@ export interface ReviewResultV2 extends Partial<DistributedResultFields> {
   /** The change edits the path rules; the review ran under the base's. Only `/2` has it: `toResultV1` leaves it out. */
   pathPolicyChanged?: true;
   /**
+   * The files the cheaper `format_model` read because only commits listed in `.git-blame-ignore-revs`
+   * changed them (ADR 0063), with the model and its effort. Absent when no file went that way. Only `/2`
+   * has it: `toResultV1` leaves it out.
+   */
+  formatReview?: { model: string; effort: string; files: string[] };
+  /**
    * The repository's memory this review loaded (ADR 0056): the base commit it was read at, the files
    * loaded, what was left out and whether it was over budget. Absent when the repository has none.
    * Only `/2` has it: `toResultV1` leaves it out.
@@ -388,6 +400,7 @@ export function toResultV1(result: ReviewResultV2): ReviewResultV1 {
     riskMap: _riskMap,
     fidelity: _fidelity,
     pathPolicyChanged: _pathPolicyChanged,
+    formatReview: _formatReview,
     arm: _arm,
     memory: _memory,
     muted: _muted,

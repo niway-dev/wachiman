@@ -159,6 +159,7 @@ export async function runAsk(
   const { config, provider, state } = openLocalSession({
     profile: args.profile,
     verify: false,
+    format: false,
     repoDir,
     env,
     stderr: io.stderr,
@@ -184,6 +185,7 @@ export async function runAsk(
       from: args.from,
       maxDepth: args.maxDepth,
       paths: args.paths,
+      format: false,
       log: io.stderr,
       warn: io.stderr,
       refs: resolved.refs,
