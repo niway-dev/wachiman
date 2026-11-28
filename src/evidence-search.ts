@@ -75,8 +75,15 @@ export const SEARCH_WALL_CLOCK_MS = 60_000;
  * Most characters of matching lines (file names and text) the search keeps. The head is untrusted
  * and a pull request can add a large file of lines that all match; past this the search is
  * abandoned and the review uses `git grep`, which bounds each name at 8 MB.
+ *
+ * Sized from a real case: t3code #40132 (1,010 files, 475 names) keeps 148.6 million characters in
+ * 1.23 million lines, about 810 MB of memory for the whole process. A ceiling below that sends the very
+ * pull requests ripgrep exists for back to `git grep` (15 minutes instead of 40 s). 512 million
+ * characters leaves more than three times that headroom. Extrapolating that one run gives about 3 GB at
+ * the ceiling; it is not measured, and text outside Latin-1 costs more per character. The count covers
+ * kept rows only: memory held by rows the search drops is not counted.
  */
-export const MAX_RETAINED_CHARS = 128 * 1024 * 1024;
+export const MAX_RETAINED_CHARS = 512 * 1024 * 1024;
 
 /** The arguments of the one `rg` call, patterns read from `patternFile` so the command line stays short. */
 export const ripgrepArgs = (patternFile: string): string[] => [
