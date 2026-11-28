@@ -79,7 +79,9 @@ export const SEARCH_WALL_CLOCK_MS = 60_000;
  * Sized from a real case: t3code #40132 (1,010 files, 475 names) keeps 148.6 million characters in
  * 1.23 million lines, about 810 MB of memory for the whole process. A ceiling below that sends the very
  * pull requests ripgrep exists for back to `git grep` (15 minutes instead of 40 s). 512 million
- * characters leaves more than three times that headroom and stays near 3 GB.
+ * characters leaves more than three times that headroom. Extrapolating that one run gives about 3 GB at
+ * the ceiling; it is not measured, and text outside Latin-1 costs more per character. The count covers
+ * kept rows only: memory held by rows the search drops is not counted.
  */
 export const MAX_RETAINED_CHARS = 512 * 1024 * 1024;
 
